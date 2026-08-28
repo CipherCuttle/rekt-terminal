@@ -6,6 +6,8 @@ import {
   ColorType,
   type IChartApi,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
+  type Time,
   type UTCTimestamp,
 } from 'lightweight-charts';
 import type { Bar } from '../types/api';
@@ -14,7 +16,7 @@ export class MarketChart {
   chart: IChartApi;
   candle: ISeriesApi<'Candlestick'>;
   volume: ISeriesApi<'Histogram'>;
-  markers: ReturnType<typeof createSeriesMarkers>;
+  markers: ISeriesMarkersPluginApi<Time>;
   last: Bar | null = null;
 
   constructor(el: HTMLElement) {
