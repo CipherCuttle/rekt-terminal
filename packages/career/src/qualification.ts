@@ -4,8 +4,7 @@ export const SCALE_CONTROL_TRADE_TARGET = 3;
 export const SCALE_CONTROL_LOSS_LIMIT_BPS = 1_000;
 
 export function evaluateScaleControl(stats: CareerStats): boolean {
-  return stats.closedSpotTrades >= SCALE_CONTROL_TRADE_TARGET
-    && stats.maxClosedLossBps <= SCALE_CONTROL_LOSS_LIMIT_BPS
+  return stats.qualifyingScaleTrades >= SCALE_CONTROL_TRADE_TARGET
     && stats.lastClosedTradeAccountPositive;
 }
 
@@ -25,7 +24,9 @@ export function createInitialQualification(): QualificationState {
 export function updateQualification(stats: CareerStats, previous: QualificationState): QualificationState {
   const scaleControl: ScaleControlQualification = {
     ...previous.scaleControl,
-    closedSpotTrades: stats.closedSpotTrades,
+    // Keep the historical field name for save compatibility; this is now
+    // explicitly the user-facing controlled-trade progress.
+    closedSpotTrades: stats.qualifyingScaleTrades,
     maxClosedLossBps: stats.maxClosedLossBps,
     positiveAccountEquity: stats.lastClosedTradeAccountPositive,
     qualified: previous.scaleControl.qualified || evaluateScaleControl(stats),

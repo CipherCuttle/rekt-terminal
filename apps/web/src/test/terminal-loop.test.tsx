@@ -195,7 +195,7 @@ describe('MVP terminal loop', () => {
     expect(within(review).getByText('AVG EXIT')).toBeInTheDocument();
     expect(within(review).getByText('FEES PAID')).toBeInTheDocument();
     expect(within(review).getByText(/COUNTED TOWARD SCALE_CONTROL/)).toBeInTheDocument();
-    expect(within(review).getByText(/CLOSED SPOT TRADES/)).toBeInTheDocument();
+    expect(within(review).getByText(/CONTROLLED SPOT TRADES/)).toBeInTheDocument();
     expect(within(review).getByText(/profitable trade is not by itself evidence of skill/)).toBeInTheDocument();
 
     const summary = runtime.session.getSnapshot().sim.tradeSummaries[0];

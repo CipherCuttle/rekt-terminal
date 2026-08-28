@@ -8,18 +8,9 @@ export function getNextObjective(state: Pick<CareerState, 'unlockedSkills' | 'qu
       return {
         id: 'scale-control-close-trades',
         kind: 'CLOSE_SPOT',
-        text: `NEXT // Close ${remaining} more spot ${remaining === 1 ? 'position' : 'positions'}.`,
+        text: `NEXT // Complete ${remaining} more controlled spot ${remaining === 1 ? 'trade' : 'trades'}.`,
         progress: qualification.closedSpotTrades,
         target: qualification.targetClosedSpotTrades,
-      };
-    }
-    if (qualification.maxClosedLossBps > qualification.lossLimitBps) {
-      return {
-        id: 'scale-control-protect-equity',
-        kind: 'PROTECT_EQUITY',
-        text: 'NEXT // Keep one closed loss within 10% of account equity.',
-        progress: qualification.lossLimitBps,
-        target: qualification.maxClosedLossBps,
       };
     }
     if (!qualification.positiveAccountEquity) {

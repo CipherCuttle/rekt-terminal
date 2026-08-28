@@ -80,8 +80,8 @@ export function TradeReviewCard({ review, symbol, onDismiss }: { review: TradeRe
             </p>
           )}
           <dl className="review-grid">
-            <Row label="CLOSED SPOT TRADES" value={`${qualification.closedSpotTrades} / ${qualification.targetClosedSpotTrades}`} />
-            <Row label="QUALIFYING TRADES" value={String(review.careerAfter.stats.qualifyingScaleTrades)} />
+            <Row label="CONTROLLED SPOT TRADES" value={`${qualification.closedSpotTrades} / ${qualification.targetClosedSpotTrades}`} />
+            <Row label="TOTAL CLOSED TRADES" value={String(review.careerAfter.stats.closedSpotTrades)} />
             <Row label="WORST CLOSED LOSS" value={formatBpsPercent(BigInt(qualification.maxClosedLossBps))} />
             <Row label="PARTIAL EXIT USED" value={summary.partialExitUsed ? 'YES' : 'NO'} />
           </dl>
