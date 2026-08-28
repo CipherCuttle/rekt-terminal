@@ -4,13 +4,37 @@ import {
   HistogramSeries,
   createSeriesMarkers,
   ColorType,
+  LineStyle,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
+  type SeriesMarker,
   type Time,
   type UTCTimestamp,
 } from 'lightweight-charts';
 import type { Bar } from '../types/api';
+
+/**
+ * A chart marker for one executed simulator fill.
+ *
+ * Every field originates from the recorded `SpotFill`. Nothing here is derived
+ * from pointer position, animation timing, or when React happened to render.
+ */
+export interface ChartFillStamp {
+  /** Fill identity; also the marker id, so re-applying is idempotent. */
+  id: string;
+  side: 'BUY' | 'SELL';
+  /** Bar the fill belongs to, in seconds. */
+  timeSeconds: number;
+  /** The exact fill price, used for Y-axis placement. */
+  price: number;
+  /** Pre-formatted label, e.g. "BUY 0.025137". */
+  label: string;
+}
+
+const BUY_COLOR = '#8BFF58';
+const SELL_COLOR = '#FF2E6C';
 
 export class MarketChart {
   chart: IChartApi;
@@ -18,6 +42,7 @@ export class MarketChart {
   volume: ISeriesApi<'Histogram'>;
   markers: ISeriesMarkersPluginApi<Time>;
   last: Bar | null = null;
+  private entryLine: IPriceLine | null = null;
 
   constructor(el: HTMLElement) {
     this.chart = createChart(el, {
@@ -34,7 +59,10 @@ export class MarketChart {
         horzLines: { color: 'rgba(122,92,255,.07)' },
       },
       rightPriceScale: { borderColor: '#262243' },
-      timeScale: { borderColor: '#262243', timeVisible: true, secondsVisible: false, rightOffset: 5, barSpacing: 7 },
+      // rightOffset leaves room for fill stamps: executions land on the newest
+      // bar, and with a tight offset the marker label collides with the price
+      // scale and the signature interaction becomes unreadable.
+      timeScale: { borderColor: '#262243', timeVisible: true, secondsVisible: false, rightOffset: 16, barSpacing: 7 },
       crosshair: {
         vertLine: { color: 'rgba(58,255,110,.4)', labelBackgroundColor: '#1A1730' },
         horzLine: { color: 'rgba(58,255,110,.4)', labelBackgroundColor: '#1A1730' },
@@ -67,7 +95,6 @@ export class MarketChart {
       })),
     );
     this.chart.timeScale().fitContent();
-    this.markers.setMarkers([]);
   }
 
   update(price: number, side: number, volume: number, timeSeconds: number) {
@@ -99,20 +126,51 @@ export class MarketChart {
     });
   }
 
-  sweep(side: number) {
-    if (!this.last) return;
-    this.markers.setMarkers([
-      {
-        time: this.last.time as UTCTimestamp,
-        position: side > 0 ? 'belowBar' : 'aboveBar',
-        color: side > 0 ? '#3AFF6E' : '#FF2E88',
-        shape: side > 0 ? 'arrowUp' : 'arrowDown',
-        text: 'SWEEP',
-      },
-    ]);
+  /**
+   * Stamp executed fills onto the chart.
+   *
+   * Markers are anchored with `atPriceMiddle` so the glyph sits on the price the
+   * simulator actually filled at, not merely above or below the candle. This is
+   * the whole point of the interaction: a BUY reads as an executed economic
+   * event at a specific price and time.
+   *
+   * Markers are reserved for simulator events. Market noise such as sweeps stays
+   * in the tape so this layer keeps one unambiguous meaning, and it extends
+   * cleanly to STOP and LIQUIDATION later.
+   */
+  setFillStamps(stamps: readonly ChartFillStamp[]) {
+    const markers: SeriesMarker<Time>[] = stamps.map((stamp) => ({
+      id: stamp.id,
+      time: stamp.timeSeconds as UTCTimestamp,
+      position: 'atPriceMiddle',
+      price: stamp.price,
+      shape: stamp.side === 'BUY' ? 'arrowUp' : 'arrowDown',
+      color: stamp.side === 'BUY' ? BUY_COLOR : SELL_COLOR,
+      text: stamp.label,
+      size: 1,
+    }));
+    this.markers.setMarkers(markers);
+  }
+
+  /** Horizontal reference for the open position's average entry. */
+  setEntryLine(price: number | null, title: string) {
+    if (this.entryLine) {
+      this.candle.removePriceLine(this.entryLine);
+      this.entryLine = null;
+    }
+    if (price === null || !Number.isFinite(price) || price <= 0) return;
+    this.entryLine = this.candle.createPriceLine({
+      price,
+      color: '#A884FF',
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: true,
+      title,
+    });
   }
 
   destroy() {
+    this.entryLine = null;
     this.chart.remove();
   }
 }
