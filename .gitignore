@@ -6,3 +6,6 @@ dist/
 playwright-report/
 test-results/
 .DS_Store
+
+# browser-automation artifacts
+.playwright-mcp/

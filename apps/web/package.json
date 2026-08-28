@@ -6,20 +6,27 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
-    "test": "vitest run"
+    "test": "vitest run",
+    "pretest": "tsc -p ../../packages/sim/tsconfig.json && tsc -p ../../packages/career/tsconfig.json",
+    "predev": "tsc -p ../../packages/sim/tsconfig.json && tsc -p ../../packages/career/tsconfig.json"
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "5.3.0",
     "@fontsource/plus-jakarta-sans": "5.3.0",
     "@fontsource/press-start-2p": "5.3.0",
+    "dexie": "^4.4.5",
     "lightweight-charts": "5.2.1",
     "react": "19.1.1",
     "react-dom": "19.1.1"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
     "@types/react": "19.1.0",
     "@types/react-dom": "19.1.0",
     "@vitejs/plugin-react": "4.7.0",
+    "fake-indexeddb": "^6.0.0",
+    "jsdom": "^26.0.0",
     "typescript": "5.8.3",
     "vite": "7.0.0",
     "vitest": "3.2.0"
