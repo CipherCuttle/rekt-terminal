@@ -2,6 +2,8 @@ import type { CareerStats, QualificationState, ScaleControlQualification } from 
 
 export const SCALE_CONTROL_TRADE_TARGET = 3;
 export const SCALE_CONTROL_LOSS_LIMIT_BPS = 1_000;
+export const STOP_LOSS_TRADE_TARGET = 5;
+export const STOP_LOSS_EQUITY_FLOOR_WEI = 350_000_000_000_000_000n;
 
 export function evaluateScaleControl(stats: CareerStats): boolean {
   return stats.qualifyingScaleTrades >= SCALE_CONTROL_TRADE_TARGET
@@ -18,6 +20,14 @@ export function createInitialQualification(): QualificationState {
       positiveAccountEquity: true,
       qualified: false,
     },
+    stopLoss: {
+      totalClosedSpotTrades: 0,
+      targetClosedSpotTrades: 5,
+      manualLossCuts: 0,
+      protectCapitalChallenges: 0,
+      accountEquityAtLeast70Percent: true,
+      qualified: false,
+    },
   };
 }
 
@@ -32,4 +42,11 @@ export function updateQualification(stats: CareerStats, previous: QualificationS
     qualified: previous.scaleControl.qualified || evaluateScaleControl(stats),
   };
   return { ...previous, scaleControl };
+}
+
+export function evaluateStopLoss(state: { unlockedSkills: readonly string[]; stats: CareerStats }): boolean {
+  return state.unlockedSkills.includes('SCALE_CONTROL')
+    && state.stats.closedSpotTrades >= STOP_LOSS_TRADE_TARGET
+    && state.stats.accountEquityAtLeast70Percent
+    && state.stats.manualLossCuts + state.stats.protectCapitalChallenges >= 1;
 }

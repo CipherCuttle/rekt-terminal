@@ -24,6 +24,10 @@ export interface CareerStats {
   qualifyingScaleTrades: number;
   maxClosedLossBps: number;
   lastClosedTradeAccountPositive: boolean;
+  manualLossCuts: number;
+  protectCapitalChallenges: number;
+  stopUses: number;
+  accountEquityAtLeast70Percent: boolean;
 }
 
 export interface ScaleControlQualification {
@@ -37,9 +41,17 @@ export interface ScaleControlQualification {
 
 export interface QualificationState {
   scaleControl: ScaleControlQualification;
+  stopLoss: {
+    totalClosedSpotTrades: number;
+    targetClosedSpotTrades: 5;
+    manualLossCuts: number;
+    protectCapitalChallenges: number;
+    accountEquityAtLeast70Percent: boolean;
+    qualified: boolean;
+  };
 }
 
-export type ObjectiveKind = 'CLOSE_SPOT' | 'PROTECT_EQUITY' | 'SCALE_CONTROL_UNLOCKED';
+export type ObjectiveKind = 'CLOSE_SPOT' | 'PROTECT_EQUITY' | 'SCALE_CONTROL_UNLOCKED' | 'STOP_LOSS_UNLOCKED';
 
 export interface ObjectiveState {
   id: string;
@@ -79,6 +91,9 @@ export interface CareerTradeSummaryFact {
   realizedPnlWei: bigint;
   accountEquityAtCloseWei: bigint;
   lossBpsOfThenCurrentEquity: bigint;
+  accountEquityAtOpenWei: bigint;
+  exitReason: 'MANUAL' | 'STOP' | 'PROTECT_CAPITAL';
+  stopUsed: boolean;
   partialExitUsed: boolean;
   liquidated: false;
 }

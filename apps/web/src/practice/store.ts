@@ -20,6 +20,8 @@ import {
   createInitialSimState,
   createSessionOpenedEvent,
   executeSpotAction,
+  executeProtectCapitalChallenge,
+  placeSpotStop,
   markSpot,
   mulDiv,
   quantityAtoms,
@@ -50,7 +52,9 @@ export type PracticeIntent =
   | { kind: 'BUY_FIXED' }
   | { kind: 'SCALE_IN' }
   | { kind: 'SELL_ALL' }
-  | { kind: 'PARTIAL_CLOSE'; percent: number };
+  | { kind: 'PARTIAL_CLOSE'; percent: number }
+  | { kind: 'PLACE_STOP'; stopPriceX18: bigint }
+  | { kind: 'PROTECT_CAPITAL' };
 
 export type PracticeRejectionCode = PracticeBlockCode | 'CAPABILITY_LOCKED' | 'NO_MARKET_INPUT' | 'INSTRUMENT_LOCKED' | 'NO_OPEN_POSITION' | 'INVALID_QUANTITY' | 'SIMULATOR_REJECTED';
 
@@ -95,6 +99,8 @@ const CAPABILITY_FOR_INTENT: Record<PracticeIntent['kind'], CapabilityId> = {
   SELL_ALL: 'SPOT_SELL_ALL',
   SCALE_IN: 'SCALE_IN',
   PARTIAL_CLOSE: 'PARTIAL_EXIT',
+  PLACE_STOP: 'STOP_MARKET',
+  PROTECT_CAPITAL: 'SCALE_IN',
 };
 
 export interface PracticeStoreOptions {
@@ -277,6 +283,21 @@ export class PracticeSessionStore {
       return this.reject('INSTRUMENT_LOCKED', `An open position on ${position.instrumentId} must be closed before trading another instrument.`);
     }
 
+    if (intent.kind === 'PROTECT_CAPITAL') {
+      if (!this.snapshot.career.unlockedSkills.includes('SCALE_CONTROL')) return this.reject('CAPABILITY_LOCKED', 'SCALE_CONTROL is required for practice challenges.');
+      const result = executeProtectCapitalChallenge(sim, gate.observation, eventTimeMs, DEFAULT_SPOT_FILL_CONFIG);
+      if (!result.accepted) return this.reject('SIMULATOR_REJECTED', result.reason ?? 'The simulator refused this challenge.');
+      this.applyAccepted(intent, result.state, gate.observation.instrumentId);
+      return { accepted: true };
+    }
+    if (intent.kind === 'PLACE_STOP') {
+      const result = placeSpotStop(sim, { stopId: `${sim.sessionId}:stop:${sim.lastSequence + 1}`, stopPriceX18: intent.stopPriceX18, observation: gate.observation, eventTimeMs }, DEFAULT_SPOT_FILL_CONFIG);
+      if (!result.accepted) return this.reject('SIMULATOR_REJECTED', result.reason ?? 'The simulator refused this stop.');
+      let career = reduceCareer(this.snapshot.career, { type: 'STOP_PLACED', eventId: `${sim.sessionId}:stop:${sim.lastSequence + 1}:career`, sourceReceiptId: result.events[0].eventId });
+      this.commit({ sim: result.state, career, instrumentId: gate.observation.instrumentId, lastRejection: null });
+      return { accepted: true };
+    }
+
     const action = this.buildAction(intent, gate, eventTimeMs);
     if ('rejection' in action) return action.rejection;
 
@@ -309,6 +330,9 @@ export class PracticeSessionStore {
 
     if (intent.kind === 'BUY_FIXED') {
       return { action: { ...base, type: 'BUY', quoteNotionalWei: DEFAULT_FIRST_TICKET_WEI } };
+    }
+    if (intent.kind === 'PLACE_STOP' || intent.kind === 'PROTECT_CAPITAL') {
+      return { rejection: this.reject('SIMULATOR_REJECTED', 'This intent is handled by the session domain.') };
     }
     if (intent.kind === 'SCALE_IN') {
       return { action: { ...base, type: 'SCALE_IN', quoteNotionalWei: DEFAULT_FIRST_TICKET_WEI } };
@@ -360,10 +384,14 @@ export class PracticeSessionStore {
           realizedPnlWei: summary.realizedPnlWei,
           accountEquityAtCloseWei: summary.accountEquityAtCloseWei,
           lossBpsOfThenCurrentEquity: summary.lossBpsOfThenCurrentEquity,
+          accountEquityAtOpenWei: summary.accountEquityAtOpenWei,
+          exitReason: summary.exitReason,
+          stopUsed: summary.stopUsed,
           partialExitUsed: summary.partialExitUsed,
           liquidated: summary.liquidated,
         },
       });
+      if (summary.stopUsed) careerEvents.push({ type: 'STOP_HIT', eventId: `${nextSim.sessionId}:${summary.tradeId}:stop-hit`, sourceReceiptId: `${nextSim.sessionId}:${summary.tradeId}` });
     }
 
     const careerBefore = career;
@@ -413,14 +441,15 @@ export class PracticeSessionStore {
     if (gate.observation.instrumentId !== sim.position.instrumentId) return false;
     // An unchanged price revalues to the same equity. Skipping it keeps the
     // append-only log from growing once per second in a quiet market.
-    if (gate.observation.referencePriceX18 === sim.markPriceX18) return false;
+    if (gate.observation.referencePriceX18 === sim.markPriceX18 && !(sim.activeStop && gate.observation.referencePriceX18 <= sim.activeStop.stopPriceX18)) return false;
 
     const result = markSpot(sim, gate.observation, eventTimeMs, DEFAULT_SPOT_FILL_CONFIG);
     if (!result.accepted || result.state === sim) return false;
     // Marks are revaluations, not new commitments, so they do not trigger a
     // save; the next fill persists them along with itself. A reload mid-position
     // restores the same position and balance and re-marks within a second.
-    this.commit({ sim: result.state }, false);
+    if (result.state.tradeSummaries.length > sim.tradeSummaries.length) this.applyAccepted({ kind: 'SELL_ALL' }, result.state, gate.observation.instrumentId);
+    else this.commit({ sim: result.state }, false);
     return true;
   }
 

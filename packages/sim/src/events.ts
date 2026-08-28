@@ -1,4 +1,4 @@
-import type { AccountState, PositionState, SimState, SpotFill, TradeSummary, Wei } from './types.js';
+import type { AccountState, ActiveStop, PositionState, SimState, SpotFill, TradeSummary, Wei } from './types.js';
 
 export interface EventBase {
   eventId: string;
@@ -46,6 +46,27 @@ export interface TradeSummaryRecordedEvent extends EventBase {
   summary: TradeSummary;
 }
 
+export interface StopPlacedEvent extends EventBase {
+  type: 'STOP_PLACED';
+  stop: ActiveStop;
+}
+
+export interface StopReplacedEvent extends EventBase {
+  type: 'STOP_REPLACED';
+  previousStopId: string;
+  previousStopPriceX18: bigint;
+  widened: boolean;
+  stop: ActiveStop;
+}
+
+export interface StopTriggeredEvent extends EventBase {
+  type: 'STOP_TRIGGERED';
+  stopId: string;
+  cycleId: string;
+  observationId: string;
+  triggerPriceX18: bigint;
+}
+
 export type SimEvent =
   | SessionOpenedEvent
   | OrderIntentAcceptedEvent
@@ -53,7 +74,10 @@ export type SimEvent =
   | FillAppliedEvent
   | PositionEvent
   | AccountSnapshotEvent
-  | TradeSummaryRecordedEvent;
+  | TradeSummaryRecordedEvent
+  | StopPlacedEvent
+  | StopReplacedEvent
+  | StopTriggeredEvent;
 
 export function nextEventSequence(state: SimState): number {
   return state.lastSequence + 1;

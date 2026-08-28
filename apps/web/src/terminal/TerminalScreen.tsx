@@ -170,6 +170,8 @@ export function TerminalScreen(props: TerminalScreenProps) {
             career={career}
             blockedReason={blocked ? blockedReason : positionElsewhere ? 'An open position on another instrument must be closed first.' : null}
             onSubmit={onSubmit}
+            observation={gate?.status === 'SUPPORTED' ? gate.observation : null}
+            observationTimeMs={feed.atMs}
           />
 
           {rejection && (
@@ -206,6 +208,7 @@ function syncChartOverlays(chart: MarketChart, sim: SimState) {
   // Short title: the axis label sits next to the newest bar, where the fill
   // stamps also land, and a long one collides with them on narrow viewports.
   chart.setEntryLine(position ? Number(formatFixed(priceX18(position.averageEntryPriceX18), 18)) : null, position ? 'ENTRY' : '');
+  if (typeof chart.setStopLine === 'function') chart.setStopLine(sim.activeStop ? Number(formatFixed(priceX18(sim.activeStop.stopPriceX18), 18)) : null);
 }
 
 function TapePanel({ tape, showWalletTools, onWallet }: { tape: TapeBuffer; showWalletTools: boolean; onWallet: (address: string) => void }) {

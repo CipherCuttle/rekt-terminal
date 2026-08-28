@@ -6,11 +6,14 @@ import {
   SimError,
   DEFAULT_FIRST_TICKET_WEI,
   priceX18,
+  wei,
   type MarketObservation,
   type QuantityAtoms,
   type SimState,
   type SpotFillConfig,
   type Wei,
+  type ActiveStop,
+  type PriceX18,
 } from './types.js';
 
 export type SpotAction =
@@ -48,6 +51,9 @@ export type SpotAction =
       eventTimeMs: number;
       observation: MarketObservation;
       config?: SpotFillConfig;
+      exitReason?: 'MANUAL' | 'STOP' | 'PROTECT_CAPITAL';
+      stopPriceX18?: PriceX18;
+      stopTriggeredAtMs?: number;
     };
 
 export interface SpotActionResult {
@@ -55,6 +61,123 @@ export interface SpotActionResult {
   accepted: boolean;
   events: readonly SimEvent[];
   reason?: string;
+}
+
+export interface StopPlacementInput {
+  stopId: string;
+  stopPriceX18: bigint;
+  observation: MarketObservation;
+  eventTimeMs: number;
+}
+
+export interface StopActionResult {
+  state: SimState;
+  accepted: boolean;
+  events: readonly SimEvent[];
+  reason?: string;
+}
+
+function validObservation(observation: MarketObservation, eventTimeMs: number, config: SpotFillConfig): void {
+  if (!observation.observationId || !observation.instrumentId || !observation.sourceId) throw new SimError('MODEL_INPUT_UNAVAILABLE', 'market observation identity is required');
+  if (observation.provenance === 'STALE' || observation.provenance === 'UNAVAILABLE' || observation.provenance === 'SYNTHETIC') throw new SimError('MODEL_INPUT_UNAVAILABLE', 'stop requires confirmed or derived evidence');
+  if (observation.referencePriceX18 <= 0n) throw new SimError('INVALID_PRICE', 'market price must be positive');
+  if (!Number.isSafeInteger(eventTimeMs) || eventTimeMs < observation.observedAtMs || eventTimeMs - observation.observedAtMs > config.maxObservationAgeMs) throw new SimError('STALE_MARKET', 'market observation is outside the configured freshness window');
+}
+
+function rejectStop(state: SimState, stopId: string, eventTimeMs: number, reason: string): StopActionResult {
+  const event: SimEvent = {
+    type: 'ORDER_INTENT_REJECTED',
+    eventId: `${stopId}:rejected:${state.lastSequence + 1}`,
+    sequence: nextEventSequence(state),
+    sessionId: state.sessionId,
+    modelVersion: state.modelVersion,
+    eventTimeMs: Math.max(state.events.at(-1)?.eventTimeMs ?? state.startedAtMs, eventTimeMs),
+    intentId: stopId,
+    reason,
+  };
+  return { state: applySimEvent(state, event), accepted: false, events: [event], reason };
+}
+
+export function placeSpotStop(state: SimState, input: StopPlacementInput, config: SpotFillConfig = DEFAULT_SPOT_FILL_CONFIG): StopActionResult {
+  try {
+    if (!state.position) throw new SimError('NO_OPEN_POSITION', 'stop requires an open spot position');
+    validObservation(input.observation, input.eventTimeMs, config);
+    if (input.observation.instrumentId !== state.position.instrumentId || input.observation.quoteAsset.toUpperCase() !== state.position.quoteAsset.toUpperCase()) throw new SimError('INVALID_EVENT', 'stop belongs to another instrument');
+    if (!input.stopId || input.stopPriceX18 <= 0n || input.stopPriceX18 >= input.observation.referencePriceX18) throw new SimError('STOP_INVALID_SIDE', 'a long protective stop must be positive and below the current market price');
+    const stop: ActiveStop = {
+      stopId: input.stopId,
+      cycleId: state.position.cycleId,
+      instrumentId: state.position.instrumentId,
+      quoteAsset: state.position.quoteAsset,
+      stopPriceX18: priceX18(input.stopPriceX18),
+      placedAtMs: input.eventTimeMs,
+      placedObservationId: input.observation.observationId,
+      sourceId: input.observation.sourceId,
+    };
+    const replacing = state.activeStop;
+    const event: SimEvent = replacing
+      ? { type: 'STOP_REPLACED', eventId: `${input.stopId}:replaced`, sequence: nextEventSequence(state), sessionId: state.sessionId, modelVersion: state.modelVersion, eventTimeMs: input.eventTimeMs, previousStopId: replacing.stopId, previousStopPriceX18: replacing.stopPriceX18, widened: input.stopPriceX18 < replacing.stopPriceX18, stop }
+      : { type: 'STOP_PLACED', eventId: `${input.stopId}:placed`, sequence: nextEventSequence(state), sessionId: state.sessionId, modelVersion: state.modelVersion, eventTimeMs: input.eventTimeMs, stop };
+    return { state: applySimEvent(state, event), accepted: true, events: [event] };
+  } catch (error) {
+    const reason = error instanceof SimError ? `${error.code}:${error.message}` : String(error);
+    return rejectStop(state, input.stopId || 'stop', input.eventTimeMs, reason);
+  }
+}
+
+/** Estimate the result of a stop fill with the same SPOT_FILL_V0 sell model. */
+export function estimateStopLossWei(state: SimState, observation: MarketObservation, eventTimeMs: number, config: SpotFillConfig = DEFAULT_SPOT_FILL_CONFIG): Wei | null {
+  try {
+    const stop = state.activeStop;
+    const position = state.position;
+    if (!stop || !position || position.cycleId !== stop.cycleId) return null;
+    validObservation(observation, eventTimeMs, config);
+    if (observation.instrumentId !== position.instrumentId || observation.quoteAsset.toUpperCase() !== position.quoteAsset.toUpperCase()) return null;
+    const fill = createSpotFill({ fillId: `${stop.stopId}:estimate`, intentId: `${stop.stopId}:estimate`, side: 'SELL', observation, requestedQuoteWei: quoteForQuantity(position.openQuantityAtoms, observation.referencePriceX18, 'ceil'), requestedQuantityAtoms: position.openQuantityAtoms, executedAtMs: observation.observedAtMs, config });
+    return wei(fill.executedQuoteWei - position.costBasisWei - position.remainingEntryFeesWei - fill.feeQuoteWei);
+  } catch {
+    return null;
+  }
+}
+
+/** Deterministic practice receipt: buy one fixed ticket, then accept a 4% mark loss. */
+export function executeProtectCapitalChallenge(state: SimState, observation: MarketObservation, eventTimeMs: number, config: SpotFillConfig = DEFAULT_SPOT_FILL_CONFIG): SpotActionResult {
+  if (state.position) return rejectAction(state, { type: 'BUY', intentId: `${state.sessionId}:protect:buy`, fillId: `${state.sessionId}:protect:buy-fill`, eventTimeMs, observation, quoteNotionalWei: DEFAULT_FIRST_TICKET_WEI, config }, new SimError('POSITION_ALREADY_OPEN', 'protect-capital practice requires a flat session'));
+  const buy = executeSpotAction(state, { type: 'BUY', intentId: `${state.sessionId}:protect:buy`, fillId: `${state.sessionId}:protect:buy-fill`, eventTimeMs, observation, quoteNotionalWei: DEFAULT_FIRST_TICKET_WEI, config });
+  if (!buy.accepted) return buy;
+  const lossObservation: MarketObservation = { ...observation, observationId: `${observation.observationId}:protect-capital`, referencePriceX18: priceX18((observation.referencePriceX18 * 9_600n) / 10_000n), observedAtMs: eventTimeMs, sourceId: `${observation.sourceId}:protect-capital`, provenance: 'DERIVED' };
+  const close = executeSpotAction(buy.state, { type: 'FULL_CLOSE', intentId: `${state.sessionId}:protect:close`, fillId: `${state.sessionId}:protect:close-fill`, eventTimeMs, observation: lossObservation, config, exitReason: 'PROTECT_CAPITAL' });
+  return { state: close.state, accepted: close.accepted, events: [...buy.events, ...close.events], reason: close.reason };
+}
+
+function executeStopTrigger(state: SimState, observation: MarketObservation, eventTimeMs: number, config: SpotFillConfig): SpotActionResult {
+  const stop = state.activeStop;
+  if (!stop || !state.position || observation.referencePriceX18 > stop.stopPriceX18) return { state, accepted: false, events: [], reason: 'STOP_NOT_TRIGGERED' };
+  const trigger: SimEvent = {
+    type: 'STOP_TRIGGERED',
+    eventId: `${stop.stopId}:trigger:${observation.observationId}`,
+    sequence: nextEventSequence(state),
+    sessionId: state.sessionId,
+    modelVersion: state.modelVersion,
+    eventTimeMs,
+    stopId: stop.stopId,
+    cycleId: stop.cycleId,
+    observationId: observation.observationId,
+    triggerPriceX18: observation.referencePriceX18,
+  };
+  const triggered = applySimEvent(state, trigger);
+  const exit = executeSpotAction(triggered, {
+    type: 'FULL_CLOSE',
+    intentId: `${stop.stopId}:exit:${observation.observationId}`,
+    fillId: `${stop.stopId}:fill:${observation.observationId}`,
+    eventTimeMs,
+    observation,
+    config,
+    exitReason: 'STOP',
+    stopPriceX18: stop.stopPriceX18,
+    stopTriggeredAtMs: eventTimeMs,
+  });
+  return { state: exit.state, accepted: exit.accepted, events: [trigger, ...exit.events], reason: exit.reason };
 }
 
 function actionConfig(action: SpotAction): SpotFillConfig {
@@ -107,6 +230,11 @@ export function executeSpotAction(state: SimState, action: SpotAction): SpotActi
       executedAtMs: action.eventTimeMs,
       config,
     });
+    if (!isEntry && action.type === 'FULL_CLOSE' && action.exitReason) {
+      fill.exitReason = action.exitReason;
+      fill.stopPriceX18 = action.stopPriceX18;
+      fill.stopTriggeredAtMs = action.stopTriggeredAtMs;
+    }
     if (isEntry && fill.executedQuoteWei + fill.feeQuoteWei > state.account.freeEthWei) {
       throw new SimError('INSUFFICIENT_BALANCE', 'entry cost and fee exceed free ETH');
     }
@@ -181,11 +309,9 @@ export function executeSpotAction(state: SimState, action: SpotAction): SpotActi
 
 export function markSpot(state: SimState, observation: MarketObservation, eventTimeMs: number, config: SpotFillConfig = DEFAULT_SPOT_FILL_CONFIG): SpotActionResult {
   try {
-    if (!observation.observationId || !observation.instrumentId || !observation.sourceId) throw new SimError('MODEL_INPUT_UNAVAILABLE', 'market observation identity is required');
+    validObservation(observation, eventTimeMs, config);
     if (state.position && (state.position.instrumentId !== observation.instrumentId || state.position.quoteAsset !== observation.quoteAsset.toUpperCase())) throw new SimError('INVALID_EVENT', 'mark belongs to another spot instrument');
-    if (observation.provenance === 'STALE' || observation.provenance === 'UNAVAILABLE' || observation.provenance === 'SYNTHETIC') throw new SimError('MODEL_INPUT_UNAVAILABLE', 'mark requires confirmed or derived evidence');
-    if (observation.referencePriceX18 <= 0n) throw new SimError('INVALID_PRICE', 'mark price must be positive');
-    if (!Number.isSafeInteger(eventTimeMs) || eventTimeMs < observation.observedAtMs || eventTimeMs - observation.observedAtMs > config.maxObservationAgeMs) throw new SimError('STALE_MARKET', 'market mark is outside the configured freshness window');
+    if (state.activeStop && state.position && observation.referencePriceX18 <= state.activeStop.stopPriceX18) return executeStopTrigger(state, observation, eventTimeMs, config);
     const event: SimEvent = {
       type: 'ACCOUNT_SNAPSHOT',
       eventId: `${observation.observationId}:mark`,

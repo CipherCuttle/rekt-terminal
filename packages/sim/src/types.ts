@@ -78,6 +78,9 @@ export interface SpotFill {
   sourceId: string;
   provenance: 'DERIVED';
   modelVersion: string;
+  exitReason?: 'MANUAL' | 'STOP' | 'PROTECT_CAPITAL';
+  stopPriceX18?: PriceX18;
+  stopTriggeredAtMs?: number;
 }
 
 export interface EntryFill {
@@ -137,10 +140,24 @@ export interface TradeSummary {
   lossBpsOfThenCurrentEquity: Bps;
   maxDrawdownBpsAtClose: Bps;
   partialExitUsed: boolean;
+  exitReason: 'MANUAL' | 'STOP' | 'PROTECT_CAPITAL';
+  stopPriceX18: PriceX18 | null;
+  stopTriggeredAtMs: number | null;
   stopUsed: boolean;
   stopWidened: boolean;
   liquidated: false;
   modelVersions: readonly string[];
+}
+
+export interface ActiveStop {
+  stopId: string;
+  cycleId: string;
+  instrumentId: string;
+  quoteAsset: string;
+  stopPriceX18: PriceX18;
+  placedAtMs: number;
+  placedObservationId: string;
+  sourceId: string;
 }
 
 export interface SimState {
@@ -160,6 +177,7 @@ export interface SimState {
   cycleRealizedPnlWei: Wei;
   cycleAllocatedEntryFeesWei: Wei;
   cycleExitFeesWei: Wei;
+  activeStop: ActiveStop | null;
 }
 
 export type SimErrorCode =
@@ -177,7 +195,9 @@ export type SimErrorCode =
   | 'OUT_OF_ORDER_EVENT'
   | 'DUPLICATE_EVENT'
   | 'INVALID_EVENT'
-  | 'INVALID_TIME';
+  | 'INVALID_TIME'
+  | 'STOP_INVALID_SIDE'
+  | 'STOP_NOT_TRIGGERED';
 
 export class SimError extends Error {
   readonly code: SimErrorCode;
