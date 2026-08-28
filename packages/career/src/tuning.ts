@@ -1,0 +1,6 @@
+export {
+  SCALE_CONTROL_LOSS_LIMIT_BPS,
+  SCALE_CONTROL_TRADE_TARGET,
+} from './qualification.js';
+
+export const CAREER_TUNING_VERSION = 'CAREER_TUNING_V0_PROVISIONAL';
