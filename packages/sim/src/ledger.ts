@@ -9,12 +9,15 @@ import {
   priceX18,
   wei,
   type AccountState,
+  type EvidencePolicy,
   type PositionState,
+  type ProvenanceState,
   type SimState,
   type SpotFill,
   type TradeSummary,
   type Wei,
 } from './types.js';
+import { weakestProvenance } from './provenance.js';
 
 export const SIM_MODEL_VERSION = 'SIM_SPOT_V0';
 
@@ -22,6 +25,11 @@ export interface InitialSimStateInput {
   sessionId?: string;
   startedAtMs?: number;
   modelVersion?: string;
+  /**
+   * Defaults to LIVE_ONLY. A DEMO session must opt in explicitly; nothing
+   * infers this from the environment, a query string, or a failed provider.
+   */
+  evidencePolicy?: EvidencePolicy;
 }
 
 export function createInitialSimState(input: InitialSimStateInput = {}): SimState {
@@ -32,6 +40,7 @@ export function createInitialSimState(input: InitialSimStateInput = {}): SimStat
   return {
     sessionId,
     modelVersion: input.modelVersion ?? SIM_MODEL_VERSION,
+    evidencePolicy: input.evidencePolicy ?? 'LIVE_ONLY',
     startedAtMs,
     account: createInitialAccount(),
     position: null,
@@ -46,6 +55,7 @@ export function createInitialSimState(input: InitialSimStateInput = {}): SimStat
     cycleRealizedPnlWei: wei(0n),
     cycleAllocatedEntryFeesWei: wei(0n),
     cycleExitFeesWei: wei(0n),
+    cycleEvidenceProvenance: null,
     activeStop: null,
   };
 }
@@ -99,6 +109,12 @@ function assertSpotFill(fill: SpotFill): void {
 
 function makeTradeSummary(state: SimState, position: PositionState, fill: SpotFill, account: AccountState, realizedPnlWei: Wei, entryFeesWei: Wei, exitFeesWei: Wei): TradeSummary {
   const accountAtOpen = state.cycleOpeningEquityWei ?? state.account.equityWei;
+  // The closing fill counts too: a cycle opened on real evidence and closed on
+  // synthetic evidence is a synthetic trade, never a confirmed one.
+  const evidenceProvenance: ProvenanceState = weakestProvenance(
+    state.cycleEvidenceProvenance ?? fill.observationProvenance,
+    fill.observationProvenance,
+  );
   return {
     tradeId: position.cycleId,
     sessionId: state.sessionId,
@@ -126,8 +142,16 @@ function makeTradeSummary(state: SimState, position: PositionState, fill: SpotFi
     stopUsed: fill.exitReason === 'STOP',
     stopWidened: state.events.some((event) => event.type === 'STOP_REPLACED' && event.stop.cycleId === position.cycleId && event.widened),
     liquidated: false,
+    evidenceProvenance,
     modelVersions: [SPOT_FILL_MODEL_VERSION],
   };
+}
+
+/** Weakest evidence seen in the open cycle, including this fill. */
+function accumulateEvidence(state: SimState, fill: SpotFill): ProvenanceState {
+  return state.cycleEvidenceProvenance === null
+    ? fill.observationProvenance
+    : weakestProvenance(state.cycleEvidenceProvenance, fill.observationProvenance);
 }
 
 function applyFill(state: SimState, fill: SpotFill): {
@@ -161,8 +185,9 @@ function applyFill(state: SimState, fill: SpotFill): {
             cycleRealizedPnlWei: wei(0n),
             cycleAllocatedEntryFeesWei: wei(0n),
             cycleExitFeesWei: wei(0n),
+            cycleEvidenceProvenance: fill.observationProvenance,
           }
-        : {},
+        : { cycleEvidenceProvenance: accumulateEvidence(state, fill) },
     };
   }
 
@@ -185,6 +210,7 @@ function applyFill(state: SimState, fill: SpotFill): {
         cycleRealizedPnlWei: nextCycleRealized,
         cycleAllocatedEntryFeesWei: nextAllocatedEntryFees,
         cycleExitFeesWei: nextExitFees,
+        cycleEvidenceProvenance: accumulateEvidence(state, fill),
       },
     };
   }
@@ -205,10 +231,11 @@ function applyFill(state: SimState, fill: SpotFill): {
     tradeSummaries: [...state.tradeSummaries, summary],
       changes: {
         closedCycleCount: state.closedCycleCount + 1,
-      cycleOpeningEquityWei: null,
-      cycleRealizedPnlWei: wei(0n),
-      cycleAllocatedEntryFeesWei: wei(0n),
+        cycleOpeningEquityWei: null,
+        cycleRealizedPnlWei: wei(0n),
+        cycleAllocatedEntryFeesWei: wei(0n),
         cycleExitFeesWei: wei(0n),
+        cycleEvidenceProvenance: null,
         activeStop: null,
       },
   };

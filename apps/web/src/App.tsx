@@ -13,10 +13,22 @@ import { CareerScreen } from './screens/CareerScreen';
 import { DevScreen, WalletDrawer } from './screens/DevScreen';
 import { TerminalScreen, type ChartSink } from './terminal/TerminalScreen';
 import { TradeReviewCard } from './terminal/TradeReviewCard';
-import type { RadarAsset, WalletTrace } from './types/api';
+import type { MarketEnvironment, RadarAsset, WalletTrace } from './types/api';
 
 type Screen = 'radar' | 'terminal' | 'career' | 'dev';
-type DataMode = 'fixture' | 'live';
+
+/**
+ * LIVE is the production posture and the default.
+ *
+ * MARKET_TRUTH_V1: the app used to boot into fixtures because that was
+ * convenient during development, which meant the ordinary user experience was
+ * fabricated data by default. LIVE is now attempted first; if it cannot be
+ * established the app shows a degraded state and offers DEMO as an explicit
+ * choice. It never switches by itself.
+ */
+const DEFAULT_ENVIRONMENT: MarketEnvironment = 'LIVE';
+
+type LiveStatus = 'PENDING' | 'OK' | 'UNAVAILABLE';
 
 const PRIMARY_NAV: readonly { id: Screen; label: string }[] = [
   { id: 'radar', label: 'RADAR' },
@@ -42,7 +54,7 @@ function devEnabled(): boolean {
  */
 export function createRuntime(storage: PracticeStorage = createDexiePracticeStorage()): PracticeRuntime {
   const feed = new MarketFeedStore();
-  const session = new PracticeSessionStore({ storage, getQuote: feed.currentQuote });
+  const session = new PracticeSessionStore({ storage, getQuote: feed.currentQuote, environment: DEFAULT_ENVIRONMENT });
   return { session, feed };
 }
 
@@ -69,7 +81,9 @@ function Shell() {
   const practice = usePracticeSnapshot();
   const feedSnapshot = useFeedSnapshot();
 
-  const [mode, setMode] = useState<DataMode>('fixture');
+  const [environment, setEnvironmentState] = useState<MarketEnvironment>(DEFAULT_ENVIRONMENT);
+  const [liveStatus, setLiveStatus] = useState<LiveStatus>('PENDING');
+  const [liveError, setLiveError] = useState<string | null>(null);
   const [scenario, setScenario] = useState('NORMAL');
   const [items, setItems] = useState<RadarAsset[]>([]);
   const [selected, setSelected] = useState<RadarAsset | null>(null);
@@ -88,24 +102,57 @@ function Shell() {
 
   useEffect(() => {
     let cancelled = false;
+    setLiveStatus(environment === 'LIVE' ? 'PENDING' : 'OK');
+    setLiveError(null);
     api
-      .radar(mode)
+      .radar(environment)
       .then((response) => {
         if (cancelled) return;
         setItems(response.items);
         setSelected((current) => current ?? response.items[0] ?? null);
-        if (mode === 'live' && response.items.length === 0) setSelected(null);
+        if (environment === 'LIVE') {
+          // An empty LIVE list is still a LIVE answer, and an honest one.
+          setLiveStatus(response.items.length === 0 ? 'UNAVAILABLE' : 'OK');
+          if (response.items.length === 0) {
+            setSelected(null);
+            setLiveError('No Ink pools were returned by the provider.');
+          }
+        }
       })
-      .catch(() => {
-        if (cancelled || mode !== 'live') return;
+      .catch((error) => {
+        if (cancelled) return;
+        if (environment !== 'LIVE') return;
+        // Fail closed. LIVE never silently substitutes DEMO rows; the user is
+        // told LIVE is unavailable and may choose DEMO deliberately.
         setItems([]);
         setSelected(null);
+        setLiveStatus('UNAVAILABLE');
+        setLiveError(String(error?.message || 'Live market evidence is unavailable.'));
       });
     api.status().then(setStatus).catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [mode]);
+  }, [environment]);
+
+  /**
+   * Environment changes are explicit and restart the practice session, because
+   * the simulator's evidence policy is fixed when a session opens.
+   */
+  const setEnvironment = useCallback(
+    (next: MarketEnvironment) => {
+      // Side effects stay outside the state updater: React may invoke an
+      // updater during render, and mutating other stores from there is what
+      // produces "cannot update a component while rendering another".
+      if (environment === next) return;
+      session.setEnvironment(next);
+      feed.setEvidencePolicy(next === 'DEMO' ? 'DEMO_ALLOW_SYNTHETIC' : 'LIVE_ONLY');
+      setItems([]);
+      setSelected(null);
+      setEnvironmentState(next);
+    },
+    [environment, feed, session],
+  );
 
   useEffect(() => {
     const timer = setInterval(() => api.status().then(setStatus).catch(() => {}), 10_000);
@@ -122,15 +169,15 @@ function Shell() {
       return undefined;
     }
     const nowMs = Date.now();
-    // Fixture rows carry a frozen replay timestamp; the terminal treats the
-    // deterministic replay as observed now, and the source id keeps saying
-    // FIXTURE so nothing is relabelled as live.
-    feed.setInstrument(quoteFromRadarAsset(selected, nowMs, 0, mode === 'fixture' ? nowMs : undefined));
+    // DEMO rows carry a frozen replay timestamp; the terminal treats the
+    // deterministic replay as observed now. Their SYNTHETIC provenance, not a
+    // timestamp, is what keeps them out of real evidence.
+    feed.setInstrument(quoteFromRadarAsset(selected, nowMs, 0, environment === 'DEMO' ? nowMs : undefined));
     tape.clear();
 
     return connectMarketFeed({
       asset: selected,
-      mode,
+      environment,
       scenario,
       handlers: {
         onChartTick: (tick) => chartSink.current?.tick(tick),
@@ -142,7 +189,7 @@ function Shell() {
         onDropped: (count) => feed.setDroppedTicks(count),
       },
     });
-  }, [selected, mode, scenario, feed, tape]);
+  }, [selected, environment, scenario, feed, tape]);
 
   // Heartbeat: refresh the freshness verdict, then let the simulator re-mark an
   // open position. Never the other way round — a stale feed marks nothing.
@@ -202,23 +249,23 @@ function Shell() {
         imageUrl: pair.info?.imageUrl,
         provenance: { state: 'DERIVED', source: 'DEXSCREENER', asOf: new Date().toISOString(), method: 'search result' },
       };
-      setMode('live');
+      setEnvironment('LIVE');
       setItems((current) => [asset, ...current.filter((entry) => entry.pairAddress !== asset.pairAddress)]);
       openTerminal(asset);
     } catch {
       /* search failure leaves the current selection untouched */
     }
-  }, [items, openTerminal, query]);
+  }, [items, openTerminal, query, setEnvironment]);
 
   const loadWallet = useCallback(
     async (address: string) => {
       try {
-        setWallet(await api.wallet(address, mode));
+        setWallet(await api.wallet(address, environment));
       } catch {
         setWallet(null);
       }
     },
-    [mode],
+    [environment],
   );
 
   /* ----------------------------------------------------------------- render */
@@ -275,7 +322,7 @@ function Shell() {
           <span className="account-unit">ETH</span>
         </div>
 
-        {mode === 'fixture' && (
+        {environment === 'DEMO' && (
           <select className="scenario-select" value={scenario} onChange={(event) => setScenario(event.target.value)} aria-label="Replay load">
             <option>NORMAL</option>
             <option>ACTIVE</option>
@@ -283,11 +330,40 @@ function Shell() {
             <option>PATHOLOGICAL</option>
           </select>
         )}
-        <select className="mode-select" value={mode} onChange={(event) => setMode(event.target.value as DataMode)} aria-label="Data source">
-          <option value="fixture">DATA · FIXTURE</option>
-          <option value="live">DATA · LIVE</option>
+        {/* Environment identity is always on screen, never colour-only. */}
+        <span className={`env-badge env-${environment.toLowerCase()}`} role="status">
+          {environment === 'DEMO' ? 'DEMO · SYNTHETIC DATA' : 'LIVE'}
+        </span>
+        <select
+          className="mode-select"
+          value={environment}
+          onChange={(event) => setEnvironment(event.target.value as MarketEnvironment)}
+          aria-label="Data environment"
+        >
+          {/* Short labels: the control is already named "Data environment",
+              and the long form clipped inside the narrow mobile header. */}
+          <option value="LIVE">LIVE</option>
+          <option value="DEMO">DEMO</option>
         </select>
       </header>
+
+      {environment === 'DEMO' && (
+        <p className="demo-notice" role="status">
+          DEMO ENVIRONMENT · Every price, trade and wallet on screen is synthetic development data. It cannot advance Career qualification.
+        </p>
+      )}
+
+      {environment === 'LIVE' && liveStatus === 'UNAVAILABLE' && (
+        <div className="live-degraded" role="status">
+          <p className="live-degraded-code">LIVE EVIDENCE UNAVAILABLE</p>
+          <p className="live-degraded-detail">
+            {liveError ?? 'Live market evidence could not be established.'} Nothing is being substituted — synthetic data is never shown under a LIVE label.
+          </p>
+          <button type="button" className="live-degraded-action" onClick={() => setEnvironment('DEMO')}>
+            SWITCH TO DEMO (SYNTHETIC)
+          </button>
+        </div>
+      )}
 
       {restoreStatus === 'RESET_SAVE_UNUSABLE' && (
         <p className="save-notice" role="status">
@@ -295,14 +371,20 @@ function Shell() {
         </p>
       )}
 
+      {restoreStatus === 'RESET_ENVIRONMENT_CHANGED' && (
+        <p className="save-notice" role="status">
+          The stored practice session belonged to a different data environment and was discarded — a ledger built on synthetic data is never restored under LIVE. Starting from {formatEth(sim.account.freeEthWei)} ETH.
+        </p>
+      )}
+
       <main>
-        {screen === 'radar' && <RadarScreen items={items} onOpen={openTerminal} />}
+        {screen === 'radar' && <RadarScreen items={items} environment={environment} onOpen={openTerminal} />}
 
         {screen === 'terminal' &&
           (selected ? (
             <TerminalScreen
               asset={selected}
-              mode={mode}
+              environment={environment}
               sim={sim}
               career={career}
               feed={feedSnapshot}
@@ -325,7 +407,7 @@ function Shell() {
           ))}
 
         {screen === 'career' && <CareerScreen career={career} />}
-        {screen === 'dev' && showDev && <DevScreen mode={mode} onWallet={loadWallet} />}
+        {screen === 'dev' && showDev && <DevScreen environment={environment} onWallet={loadWallet} />}
       </main>
 
       <nav className="bottom-nav" aria-label="Primary mobile">
@@ -338,8 +420,9 @@ function Shell() {
 
       <footer id="statusbar">
         <span className={`chip ${status?.ok ? 'ok' : 'warn'}`}>INK {status?.blockNumber ? `HEAD ${status.blockNumber}` : 'HEAD —'}</span>
-        <span className="chip">SOURCE {mode.toUpperCase()}</span>
-        {mode === 'fixture' && <span className="chip">LOAD {scenario}</span>}
+        <span className={`chip ${environment === 'DEMO' ? 'warn' : ''}`}>DATA {environment}</span>
+        {environment === 'DEMO' && <span className="chip warn">SYNTHETIC</span>}
+        {environment === 'DEMO' && <span className="chip">LOAD {scenario}</span>}
         <span className="chip">SIM {sim.modelVersion}</span>
         <div className="grow" />
         <span className="chip">PRACTICE ONLY · NO REAL EXECUTION</span>

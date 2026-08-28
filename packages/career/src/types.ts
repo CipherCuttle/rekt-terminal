@@ -1,3 +1,9 @@
+/**
+ * Canonical provenance taxonomy, mirrored from the simulator so the Career
+ * package stays dependency-free. The five states are the only vocabulary.
+ */
+export type ProvenanceState = 'CONFIRMED' | 'DERIVED' | 'SYNTHETIC' | 'STALE' | 'UNAVAILABLE';
+
 export type SkillId =
   | 'SPOT_BASIC'
   | 'SCALE_CONTROL'
@@ -96,4 +102,10 @@ export interface CareerTradeSummaryFact {
   stopUsed: boolean;
   partialExitUsed: boolean;
   liquidated: false;
+  /**
+   * Weakest market-evidence provenance behind this trade, taken from the
+   * simulator's TradeSummary. Only CONFIRMED and DERIVED advance qualification;
+   * SYNTHETIC (DEMO, seeded fixtures, deterministic rehearsals) never does.
+   */
+  evidenceProvenance: ProvenanceState;
 }

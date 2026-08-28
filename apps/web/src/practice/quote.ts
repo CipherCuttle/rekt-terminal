@@ -6,10 +6,53 @@
  * touches simulator state; it only decides what evidence exists.
  */
 import { mulDiv, parseFixed, priceX18, wei, type PriceX18, type ProvenanceState, type Wei } from '@rekt-ink/sim';
-import type { Provenance, ProvenanceState as WebProvenanceState, RadarAsset } from '../types/api';
+import type { Provenance, RadarAsset } from '../types/api';
 
-/** Quote assets that Ink spot practice is enabled for. */
+/** Quote asset symbols that Ink spot practice is enabled for. */
 export const SUPPORTED_QUOTE_ASSETS: readonly string[] = ['ETH', 'WETH'];
+
+/**
+ * Token addresses that make a pool's quote side ETH-equivalent.
+ *
+ * Ink is an OP-stack chain, so WETH is the standard predeploy. Address identity
+ * is checked *before* symbol, because a symbol can collide and a display name
+ * can lie; an address cannot.
+ */
+export const ETH_EQUIVALENT_QUOTE_ADDRESSES: readonly string[] = ['0x4200000000000000000000000000000000000006'];
+
+/**
+ * Explicit quote identity for a pair.
+ *
+ * MARKET_TRUTH_V1 repair: eligibility used to depend on a symbol that the LIVE
+ * adapter obtained by splitting the human-readable pool name on `/`. A pool
+ * named `FOO / WETH v2` or `A/B / WETH` produced the wrong quote, and a token
+ * that merely renders as "WETH" was treated as ETH-equivalent.
+ *
+ * Now the decision is made from provider token identity:
+ *   1. the quote token *address*, when the provider supplied one;
+ *   2. otherwise the provider's own quote token *symbol* field;
+ *   3. otherwise UNRESOLVED, which fails the practice gate closed.
+ */
+export type QuoteIdentity =
+  | { resolved: true; asset: string; byAddress: boolean; address: string | null }
+  | { resolved: false; asset: string; byAddress: false; address: string | null };
+
+export function isEthEquivalentQuoteAddress(address: string | null | undefined): boolean {
+  return typeof address === 'string' && ETH_EQUIVALENT_QUOTE_ADDRESSES.includes(address.toLowerCase());
+}
+
+export function resolveQuoteIdentity(asset: Pick<RadarAsset, 'quote' | 'quoteTokenAddress' | 'quoteIdentityResolved'>): QuoteIdentity {
+  const address = asset.quoteTokenAddress ? asset.quoteTokenAddress.toLowerCase() : null;
+  if (isEthEquivalentQuoteAddress(address)) return { resolved: true, asset: 'WETH', byAddress: true, address };
+  const symbol = (asset.quote || '').toUpperCase();
+  // An address that is present but not ETH-equivalent is still resolved
+  // identity — it simply is not a supported quote.
+  if (address !== null) return { resolved: true, asset: symbol || 'UNKNOWN', byAddress: true, address };
+  if (asset.quoteIdentityResolved === false || symbol === '' || symbol === 'UNKNOWN') {
+    return { resolved: false, asset: 'UNKNOWN', byAddress: false, address: null };
+  }
+  return { resolved: true, asset: symbol, byAddress: false, address: null };
+}
 
 export interface PracticeQuote {
   /** Stable economic identity of the instrument, independent of display symbol. */
@@ -20,6 +63,10 @@ export interface PracticeQuote {
   pairAddress: string;
   tokenAddress: string;
   quoteAsset: string;
+  /** Quote token address when the provider supplied one. */
+  quoteTokenAddress?: string | null;
+  /** False when quote identity could not be established from provider fields. */
+  quoteIdentityResolved?: boolean;
   priceEth: number | null;
   priceUsd: number | null;
   liquidityUsd: number | null;
@@ -31,16 +78,18 @@ export interface PracticeQuote {
 }
 
 /**
- * The web provenance vocabulary carries `ESTIMATED`, which the simulator does
- * not accept as economic evidence. It maps to `SYNTHETIC` so it fails closed.
+ * Web and simulator now share one vocabulary, so this is an identity mapping
+ * with a fail-closed default. It is kept as a function so any future vocabulary
+ * drift has exactly one place to be caught, and so that an unrecognised value
+ * from the wire becomes UNAVAILABLE rather than being trusted.
  */
-export function toSimProvenance(state: WebProvenanceState): ProvenanceState {
+export function toSimProvenance(state: ProvenanceState | string): ProvenanceState {
   switch (state) {
     case 'CONFIRMED':
       return 'CONFIRMED';
     case 'DERIVED':
       return 'DERIVED';
-    case 'ESTIMATED':
+    case 'SYNTHETIC':
       return 'SYNTHETIC';
     case 'STALE':
       return 'STALE';
@@ -117,6 +166,7 @@ export function quoteFromRadarAsset(
   sequence = 0,
   observedAtMsOverride?: number,
 ): PracticeQuote {
+  const identity = resolveQuoteIdentity(asset);
   return {
     instrumentId: instrumentIdForPair(asset.pairAddress),
     symbol: asset.symbol,
@@ -124,7 +174,9 @@ export function quoteFromRadarAsset(
     venue: asset.venue,
     pairAddress: asset.pairAddress,
     tokenAddress: asset.tokenAddress,
-    quoteAsset: asset.quote.toUpperCase(),
+    quoteAsset: identity.asset,
+    quoteTokenAddress: identity.address,
+    quoteIdentityResolved: identity.resolved,
     priceEth: asset.priceEth,
     priceUsd: asset.priceUsd,
     liquidityUsd: asset.liquidityUsd,

@@ -1,0 +1,101 @@
+{
+  "register": "PROVIDER_DATA_RIGHTS_V1",
+  "retrievalDate": "2026-08-28",
+  "status": "ACTIVE / REQUIRES_LEGAL_REVIEW_BEFORE_EPISODES_V0",
+  "verificationNote": "Rate limits and field shapes are taken from published provider documentation. Live provider endpoints were not reachable from the authoring environment (outbound HTTPS to api.geckoterminal.com refused by network policy), so no response was captured. Redistribution values are our own assessment, not legal advice, and no commercial-terms review has been performed.",
+  "sources": [
+    {
+      "id": "GECKOTERMINAL_POOLS",
+      "provider": "GeckoTerminal (CoinGecko)",
+      "endpointFamily": "GET /api/v2/networks/ink/pools",
+      "factsConsumed": ["poolAddress", "baseTokenIdentity", "quoteTokenIdentity", "baseTokenPriceUsd", "baseTokenPriceNativeCurrency", "baseTokenPriceQuoteToken", "reserveInUsd", "fdvUsd", "volumeUsd24h", "transactions24h", "priceChangePercentage", "poolCreatedAt"],
+      "provenanceClass": "DERIVED",
+      "rateLimit": "30 calls/minute (free public API tier)",
+      "retrievalDate": "2026-08-28",
+      "persistencePolicy": "IN_MEMORY_ONLY",
+      "redistribution": "REQUIRES_REVIEW",
+      "termsReference": "https://www.geckoterminal.com/dex-api",
+      "notes": "Provider-computed aggregates. Not promoted to CONFIRMED merely because the underlying activity is on-chain; the response carries no transaction identity."
+    },
+    {
+      "id": "GECKOTERMINAL_OHLCV",
+      "provider": "GeckoTerminal (CoinGecko)",
+      "endpointFamily": "GET /api/v2/networks/ink/pools/{pool}/ohlcv/{timeframe}",
+      "factsConsumed": ["open", "high", "low", "close", "volume", "denomination"],
+      "provenanceClass": "DERIVED",
+      "rateLimit": "30 calls/minute (free public API tier)",
+      "retrievalDate": "2026-08-28",
+      "persistencePolicy": "IN_MEMORY_ONLY_REQUEST_SCOPED",
+      "redistribution": "REQUIRES_REVIEW",
+      "termsReference": "https://www.geckoterminal.com/dex-api",
+      "blocksPhase": "EPISODES_V0",
+      "notes": "Retention and redistribution rights must be established in writing before EPISODES_V0 publishes any retained provider historical dataset. This phase retains nothing."
+    },
+    {
+      "id": "GECKOTERMINAL_TRADES",
+      "provider": "GeckoTerminal (CoinGecko)",
+      "endpointFamily": "GET /api/v2/networks/ink/pools/{pool}/trades",
+      "factsConsumed": ["tradeKind", "txHash", "blockNumber", "blockTimestamp", "txFromAddress", "priceUsd", "priceQuoteToken", "volumeUsd"],
+      "provenanceClass": "CONFIRMED_WHEN_TX_HASH_PRESENT_ELSE_DERIVED",
+      "rateLimit": "30 calls/minute (free public API tier)",
+      "retrievalDate": "2026-08-28",
+      "persistencePolicy": "IN_MEMORY_ONLY_BOUNDED_DEDUPE_SET",
+      "redistribution": "REQUIRES_REVIEW",
+      "termsReference": "https://www.geckoterminal.com/dex-api",
+      "notes": "Transaction identity is what justifies CONFIRMED. No wallet-behaviour claims are made from these events in this phase."
+    },
+    {
+      "id": "DEXSCREENER_PAIRS",
+      "provider": "Dexscreener",
+      "endpointFamily": "GET /latest/dex/pairs/ink/{pairAddress}, GET /latest/dex/search",
+      "factsConsumed": ["priceUsd", "priceNative", "txns", "volume", "liquidityUsd", "baseToken", "quoteToken", "pairCreatedAt"],
+      "provenanceClass": "DERIVED",
+      "rateLimit": "300 requests/minute (pairs and search endpoints)",
+      "retrievalDate": "2026-08-28",
+      "persistencePolicy": "IN_MEMORY_ONLY_LATEST_SNAPSHOT_PER_SUBSCRIBED_PAIR",
+      "redistribution": "REQUIRES_REVIEW",
+      "termsReference": "https://docs.dexscreener.com/api/reference",
+      "budget": {
+        "pollIntervalMs": 2000,
+        "minPollIntervalMs": 1000,
+        "requestsPerMinutePerPair": 30,
+        "sharedAcrossClients": true,
+        "configuredBy": "MARKET_POLL_INTERVAL_MS"
+      },
+      "notes": "One shared server-side poller per pair. Client count does not multiply provider requests. A polled snapshot is an aggregate summary, not a confirmed swap."
+    },
+    {
+      "id": "INK_RPC",
+      "provider": "Ink public RPC",
+      "endpointFamily": "JSON-RPC eth_chainId, eth_blockNumber, eth_getBalance; WS eth_subscribe(newHeads)",
+      "factsConsumed": ["chainId", "blockNumber", "blockHash", "parentHash", "accountEthBalance"],
+      "provenanceClass": "CONFIRMED",
+      "rateLimit": "Not published for the public gateway; treated as best-effort with bounded exponential reconnect backoff to 10s",
+      "retrievalDate": "2026-08-28",
+      "persistencePolicy": "IN_MEMORY_ONLY",
+      "redistribution": "VERIFIED",
+      "termsReference": "https://docs.inkonchain.com",
+      "notes": "Public chain state is not proprietary provider data. Wallet classification is reported UNAVAILABLE rather than inferred."
+    },
+    {
+      "id": "INTERNAL_FIXTURES",
+      "provider": "None - fabricated in-repo",
+      "endpointFamily": "apps/api/src/fixtures.ts, apps/web/src/lib/local-fixtures.ts",
+      "factsConsumed": [],
+      "provenanceClass": "SYNTHETIC",
+      "rateLimit": null,
+      "retrievalDate": null,
+      "persistencePolicy": "SOURCE_CONTROLLED_CONSTANTS",
+      "redistribution": "VERIFIED",
+      "termsReference": null,
+      "notes": "Enforced by scripts/verify-source.mjs: these modules may not emit CONFIRMED or DERIVED."
+    }
+  ],
+  "standingConstraints": [
+    "No provider historical dataset is retained on disk in this phase.",
+    "No provider data is republished from this repository.",
+    "Redistribution rights are REQUIRES_REVIEW for every third-party source.",
+    "EPISODES_V0 is blocked on GECKOTERMINAL_OHLCV review before publishing retained data.",
+    "Aggregate provider facts are DERIVED and are not promoted to CONFIRMED on the grounds that underlying activity was on-chain."
+  ]
+}

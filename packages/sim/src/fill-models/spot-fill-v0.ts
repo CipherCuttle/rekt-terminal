@@ -6,10 +6,12 @@ import {
   priceX18,
   quantityAtoms,
   wei,
+  type EvidencePolicy,
   type SpotFill,
   type SpotFillConfig,
   type SpotFillRequest,
 } from '../types.js';
+import { isRealEvidence } from '../provenance.js';
 import { feeForQuote, mulDiv, participationBps, quantityForQuote, quoteForQuantity } from '../math.js';
 
 export const DEFAULT_SPOT_FILL_CONFIG: SpotFillConfig = {
@@ -35,6 +37,23 @@ function assertIdentity(request: SpotFillRequest): void {
   }
 }
 
+/**
+ * The evidence gate.
+ *
+ * STALE and UNAVAILABLE are refused unconditionally — no policy makes absent or
+ * expired evidence tradable. SYNTHETIC is refused under the normal LIVE policy
+ * and admitted only when the session was explicitly opened as a DEMO session,
+ * which stamps every resulting trade SYNTHETIC.
+ */
+function assertUsableEvidence(provenance: SpotFill['observationProvenance'], policy: EvidencePolicy): void {
+  if (isRealEvidence(provenance)) return;
+  if (provenance === 'SYNTHETIC') {
+    if (policy === 'DEMO_ALLOW_SYNTHETIC') return;
+    throw new SimError('SYNTHETIC_EVIDENCE_REJECTED', 'synthetic market evidence cannot enter LIVE economic execution');
+  }
+  throw new SimError('MODEL_INPUT_UNAVAILABLE', 'spot fill requires confirmed or derived market evidence');
+}
+
 function assertConfig(config: SpotFillConfig): void {
   if (config.modelVersion !== SPOT_FILL_MODEL_VERSION || config.feeBps < 0n || config.feeBps > BPS_SCALE || config.baseSlippageBps < 0n || config.impactCoefficientBpsPerParticipationBps < 0n || config.maxImpactBps < 0n || config.maxParticipationBps <= 0n || config.maxParticipationBps > BPS_SCALE || config.maxImpactBps >= BPS_SCALE || config.maxObservationAgeMs < 0 || !Number.isSafeInteger(config.maxObservationAgeMs)) {
     throw new SimError('MODEL_INPUT_UNAVAILABLE', 'invalid SPOT_FILL_V0 bounds');
@@ -49,9 +68,7 @@ export function createSpotFill(request: SpotFillRequest): SpotFill {
   if (!['ETH', 'WETH'].includes(observation.quoteAsset.toUpperCase())) {
     throw new SimError('UNSUPPORTED_QUOTE', 'spot practice requires an ETH or WETH quote');
   }
-  if (observation.provenance === 'STALE' || observation.provenance === 'UNAVAILABLE' || observation.provenance === 'SYNTHETIC') {
-    throw new SimError('MODEL_INPUT_UNAVAILABLE', 'spot fill requires confirmed or derived market evidence');
-  }
+  assertUsableEvidence(observation.provenance, request.evidencePolicy ?? 'LIVE_ONLY');
   if (observation.referencePriceX18 <= 0n) throw new SimError('INVALID_PRICE', 'reference price must be positive');
   if (observation.usableQuoteLiquidityWei <= 0n) throw new SimError('MISSING_LIQUIDITY', 'usable quote liquidity is required');
   if (request.requestedQuoteWei <= 0n) throw new SimError('INVALID_QUANTITY', 'requested quote notional must be positive');
@@ -95,6 +112,7 @@ export function createSpotFill(request: SpotFillRequest): SpotFill {
     observedAtMs: observation.observedAtMs,
     executedAtMs: request.executedAtMs,
     sourceId: observation.sourceId,
+    observationProvenance: observation.provenance,
     provenance: 'DERIVED',
     modelVersion: config.modelVersion,
   };

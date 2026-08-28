@@ -11,12 +11,17 @@ import {
   createInitialSimState,
   replayEvents,
   stableReplayDigest,
+  type EvidencePolicy,
   type SimEvent,
   type SimState,
 } from '@rekt-ink/sim';
 import { CAREER_SAVE_VERSION, migrateCareerSave, type CareerSaveEnvelope } from '@rekt-ink/career';
+import type { MarketEnvironment } from '../types/api';
 
-export const PRACTICE_SAVE_VERSION = 1;
+// v2 records the data environment. A save written before MARKET_TRUTH_V1 has no
+// environment, and its events could have come from fabricated data, so it is
+// not migrated — it is discarded and the session starts clean.
+export const PRACTICE_SAVE_VERSION = 2;
 export const PRACTICE_SAVE_KIND = 'REKT_INK_PRACTICE_SAVE';
 const PRACTICE_DB_NAME = 'rekt-ink-practice';
 const ACTIVE_SAVE_ID = 'active';
@@ -27,6 +32,12 @@ export interface PracticeSaveEnvelope {
   sessionId: string;
   startedAtMs: number;
   modelVersion: string;
+  /**
+   * The environment this session's economic state belongs to. Persisted so a
+   * DEMO session cannot be restored under a LIVE label, which would put
+   * positions built from fabricated evidence behind a LIVE badge.
+   */
+  environment: MarketEnvironment;
   instrumentId: string | null;
   /** Tagged JSON of the simulator's event log. */
   simEventsJson: string;
@@ -82,6 +93,7 @@ export function createPracticeSave(input: {
   sim: SimState;
   career: CareerSaveEnvelope;
   instrumentId: string | null;
+  environment: MarketEnvironment;
   savedAtMs: number;
 }): PracticeSaveEnvelope {
   return {
@@ -90,6 +102,7 @@ export function createPracticeSave(input: {
     sessionId: input.sim.sessionId,
     startedAtMs: input.sim.startedAtMs,
     modelVersion: input.sim.modelVersion,
+    environment: input.environment,
     instrumentId: input.instrumentId,
     simEventsJson: encodeSimEvents(input.sim.events),
     replayDigest: stableReplayDigest(input.sim),
@@ -106,7 +119,13 @@ export interface PracticeRestore {
   sim: SimState;
   career: CareerSaveEnvelope;
   instrumentId: string | null;
+  environment: MarketEnvironment;
 }
+
+const EVIDENCE_POLICY: Record<MarketEnvironment, EvidencePolicy> = {
+  LIVE: 'LIVE_ONLY',
+  DEMO: 'DEMO_ALLOW_SYNTHETIC',
+};
 
 /**
  * Rebuild practice state from a save. Throws on anything unexpected so the
@@ -124,6 +143,8 @@ export function restorePracticeSave(input: unknown): PracticeRestore {
   if (typeof input.modelVersion !== 'string' || !input.modelVersion) throw new Error('practice save has no model version');
   if (typeof input.simEventsJson !== 'string') throw new Error('practice save has no event log');
   if (typeof input.replayDigest !== 'string') throw new Error('practice save has no replay digest');
+  if (input.environment !== 'LIVE' && input.environment !== 'DEMO') throw new Error('practice save has no data environment');
+  const environment: MarketEnvironment = input.environment;
 
   const career = migrateCareerSave(input.career);
   if (!career || career.saveVersion !== CAREER_SAVE_VERSION) throw new Error('career save failed migration');
@@ -135,6 +156,9 @@ export function restorePracticeSave(input: unknown): PracticeRestore {
       sessionId: input.sessionId,
       startedAtMs: input.startedAtMs as number,
       modelVersion: input.modelVersion,
+      // Restored with the policy it was recorded under, so a DEMO ledger stays
+      // a DEMO ledger rather than silently acquiring LIVE standing.
+      evidencePolicy: EVIDENCE_POLICY[environment],
     }),
   );
 
@@ -147,6 +171,7 @@ export function restorePracticeSave(input: unknown): PracticeRestore {
     sim,
     career,
     instrumentId: typeof input.instrumentId === 'string' ? input.instrumentId : null,
+    environment,
   };
 }
 

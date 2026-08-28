@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { formatFixed, priceX18, type SimState } from '@rekt-ink/sim';
 import type { CareerState } from '@rekt-ink/career';
 import { MarketChart } from '../lib/chart';
@@ -13,7 +13,8 @@ import { PRACTICE_UNAVAILABLE_LABEL } from '../practice/eligibility';
 import { priceX18FromNumber } from '../practice/quote';
 import type { FeedSnapshot } from '../practice/feed-store';
 import type { PracticeIntent, PracticeRejection } from '../practice/store';
-import type { Bar, RadarAsset } from '../types/api';
+import { resolveChartSeries, type ChartSeriesResolution } from '../lib/chart-currency';
+import type { MarketEnvironment, RadarAsset } from '../types/api';
 import { PositionTruth } from './PositionTruth';
 import { TradeTicket } from './TradeTicket';
 import { CareerStrip } from './CareerStrip';
@@ -24,7 +25,7 @@ export interface ChartSink {
 
 export interface TerminalScreenProps {
   asset: RadarAsset;
-  mode: 'fixture' | 'live';
+  environment: MarketEnvironment;
   sim: SimState;
   career: CareerState;
   feed: FeedSnapshot;
@@ -37,28 +38,26 @@ export interface TerminalScreenProps {
   onWallet: (address: string) => void;
 }
 
-/** Chart price axis is always ETH so simulator fill stamps land on the right scale. */
-function toEthBars(bars: Bar[], usdPerEth: number | null): Bar[] {
-  if (usdPerEth === null || !Number.isFinite(usdPerEth) || usdPerEth <= 0) return bars;
-  const scale = 1 / usdPerEth;
-  return bars.map((bar) => ({
-    ...bar,
-    open: bar.open * scale,
-    high: bar.high * scale,
-    low: bar.low * scale,
-    close: bar.close * scale,
-  }));
-}
+/**
+ * The simulator's overlays — fill stamps, average entry, the stop line — are
+ * ETH-denominated because the account unit is wei. The bar series must
+ * therefore be in the pool's quote token too. `resolveChartSeries` decides;
+ * there is no conversion step, because the previous one (dividing 200 historical
+ * USD bars by one current ETH/USD rate) was numerically false for every bar but
+ * the last.
+ */
+const OVERLAY_CURRENCY = 'QUOTE_TOKEN' as const;
 
 export function TerminalScreen(props: TerminalScreenProps) {
-  const { asset, mode, sim, career, feed, tape, rejection, chartSink, onSubmit, onDismissRejection, showWalletTools, onWallet } = props;
+  const { asset, environment, sim, career, feed, tape, rejection, chartSink, onSubmit, onDismissRejection, showWalletTools, onWallet } = props;
   const boxRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<MarketChart | null>(null);
   // Bars load asynchronously; the chart-creation effect must not paint overlays
   // from the simulator state it happened to close over.
   const simRef = useRef(sim);
   simRef.current = sim;
-  const usdPerEth = asset.priceUsd && asset.priceEth ? asset.priceUsd / asset.priceEth : null;
+  const overlayLabel = asset.quote?.toUpperCase() || 'ETH';
+  const [chartSeries, setChartSeries] = useState<ChartSeriesResolution | null>(null);
 
   // Chart lifecycle. The chart is imperative on purpose: ticks never pass
   // through React state.
@@ -70,15 +69,22 @@ export function TerminalScreen(props: TerminalScreenProps) {
     chartSink.current = { tick: (tick) => chart.update(tick.price, tick.side, tick.volume, tick.timeSeconds) };
 
     let disposed = false;
+    setChartSeries(null);
     api
-      .bars(asset, mode)
-      .then((bars) => {
+      .bars(asset, environment)
+      .then((series) => {
         if (disposed) return;
-        chart.load(mode === 'live' ? toEthBars(bars, usdPerEth) : bars);
+        const resolved = resolveChartSeries({ series, overlayCurrency: OVERLAY_CURRENCY, overlayCurrencyLabel: overlayLabel });
+        setChartSeries(resolved);
+        // Fail closed: bars whose denomination does not match the overlays are
+        // not drawn at all, rather than rescaled into a plausible-looking lie.
+        if (resolved.status !== 'OK') return;
+        chart.load(resolved.bars);
         syncChartOverlays(chart, simRef.current);
       })
-      .catch(() => {
-        /* history is optional; live ticks still build candles */
+      .catch((error) => {
+        if (disposed) return;
+        setChartSeries({ status: 'UNAVAILABLE', code: 'NO_HISTORY', reason: String(error?.message || 'Historical OHLCV could not be loaded.') });
       });
 
     return () => {
@@ -87,7 +93,7 @@ export function TerminalScreen(props: TerminalScreenProps) {
       chartRef.current = null;
       chart.destroy();
     };
-  }, [asset.id, mode, chartSink, usdPerEth]);
+  }, [asset.id, asset.pairAddress, environment, chartSink, overlayLabel]);
 
   // Fill stamps and the entry reference redraw whenever the simulator log grows.
   useEffect(() => {
@@ -139,8 +145,17 @@ export function TerminalScreen(props: TerminalScreenProps) {
       <div className="terminal-body">
         <div className="panel chart-panel">
           <div ref={boxRef} className="chart-box" />
+          {chartSeries?.status === 'UNAVAILABLE' && (
+            <div className="chart-unavailable" role="status">
+              <p className="chart-unavailable-code">HISTORY UNAVAILABLE · {chartSeries.code}</p>
+              <p className="chart-unavailable-detail">{chartSeries.reason}</p>
+            </div>
+          )}
           <p className="chart-foot">
-            ETH OHLCV{mode === 'live' ? ' · HISTORY DERIVED FROM USD OHLCV' : ' · FIXTURE HISTORY'} · FILL STAMPS FROM SIMULATOR EVENTS
+            {/* Denomination is stated, never inferred from the axis. */}
+            <span className="chart-currency">{chartSeries?.status === 'OK' ? `${chartSeries.currencyLabel} OHLCV` : `${overlayLabel} AXIS`}</span>
+            {environment === 'DEMO' && <span className="chart-demo"> · SYNTHETIC DEMO HISTORY</span>}
+            {' · FILL STAMPS FROM SIMULATOR EVENTS'}
             {feed.droppedTicks > 0 && ` · DROPPED ${feed.droppedTicks}`}
           </p>
         </div>
@@ -217,11 +232,13 @@ function TapePanel({ tape, showWalletTools, onWallet }: { tape: TapeBuffer; show
     <section className="panel tape-panel" aria-label="Market event tape">
       <header className="panel-head">
         <h2>TAPE</h2>
-        <span className="panel-note">{rows.length} EV</span>
+        <span className="panel-note">SWAP = CONFIRMED · MARK = DERIVED · {rows.length} EV</span>
       </header>
       <ol className="tape">
         {rows.map((row) => (
-          <li key={row.id} className="tape-row">
+          /* A confirmed swap and a derived pool snapshot get different visual
+             grammar. A polled aggregate must never read as one executed trade. */
+          <li key={row.id} className={`tape-row tape-kind-${row.kind.toLowerCase()}`}>
             <span className={`tape-tag tape-${row.label.toLowerCase()}`}>{row.label}</span>
             <span className="tape-msg">
               {row.message}
@@ -230,7 +247,13 @@ function TapePanel({ tape, showWalletTools, onWallet }: { tape: TapeBuffer; show
                   {short(row.wallet)}
                 </button>
               )}
+              {row.txHash && (
+                <span className="tape-tx" title={`tx ${row.txHash}${row.blockNumber ? ` · block ${row.blockNumber}` : ''}`}>
+                  {short(row.txHash)}
+                </span>
+              )}
             </span>
+            <span className={`tape-truth truth-${row.provenance.toLowerCase()}`}>{row.provenance}</span>
           </li>
         ))}
       </ol>

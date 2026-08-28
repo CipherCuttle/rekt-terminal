@@ -23,6 +23,20 @@ export const DEFAULT_FIRST_TICKET_WEI = wei(50_000_000_000_000_000n);
 export const SPOT_FILL_MODEL_VERSION = 'SPOT_FILL_V0';
 
 export type ProvenanceState = 'CONFIRMED' | 'DERIVED' | 'SYNTHETIC' | 'STALE' | 'UNAVAILABLE';
+
+/**
+ * Whether a session is allowed to execute against fabricated market evidence.
+ *
+ * `LIVE_ONLY` is the default and the normal product posture: the simulator
+ * refuses SYNTHETIC observations outright. `DEMO_ALLOW_SYNTHETIC` is the
+ * explicit DEMO session policy — it exists so development/testing can exercise
+ * the simulator against seeded data, and every trade it produces is stamped
+ * SYNTHETIC so Career refuses to grade it.
+ *
+ * This is a per-session opt-in. It never widens the LIVE gate globally.
+ */
+export type EvidencePolicy = 'LIVE_ONLY' | 'DEMO_ALLOW_SYNTHETIC';
+
 export type SpotSide = 'BUY' | 'SELL';
 export type PositionStatus = 'OPEN' | 'CLOSED';
 
@@ -56,6 +70,8 @@ export interface SpotFillRequest {
   requestedQuantityAtoms?: QuantityAtoms;
   executedAtMs: number;
   config: SpotFillConfig;
+  /** Session evidence gate; omitted means the strict LIVE_ONLY default. */
+  evidencePolicy?: EvidencePolicy;
 }
 
 export interface SpotFill {
@@ -76,6 +92,12 @@ export interface SpotFill {
   observedAtMs: number;
   executedAtMs: number;
   sourceId: string;
+  /**
+   * The fill itself is always a DERIVED model output (`SPOT_FILL_V0`); this is
+   * the provenance of the *market observation* it was computed from, kept so a
+   * fill can never be read as stronger evidence than its own input.
+   */
+  observationProvenance: ProvenanceState;
   provenance: 'DERIVED';
   modelVersion: string;
   exitReason?: 'MANUAL' | 'STOP' | 'PROTECT_CAPITAL';
@@ -146,6 +168,12 @@ export interface TradeSummary {
   stopUsed: boolean;
   stopWidened: boolean;
   liquidated: false;
+  /**
+   * Weakest market-evidence provenance across every fill in this trade cycle.
+   * Career refuses to advance qualification from anything that is not
+   * CONFIRMED or DERIVED, which is what keeps DEMO out of real progression.
+   */
+  evidenceProvenance: ProvenanceState;
   modelVersions: readonly string[];
 }
 
@@ -163,6 +191,8 @@ export interface ActiveStop {
 export interface SimState {
   sessionId: string;
   modelVersion: string;
+  /** Session-scoped evidence gate; defaults to LIVE_ONLY. */
+  evidencePolicy: EvidencePolicy;
   startedAtMs: number;
   account: AccountState;
   position: PositionState | null;
@@ -177,6 +207,8 @@ export interface SimState {
   cycleRealizedPnlWei: Wei;
   cycleAllocatedEntryFeesWei: Wei;
   cycleExitFeesWei: Wei;
+  /** Weakest observation provenance seen so far in the open cycle. */
+  cycleEvidenceProvenance: ProvenanceState | null;
   activeStop: ActiveStop | null;
 }
 
@@ -197,7 +229,8 @@ export type SimErrorCode =
   | 'INVALID_EVENT'
   | 'INVALID_TIME'
   | 'STOP_INVALID_SIDE'
-  | 'STOP_NOT_TRIGGERED';
+  | 'STOP_NOT_TRIGGERED'
+  | 'SYNTHETIC_EVIDENCE_REJECTED';
 
 export class SimError extends Error {
   readonly code: SimErrorCode;

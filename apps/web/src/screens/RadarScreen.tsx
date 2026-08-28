@@ -3,7 +3,8 @@ import { ProvenanceChip } from '../components/TruthChip';
 import { age, ethShort, money, pct, short } from '../lib/format-display';
 import { evaluatePracticeEligibility } from '../practice/eligibility';
 import { quoteFromRadarAsset } from '../practice/quote';
-import type { RadarAsset } from '../types/api';
+import type { MarketEnvironment, RadarAsset } from '../types/api';
+import { EVIDENCE_POLICY_FOR_ENVIRONMENT } from '../practice/store';
 
 const TABS = ['TRENDING', 'NEW', 'GAINERS', 'IGNITION', 'REKT', 'WATCHLIST'] as const;
 
@@ -15,15 +16,19 @@ const TABS = ['TRENDING', 'NEW', 'GAINERS', 'IGNITION', 'REKT', 'WATCHLIST'] as 
  * list has been open. Freshness is re-checked for real when the terminal binds
  * a live feed to the instrument.
  */
-function practiceSupport(asset: RadarAsset, nowMs: number): { supported: boolean; reason: string } {
+function practiceSupport(asset: RadarAsset, nowMs: number, environment: MarketEnvironment): { supported: boolean; reason: string } {
   const quote = quoteFromRadarAsset(asset, nowMs);
-  const gate = evaluatePracticeEligibility(quote, quote.observedAtMs);
+  // Evaluated under the same evidence policy the session will use, so the
+  // Radar verdict cannot disagree with what the Terminal actually allows.
+  const gate = evaluatePracticeEligibility(quote, quote.observedAtMs, {
+    evidencePolicy: EVIDENCE_POLICY_FOR_ENVIRONMENT[environment],
+  });
   return gate.status === 'SUPPORTED'
     ? { supported: true, reason: 'Spot practice is available for this pair.' }
     : { supported: false, reason: gate.detail };
 }
 
-export function RadarScreen({ items, onOpen }: { items: RadarAsset[]; onOpen: (asset: RadarAsset) => void }) {
+export function RadarScreen({ items, environment, onOpen }: { items: RadarAsset[]; environment: MarketEnvironment; onOpen: (asset: RadarAsset) => void }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>('TRENDING');
   const nowMs = Date.now();
 
@@ -73,7 +78,7 @@ export function RadarScreen({ items, onOpen }: { items: RadarAsset[]; onOpen: (a
             </thead>
             <tbody>
               {list.map((asset) => {
-                const support = practiceSupport(asset, nowMs);
+                const support = practiceSupport(asset, nowMs, environment);
                 return (
                   <tr
                     key={asset.id}
