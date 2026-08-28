@@ -124,7 +124,7 @@ function makeTradeSummary(state: SimState, position: PositionState, fill: SpotFi
     stopPriceX18: fill.stopPriceX18 ?? null,
     stopTriggeredAtMs: fill.stopTriggeredAtMs ?? null,
     stopUsed: fill.exitReason === 'STOP',
-    stopWidened: false,
+    stopWidened: state.events.some((event) => event.type === 'STOP_REPLACED' && event.stop.cycleId === position.cycleId && event.widened),
     liquidated: false,
     modelVersions: [SPOT_FILL_MODEL_VERSION],
   };

@@ -170,6 +170,8 @@ export function TerminalScreen(props: TerminalScreenProps) {
             career={career}
             blockedReason={blocked ? blockedReason : positionElsewhere ? 'An open position on another instrument must be closed first.' : null}
             onSubmit={onSubmit}
+            observation={gate?.status === 'SUPPORTED' ? gate.observation : null}
+            observationTimeMs={feed.atMs}
           />
 
           {rejection && (

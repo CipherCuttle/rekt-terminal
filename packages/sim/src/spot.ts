@@ -6,6 +6,7 @@ import {
   SimError,
   DEFAULT_FIRST_TICKET_WEI,
   priceX18,
+  wei,
   type MarketObservation,
   type QuantityAtoms,
   type SimState,
@@ -114,14 +115,28 @@ export function placeSpotStop(state: SimState, input: StopPlacementInput, config
       sourceId: input.observation.sourceId,
     };
     const replacing = state.activeStop;
-    if (replacing && input.stopPriceX18 >= replacing.stopPriceX18) throw new SimError('STOP_INVALID_SIDE', 'a replacement stop cannot widen a long protective stop');
     const event: SimEvent = replacing
-      ? { type: 'STOP_REPLACED', eventId: `${input.stopId}:replaced`, sequence: nextEventSequence(state), sessionId: state.sessionId, modelVersion: state.modelVersion, eventTimeMs: input.eventTimeMs, previousStopId: replacing.stopId, stop }
+      ? { type: 'STOP_REPLACED', eventId: `${input.stopId}:replaced`, sequence: nextEventSequence(state), sessionId: state.sessionId, modelVersion: state.modelVersion, eventTimeMs: input.eventTimeMs, previousStopId: replacing.stopId, previousStopPriceX18: replacing.stopPriceX18, widened: input.stopPriceX18 < replacing.stopPriceX18, stop }
       : { type: 'STOP_PLACED', eventId: `${input.stopId}:placed`, sequence: nextEventSequence(state), sessionId: state.sessionId, modelVersion: state.modelVersion, eventTimeMs: input.eventTimeMs, stop };
     return { state: applySimEvent(state, event), accepted: true, events: [event] };
   } catch (error) {
     const reason = error instanceof SimError ? `${error.code}:${error.message}` : String(error);
     return rejectStop(state, input.stopId || 'stop', input.eventTimeMs, reason);
+  }
+}
+
+/** Estimate the result of a stop fill with the same SPOT_FILL_V0 sell model. */
+export function estimateStopLossWei(state: SimState, observation: MarketObservation, eventTimeMs: number, config: SpotFillConfig = DEFAULT_SPOT_FILL_CONFIG): Wei | null {
+  try {
+    const stop = state.activeStop;
+    const position = state.position;
+    if (!stop || !position || position.cycleId !== stop.cycleId) return null;
+    validObservation(observation, eventTimeMs, config);
+    if (observation.instrumentId !== position.instrumentId || observation.quoteAsset.toUpperCase() !== position.quoteAsset.toUpperCase()) return null;
+    const fill = createSpotFill({ fillId: `${stop.stopId}:estimate`, intentId: `${stop.stopId}:estimate`, side: 'SELL', observation, requestedQuoteWei: quoteForQuantity(position.openQuantityAtoms, observation.referencePriceX18, 'ceil'), requestedQuantityAtoms: position.openQuantityAtoms, executedAtMs: observation.observedAtMs, config });
+    return wei(fill.executedQuoteWei - position.costBasisWei - position.remainingEntryFeesWei - fill.feeQuoteWei);
+  } catch {
+    return null;
   }
 }
 

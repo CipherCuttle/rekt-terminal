@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DEFAULT_FIRST_TICKET_WEI, DEFAULT_SPOT_FILL_CONFIG, feeForQuote, wei, priceX18, quoteForQuantity, type SimState } from '@rekt-ink/sim';
+import { DEFAULT_FIRST_TICKET_WEI, DEFAULT_SPOT_FILL_CONFIG, feeForQuote, wei, priceX18, estimateStopLossWei, type MarketObservation, type SimState } from '@rekt-ink/sim';
 import type { CareerState } from '@rekt-ink/career';
 import { formatEth, formatPriceEth, formatSignedEth } from '../practice/format';
 import type { PracticeIntent } from '../practice/store';
@@ -17,6 +17,8 @@ export interface TradeTicketProps {
   /** Non-null when the market gate is closed; every control is disabled. */
   blockedReason: string | null;
   onSubmit: (intent: PracticeIntent) => void;
+  observation?: MarketObservation | null;
+  observationTimeMs?: number;
 }
 
 /**
@@ -27,7 +29,7 @@ export interface TradeTicketProps {
  * actually unlocked the corresponding capability; there are no placeholder
  * buttons that do nothing.
  */
-export function TradeTicket({ sim, career, blockedReason, onSubmit }: TradeTicketProps) {
+export function TradeTicket({ sim, career, blockedReason, onSubmit, observation = null, observationTimeMs = 0 }: TradeTicketProps) {
   const [manageOpen, setManageOpen] = useState(false);
   const position = sim.position;
   const scaleUnlocked = career.unlockedSkills.includes('SCALE_CONTROL');
@@ -123,7 +125,7 @@ export function TradeTicket({ sim, career, blockedReason, onSubmit }: TradeTicke
               <label>STOP MARKET <input inputMode="decimal" value={stopPrice} placeholder={sim.activeStop ? formatPriceEth(priceX18(sim.activeStop.stopPriceX18)) : 'trigger price'} onChange={(event) => setStopPrice(event.target.value)} /></label>
               <button type="button" className="manage-action" disabled={marketBlocked || !priceX18FromNumber(Number(stopPrice))} onClick={() => { const value = priceX18FromNumber(Number(stopPrice)); if (value) { onSubmit({ kind: 'PLACE_STOP', stopPriceX18: value }); setStopPrice(''); } }}>PLACE STOP</button>
               {sim.activeStop && <p className="action-reason">ACTIVE STOP · {formatPriceEth(priceX18(sim.activeStop.stopPriceX18))} ETH</p>}
-              {sim.activeStop && position && <p className="action-reason">IF STOP FILLS · {formatSignedEth(wei(quoteForQuantity(position.openQuantityAtoms, sim.activeStop.stopPriceX18, 'floor') - position.costBasisWei), 4)} ETH est.</p>}
+              {sim.activeStop && <p className="action-reason">IF STOP FILLS · {observation ? (() => { const estimate = estimateStopLossWei(sim, observation, observationTimeMs); return estimate === null ? 'UNAVAILABLE' : `${formatSignedEth(estimate, 4)} ETH est.`; })() : 'UNAVAILABLE'}</p>}
             </div>
           )}
         </div>

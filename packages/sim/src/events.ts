@@ -54,6 +54,8 @@ export interface StopPlacedEvent extends EventBase {
 export interface StopReplacedEvent extends EventBase {
   type: 'STOP_REPLACED';
   previousStopId: string;
+  previousStopPriceX18: bigint;
+  widened: boolean;
   stop: ActiveStop;
 }
 

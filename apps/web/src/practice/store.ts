@@ -441,7 +441,7 @@ export class PracticeSessionStore {
     if (gate.observation.instrumentId !== sim.position.instrumentId) return false;
     // An unchanged price revalues to the same equity. Skipping it keeps the
     // append-only log from growing once per second in a quiet market.
-    if (gate.observation.referencePriceX18 === sim.markPriceX18) return false;
+    if (gate.observation.referencePriceX18 === sim.markPriceX18 && !(sim.activeStop && gate.observation.referencePriceX18 <= sim.activeStop.stopPriceX18)) return false;
 
     const result = markSpot(sim, gate.observation, eventTimeMs, DEFAULT_SPOT_FILL_CONFIG);
     if (!result.accepted || result.state === sim) return false;
