@@ -61,12 +61,12 @@ export function CareerScreen({ career }: { career: CareerState }) {
               <h2>SCALE_CONTROL QUALIFICATION</h2>
             </header>
             <dl className="truth-grid">
-              <Fact label="CLOSED SPOT TRADES" value={`${qualification.closedSpotTrades} / ${qualification.targetClosedSpotTrades}`} />
-              <Fact label="QUALIFYING TRADES" value={String(career.stats.qualifyingScaleTrades)} />
+              <Fact label="CONTROLLED SPOT TRADES" value={`${qualification.closedSpotTrades} / ${qualification.targetClosedSpotTrades}`} />
+              <Fact label="TOTAL CLOSED TRADES" value={String(career.stats.closedSpotTrades)} />
               <Fact
                 label="WORST CLOSED LOSS"
                 value={formatBpsPercent(BigInt(qualification.maxClosedLossBps))}
-                note={`GATE ${formatBpsPercent(BigInt(qualification.lossLimitBps))}`}
+                note="HISTORY ONLY"
               />
               <Fact label="EQUITY POSITIVE AT LAST CLOSE" value={qualification.positiveAccountEquity ? 'YES' : 'NO'} />
               <Fact label="QUALIFIED" value={qualification.qualified ? 'YES' : 'NOT YET'} />

@@ -32,7 +32,7 @@ export function createInitialCareer(careerId = 'career-0', startedAtMs = 0): Car
     objective: {
       id: 'scale-control-close-trades',
       kind: 'CLOSE_SPOT',
-      text: 'NEXT // Close 3 more spot positions.',
+      text: 'NEXT // Complete 3 controlled spot trades.',
       progress: 0,
       target: 3,
     },
