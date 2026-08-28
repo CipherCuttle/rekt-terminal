@@ -5,7 +5,7 @@ An Ink-native market terminal: dense Dexscreener-style discovery, Lightweight Ch
 ## Architecture
 
 - `apps/web`: React 19 + TypeScript + Vite + Lightweight Charts.
-- `apps/api`: Fastify + WebSocket API, live Ink RPC/WSS, Dexscreener + GeckoTerminal adapters, deterministic fixture mode.
+- `apps/api`: Fastify + WebSocket API, live Ink RPC/WSS, Dexscreener + GeckoTerminal adapters, explicit DEMO fixture mode.
 - `packages/core`: dependency-free replay/sequence primitives used by tests and design validation.
 
 ## Run
@@ -19,7 +19,7 @@ npm run dev
 Web: `http://localhost:5173`  
 API: `http://localhost:8787`
 
-The UI boots in **FIXTURE** mode so every interaction works without external services. Switch to **LIVE** to use Ink/Dexscreener/GeckoTerminal. Live mode degrades fail-closed when a provider is unavailable.
+The UI boots in **LIVE** mode and degrades fail-closed when a required provider is unavailable. **DEMO** is an explicit selectable environment backed by synthetic fixtures; it never silently replaces failed LIVE data and cannot advance Career qualification.
 
 ## React Bits Pro
 
@@ -57,4 +57,4 @@ See [`docs/FRONTEND_AGENT_WORKFLOW_V1.md`](docs/FRONTEND_AGENT_WORKFLOW_V1.md) a
 - [`docs/RPS_REUSE_MATRIX_V1.md`](docs/RPS_REUSE_MATRIX_V1.md) — exact Rugpull Tycoon donor/reject matrix bound to commit `80db648a...`.
 - [`docs/SIM_CONTRACT_V0.md`](docs/SIM_CONTRACT_V0.md) — deterministic 0.5 ETH spot/perp training accounting contract.
 - [`docs/CAREER_CONTRACT_V0.md`](docs/CAREER_CONTRACT_V0.md) — capability progression, first skill tree and qualification rules.
-- [`docs/PHASE_0_IMPLEMENTATION_ORDER.md`](docs/PHASE_0_IMPLEMENTATION_ORDER.md) — bounded next implementation phase.
+- [`docs/PHASE_0_IMPLEMENTATION_ORDER.md`](docs/PHASE_0_IMPLEMENTATION_ORDER.md) — historical bounded Phase 0 implementation order.

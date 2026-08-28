@@ -1,6 +1,6 @@
 # Project Plan V1 — Working Name TBD
 
-Status: `FROZEN_DIRECTION / READY_FOR_PHASE_0`
+Status: `FROZEN_DIRECTION / MARKET_TRUTH_V1_CLOSED / NEXT: LIVE_PROVIDER_SMOKE_V0 -> RISK_SIZING_V0`
 
 ## 1. Product thesis
 
