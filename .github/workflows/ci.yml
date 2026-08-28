@@ -22,8 +22,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
+      # Bootstrap mode: setup-node npm caching requires a committed lockfile.
+      # After the first networked install/Codex phase commits package-lock.json,
+      # switch this install step to `npm ci` and re-enable `cache: npm` above.
       - name: Install
         run: npm install --no-audit --no-fund
 
