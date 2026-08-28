@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {SeqGate, evmAddr, makeProducer} from '../packages/core/replay.mjs';
+assert.match(evmAddr('wallet'), /^0x[0-9a-f]{40}$/);
+const g=new SeqGate(3), applied=[];
+g.ingest({seq:1,type:'BUY'},e=>applied.push(e.seq));
+g.ingest({seq:3,type:'BUY'},e=>applied.push(e.seq));
+g.ingest({seq:2,type:'BUY'},e=>applied.push(e.seq));
+assert.deepEqual(applied,[1,2,3]);
+assert.equal(g.stats.ooo,1);
+g.ingest({seq:2,type:'BUY'},()=>{});assert.equal(g.stats.dup,1);
+const p=makeProducer();for(let i=0;i<500;i++)p.next();
+console.log('VERIFY_CORE=PASS', JSON.stringify(g.stats));

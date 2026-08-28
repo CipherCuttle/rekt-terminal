@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, 'agent/**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Core deterministic invariants
+        run: npm run verify:core
+
+      - name: Source invariants
+        run: npm run verify:source
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Reject committed secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -nE '(sk-or-v1-|REACT_BITS.*KEY=.*[^$]|OPENROUTER_API_KEY=.*[^$]|ANTHROPIC_API_KEY=.*[^$])' -- ':!*.example' ':!docs/**'; then
+            echo 'Potential secret committed.' >&2
+            exit 1
+          fi

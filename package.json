@@ -1,0 +1,20 @@
+{
+  "name": "rekt-ink-terminal",
+  "private": true,
+  "version": "0.2.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @rekt-ink/api & npm run dev -w @rekt-ink/web",
+    "build": "npm run build -w @rekt-ink/api && npm run build -w @rekt-ink/web",
+    "typecheck": "npm run typecheck -w @rekt-ink/api && npm run typecheck -w @rekt-ink/web",
+    "verify:core": "node scripts/verify-core.mjs",
+    "test": "npm run verify:core && npm run test -w @rekt-ink/api && npm run test -w @rekt-ink/web",
+    "verify:source": "node scripts/verify-source.mjs",
+    "verify": "npm run verify:core && npm run verify:source && npm run typecheck && npm test && npm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
