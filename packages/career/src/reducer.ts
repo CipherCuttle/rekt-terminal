@@ -2,7 +2,21 @@ import { getNextObjective } from './objective.js';
 import { capabilitiesForSkill, SCALE_CONTROL_CAPABILITIES, STARTING_CAPABILITIES, STARTING_SKILL } from './skills.js';
 import { createInitialQualification, updateQualification, evaluateScaleControl, evaluateStopLoss, STOP_LOSS_EQUITY_FLOOR_WEI } from './qualification.js';
 import type { CareerEvent } from './events.js';
-import type { CareerEffect, CareerState, CareerStats, CareerTradeSummaryFact, SkillId } from './types.js';
+import type { CareerEffect, CareerState, CareerStats, CareerTradeSummaryFact, ProvenanceState, SkillId } from './types.js';
+
+/**
+ * Evidence classes Career is willing to grade.
+ *
+ * MARKET_TRUTH_V1: qualification claims a player demonstrated a behaviour in a
+ * real market. A trade executed against fabricated data demonstrates nothing,
+ * so SYNTHETIC / STALE / UNAVAILABLE evidence advances no statistic, no
+ * qualification, and no unlock. This is the single choke point that keeps DEMO
+ * activity and the deterministic PROTECT_CAPITAL rehearsal out of real Career
+ * progression.
+ */
+export function isGradableEvidence(state: ProvenanceState): boolean {
+  return state === 'CONFIRMED' || state === 'DERIVED';
+}
 
 export const CAREER_SAVE_VERSION = 2;
 
@@ -100,6 +114,11 @@ function normalizeLossBps(value: bigint): number {
 function reduceTradeClosed(state: CareerState, summary: CareerTradeSummaryFact): CareerState {
   if (summary.mode !== 'SPOT' || summary.liquidated) return state;
   if (state.processedTradeIds.includes(summary.tradeId)) return state;
+  // Record the trade as seen so it cannot be re-offered under a stronger
+  // label later, but advance nothing from evidence Career cannot grade.
+  if (!isGradableEvidence(summary.evidenceProvenance)) {
+    return { ...state, processedTradeIds: [...state.processedTradeIds, summary.tradeId] };
+  }
   const lossBps = normalizeLossBps(summary.lossBpsOfThenCurrentEquity);
   const stats: CareerStats = {
     ...state.stats,
@@ -132,10 +151,10 @@ export function reduceCareer(state: CareerState, event: CareerEvent): CareerStat
       next = reduceTradeClosed(next, event.summary);
       break;
     case 'SCALE_IN_USED':
-      if (event.sourceReceiptId) next = { ...next, stats: { ...next.stats, scaleInsUsed: next.stats.scaleInsUsed + 1 } };
+      if (event.sourceReceiptId && isGradableEvidence(event.evidenceProvenance ?? 'UNAVAILABLE')) next = { ...next, stats: { ...next.stats, scaleInsUsed: next.stats.scaleInsUsed + 1 } };
       break;
     case 'PARTIAL_EXIT_USED':
-      if (event.sourceReceiptId) next = { ...next, stats: { ...next.stats, partialExitsUsed: next.stats.partialExitsUsed + 1 } };
+      if (event.sourceReceiptId && isGradableEvidence(event.evidenceProvenance ?? 'UNAVAILABLE')) next = { ...next, stats: { ...next.stats, partialExitsUsed: next.stats.partialExitsUsed + 1 } };
       break;
     case 'SKILL_UNLOCKED':
       if (event.skillId === 'SPOT_BASIC' || event.skillId === 'SCALE_CONTROL' || event.skillId === 'STOP_LOSS') {
@@ -148,7 +167,7 @@ export function reduceCareer(state: CareerState, event: CareerEvent): CareerStat
       }
       break;
     case 'STOP_PLACED':
-      next = { ...next, stats: { ...next.stats, stopUses: next.stats.stopUses + 1 } };
+      if (isGradableEvidence(event.evidenceProvenance ?? 'UNAVAILABLE')) next = { ...next, stats: { ...next.stats, stopUses: next.stats.stopUses + 1 } };
       break;
     case 'STOP_HIT':
       break;

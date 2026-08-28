@@ -57,7 +57,12 @@ export function TradeTicket({ sim, career, blockedReason, onSubmit, observation 
             <span className="action-size">{TICKET_LABEL} ETH</span>
           </button>
           {buyReason && <p className="action-reason">{buyReason}</p>}
-          {scaleUnlocked && <button type="button" className="manage-action" disabled={marketBlocked} onClick={() => onSubmit({ kind: 'PROTECT_CAPITAL' })}>PRACTICE PROTECT_CAPITAL</button>}
+          {/* MARKET_TRUTH_V1: the one-click "PRACTICE PROTECT_CAPITAL" button
+              used to be here. It fabricated a 4% adverse move, executed it, and
+              counted the result toward STOP_LOSS qualification. Cutting a real
+              losing trade (MANUAL_LOSS_CUT) is now the only route; the Career
+              contract's alternate PROTECT_CAPITAL path waits for a real
+              historical Replay mission. */}
         </div>
       ) : (
         <div className="ticket-body">

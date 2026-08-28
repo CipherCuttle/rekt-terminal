@@ -20,12 +20,13 @@ import {
   createInitialSimState,
   createSessionOpenedEvent,
   executeSpotAction,
-  executeProtectCapitalChallenge,
   placeSpotStop,
   markSpot,
   mulDiv,
   quantityAtoms,
   replayEvents,
+  type EvidencePolicy,
+  type ProvenanceState,
   type SimState,
   type SpotAction,
   type TradeSummary,
@@ -47,14 +48,33 @@ import {
   type PracticeStorage,
 } from './persistence';
 import type { PracticeQuote } from './quote';
+import type { MarketEnvironment } from '../types/api';
 
+/**
+ * A DEMO session is the only way fabricated evidence reaches the simulator, and
+ * it is an explicit opt-in rather than an inference from a failed provider.
+ */
+export const EVIDENCE_POLICY_FOR_ENVIRONMENT: Record<MarketEnvironment, EvidencePolicy> = {
+  LIVE: 'LIVE_ONLY',
+  DEMO: 'DEMO_ALLOW_SYNTHETIC',
+};
+
+/**
+ * MARKET_TRUTH_V1: `PROTECT_CAPITAL` is no longer a submittable intent.
+ *
+ * It used to fabricate `referencePrice x 0.96`, label that invented future
+ * observation DERIVED, execute it, and count the result toward STOP_LOSS
+ * qualification — one button press "proving" the player could cut a loss. The
+ * Career contract still keeps PROTECT_CAPITAL as a conceptual alternate path to
+ * STOP_LOSS, to be satisfied by a future real historical Replay mission; it is
+ * simply not reachable from product flow until that mission exists.
+ */
 export type PracticeIntent =
   | { kind: 'BUY_FIXED' }
   | { kind: 'SCALE_IN' }
   | { kind: 'SELL_ALL' }
   | { kind: 'PARTIAL_CLOSE'; percent: number }
-  | { kind: 'PLACE_STOP'; stopPriceX18: bigint }
-  | { kind: 'PROTECT_CAPITAL' };
+  | { kind: 'PLACE_STOP'; stopPriceX18: bigint };
 
 export type PracticeRejectionCode = PracticeBlockCode | 'CAPABILITY_LOCKED' | 'NO_MARKET_INPUT' | 'INSTRUMENT_LOCKED' | 'NO_OPEN_POSITION' | 'INVALID_QUANTITY' | 'SIMULATOR_REJECTED';
 
@@ -81,11 +101,13 @@ export interface TradeReview {
   unlockedSkills: readonly string[];
 }
 
-export type PracticeRestoreStatus = 'FRESH' | 'RESTORED' | 'RESET_SAVE_UNUSABLE';
+export type PracticeRestoreStatus = 'FRESH' | 'RESTORED' | 'RESET_SAVE_UNUSABLE' | 'RESET_ENVIRONMENT_CHANGED';
 
 export interface PracticeSnapshot {
   sim: SimState;
   career: CareerState;
+  /** Data environment this session's economic state belongs to. */
+  environment: MarketEnvironment;
   /** Instrument the session's economic state is bound to, if any. */
   instrumentId: string | null;
   lastRejection: PracticeRejection | null;
@@ -100,11 +122,12 @@ const CAPABILITY_FOR_INTENT: Record<PracticeIntent['kind'], CapabilityId> = {
   SCALE_IN: 'SCALE_IN',
   PARTIAL_CLOSE: 'PARTIAL_EXIT',
   PLACE_STOP: 'STOP_MARKET',
-  PROTECT_CAPITAL: 'SCALE_IN',
 };
 
 export interface PracticeStoreOptions {
   sessionId?: string;
+  /** Defaults to LIVE. DEMO must be asked for. */
+  environment?: MarketEnvironment;
   now?: () => number;
   storage?: PracticeStorage;
   /** Latest usable quote for the instrument currently on screen. */
@@ -112,8 +135,8 @@ export interface PracticeStoreOptions {
   persistDebounceMs?: number;
 }
 
-function openedSession(sessionId: string, startedAtMs: number): SimState {
-  const initial = createInitialSimState({ sessionId, startedAtMs });
+function openedSession(sessionId: string, startedAtMs: number, environment: MarketEnvironment): SimState {
+  const initial = createInitialSimState({ sessionId, startedAtMs, evidencePolicy: EVIDENCE_POLICY_FOR_ENVIRONMENT[environment] });
   return replayEvents([createSessionOpenedEvent(initial, startedAtMs)], initial);
 }
 
@@ -133,10 +156,12 @@ export class PracticeSessionStore {
     this.getQuote = options.getQuote ?? (() => null);
     this.persistDebounceMs = options.persistDebounceMs ?? 400;
     const startedAtMs = this.now();
+    const environment = options.environment ?? 'LIVE';
     const sessionId = options.sessionId ?? `practice-${startedAtMs}`;
     this.snapshot = {
-      sim: openedSession(sessionId, startedAtMs),
+      sim: openedSession(sessionId, startedAtMs, environment),
       career: createInitialCareer(`career-${sessionId}`, startedAtMs),
+      environment,
       instrumentId: null,
       lastRejection: null,
       tradeReview: null,
@@ -195,6 +220,14 @@ export class PracticeSessionStore {
     }
     try {
       const restored = restorePracticeSave(loaded);
+      // A ledger belongs to the environment it was built in. Restoring a DEMO
+      // session into a LIVE one would put positions derived from fabricated
+      // evidence behind a LIVE label, so a mismatch discards the save.
+      if (restored.environment !== this.snapshot.environment) {
+        await this.storage.clear();
+        this.commit({ hydrated: true, restoreStatus: 'RESET_ENVIRONMENT_CHANGED' }, false);
+        return;
+      }
       this.commit(
         {
           sim: restored.sim,
@@ -220,11 +253,12 @@ export class PracticeSessionStore {
   }
 
   async persistNow(): Promise<void> {
-    const { sim, career, instrumentId } = this.snapshot;
+    const { sim, career, instrumentId, environment } = this.snapshot;
     const envelope = createPracticeSave({
       sim,
       career: createCareerSave(career),
       instrumentId,
+      environment,
       savedAtMs: this.now(),
     });
     await this.storage.save(envelope);
@@ -271,7 +305,7 @@ export class PracticeSessionStore {
     if (!quote) return this.reject('NO_MARKET_INPUT', 'No market observation is available for this instrument.');
 
     const eventTimeMs = this.eventTime();
-    const gate = evaluatePracticeEligibility(quote, eventTimeMs);
+    const gate = evaluatePracticeEligibility(quote, eventTimeMs, { evidencePolicy: this.snapshot.sim.evidencePolicy });
     if (gate.status === 'BLOCKED') return this.reject(gate.code, gate.detail);
 
     const { sim } = this.snapshot;
@@ -283,17 +317,10 @@ export class PracticeSessionStore {
       return this.reject('INSTRUMENT_LOCKED', `An open position on ${position.instrumentId} must be closed before trading another instrument.`);
     }
 
-    if (intent.kind === 'PROTECT_CAPITAL') {
-      if (!this.snapshot.career.unlockedSkills.includes('SCALE_CONTROL')) return this.reject('CAPABILITY_LOCKED', 'SCALE_CONTROL is required for practice challenges.');
-      const result = executeProtectCapitalChallenge(sim, gate.observation, eventTimeMs, DEFAULT_SPOT_FILL_CONFIG);
-      if (!result.accepted) return this.reject('SIMULATOR_REJECTED', result.reason ?? 'The simulator refused this challenge.');
-      this.applyAccepted(intent, result.state, gate.observation.instrumentId);
-      return { accepted: true };
-    }
     if (intent.kind === 'PLACE_STOP') {
       const result = placeSpotStop(sim, { stopId: `${sim.sessionId}:stop:${sim.lastSequence + 1}`, stopPriceX18: intent.stopPriceX18, observation: gate.observation, eventTimeMs }, DEFAULT_SPOT_FILL_CONFIG);
       if (!result.accepted) return this.reject('SIMULATOR_REJECTED', result.reason ?? 'The simulator refused this stop.');
-      let career = reduceCareer(this.snapshot.career, { type: 'STOP_PLACED', eventId: `${sim.sessionId}:stop:${sim.lastSequence + 1}:career`, sourceReceiptId: result.events[0].eventId });
+      const career = reduceCareer(this.snapshot.career, { type: 'STOP_PLACED', eventId: `${sim.sessionId}:stop:${sim.lastSequence + 1}:career`, sourceReceiptId: result.events[0].eventId, evidenceProvenance: gate.observation.provenance });
       this.commit({ sim: result.state, career, instrumentId: gate.observation.instrumentId, lastRejection: null });
       return { accepted: true };
     }
@@ -313,7 +340,7 @@ export class PracticeSessionStore {
       return { accepted: false, rejection };
     }
 
-    this.applyAccepted(intent, result.state, gate.observation.instrumentId);
+    this.applyAccepted(intent, result.state, gate.observation.instrumentId, gate.observation.provenance);
     return { accepted: true };
   }
 
@@ -331,7 +358,7 @@ export class PracticeSessionStore {
     if (intent.kind === 'BUY_FIXED') {
       return { action: { ...base, type: 'BUY', quoteNotionalWei: DEFAULT_FIRST_TICKET_WEI } };
     }
-    if (intent.kind === 'PLACE_STOP' || intent.kind === 'PROTECT_CAPITAL') {
+    if (intent.kind === 'PLACE_STOP') {
       return { rejection: this.reject('SIMULATOR_REJECTED', 'This intent is handled by the session domain.') };
     }
     if (intent.kind === 'SCALE_IN') {
@@ -358,7 +385,7 @@ export class PracticeSessionStore {
    * Fold the accepted simulator result into session state and feed Career from
    * the facts the simulator recorded — never from the click that caused them.
    */
-  private applyAccepted(intent: PracticeIntent, nextSim: SimState, instrumentId: string): void {
+  private applyAccepted(intent: PracticeIntent, nextSim: SimState, instrumentId: string, evidenceProvenance: ProvenanceState): void {
     const previousSummaryCount = this.snapshot.sim.tradeSummaries.length;
     const newSummaries = nextSim.tradeSummaries.slice(previousSummaryCount);
     const acceptedFillId = nextSim.appliedFillIds[nextSim.appliedFillIds.length - 1];
@@ -367,10 +394,10 @@ export class PracticeSessionStore {
     const careerEvents: CareerEvent[] = [];
 
     if (intent.kind === 'SCALE_IN' && acceptedFillId) {
-      careerEvents.push({ type: 'SCALE_IN_USED', eventId: `${acceptedFillId}:scale-in`, sourceReceiptId: acceptedFillId });
+      careerEvents.push({ type: 'SCALE_IN_USED', eventId: `${acceptedFillId}:scale-in`, sourceReceiptId: acceptedFillId, evidenceProvenance });
     }
     if (intent.kind === 'PARTIAL_CLOSE' && acceptedFillId) {
-      careerEvents.push({ type: 'PARTIAL_EXIT_USED', eventId: `${acceptedFillId}:partial-exit`, sourceReceiptId: acceptedFillId });
+      careerEvents.push({ type: 'PARTIAL_EXIT_USED', eventId: `${acceptedFillId}:partial-exit`, sourceReceiptId: acceptedFillId, evidenceProvenance });
     }
     for (const summary of newSummaries) {
       careerEvents.push({
@@ -389,9 +416,12 @@ export class PracticeSessionStore {
           stopUsed: summary.stopUsed,
           partialExitUsed: summary.partialExitUsed,
           liquidated: summary.liquidated,
+          // Straight from the simulator's own record of what the trade was
+          // executed against. The store never supplies its own opinion here.
+          evidenceProvenance: summary.evidenceProvenance,
         },
       });
-      if (summary.stopUsed) careerEvents.push({ type: 'STOP_HIT', eventId: `${nextSim.sessionId}:${summary.tradeId}:stop-hit`, sourceReceiptId: `${nextSim.sessionId}:${summary.tradeId}` });
+      if (summary.stopUsed) careerEvents.push({ type: 'STOP_HIT', eventId: `${nextSim.sessionId}:${summary.tradeId}:stop-hit`, sourceReceiptId: `${nextSim.sessionId}:${summary.tradeId}`, evidenceProvenance: summary.evidenceProvenance });
     }
 
     const careerBefore = career;
@@ -436,7 +466,7 @@ export class PracticeSessionStore {
     const quote = this.getQuote();
     if (!quote) return false;
     const eventTimeMs = this.eventTime();
-    const gate = evaluatePracticeEligibility(quote, eventTimeMs);
+    const gate = evaluatePracticeEligibility(quote, eventTimeMs, { evidencePolicy: this.snapshot.sim.evidencePolicy });
     if (gate.status === 'BLOCKED') return false;
     if (gate.observation.instrumentId !== sim.position.instrumentId) return false;
     // An unchanged price revalues to the same equity. Skipping it keeps the
@@ -448,7 +478,7 @@ export class PracticeSessionStore {
     // Marks are revaluations, not new commitments, so they do not trigger a
     // save; the next fill persists them along with itself. A reload mid-position
     // restores the same position and balance and re-marks within a second.
-    if (result.state.tradeSummaries.length > sim.tradeSummaries.length) this.applyAccepted({ kind: 'SELL_ALL' }, result.state, gate.observation.instrumentId);
+    if (result.state.tradeSummaries.length > sim.tradeSummaries.length) this.applyAccepted({ kind: 'SELL_ALL' }, result.state, gate.observation.instrumentId, gate.observation.provenance);
     else this.commit({ sim: result.state }, false);
     return true;
   }
@@ -471,7 +501,28 @@ export class PracticeSessionStore {
   resetSession(): void {
     const startedAtMs = this.now();
     this.commit({
-      sim: openedSession(`practice-${startedAtMs}`, startedAtMs),
+      sim: openedSession(`practice-${startedAtMs}`, startedAtMs, this.snapshot.environment),
+      instrumentId: null,
+      lastRejection: null,
+      tradeReview: null,
+      restoreStatus: 'FRESH',
+    });
+  }
+
+  /**
+   * Switch data environment.
+   *
+   * The evidence policy is fixed when a session opens, so changing environment
+   * starts a new session rather than mutating the gate underneath an open
+   * position — a LIVE position cannot be carried into DEMO or vice versa.
+   * Career state is preserved; DEMO could not have advanced it anyway.
+   */
+  setEnvironment(environment: MarketEnvironment): void {
+    if (this.snapshot.environment === environment) return;
+    const startedAtMs = this.now();
+    this.commit({
+      environment,
+      sim: openedSession(`practice-${environment.toLowerCase()}-${startedAtMs}`, startedAtMs, environment),
       instrumentId: null,
       lastRejection: null,
       tradeReview: null,

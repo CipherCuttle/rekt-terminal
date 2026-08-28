@@ -10,9 +10,9 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { money, short } from '../lib/format-display';
 import { ProvenanceChip } from '../components/TruthChip';
-import type { WalletTrace } from '../types/api';
+import type { MarketEnvironment, WalletTrace } from '../types/api';
 
-export function DevScreen({ mode, onWallet }: { mode: 'fixture' | 'live'; onWallet: (address: string) => void }) {
+export function DevScreen({ environment, onWallet }: { environment: MarketEnvironment; onWallet: (address: string) => void }) {
   const [nft, setNft] = useState<any>(null);
   const [revealed, setRevealed] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
@@ -20,8 +20,8 @@ export function DevScreen({ mode, onWallet }: { mode: 'fixture' | 'live'; onWall
   useEffect(() => {
     setNft(null);
     setUnavailable(false);
-    api.nft('0x0000000000000000000000000000000000000000', '413', mode).then(setNft).catch(() => setUnavailable(true));
-  }, [mode]);
+    api.nft('0x0000000000000000000000000000000000000000', '413', environment).then(setNft).catch(() => setUnavailable(true));
+  }, [environment]);
 
   if (unavailable) {
     return (
@@ -37,7 +37,7 @@ export function DevScreen({ mode, onWallet }: { mode: 'fixture' | 'live'; onWall
   if (!nft) {
     return (
       <section className="screen">
-        <div className="panel empty">NFT {mode.toUpperCase()} LOADING…</div>
+        <div className="panel empty">NFT {environment} LOADING…</div>
       </section>
     );
   }

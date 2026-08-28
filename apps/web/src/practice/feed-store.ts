@@ -9,15 +9,15 @@
  * Freshness is re-evaluated on a heartbeat, so a feed that simply stops
  * produces a visible STALE state instead of a frozen "live" price.
  */
-import type { ProvenanceState } from '@rekt-ink/sim';
+import type { EvidencePolicy, ProvenanceState } from '@rekt-ink/sim';
 import { evaluatePracticeEligibility, type PracticeEligibility } from './eligibility';
 import { quoteWithTick, type PracticeQuote } from './quote';
 
 export type FeedConnection =
   | 'CONNECTING'
   | 'LIVE'
-  | 'SERVER_FIXTURE'
-  | 'LOCAL_FIXTURE'
+  | 'SERVER_DEMO'
+  | 'LOCAL_DEMO'
   | 'DEGRADED'
   | 'DISCONNECTED'
   | 'IDLE';
@@ -53,6 +53,8 @@ export interface MarketFeedStoreOptions {
   now?: () => number;
   /** Minimum interval between React notifications. */
   throttleMs?: number;
+  /** Session evidence gate used when evaluating the market gate. */
+  evidencePolicy?: EvidencePolicy;
 }
 
 export class MarketFeedStore {
@@ -60,6 +62,7 @@ export class MarketFeedStore {
   private readonly listeners = new Set<() => void>();
   private readonly now: () => number;
   private readonly throttleMs: number;
+  private evidencePolicy: EvidencePolicy;
 
   private quote: PracticeQuote | null = null;
   private connection: FeedConnection = 'IDLE';
@@ -72,6 +75,14 @@ export class MarketFeedStore {
   constructor(options: MarketFeedStoreOptions = {}) {
     this.now = options.now ?? (() => Date.now());
     this.throttleMs = options.throttleMs ?? 250;
+    this.evidencePolicy = options.evidencePolicy ?? 'LIVE_ONLY';
+  }
+
+  /** Keep the gate aligned with the practice session's own policy. */
+  setEvidencePolicy(evidencePolicy: EvidencePolicy): void {
+    if (this.evidencePolicy === evidencePolicy) return;
+    this.evidencePolicy = evidencePolicy;
+    this.flush();
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -136,7 +147,7 @@ export class MarketFeedStore {
   }
 
   private evaluate(atMs = this.now()): PracticeEligibility | null {
-    return this.quote ? evaluatePracticeEligibility(this.quote, atMs) : null;
+    return this.quote ? evaluatePracticeEligibility(this.quote, atMs, { evidencePolicy: this.evidencePolicy }) : null;
   }
 
   private scheduleFlush(): void {

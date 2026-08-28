@@ -23,8 +23,11 @@ export function TruthChip({ state, title }: { state: ProvenanceState; title?: st
   );
 }
 
-/** Legacy web-provenance shape used by Radar rows and the dormant dev screens. */
+/**
+ * Provenance envelope from the API. Web and simulator share one vocabulary now,
+ * so there is no translation step in which a label could be strengthened.
+ */
 export function ProvenanceChip({ p }: { p: Provenance }) {
-  const state: ProvenanceState = p.state === 'ESTIMATED' ? 'SYNTHETIC' : p.state;
+  const state: ProvenanceState = p.state;
   return <TruthChip state={state} title={`${p.source} · ${p.asOf} · ${p.method}${p.block ? ` · block ${p.block}` : ''}`} />;
 }

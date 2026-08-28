@@ -12,6 +12,29 @@ import type { ChartFillStamp } from '../lib/chart';
 import type { MarketFeedHandlers } from '../lib/market-feed';
 import { localAssets } from '../lib/local-fixtures';
 import { createMemoryPracticeStorage } from '../practice/persistence';
+import type { RadarAsset } from '../types/api';
+
+/**
+ * LIVE-shaped Radar rows.
+ *
+ * The app boots LIVE, and LIVE evidence is DERIVED provider data with explicit
+ * quote-token identity. The DEMO fixtures are deliberately SYNTHETIC and would
+ * be refused, so the loop is exercised against rows that look like what
+ * GeckoTerminal actually returns.
+ */
+const WETH = '0x4200000000000000000000000000000000000006';
+const liveAssets: RadarAsset[] = localAssets.map((asset) => ({
+  ...asset,
+  quoteTokenAddress: asset.quote === 'WETH' ? WETH : asset.quoteTokenAddress ?? null,
+  quoteIdentityResolved: true,
+  freshness: 'DERIVED' as const,
+  provenance: {
+    state: 'DERIVED' as const,
+    source: 'GECKOTERMINAL',
+    asOf: new Date().toISOString(),
+    method: 'test double for a live provider pool snapshot',
+  },
+}));
 
 /* ------------------------------------------------------------------ mocks */
 
@@ -55,9 +78,9 @@ vi.mock('../lib/market-feed', () => ({
 
 vi.mock('../lib/api', () => ({
   api: {
-    radar: async () => ({ mode: 'fixture', items: localAssets }),
+    radar: async () => ({ environment: 'LIVE', items: liveAssets }),
     status: async () => ({ ok: true, blockNumber: 4213 }),
-    bars: async () => [],
+    bars: async () => ({ bars: [], currency: 'QUOTE_TOKEN', currencyLabel: 'WETH' }),
     trades: async () => ({ trades: [] }),
     wallet: async () => {
       throw new Error('not used');
@@ -126,7 +149,7 @@ describe('MVP terminal loop', () => {
     expect(heading).toHaveTextContent('NOIR');
     expect(heading).toHaveTextContent('/WETH');
 
-    const asset = localAssets.find((entry) => entry.symbol === 'NOIR')!;
+    const asset = liveAssets.find((entry) => entry.symbol === 'NOIR')!;
     expect(runtime.feed.currentQuote()?.instrumentId).toBe(`INK:${asset.pairAddress.toLowerCase()}`);
     expect(runtime.feed.getSnapshot().eligibility?.status).toBe('SUPPORTED');
   });

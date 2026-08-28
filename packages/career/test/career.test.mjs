@@ -9,7 +9,7 @@ import {
   reduceCareer,
 } from '../dist/index.js';
 
-function closed(id, lossBps = 0n, equity = 500_000_000_000_000_000n) {
+function closed(id, lossBps = 0n, equity = 500_000_000_000_000_000n, evidenceProvenance = 'DERIVED') {
   return {
     type: 'TRADE_CLOSED',
     eventId: `${id}:closed`,
@@ -26,6 +26,7 @@ function closed(id, lossBps = 0n, equity = 500_000_000_000_000_000n) {
       accountEquityAtOpenWei: 500_000_000_000_000_000n,
       exitReason: lossBps > 0n ? 'MANUAL' : 'MANUAL',
       stopUsed: false,
+      evidenceProvenance,
     },
   };
 }

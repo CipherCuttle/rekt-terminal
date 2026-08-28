@@ -10,16 +10,25 @@
  */
 import {
   DEFAULT_SPOT_FILL_CONFIG,
+  type EvidencePolicy,
   type MarketObservation,
   type ProvenanceState,
 } from '@rekt-ink/sim';
-import { SUPPORTED_QUOTE_ASSETS, priceX18FromNumber, usableLiquidityWei, type PracticeQuote } from './quote';
+import {
+  SUPPORTED_QUOTE_ASSETS,
+  isEthEquivalentQuoteAddress,
+  priceX18FromNumber,
+  usableLiquidityWei,
+  type PracticeQuote,
+} from './quote';
 
 export const PRACTICE_UNAVAILABLE_LABEL = 'PRACTICE_UNAVAILABLE_V0';
 
 export type PracticeBlockCode =
   | 'UNSUPPORTED_QUOTE'
+  | 'QUOTE_IDENTITY_UNRESOLVED'
   | 'MODEL_INPUT_UNAVAILABLE'
+  | 'SYNTHETIC_EVIDENCE'
   | 'INVALID_PRICE'
   | 'MISSING_LIQUIDITY'
   | 'STALE_MARKET';
@@ -45,11 +54,24 @@ const USABLE_PROVENANCE: readonly ProvenanceState[] = ['CONFIRMED', 'DERIVED'];
 
 export const MAX_OBSERVATION_AGE_MS = DEFAULT_SPOT_FILL_CONFIG.maxObservationAgeMs;
 
+export interface PracticeEligibilityOptions {
+  maxAgeMs?: number;
+  /**
+   * Session evidence gate. Defaults to the strict LIVE posture, in which
+   * SYNTHETIC evidence is refused. A DEMO session opts in explicitly, which
+   * lets fabricated data exercise the simulator while every resulting trade
+   * stays stamped SYNTHETIC and ungradable by Career.
+   */
+  evidencePolicy?: EvidencePolicy;
+}
+
 export function evaluatePracticeEligibility(
   quote: PracticeQuote,
   nowMs: number,
-  maxAgeMs: number = MAX_OBSERVATION_AGE_MS,
+  options: PracticeEligibilityOptions = {},
 ): PracticeEligibility {
+  const maxAgeMs = options.maxAgeMs ?? MAX_OBSERVATION_AGE_MS;
+  const evidencePolicy: EvidencePolicy = options.evidencePolicy ?? 'LIVE_ONLY';
   const blocked = (code: PracticeBlockCode, detail: string, truthLabel: ProvenanceState = quote.provenance): PracticeBlocked => ({
     status: 'BLOCKED',
     code,
@@ -57,10 +79,25 @@ export function evaluatePracticeEligibility(
     truthLabel,
   });
 
-  if (!SUPPORTED_QUOTE_ASSETS.includes(quote.quoteAsset.toUpperCase())) {
+  // Quote eligibility is decided from provider token identity. A pool whose
+  // quote side could not be identified is refused rather than guessed at, and
+  // the pool's display name is never consulted.
+  // `undefined` means the quote never went through identity resolution, which
+  // is treated as unresolved rather than trusted.
+  if (quote.quoteIdentityResolved !== true) {
+    return blocked('QUOTE_IDENTITY_UNRESOLVED', 'The quote token for this pool could not be identified from provider data, so practice is not offered.');
+  }
+  const ethEquivalentByAddress = isEthEquivalentQuoteAddress(quote.quoteTokenAddress);
+  if (!ethEquivalentByAddress && !SUPPORTED_QUOTE_ASSETS.includes(quote.quoteAsset.toUpperCase())) {
     return blocked('UNSUPPORTED_QUOTE', `Spot practice requires an ETH or WETH quote; this pair quotes ${quote.quoteAsset.toUpperCase()}.`);
   }
-  if (!USABLE_PROVENANCE.includes(quote.provenance)) {
+  if (quote.provenance === 'SYNTHETIC') {
+    // Named separately from MODEL_INPUT_UNAVAILABLE so DEMO reads as "this is
+    // fabricated data", not "the feed is broken".
+    if (evidencePolicy !== 'DEMO_ALLOW_SYNTHETIC') {
+      return blocked('SYNTHETIC_EVIDENCE', 'This is synthetic data. It cannot enter LIVE economic execution.');
+    }
+  } else if (!USABLE_PROVENANCE.includes(quote.provenance)) {
     return blocked('MODEL_INPUT_UNAVAILABLE', `Market evidence is ${quote.provenance}; practice needs CONFIRMED or DERIVED input.`);
   }
 
@@ -91,7 +128,10 @@ export function evaluatePracticeEligibility(
     observation: {
       observationId: `${quote.instrumentId}:${quote.sequence}`,
       instrumentId: quote.instrumentId,
-      quoteAsset: quote.quoteAsset.toUpperCase(),
+      // The simulator's own quote check is symbol based; an address-verified
+      // ETH-equivalent quote is normalised to WETH so identity, not the
+      // provider's display symbol, is what reaches the economic layer.
+      quoteAsset: ethEquivalentByAddress ? 'WETH' : quote.quoteAsset.toUpperCase(),
       referencePriceX18,
       usableQuoteLiquidityWei,
       observedAtMs: quote.observedAtMs,

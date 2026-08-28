@@ -27,6 +27,9 @@ import type { PracticeQuote } from '../practice/quote';
 
 const START = 1_800_000_000_000;
 const ETH_USD = 3284.15;
+/** Canonical OP-stack WETH predeploy; identity, not the display symbol. */
+const WETH = '0x4200000000000000000000000000000000000006';
+const USDC = '0xf1815bd50389c46847f0bda824ec8da914045d14';
 
 function makeQuote(overrides: Partial<PracticeQuote> = {}): PracticeQuote {
   const priceEth = overrides.priceEth ?? 0.025;
@@ -38,6 +41,8 @@ function makeQuote(overrides: Partial<PracticeQuote> = {}): PracticeQuote {
     pairAddress: '0xpair',
     tokenAddress: '0xtoken',
     quoteAsset: 'WETH',
+    quoteTokenAddress: WETH,
+    quoteIdentityResolved: true,
     priceEth,
     priceUsd: priceEth * ETH_USD,
     liquidityUsd: 500_000,
@@ -101,12 +106,12 @@ function roundTrip(h: Harness, priceEth = 0.025): void {
 
 describe('market gate', () => {
   it('8. an unsupported quote asset disables practice', () => {
-    const gate = evaluatePracticeEligibility(makeQuote({ quoteAsset: 'USDC' }), START);
+    const gate = evaluatePracticeEligibility(makeQuote({ quoteAsset: 'USDC', quoteTokenAddress: USDC }), START);
     expect(gate.status).toBe('BLOCKED');
     if (gate.status === 'BLOCKED') expect(gate.code).toBe('UNSUPPORTED_QUOTE');
 
     const h = harness();
-    h.setQuote(makeQuote({ quoteAsset: 'USDC' }));
+    h.setQuote(makeQuote({ quoteAsset: 'USDC', quoteTokenAddress: USDC }));
     const result = h.store.submit({ kind: 'BUY_FIXED' });
     expect(result.accepted).toBe(false);
     expect(result.rejection?.code).toBe('UNSUPPORTED_QUOTE');
@@ -384,7 +389,7 @@ describe('career', () => {
     // Spam locked capabilities.
     for (let i = 0; i < 60; i += 1) h.store.submit({ kind: 'SCALE_IN' } as PracticeIntent);
     // Spam against an unusable market.
-    h.setQuote(makeQuote({ quoteAsset: 'USDC' }));
+    h.setQuote(makeQuote({ quoteAsset: 'USDC', quoteTokenAddress: USDC }));
     for (let i = 0; i < 60; i += 1) h.store.submit({ kind: 'BUY_FIXED' });
 
     const after = h.store.getSnapshot().career;
@@ -451,10 +456,13 @@ describe('persistence', () => {
       sim: h.store.getSnapshot().sim,
       career: { kind: 'REKT_INK_CAREER_SAVE', saveVersion: 1, state: h.store.getSnapshot().career },
       instrumentId: 'INK:0xpair',
+      environment: 'LIVE',
       savedAtMs: START,
     });
 
     expect(() => restorePracticeSave({ ...good, saveVersion: 99 })).toThrow(/unsupported practice save version/);
+    // A save with no recorded environment is refused rather than assumed LIVE.
+    expect(() => restorePracticeSave({ ...good, environment: undefined })).toThrow(/no data environment/);
     expect(() => restorePracticeSave({ ...good, replayDigest: 'FNV1A64-0000000000000000' })).toThrow(/replay digest mismatch/);
     expect(() => restorePracticeSave({ ...good, career: { kind: 'NOPE' } })).toThrow(/career save failed migration/);
 

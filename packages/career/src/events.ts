@@ -1,4 +1,14 @@
-import type { CareerTradeSummaryFact } from './types.js';
+import type { CareerTradeSummaryFact, ProvenanceState } from './types.js';
+
+/**
+ * Behavioural events carry the provenance of the market evidence the behaviour
+ * was performed against, for the same reason TradeSummary facts do: a scale-in
+ * or a stop placed against fabricated DEMO data is not a demonstrated
+ * behaviour. Omitted is treated as UNGRADABLE, never as real evidence.
+ */
+export interface EvidenceBacked {
+  evidenceProvenance?: ProvenanceState;
+}
 
 export interface CareerStartedEvent {
   type: 'CAREER_STARTED';
@@ -14,13 +24,13 @@ export interface TradeClosedEvent {
   summary: CareerTradeSummaryFact;
 }
 
-export interface ScaleInUsedEvent {
+export interface ScaleInUsedEvent extends EvidenceBacked {
   type: 'SCALE_IN_USED';
   eventId: string;
   sourceReceiptId: string;
 }
 
-export interface PartialExitUsedEvent {
+export interface PartialExitUsedEvent extends EvidenceBacked {
   type: 'PARTIAL_EXIT_USED';
   eventId: string;
   sourceReceiptId: string;
@@ -38,8 +48,8 @@ export interface SkillUnlockedEvent {
   skillId: 'SPOT_BASIC' | 'SCALE_CONTROL' | 'STOP_LOSS';
 }
 
-export interface StopPlacedEvent { type: 'STOP_PLACED'; eventId: string; sourceReceiptId: string; }
-export interface StopHitEvent { type: 'STOP_HIT'; eventId: string; sourceReceiptId: string; }
+export interface StopPlacedEvent extends EvidenceBacked { type: 'STOP_PLACED'; eventId: string; sourceReceiptId: string; }
+export interface StopHitEvent extends EvidenceBacked { type: 'STOP_HIT'; eventId: string; sourceReceiptId: string; }
 
 export type CareerEvent =
   | CareerStartedEvent

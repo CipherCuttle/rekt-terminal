@@ -425,6 +425,127 @@ main {
 }
 
 /* ==========================================================================
+   environment identity — MARKET_TRUTH_V1
+   LIVE and DEMO are always distinguishable by text, not colour alone.
+   ========================================================================== */
+
+.env-badge {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  padding: 3px 7px;
+  border: 1px solid;
+  border-radius: 2px;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.env-live {
+  color: var(--acid);
+  border-color: var(--acid-dim);
+}
+
+.env-demo {
+  color: var(--ink-purple-soft);
+  border-color: var(--ink-purple);
+  background: rgba(122, 92, 255, 0.12);
+}
+
+.demo-notice {
+  background: rgba(122, 92, 255, 0.12);
+  border-bottom: 1px solid var(--ink-purple);
+  color: var(--ink-purple-soft);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  padding: 7px 12px;
+  margin: 0;
+}
+
+.live-degraded {
+  background: rgba(255, 176, 46, 0.1);
+  border-bottom: 1px solid #7a5518;
+  color: var(--amber);
+  padding: 9px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-degraded-code {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  margin: 0;
+  font-weight: 600;
+}
+
+.live-degraded-detail {
+  margin: 0;
+  font-size: 10px;
+  color: var(--paper-dim);
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.live-degraded-action {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 6px 10px;
+  min-height: 32px;
+  border: 1px solid var(--ink-purple);
+  background: transparent;
+  color: var(--ink-purple-soft);
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.live-degraded-action:hover {
+  background: rgba(122, 92, 255, 0.16);
+}
+
+/* Chart denomination and fail-closed history state. */
+
+.chart-panel {
+  position: relative;
+}
+
+.chart-currency {
+  color: var(--paper-dim);
+}
+
+.chart-demo {
+  color: var(--ink-purple-soft);
+}
+
+.chart-unavailable {
+  position: absolute;
+  inset: 12px 12px auto 12px;
+  background: rgba(11, 9, 20, 0.94);
+  border: 1px solid var(--ink-seam);
+  border-radius: 3px;
+  padding: 12px 14px;
+  pointer-events: none;
+}
+
+.chart-unavailable-code {
+  margin: 0 0 5px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--amber);
+}
+
+.chart-unavailable-detail {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--paper-dim);
+}
+
+/* ==========================================================================
    radar
    ========================================================================== */
 
@@ -1473,12 +1594,45 @@ table.radar .truth {
 
 .tape-row {
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
+  grid-template-columns: 52px minmax(0, 1fr) auto;
   gap: 8px;
+  align-items: baseline;
   padding: 5px 10px;
   border-bottom: 1px solid rgba(34, 28, 58, 0.6);
   font-family: var(--mono);
   font-size: 9px;
+}
+
+/* A confirmed swap is a discrete executed event: it gets a solid leading rule.
+   A derived mark is a periodic summary of the pool, so it is quieter and
+   dashed. They must never read as the same class of fact. */
+
+.tape-kind-swap {
+  border-left: 2px solid var(--acid-dim);
+}
+
+.tape-kind-mark {
+  border-left: 2px dashed var(--ink-seam);
+  opacity: 0.82;
+}
+
+.tape-kind-demo {
+  border-left: 2px dotted var(--ink-purple);
+}
+
+.tape-truth {
+  font-size: 7px;
+  letter-spacing: 0.1em;
+  padding: 1px 4px;
+  border: 1px solid;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.tape-tx {
+  margin-left: 6px;
+  color: var(--acid);
+  opacity: 0.75;
 }
 
 .tape-tag {
@@ -1701,6 +1855,14 @@ table.radar .truth {
   .nav-primary,
   .search,
   .scenario-select {
+    display: none;
+  }
+
+  /* The standalone badge is redundant on a narrow header: DEMO already gets a
+     full-width notice bar directly beneath, and the environment select reads
+     "DATA · LIVE" / "DATA · DEMO". Dropping it stops the header overflowing
+     and clipping that select. */
+  .env-badge {
     display: none;
   }
 

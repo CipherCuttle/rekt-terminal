@@ -9,3 +9,6 @@ test-results/
 
 # browser-automation artifacts
 .playwright-mcp/
+
+# TypeScript incremental build state
+*.tsbuildinfo
