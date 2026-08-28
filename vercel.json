@@ -1,26 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "services": {
-    "web": {
-      "root": "apps/web/"
-    },
-    "api": {
-      "root": "apps/api/",
-      "entrypoint": "src/server.ts"
-    }
-  },
+  "buildCommand": "npm run build -w @rekt-ink/sim && npm run build -w @rekt-ink/career && npm run build -w @rekt-ink/web",
+  "installCommand": "npm ci --no-audit --no-fund",
+  "outputDirectory": "apps/web/dist",
   "rewrites": [
-    {
-      "source": "/health",
-      "destination": { "service": "api" }
-    },
-    {
-      "source": "/v1/:path*",
-      "destination": { "service": "api" }
-    },
-    {
-      "source": "/:path*",
-      "destination": { "service": "web" }
-    }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
