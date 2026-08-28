@@ -43,6 +43,7 @@ export class MarketChart {
   markers: ISeriesMarkersPluginApi<Time>;
   last: Bar | null = null;
   private entryLine: IPriceLine | null = null;
+  private stopLine: IPriceLine | null = null;
 
   constructor(el: HTMLElement) {
     this.chart = createChart(el, {
@@ -167,6 +168,11 @@ export class MarketChart {
       axisLabelVisible: true,
       title,
     });
+  }
+
+  setStopLine(price: number | null) {
+    if (this.stopLine) { this.candle.removePriceLine(this.stopLine); this.stopLine = null; }
+    if (price !== null) this.stopLine = this.candle.createPriceLine({ price, color: '#FF2E6C', lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: 'STOP' });
   }
 
   destroy() {

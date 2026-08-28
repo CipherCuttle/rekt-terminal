@@ -35,8 +35,11 @@ export interface CareerActionAttemptEvent {
 export interface SkillUnlockedEvent {
   type: 'SKILL_UNLOCKED';
   eventId: string;
-  skillId: 'SPOT_BASIC' | 'SCALE_CONTROL';
+  skillId: 'SPOT_BASIC' | 'SCALE_CONTROL' | 'STOP_LOSS';
 }
+
+export interface StopPlacedEvent { type: 'STOP_PLACED'; eventId: string; sourceReceiptId: string; }
+export interface StopHitEvent { type: 'STOP_HIT'; eventId: string; sourceReceiptId: string; }
 
 export type CareerEvent =
   | CareerStartedEvent
@@ -44,4 +47,6 @@ export type CareerEvent =
   | ScaleInUsedEvent
   | PartialExitUsedEvent
   | CareerActionAttemptEvent
-  | SkillUnlockedEvent;
+  | SkillUnlockedEvent
+  | StopPlacedEvent
+  | StopHitEvent;

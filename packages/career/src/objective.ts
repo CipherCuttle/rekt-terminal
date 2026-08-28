@@ -23,11 +23,24 @@ export function getNextObjective(state: Pick<CareerState, 'unlockedSkills' | 'qu
       };
     }
   }
+  const stop = state.qualification.stopLoss;
+  if (!state.unlockedSkills.includes('STOP_LOSS')) {
+    if (stop.totalClosedSpotTrades < stop.targetClosedSpotTrades) {
+      const remaining = stop.targetClosedSpotTrades - stop.totalClosedSpotTrades;
+      return { id: 'stop-loss-trades', kind: 'SCALE_CONTROL_UNLOCKED', text: `NEXT // Complete ${remaining} more spot ${remaining === 1 ? 'trade' : 'trades'} for STOP_LOSS.`, progress: stop.totalClosedSpotTrades, target: stop.targetClosedSpotTrades };
+    }
+    if (stop.manualLossCuts + stop.protectCapitalChallenges < 1) {
+      return { id: 'stop-loss-controlled-loss', kind: 'SCALE_CONTROL_UNLOCKED', text: 'NEXT // Cut one losing trade before -5% account loss.', progress: 0, target: 1 };
+    }
+    return { id: 'stop-loss-equity-floor', kind: 'SCALE_CONTROL_UNLOCKED', text: 'NEXT // Keep account equity at least 70% of starting equity.', progress: stop.accountEquityAtLeast70Percent ? 1 : 0, target: 1 };
+  }
   return {
-    id: 'scale-control-practice',
+    id: 'stop-loss-authorized',
+    // Keep the existing objective kind stable for consumers; the copy now
+    // points to the next STOP_LOSS milestone.
     kind: 'SCALE_CONTROL_UNLOCKED',
-    text: 'NEXT // Use one scale-in or partial exit.',
-    progress: 0,
+    text: 'STOP_LOSS AUTHORIZED // Place a protective stop.',
+    progress: 1,
     target: 1,
   };
 }

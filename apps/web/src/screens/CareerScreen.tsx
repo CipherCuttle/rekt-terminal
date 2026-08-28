@@ -11,6 +11,7 @@ import { formatBpsPercent } from '../practice/format';
 const SKILL_TIERS: readonly { id: SkillId; capabilities: readonly CapabilityId[]; blurb: string }[] = [
   { id: 'SPOT_BASIC', capabilities: ['SPOT_MARKET_BUY_FIXED', 'SPOT_SELL_ALL'], blurb: 'Fixed-size spot entry and full close.' },
   { id: 'SCALE_CONTROL', capabilities: ['SCALE_IN', 'PARTIAL_EXIT'], blurb: 'Add to a position and take partial exits.' },
+  { id: 'STOP_LOSS', capabilities: ['STOP_MARKET'], blurb: 'Place a protective stop on a long spot position.' },
 ];
 
 const CAPABILITY_LABEL: Record<string, string> = {
@@ -18,10 +19,12 @@ const CAPABILITY_LABEL: Record<string, string> = {
   SPOT_SELL_ALL: 'Close the whole position',
   SCALE_IN: 'Scale into an open position',
   PARTIAL_EXIT: 'Partial close at 25 / 50 / 75%',
+  STOP_MARKET: 'Protective stop-market trigger',
 };
 
 export function CareerScreen({ career }: { career: CareerState }) {
   const qualification = career.qualification.scaleControl;
+  const stop = career.qualification.stopLoss;
 
   return (
     <section className="screen career-screen">
@@ -52,7 +55,7 @@ export function CareerScreen({ career }: { career: CareerState }) {
               );
             })}
           </ul>
-          <p className="panel-foot">Later tiers (STOP_LOSS, RISK_SIZING, MARGIN_2X, SHORT) are not part of this build.</p>
+          <p className="panel-foot">Later tiers (RISK_SIZING, MARGIN_2X, SHORT) are not part of this build.</p>
         </div>
 
         <div className="career-column-stack">
@@ -70,6 +73,17 @@ export function CareerScreen({ career }: { career: CareerState }) {
               />
               <Fact label="EQUITY POSITIVE AT LAST CLOSE" value={qualification.positiveAccountEquity ? 'YES' : 'NO'} />
               <Fact label="QUALIFIED" value={qualification.qualified ? 'YES' : 'NOT YET'} />
+            </dl>
+            <p className="panel-foot">{career.objective.text}</p>
+          </div>
+
+          <div className="panel">
+            <header className="panel-head"><h2>STOP_LOSS QUALIFICATION</h2></header>
+            <dl className="truth-grid">
+              <Fact label="TOTAL CLOSED SPOT TRADES" value={`${stop.totalClosedSpotTrades} / ${stop.targetClosedSpotTrades}`} />
+              <Fact label="CONTROLLED LOSS CUTS" value={String(stop.manualLossCuts + stop.protectCapitalChallenges)} />
+              <Fact label="EQUITY ≥ 70% START" value={stop.accountEquityAtLeast70Percent ? 'YES' : 'NO'} />
+              <Fact label="QUALIFIED" value={stop.qualified ? 'YES' : 'NOT YET'} />
             </dl>
             <p className="panel-foot">{career.objective.text}</p>
           </div>

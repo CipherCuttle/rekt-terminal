@@ -1,10 +1,10 @@
 import { getNextObjective } from './objective.js';
 import { capabilitiesForSkill, SCALE_CONTROL_CAPABILITIES, STARTING_CAPABILITIES, STARTING_SKILL } from './skills.js';
-import { createInitialQualification, updateQualification, evaluateScaleControl } from './qualification.js';
+import { createInitialQualification, updateQualification, evaluateScaleControl, evaluateStopLoss, STOP_LOSS_EQUITY_FLOOR_WEI } from './qualification.js';
 import type { CareerEvent } from './events.js';
 import type { CareerEffect, CareerState, CareerStats, CareerTradeSummaryFact, SkillId } from './types.js';
 
-export const CAREER_SAVE_VERSION = 1;
+export const CAREER_SAVE_VERSION = 2;
 
 function initialStats(): CareerStats {
   return {
@@ -14,6 +14,10 @@ function initialStats(): CareerStats {
     qualifyingScaleTrades: 0,
     maxClosedLossBps: 0,
     lastClosedTradeAccountPositive: true,
+    manualLossCuts: 0,
+    protectCapitalChallenges: 0,
+    stopUses: 0,
+    accountEquityAtLeast70Percent: true,
   };
 }
 
@@ -80,6 +84,13 @@ function unlockScaleControl(state: CareerState): CareerState {
   });
 }
 
+function unlockStopLoss(state: CareerState): CareerState {
+  if (state.unlockedSkills.includes('STOP_LOSS')) return state;
+  let next = { ...state, unlockedSkills: addUnique(state.unlockedSkills, 'STOP_LOSS' as SkillId), unlockedCapabilities: [...state.unlockedCapabilities, 'STOP_MARKET' as const] };
+  next = addEffect(next, { effectId: 'stop-loss-unlocked', kind: 'SKILL_UNLOCKED', text: 'STOP_LOSS unlocked: protective stop market is authorized.' });
+  return { ...next, receipts: { ...next.receipts, STOP_LOSS_AUTHORIZED: (next.receipts.STOP_LOSS_AUTHORIZED ?? 0) + 1 } };
+}
+
 function normalizeLossBps(value: bigint): number {
   if (value <= 0n) return 0;
   if (value > 10_000n) return 10_001;
@@ -96,6 +107,9 @@ function reduceTradeClosed(state: CareerState, summary: CareerTradeSummaryFact):
     qualifyingScaleTrades: state.stats.qualifyingScaleTrades + (lossBps <= 1_000 && summary.accountEquityAtCloseWei > 0n ? 1 : 0),
     maxClosedLossBps: Math.max(state.stats.maxClosedLossBps, lossBps),
     lastClosedTradeAccountPositive: summary.accountEquityAtCloseWei > 0n,
+    manualLossCuts: state.stats.manualLossCuts + (summary.exitReason === 'MANUAL' && summary.realizedPnlWei < 0n && lossBps < 500 && summary.accountEquityAtOpenWei > 0n ? 1 : 0),
+    protectCapitalChallenges: state.stats.protectCapitalChallenges + (summary.exitReason === 'PROTECT_CAPITAL' && summary.realizedPnlWei < 0n && lossBps < 500 && summary.accountEquityAtOpenWei > 0n ? 1 : 0),
+    accountEquityAtLeast70Percent: state.stats.accountEquityAtLeast70Percent && summary.accountEquityAtCloseWei >= STOP_LOSS_EQUITY_FLOOR_WEI,
   };
   let next: CareerState = {
     ...state,
@@ -103,7 +117,9 @@ function reduceTradeClosed(state: CareerState, summary: CareerTradeSummaryFact):
     processedTradeIds: [...state.processedTradeIds, summary.tradeId],
   };
   next = { ...next, qualification: updateQualification(next.stats, next.qualification) };
+  next = { ...next, qualification: { ...next.qualification, stopLoss: { ...next.qualification.stopLoss, totalClosedSpotTrades: next.stats.closedSpotTrades, manualLossCuts: next.stats.manualLossCuts, protectCapitalChallenges: next.stats.protectCapitalChallenges, accountEquityAtLeast70Percent: next.stats.accountEquityAtLeast70Percent, qualified: next.qualification.stopLoss.qualified || evaluateStopLoss(next) } } };
   if (!state.unlockedSkills.includes('SCALE_CONTROL') && evaluateScaleControl(next.stats)) next = unlockScaleControl(next);
+  if (!next.unlockedSkills.includes('STOP_LOSS') && next.qualification.stopLoss.qualified) next = unlockStopLoss(next);
   return next;
 }
 
@@ -122,7 +138,7 @@ export function reduceCareer(state: CareerState, event: CareerEvent): CareerStat
       if (event.sourceReceiptId) next = { ...next, stats: { ...next.stats, partialExitsUsed: next.stats.partialExitsUsed + 1 } };
       break;
     case 'SKILL_UNLOCKED':
-      if (event.skillId === 'SPOT_BASIC' || event.skillId === 'SCALE_CONTROL') {
+      if (event.skillId === 'SPOT_BASIC' || event.skillId === 'SCALE_CONTROL' || event.skillId === 'STOP_LOSS') {
         const skill: SkillId = event.skillId;
         next = {
           ...next,
@@ -130,6 +146,11 @@ export function reduceCareer(state: CareerState, event: CareerEvent): CareerStat
           unlockedCapabilities: [...next.unlockedCapabilities, ...capabilitiesForSkill(skill).filter((capability) => !next.unlockedCapabilities.includes(capability))],
         };
       }
+      break;
+    case 'STOP_PLACED':
+      next = { ...next, stats: { ...next.stats, stopUses: next.stats.stopUses + 1 } };
+      break;
+    case 'STOP_HIT':
       break;
     case 'CAREER_STARTED':
     case 'NON_ECONOMIC_ACTION':

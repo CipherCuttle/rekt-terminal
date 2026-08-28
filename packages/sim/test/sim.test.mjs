@@ -17,6 +17,7 @@ import {
   createSpotFill,
   equityReconciliation,
   executeSpotAction,
+  placeSpotStop,
   makeFixtureObservation,
   markSpot,
   priceX18,
@@ -173,4 +174,36 @@ test('domain packages remain framework-free and expose no signing/execution inte
     assert.doesNotMatch(source, /from ['"](?:react|react-dom)|require\(['"](?:react|react-dom)/);
     assert.doesNotMatch(source, /privateKey|sendTransaction|signMessage|broadcastTransaction/);
   }
+});
+
+test('protective stop triggers once and exits with adverse SPOT_FILL_V0 economics', () => {
+  let state = opened('stop-session');
+  const entry = buy(state, 'stop-buy', 100n, 50_000_000_000_000_000n, start + 1);
+  assert.equal(entry.accepted, true);
+  state = entry.state;
+  const placed = placeSpotStop(state, { stopId: 'stop-1', stopPriceX18: priceX18(95n), observation: observation('stop-place', 100n, start + 2), eventTimeMs: start + 2 }, noImpact);
+  assert.equal(placed.accepted, true);
+  state = placed.state;
+  assert.equal(state.activeStop.stopPriceX18, 95n);
+  const triggered = markSpot(state, observation('stop-cross', 90n, start + 3), start + 3, noImpact);
+  assert.equal(triggered.accepted, true);
+  assert.equal(triggered.state.activeStop, null);
+  assert.equal(triggered.state.position, null);
+  const summary = triggered.state.tradeSummaries.at(-1);
+  assert.equal(summary.exitReason, 'STOP');
+  assert.equal(summary.stopPriceX18, 95n);
+  assert.equal(summary.stopUsed, true);
+  assert.equal(triggered.events.filter((event) => event.type === 'STOP_TRIGGERED').length, 1);
+  const replayed = replayEvents([...state.events, ...triggered.events], createInitialSimState({ sessionId: state.sessionId, startedAtMs: start }));
+  assert.equal(stableReplayDigest(replayed), stableReplayDigest(triggered.state));
+});
+
+test('invalid or stale stops fail closed and cannot be placed without a position', () => {
+  const flat = placeSpotStop(opened('flat-stop'), { stopId: 'flat', stopPriceX18: priceX18(90n), observation: observation('flat-obs', 100n), eventTimeMs: start });
+  assert.equal(flat.accepted, false);
+  let state = buy(opened('bad-stop'), 'bad-buy', 100n, 50_000_000_000_000_000n, start + 1).state;
+  const wrongSide = placeSpotStop(state, { stopId: 'wrong', stopPriceX18: priceX18(100n), observation: observation('wrong-obs', 100n, start + 2), eventTimeMs: start + 2 });
+  assert.equal(wrongSide.accepted, false);
+  const stale = placeSpotStop(state, { stopId: 'stale', stopPriceX18: priceX18(90n), observation: { ...observation('stale-obs', 100n), provenance: 'STALE' }, eventTimeMs: start + 1 });
+  assert.equal(stale.accepted, false);
 });

@@ -53,6 +53,9 @@ export function TradeReviewCard({ review, symbol, onDismiss }: { review: TradeRe
             <span className="review-net-unit">ETH</span>
           </p>
           <dl className="review-grid">
+            {summary.exitReason === 'STOP' && <Row label="STOP USED" value="YES · PROTECTIVE MARKET EXIT" />}
+            {summary.stopPriceX18 !== null && <Row label="CONFIGURED STOP" value={`${formatPriceEth(priceX18(summary.stopPriceX18))} ETH`} />}
+            {summary.exitReason === 'STOP' && <Row label="ACTUAL EXIT / IMPACT" value={`${formatPriceEth(economics.exitPriceX18)} ETH · model-derived fill`} />}
             <Row label="AVG ENTRY" value={`${formatPriceEth(priceX18(summary.averageEntryPriceX18))} ETH`} />
             <Row label="MEDIAN ENTRY FILL" value={`${formatPriceEth(priceX18(summary.medianEntryPriceX18))} ETH`} />
             <Row label="AVG EXIT" value={`${formatPriceEth(economics.exitPriceX18)} ETH`} />

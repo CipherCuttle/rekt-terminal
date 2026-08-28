@@ -46,6 +46,7 @@ export function createInitialSimState(input: InitialSimStateInput = {}): SimStat
     cycleRealizedPnlWei: wei(0n),
     cycleAllocatedEntryFeesWei: wei(0n),
     cycleExitFeesWei: wei(0n),
+    activeStop: null,
   };
 }
 
@@ -119,7 +120,10 @@ function makeTradeSummary(state: SimState, position: PositionState, fill: SpotFi
     lossBpsOfThenCurrentEquity: bps(lossBpsOfEquity(realizedPnlWei, accountAtOpen)),
     maxDrawdownBpsAtClose: bps(account.maxDrawdownBps),
     partialExitUsed: position.partialExitUsed,
-    stopUsed: false,
+    exitReason: fill.exitReason ?? 'MANUAL',
+    stopPriceX18: fill.stopPriceX18 ?? null,
+    stopTriggeredAtMs: fill.stopTriggeredAtMs ?? null,
+    stopUsed: fill.exitReason === 'STOP',
     stopWidened: false,
     liquidated: false,
     modelVersions: [SPOT_FILL_MODEL_VERSION],
@@ -199,13 +203,14 @@ function applyFill(state: SimState, fill: SpotFill): {
     position: null,
     markPriceX18: fill.fillPriceX18,
     tradeSummaries: [...state.tradeSummaries, summary],
-    changes: {
-      closedCycleCount: state.closedCycleCount + 1,
+      changes: {
+        closedCycleCount: state.closedCycleCount + 1,
       cycleOpeningEquityWei: null,
       cycleRealizedPnlWei: wei(0n),
       cycleAllocatedEntryFeesWei: wei(0n),
-      cycleExitFeesWei: wei(0n),
-    },
+        cycleExitFeesWei: wei(0n),
+        activeStop: null,
+      },
   };
 }
 
@@ -243,6 +248,24 @@ export function applySimEvent(state: SimState, event: SimEvent): SimState {
   if (event.type === 'TRADE_SUMMARY_RECORDED') {
     const exists = state.tradeSummaries.some((summary) => summary.tradeId === event.summary.tradeId);
     return appendEvent(state, event, state.account, state.position, state.markPriceX18, exists ? state.tradeSummaries : [...state.tradeSummaries, event.summary]);
+  }
+
+  if (event.type === 'STOP_PLACED') {
+    if (!state.position || event.stop.cycleId !== state.position.cycleId) throw new SimError('INVALID_EVENT', 'stop must belong to the open position');
+    return appendEvent(state, event, state.account, state.position, state.markPriceX18, state.tradeSummaries, { activeStop: event.stop });
+  }
+
+  if (event.type === 'STOP_REPLACED') {
+    if (!state.position || event.stop.cycleId !== state.position.cycleId) throw new SimError('INVALID_EVENT', 'replacement stop must belong to the open position');
+    if (!state.activeStop || state.activeStop.stopId !== event.previousStopId) throw new SimError('INVALID_EVENT', 'replacement stop does not match the active stop');
+    return appendEvent(state, event, state.account, state.position, state.markPriceX18, state.tradeSummaries, { activeStop: event.stop });
+  }
+
+  if (event.type === 'STOP_TRIGGERED') {
+    if (!state.position || !state.activeStop || state.activeStop.stopId !== event.stopId || state.activeStop.cycleId !== event.cycleId) {
+      throw new SimError('INVALID_EVENT', 'stop trigger does not match the active position stop');
+    }
+    return appendEvent(state, event, state.account, state.position, state.markPriceX18, state.tradeSummaries, { activeStop: null });
   }
 
   return appendEvent(state, event);

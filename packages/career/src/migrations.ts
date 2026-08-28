@@ -32,6 +32,13 @@ function isCareerState(value: unknown): value is CareerState {
 export function migrateCareerSave(input: unknown): CareerSaveEnvelope | null {
   if (!isRecord(input)) return null;
   if (input.kind !== 'REKT_INK_CAREER_SAVE' || !Number.isSafeInteger(input.saveVersion)) return null;
+  if (input.saveVersion === 1 && isCareerState(input.state)) {
+    const state = structuredClone(input.state) as CareerState;
+    state.saveVersion = CAREER_SAVE_VERSION;
+    state.stats = { ...state.stats, manualLossCuts: 0, protectCapitalChallenges: 0, stopUses: 0, accountEquityAtLeast70Percent: true };
+    state.qualification = { ...state.qualification, stopLoss: { totalClosedSpotTrades: state.stats.closedSpotTrades, targetClosedSpotTrades: 5, manualLossCuts: 0, protectCapitalChallenges: 0, accountEquityAtLeast70Percent: true, qualified: false } };
+    return { kind: 'REKT_INK_CAREER_SAVE', saveVersion: CAREER_SAVE_VERSION, state };
+  }
   if (input.saveVersion === CAREER_SAVE_VERSION && isCareerState(input.state)) {
     return { kind: 'REKT_INK_CAREER_SAVE', saveVersion: CAREER_SAVE_VERSION, state: structuredClone(input.state) };
   }

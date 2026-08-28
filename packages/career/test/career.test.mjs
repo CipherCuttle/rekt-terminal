@@ -23,9 +23,46 @@ function closed(id, lossBps = 0n, equity = 500_000_000_000_000_000n) {
       lossBpsOfThenCurrentEquity: lossBps,
       partialExitUsed: false,
       liquidated: false,
+      accountEquityAtOpenWei: 500_000_000_000_000_000n,
+      exitReason: lossBps > 0n ? 'MANUAL' : 'MANUAL',
+      stopUsed: false,
     },
   };
 }
+
+test('STOP_LOSS requires SCALE_CONTROL, five trades, equity floor, and controlled loss evidence', () => {
+  let state = createInitialCareer('stop-gate', 1_700_000_000_000);
+  for (let i = 1; i <= 5; i += 1) state = reduceCareer(state, closed(`stop-${i}`, i === 5 ? 499n : 0n));
+  assert.equal(state.unlockedSkills.includes('SCALE_CONTROL'), true);
+  assert.equal(state.unlockedSkills.includes('STOP_LOSS'), true);
+  assert.equal(state.unlockedCapabilities.includes('STOP_MARKET'), true);
+  assert.equal(state.qualification.stopLoss.qualified, true);
+  const before = state.stats.closedSpotTrades;
+  for (let i = 0; i < 20; i += 1) state = reduceCareer(state, { type: 'NON_ECONOMIC_ACTION', eventId: `stop-spam-${i}`, action: 'click' });
+  assert.equal(state.stats.closedSpotTrades, before);
+});
+
+test('PROTECT_CAPITAL is an alternate simulator-fact qualification path', () => {
+  let state = createInitialCareer('stop-challenge', 1_700_000_000_000);
+  for (let i = 1; i <= 5; i += 1) {
+    const event = closed(`challenge-${i}`, i === 5 ? 499n : 0n);
+    event.summary.exitReason = i === 5 ? 'PROTECT_CAPITAL' : 'MANUAL';
+    state = reduceCareer(state, event);
+  }
+  assert.equal(state.stats.protectCapitalChallenges, 1);
+  assert.equal(state.unlockedSkills.includes('STOP_LOSS'), true);
+});
+
+test('exact 5% loss and equity below 70% cannot authorize STOP_LOSS', () => {
+  let state = createInitialCareer('stop-boundary', 1_700_000_000_000);
+  for (let i = 1; i <= 5; i += 1) state = reduceCareer(state, closed(`boundary-${i}`, i === 5 ? 500n : 0n));
+  assert.equal(state.stats.manualLossCuts, 0);
+  assert.equal(state.unlockedSkills.includes('STOP_LOSS'), false);
+  state = createInitialCareer('stop-equity', 1_700_000_000_000);
+  for (let i = 1; i <= 5; i += 1) state = reduceCareer(state, closed(`equity-floor-${i}`, i === 5 ? 499n : 0n, 349_000_000_000_000_000n));
+  assert.equal(state.qualification.stopLoss.accountEquityAtLeast70Percent, false);
+  assert.equal(state.unlockedSkills.includes('STOP_LOSS'), false);
+});
 
 test('SPOT_BASIC starts unlocked with only the fixed buy and sell-all capabilities', () => {
   const state = createInitialCareer('career-start', 1_700_000_000_000);
