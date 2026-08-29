@@ -21,6 +21,7 @@ export const BPS_SCALE = 10_000n;
 export const INITIAL_BANKROLL_WEI = wei(500_000_000_000_000_000n);
 export const DEFAULT_FIRST_TICKET_WEI = wei(50_000_000_000_000_000n);
 export const SPOT_FILL_MODEL_VERSION = 'SPOT_FILL_V0';
+export const RISK_PLAN_MODEL_VERSION = 'RISK_PLAN_V0' as const;
 
 export type ProvenanceState = 'CONFIRMED' | 'DERIVED' | 'SYNTHETIC' | 'STALE' | 'UNAVAILABLE';
 
@@ -167,6 +168,21 @@ export interface TradeSummary {
   stopTriggeredAtMs: number | null;
   stopUsed: boolean;
   stopWidened: boolean;
+  /**
+   * Simulator event time of the first protective stop placed in this cycle, or
+   * null if the cycle never carried one. Career grades "was the invalidation
+   * decided near entry?" from this and `openedAtMs`; the window itself is a
+   * Career tuning constant, so the simulator only reports the raw fact.
+   */
+  firstStopPlacedAtMs: number | null;
+  /** The risk plan in force when the cycle closed. Frozen at plan time. */
+  riskPlan: RiskPlan | null;
+  /**
+   * True if projected exposure exceeded the plan's budget plus the versioned
+   * tolerance at any point in the cycle. Practice never prevents this; the
+   * simulator records it and Career grades it.
+   */
+  riskBudgetViolated: boolean;
   liquidated: false;
   /**
    * Weakest market-evidence provenance across every fill in this trade cycle.
@@ -175,6 +191,62 @@ export interface TradeSummary {
    */
   evidenceProvenance: ProvenanceState;
   modelVersions: readonly string[];
+}
+
+/**
+ * RISK_PLAN_V0 — a frozen account-risk budget and the position size derived
+ * from it.
+ *
+ * The causal order the plan encodes is deliberate:
+ *
+ *   market context -> stop/invalidation -> account risk budget -> position size
+ *
+ * A plan never moves the player's stop to preserve a chosen risk percentage;
+ * the stop is an input and the size is the output. Every field is fixed-point
+ * or integer, and `createdAtMs` is simulator event time — browser wall clock
+ * never determines the financial validity of a plan.
+ *
+ * A plan is DERIVED information: a deterministic calculation over an observed
+ * market snapshot under frozen SPOT_FILL_V0 assumptions. It is never
+ * provider-confirmed market data.
+ */
+export interface RiskPlan {
+  planId: string;
+  instrumentId: string;
+  quoteAsset: string;
+  /** Account equity the budget was frozen against. */
+  equityAtPlanWei: Wei;
+  /** Reference price the plan sized against. */
+  intendedEntryPriceX18: PriceX18;
+  /** Protective stop trigger price. Strictly below the intended entry. */
+  stopPriceX18: PriceX18;
+  /** Frozen budget in wei: floor(equity * maxLossBpsOfEquity / 10_000). */
+  maxLossWei: Wei;
+  /** The selected account risk, in bps of equity at plan time. */
+  maxLossBpsOfEquity: Bps;
+  /** Quote notional the planned entry submits. */
+  plannedNotionalWei: Wei;
+  /** Base quantity the model produces for that notional. */
+  plannedQuantityAtoms: QuantityAtoms;
+  /** Model entry fill price for the planned notional. */
+  plannedEntryFillPriceX18: PriceX18;
+  /** Model exit fill price if the stop fills at its trigger price. */
+  plannedStopFillPriceX18: PriceX18;
+  /**
+   * Projected account loss, as a positive magnitude, if the stop fills at its
+   * trigger price under SPOT_FILL_V0. Never greater than `maxLossWei`.
+   */
+  projectedLossWei: Wei;
+  /** Distance from intended entry to stop, in bps of the intended entry. */
+  stopDistanceBps: Bps;
+  /** Simulator/event time. Never `Date.now()`. */
+  createdAtMs: number;
+  observationId: string;
+  sourceId: string;
+  usableQuoteLiquidityWei: Wei;
+  fillModelVersion: string;
+  modelVersion: typeof RISK_PLAN_MODEL_VERSION;
+  provenance: 'DERIVED';
 }
 
 export interface ActiveStop {
@@ -210,6 +282,17 @@ export interface SimState {
   /** Weakest observation provenance seen so far in the open cycle. */
   cycleEvidenceProvenance: ProvenanceState | null;
   activeStop: ActiveStop | null;
+  /**
+   * The risk plan in force. Set while flat, carried through the cycle it
+   * sizes, cleared when the position returns flat.
+   */
+  activeRiskPlan: RiskPlan | null;
+  /**
+   * Latched once projected exposure exceeded the active plan's budget plus
+   * tolerance. Latched rather than sampled so tightening a stop back does not
+   * erase the fact that the budget was knowingly breached.
+   */
+  riskBudgetBreached: boolean;
 }
 
 export type SimErrorCode =
@@ -230,6 +313,8 @@ export type SimErrorCode =
   | 'INVALID_TIME'
   | 'STOP_INVALID_SIDE'
   | 'STOP_NOT_TRIGGERED'
+  | 'RISK_PLAN_INVALID'
+  | 'RISK_PLAN_POSITION_OPEN'
   | 'SYNTHETIC_EVIDENCE_REJECTED';
 
 export class SimError extends Error {

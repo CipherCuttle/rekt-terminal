@@ -1110,6 +1110,152 @@ table.radar .truth {
 }
 
 /* ==========================================================================
+   risk plan — RISK_SIZING_V0
+
+   Reads top to bottom in the order the phase teaches:
+   STOP -> ACCOUNT RISK -> MAX LOSS -> POSITION SIZE. No new visual language;
+   the same seams, mono figures and 44px touch targets as every other control.
+   ========================================================================== */
+
+.risk-ticket,
+.risk-exposure {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid var(--ink-edge);
+  border-radius: 2px;
+  background: var(--ink-raise);
+}
+
+.risk-exposure-over {
+  border-color: var(--loss);
+  background: rgba(255, 59, 92, 0.07);
+}
+
+.risk-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font: 700 8px var(--sans);
+  letter-spacing: 0.16em;
+  color: var(--mute);
+}
+
+.risk-skill {
+  font-family: var(--mono);
+  font-size: 8px;
+  color: var(--ink-purple-soft);
+  letter-spacing: 0.06em;
+}
+
+.risk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.risk-label {
+  font: 700 8px var(--sans);
+  letter-spacing: 0.16em;
+  color: var(--mute);
+}
+
+.risk-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px solid var(--ink-seam);
+  border-radius: 2px;
+  background: var(--ink-panel);
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--paper);
+}
+
+.risk-input:focus-visible {
+  outline: none;
+  border-color: var(--ink-purple);
+}
+
+.risk-presets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.risk-preset {
+  min-height: 44px;
+  padding: 8px 4px;
+  border: 1px solid var(--ink-seam);
+  border-radius: 2px;
+  background: var(--ink-panel);
+  font: 700 10px var(--sans);
+  letter-spacing: 0.06em;
+  color: var(--paper-dim);
+}
+
+.risk-preset:hover {
+  border-color: var(--ink-purple);
+  color: var(--paper);
+}
+
+.risk-preset-on {
+  border-color: var(--acid-dim);
+  background: rgba(139, 255, 88, 0.1);
+  color: var(--acid);
+}
+
+.risk-figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  background: var(--ink-seam);
+  border: 1px solid var(--ink-seam);
+}
+
+.risk-figure {
+  padding: 8px 10px;
+  background: var(--ink-panel);
+}
+
+.risk-figure dt {
+  font: 700 8px var(--sans);
+  letter-spacing: 0.14em;
+  color: var(--mute);
+}
+
+.risk-figure dd {
+  margin: 5px 0 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* Derived, never provider-confirmed. The label says so in place. */
+.risk-note {
+  font-family: var(--mono);
+  font-size: 9px;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  color: var(--ink-purple-soft);
+}
+
+.risk-reason {
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--amber);
+}
+
+.risk-action {
+  margin-top: 1px;
+}
+
+/* ==========================================================================
    fail-closed states
    ========================================================================== */
 
@@ -1979,6 +2125,12 @@ table.radar .truth {
 
   .action {
     min-height: 60px;
+  }
+
+  /* Four presets across 390px would fall under the 44px target, so they wrap
+     to two rows instead of shrinking. */
+  .risk-presets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   /* Secondary trade controls become a bottom sheet above the nav. Portrait

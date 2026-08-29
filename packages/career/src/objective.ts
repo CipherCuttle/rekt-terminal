@@ -34,6 +34,37 @@ export function getNextObjective(state: Pick<CareerState, 'unlockedSkills' | 'qu
     }
     return { id: 'stop-loss-equity-floor', kind: 'SCALE_CONTROL_UNLOCKED', text: 'NEXT // Keep account equity at least 70% of starting equity.', progress: stop.accountEquityAtLeast70Percent ? 1 : 0, target: 1 };
   }
+  const risk = state.qualification.riskSizing;
+  if (!state.unlockedSkills.includes('RISK_SIZING')) {
+    if (risk.stopPlannedTrades < risk.targetStopPlannedTrades) {
+      const remaining = risk.targetStopPlannedTrades - risk.stopPlannedTrades;
+      return {
+        id: 'risk-sizing-planned-stops',
+        kind: 'RISK_SIZING_UNLOCKED',
+        text: `NEXT // Close ${remaining} more ${remaining === 1 ? 'trade' : 'trades'} with a stop set at entry and never widened.`,
+        progress: risk.stopPlannedTrades,
+        target: risk.targetStopPlannedTrades,
+      };
+    }
+    if (risk.partialExitsUsed < risk.targetPartialExits) {
+      return {
+        id: 'risk-sizing-partial-exit',
+        kind: 'RISK_SIZING_UNLOCKED',
+        text: 'NEXT // Use a partial exit.',
+        progress: risk.partialExitsUsed,
+        target: risk.targetPartialExits,
+      };
+    }
+  }
+  if (state.unlockedSkills.includes('RISK_SIZING')) {
+    return {
+      id: 'risk-sizing-authorized',
+      kind: 'RISK_SIZING_UNLOCKED',
+      text: 'RISK_SIZING AUTHORIZED // Set a stop, then let account risk size the trade.',
+      progress: 1,
+      target: 1,
+    };
+  }
   return {
     id: 'stop-loss-authorized',
     // Keep the existing objective kind stable for consumers; the copy now

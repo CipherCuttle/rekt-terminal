@@ -34,6 +34,21 @@ export interface CareerStats {
   protectCapitalChallenges: number;
   stopUses: number;
   accountEquityAtLeast70Percent: boolean;
+  /**
+   * Closed trades whose protective stop was placed within the frozen
+   * STOP_PLAN_WINDOW_MS of the opening fill *and* was never widened. This is
+   * the RISK_SIZING process gate: the player decided their invalidation near
+   * entry and then honoured it.
+   */
+  stopPlannedTrades: number;
+  /** Closed trades that carried an explicit risk plan. */
+  riskPlannedTrades: number;
+  /** Risk plans frozen. Recorded for MARGIN_2X and receipts; gates nothing here. */
+  riskPlansCreated: number;
+  /** Closed risk-planned trades whose projected exposure stayed inside budget. */
+  riskBudgetsRespected: number;
+  /** Closed risk-planned trades that breached budget plus tolerance. */
+  riskBudgetViolations: number;
 }
 
 export interface ScaleControlQualification {
@@ -42,6 +57,14 @@ export interface ScaleControlQualification {
   maxClosedLossBps: number;
   lossLimitBps: 1_000;
   positiveAccountEquity: boolean;
+  qualified: boolean;
+}
+
+export interface RiskSizingQualification {
+  stopPlannedTrades: number;
+  targetStopPlannedTrades: 3;
+  partialExitsUsed: number;
+  targetPartialExits: 1;
   qualified: boolean;
 }
 
@@ -55,9 +78,10 @@ export interface QualificationState {
     accountEquityAtLeast70Percent: boolean;
     qualified: boolean;
   };
+  riskSizing: RiskSizingQualification;
 }
 
-export type ObjectiveKind = 'CLOSE_SPOT' | 'PROTECT_EQUITY' | 'SCALE_CONTROL_UNLOCKED' | 'STOP_LOSS_UNLOCKED';
+export type ObjectiveKind = 'CLOSE_SPOT' | 'PROTECT_EQUITY' | 'SCALE_CONTROL_UNLOCKED' | 'STOP_LOSS_UNLOCKED' | 'RISK_SIZING_UNLOCKED';
 
 export interface ObjectiveState {
   id: string;
@@ -102,6 +126,20 @@ export interface CareerTradeSummaryFact {
   stopUsed: boolean;
   partialExitUsed: boolean;
   liquidated: false;
+  /** Simulator event time the cycle opened. */
+  openedAtMs: number;
+  /**
+   * Simulator event time of the first protective stop in the cycle, or null.
+   * Career compares it to `openedAtMs` against its own tuning window; the
+   * simulator never applies a Career constant.
+   */
+  firstStopPlacedAtMs: number | null;
+  /** The cycle's stop was moved further from entry at some point. */
+  stopWidened: boolean;
+  /** The cycle carried an explicit risk plan. */
+  riskPlanned: boolean;
+  /** Projected exposure breached the plan's budget plus tolerance. */
+  riskBudgetViolated: boolean;
   /**
    * Weakest market-evidence provenance behind this trade, taken from the
    * simulator's TradeSummary. Only CONFIRMED and DERIVED advance qualification;
