@@ -1,10 +1,13 @@
 import { applySimEvent } from './ledger.js';
+import { assertUsableObservation } from './observation.js';
+import { buildRiskExposureEvent, buildRiskPlanEvent, planRiskSizedEntry, type RiskPlanIntent, type RiskPlanRejectionCode } from './risk.js';
 import { createSpotFill, DEFAULT_SPOT_FILL_CONFIG, makeFixtureObservation } from './fill-models/spot-fill-v0.js';
 import { quoteForQuantity } from './math.js';
 import { nextEventSequence, type SimEvent } from './events.js';
 import {
   SimError,
   DEFAULT_FIRST_TICKET_WEI,
+  bps,
   priceX18,
   wei,
   type MarketObservation,
@@ -13,7 +16,7 @@ import {
   type SpotFillConfig,
   type Wei,
   type ActiveStop,
-  type EvidencePolicy,
+  type RiskPlan,
   type PriceX18,
 } from './types.js';
 
@@ -78,13 +81,83 @@ export interface StopActionResult {
   reason?: string;
 }
 
-function validObservation(observation: MarketObservation, eventTimeMs: number, config: SpotFillConfig, policy: EvidencePolicy = 'LIVE_ONLY'): void {
-  if (!observation.observationId || !observation.instrumentId || !observation.sourceId) throw new SimError('MODEL_INPUT_UNAVAILABLE', 'market observation identity is required');
-  if (observation.provenance === 'STALE' || observation.provenance === 'UNAVAILABLE') throw new SimError('MODEL_INPUT_UNAVAILABLE', 'stop requires confirmed or derived evidence');
-  if (observation.provenance === 'SYNTHETIC' && policy !== 'DEMO_ALLOW_SYNTHETIC') throw new SimError('SYNTHETIC_EVIDENCE_REJECTED', 'synthetic market evidence cannot enter LIVE economic execution');
-  if (observation.referencePriceX18 <= 0n) throw new SimError('INVALID_PRICE', 'market price must be positive');
-  if (!Number.isSafeInteger(eventTimeMs) || eventTimeMs < observation.observedAtMs || eventTimeMs - observation.observedAtMs > config.maxObservationAgeMs) throw new SimError('STALE_MARKET', 'market observation is outside the configured freshness window');
+export interface RiskPlanActionResult {
+  state: SimState;
+  accepted: boolean;
+  events: readonly SimEvent[];
+  plan?: RiskPlan;
+  reason?: string;
+  code?: RiskPlanRejectionCode | 'RISK_PLAN_POSITION_OPEN' | 'MODEL_INPUT_UNAVAILABLE';
 }
+
+/**
+ * Freeze a risk plan onto the session.
+ *
+ * Only valid while flat: the plan's whole point is to decide invalidation and
+ * size *before* exposure exists. Retro-fitting a budget onto a position the
+ * player already holds would make the budget meaningless, so it is refused.
+ *
+ * The plan is recomputed here from simulator state and the gated observation.
+ * A caller may preview a plan with `planRiskSizedEntry`, but nothing a caller
+ * computed is ever trusted into the ledger.
+ */
+export function setSpotRiskPlan(state: SimState, intent: RiskPlanIntent, config: SpotFillConfig = DEFAULT_SPOT_FILL_CONFIG): RiskPlanActionResult {
+  const refuse = (code: RiskPlanActionResult['code'], message: string): RiskPlanActionResult => ({
+    state,
+    accepted: false,
+    events: [],
+    code,
+    reason: `${code}:${message}`,
+  });
+
+  if (state.position) return refuse('RISK_PLAN_POSITION_OPEN', 'a risk plan is defined before entry; close the open position first');
+  try {
+    assertUsableObservation(intent.observation, intent.eventTimeMs, config, state.evidencePolicy);
+  } catch (error) {
+    return refuse('MODEL_INPUT_UNAVAILABLE', error instanceof Error ? error.message : String(error));
+  }
+
+  const result = planRiskSizedEntry({
+    planId: intent.planId,
+    instrumentId: intent.observation.instrumentId,
+    quoteAsset: intent.observation.quoteAsset,
+    equityAtPlanWei: state.account.equityWei,
+    availableCapitalWei: intent.availableCapitalWei ?? state.account.freeEthWei,
+    intendedEntryPriceX18: priceX18(intent.observation.referencePriceX18),
+    stopPriceX18: priceX18(intent.stopPriceX18),
+    riskBps: bps(intent.riskBps),
+    usableQuoteLiquidityWei: wei(intent.observation.usableQuoteLiquidityWei),
+    createdAtMs: intent.eventTimeMs,
+    observationId: intent.observation.observationId,
+    sourceId: intent.observation.sourceId,
+    config,
+  });
+  if (!result.ok) return refuse(result.code, result.message);
+
+  const event = buildRiskPlanEvent(state, result.plan, intent.eventTimeMs);
+  return { state: applySimEvent(state, event), accepted: true, events: [event], plan: result.plan };
+}
+
+/**
+ * Record what this action did to an active plan's exposure — a breach, or the
+ * fact that the exposure could not be checked at all.
+ *
+ * Practice never refuses the action — `CAREER_CONTRACT_V0` §13 is explicit that
+ * the simulator records the behaviour rather than preventing it.
+ */
+function withRiskBudgetCheck<T extends { state: SimState; accepted: boolean; events: readonly SimEvent[] }>(
+  result: T,
+  observation: MarketObservation,
+  eventTimeMs: number,
+  config: SpotFillConfig,
+  options: { positionJustOpened?: boolean } = {},
+): T {
+  if (!result.accepted) return result;
+  const event = buildRiskExposureEvent(result.state, observation, eventTimeMs, config, options);
+  if (!event) return result;
+  return { ...result, state: applySimEvent(result.state, event), events: [...result.events, event] };
+}
+
 
 function rejectStop(state: SimState, stopId: string, eventTimeMs: number, reason: string): StopActionResult {
   const event: SimEvent = {
@@ -103,7 +176,7 @@ function rejectStop(state: SimState, stopId: string, eventTimeMs: number, reason
 export function placeSpotStop(state: SimState, input: StopPlacementInput, config: SpotFillConfig = DEFAULT_SPOT_FILL_CONFIG): StopActionResult {
   try {
     if (!state.position) throw new SimError('NO_OPEN_POSITION', 'stop requires an open spot position');
-    validObservation(input.observation, input.eventTimeMs, config, state.evidencePolicy);
+    assertUsableObservation(input.observation, input.eventTimeMs, config, state.evidencePolicy);
     if (input.observation.instrumentId !== state.position.instrumentId || input.observation.quoteAsset.toUpperCase() !== state.position.quoteAsset.toUpperCase()) throw new SimError('INVALID_EVENT', 'stop belongs to another instrument');
     if (!input.stopId || input.stopPriceX18 <= 0n || input.stopPriceX18 >= input.observation.referencePriceX18) throw new SimError('STOP_INVALID_SIDE', 'a long protective stop must be positive and below the current market price');
     const stop: ActiveStop = {
@@ -120,7 +193,8 @@ export function placeSpotStop(state: SimState, input: StopPlacementInput, config
     const event: SimEvent = replacing
       ? { type: 'STOP_REPLACED', eventId: `${input.stopId}:replaced`, sequence: nextEventSequence(state), sessionId: state.sessionId, modelVersion: state.modelVersion, eventTimeMs: input.eventTimeMs, previousStopId: replacing.stopId, previousStopPriceX18: replacing.stopPriceX18, widened: input.stopPriceX18 < replacing.stopPriceX18, stop }
       : { type: 'STOP_PLACED', eventId: `${input.stopId}:placed`, sequence: nextEventSequence(state), sessionId: state.sessionId, modelVersion: state.modelVersion, eventTimeMs: input.eventTimeMs, stop };
-    return { state: applySimEvent(state, event), accepted: true, events: [event] };
+    const placed: StopActionResult = { state: applySimEvent(state, event), accepted: true, events: [event] };
+    return withRiskBudgetCheck(placed, input.observation, input.eventTimeMs, config);
   } catch (error) {
     const reason = error instanceof SimError ? `${error.code}:${error.message}` : String(error);
     return rejectStop(state, input.stopId || 'stop', input.eventTimeMs, reason);
@@ -133,7 +207,7 @@ export function estimateStopLossWei(state: SimState, observation: MarketObservat
     const stop = state.activeStop;
     const position = state.position;
     if (!stop || !position || position.cycleId !== stop.cycleId) return null;
-    validObservation(observation, eventTimeMs, config, state.evidencePolicy);
+    assertUsableObservation(observation, eventTimeMs, config, state.evidencePolicy);
     if (observation.instrumentId !== position.instrumentId || observation.quoteAsset.toUpperCase() !== position.quoteAsset.toUpperCase()) return null;
     const fill = createSpotFill({ fillId: `${stop.stopId}:estimate`, intentId: `${stop.stopId}:estimate`, side: 'SELL', observation, requestedQuoteWei: quoteForQuantity(position.openQuantityAtoms, observation.referencePriceX18, 'ceil'), requestedQuantityAtoms: position.openQuantityAtoms, executedAtMs: observation.observedAtMs, config, evidencePolicy: state.evidencePolicy });
     return wei(fill.executedQuoteWei - position.costBasisWei - position.remainingEntryFeesWei - fill.feeQuoteWei);
@@ -330,7 +404,9 @@ export function executeSpotAction(state: SimState, action: SpotAction): SpotActi
     };
     next = applySimEvent(next, snapshotEvent);
     emitted.push(snapshotEvent);
-    return { state: next, accepted: true, events: emitted };
+    // Scaling in, or reducing, changes projected exposure against a frozen
+    // budget. Evaluated after the position event so the check sees real state.
+    return withRiskBudgetCheck({ state: next, accepted: true, events: emitted }, action.observation, action.eventTimeMs, config, { positionJustOpened: !wasOpen });
   } catch (error) {
     return rejectAction(state, action, error);
   }
@@ -338,7 +414,7 @@ export function executeSpotAction(state: SimState, action: SpotAction): SpotActi
 
 export function markSpot(state: SimState, observation: MarketObservation, eventTimeMs: number, config: SpotFillConfig = DEFAULT_SPOT_FILL_CONFIG): SpotActionResult {
   try {
-    validObservation(observation, eventTimeMs, config, state.evidencePolicy);
+    assertUsableObservation(observation, eventTimeMs, config, state.evidencePolicy);
     if (state.position && (state.position.instrumentId !== observation.instrumentId || state.position.quoteAsset !== observation.quoteAsset.toUpperCase())) throw new SimError('INVALID_EVENT', 'mark belongs to another spot instrument');
     if (state.activeStop && state.position && observation.referencePriceX18 <= state.activeStop.stopPriceX18) return executeStopTrigger(state, observation, eventTimeMs, config);
     const event: SimEvent = {

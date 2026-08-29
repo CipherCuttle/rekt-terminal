@@ -11,12 +11,15 @@ export function CareerStrip({ career }: { career: CareerState }) {
   const { objective } = career;
   const target = Math.max(1, objective.target);
   const ratio = Math.max(0, Math.min(1, objective.progress / target));
-  const scaleUnlocked = career.unlockedSkills.includes('SCALE_CONTROL');
+  // Highest skill actually authorized, so the strip keeps naming the current
+  // desk as new tiers unlock instead of freezing at SCALE_CONTROL.
+  const SKILL_ORDER = ['SPOT_BASIC', 'SCALE_CONTROL', 'STOP_LOSS', 'RISK_SIZING'] as const;
+  const currentSkill = SKILL_ORDER.filter((skill) => career.unlockedSkills.includes(skill)).at(-1) ?? 'SPOT_BASIC';
 
   return (
     <section className="panel career-strip" aria-label="Career progress">
       <div className="career-strip-head">
-        <span className="career-skill">{scaleUnlocked ? 'SCALE_CONTROL' : 'SPOT_BASIC'}</span>
+        <span className="career-skill">{currentSkill}</span>
         <span className="career-count">
           {objective.progress}/{objective.target}
         </span>

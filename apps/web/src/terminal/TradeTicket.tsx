@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { DEFAULT_FIRST_TICKET_WEI, DEFAULT_SPOT_FILL_CONFIG, feeForQuote, wei, priceX18, estimateStopLossWei, type MarketObservation, type SimState } from '@rekt-ink/sim';
+import { DEFAULT_FIRST_TICKET_WEI, DEFAULT_SPOT_FILL_CONFIG, feeForQuote, wei, priceX18, projectActiveStopExit, type MarketObservation, type SimState } from '@rekt-ink/sim';
 import type { CareerState } from '@rekt-ink/career';
 import { formatEth, formatPriceEth, formatSignedEth } from '../practice/format';
 import type { PracticeIntent } from '../practice/store';
-import { priceX18FromNumber } from '../practice/quote';
+import { RiskExposure, RiskTicket } from './RiskTicket';
+import { priceX18FromDecimalString } from '../practice/quote';
 
 const TICKET_LABEL = formatEth(DEFAULT_FIRST_TICKET_WEI, 2);
 /** Conservative affordability gate: notional plus the model's entry fee. */
@@ -36,6 +37,7 @@ export function TradeTicket({ sim, career, blockedReason, onSubmit, observation 
   const canScaleIn = career.unlockedCapabilities.includes('SCALE_IN');
   const canPartialExit = career.unlockedCapabilities.includes('PARTIAL_EXIT');
   const stopUnlocked = career.unlockedCapabilities.includes('STOP_MARKET');
+  const riskUnlocked = career.unlockedCapabilities.includes('RISK_PERCENT_SIZING') && career.unlockedCapabilities.includes('CUSTOM_POSITION_SIZE');
   const [stopPrice, setStopPrice] = useState('');
 
   const marketBlocked = blockedReason !== null;
@@ -52,11 +54,25 @@ export function TradeTicket({ sim, career, blockedReason, onSubmit, observation 
 
       {!position ? (
         <div className="ticket-body">
-          <button type="button" className="action action-buy" disabled={buyDisabled} onClick={() => onSubmit({ kind: 'BUY_FIXED' })}>
-            <span className="action-verb">BUY</span>
-            <span className="action-size">{TICKET_LABEL} ETH</span>
-          </button>
-          {buyReason && <p className="action-reason">{buyReason}</p>}
+          {/* Once RISK_SIZING is authorized the entry is sized by the plan, in
+              place. The fixed ticket is not kept alongside it as a second BUY:
+              two competing entry buttons would re-introduce exactly the
+              "pick a size first" habit this phase replaces. */}
+          {riskUnlocked ? (
+            <RiskTicket
+              sim={sim}
+              blockedReason={blockedReason}
+              observation={observation}
+              observationTimeMs={observationTimeMs}
+              onSubmit={onSubmit}
+            />
+          ) : (
+            <button type="button" className="action action-buy" disabled={buyDisabled} onClick={() => onSubmit({ kind: 'BUY_FIXED' })}>
+              <span className="action-verb">BUY</span>
+              <span className="action-size">{TICKET_LABEL} ETH</span>
+            </button>
+          )}
+          {!riskUnlocked && buyReason && <p className="action-reason">{buyReason}</p>}
           {/* MARKET_TRUTH_V1: the one-click "PRACTICE PROTECT_CAPITAL" button
               used to be here. It fabricated a 4% adverse move, executed it, and
               counted the result toward STOP_LOSS qualification. Cutting a real
@@ -125,12 +141,16 @@ export function TradeTicket({ sim, career, blockedReason, onSubmit, observation 
               )}
             </>
           )}
+          <RiskExposure sim={sim} observation={observation} observationTimeMs={observationTimeMs} />
           {stopUnlocked && (
             <div className="stop-ticket" aria-label="Protective stop ticket">
               <label>STOP MARKET <input inputMode="decimal" value={stopPrice} placeholder={sim.activeStop ? formatPriceEth(priceX18(sim.activeStop.stopPriceX18)) : 'trigger price'} onChange={(event) => setStopPrice(event.target.value)} /></label>
-              <button type="button" className="manage-action" disabled={marketBlocked || !priceX18FromNumber(Number(stopPrice))} onClick={() => { const value = priceX18FromNumber(Number(stopPrice)); if (value) { onSubmit({ kind: 'PLACE_STOP', stopPriceX18: value }); setStopPrice(''); } }}>PLACE STOP</button>
+              <button type="button" className="manage-action" disabled={marketBlocked || !priceX18FromDecimalString(stopPrice)} onClick={() => { const value = priceX18FromDecimalString(stopPrice); if (value) { onSubmit({ kind: 'PLACE_STOP', stopPriceX18: value }); setStopPrice(''); } }}>PLACE STOP</button>
               {sim.activeStop && <p className="action-reason">ACTIVE STOP · {formatPriceEth(priceX18(sim.activeStop.stopPriceX18))} ETH</p>}
-              {sim.activeStop && <p className="action-reason">IF STOP FILLS · {observation ? (() => { const estimate = estimateStopLossWei(sim, observation, observationTimeMs); return estimate === null ? 'UNAVAILABLE' : `${formatSignedEth(estimate, 4)} ETH est.`; })() : 'UNAVAILABLE'}</p>}
+              {/* Priced at the stop's own trigger, not at the current mark: an
+                  exit valued at a mark far above the stop is not the answer to
+                  "what does my invalidation cost me". */}
+              {sim.activeStop && <p className="action-reason">IF STOP FILLS · {observation ? (() => { const projection = projectActiveStopExit(sim, observation, observationTimeMs); return projection === null ? 'UNAVAILABLE' : `${formatSignedEth(projection.realizedWei, 4)} ETH est.`; })() : 'UNAVAILABLE'}</p>}
             </div>
           )}
         </div>

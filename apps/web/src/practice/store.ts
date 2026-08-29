@@ -25,7 +25,10 @@ import {
   mulDiv,
   quantityAtoms,
   replayEvents,
+  setSpotRiskPlan,
   type EvidencePolicy,
+  type MarketObservation,
+  type RiskPlan,
   type ProvenanceState,
   type SimState,
   type SpotAction,
@@ -74,9 +77,19 @@ export type PracticeIntent =
   | { kind: 'SCALE_IN' }
   | { kind: 'SELL_ALL' }
   | { kind: 'PARTIAL_CLOSE'; percent: number }
-  | { kind: 'PLACE_STOP'; stopPriceX18: bigint };
+  | { kind: 'PLACE_STOP'; stopPriceX18: bigint }
+  /**
+   * RISK_SIZING_V0: one user decision — "risk this much of the account, with
+   * invalidation here" — recorded as three simulator facts in order: the frozen
+   * plan, the sized entry, and the protective stop it was sized against.
+   *
+   * The store recomputes the plan from simulator state and the gated
+   * observation. The stop price and risk percentage are the only things taken
+   * from the UI, and neither is a monetary quantity.
+   */
+  | { kind: 'BUY_RISK_PLANNED'; stopPriceX18: bigint; riskBps: bigint };
 
-export type PracticeRejectionCode = PracticeBlockCode | 'CAPABILITY_LOCKED' | 'NO_MARKET_INPUT' | 'INSTRUMENT_LOCKED' | 'NO_OPEN_POSITION' | 'INVALID_QUANTITY' | 'SIMULATOR_REJECTED';
+export type PracticeRejectionCode = PracticeBlockCode | 'CAPABILITY_LOCKED' | 'NO_MARKET_INPUT' | 'INSTRUMENT_LOCKED' | 'NO_OPEN_POSITION' | 'INVALID_QUANTITY' | 'SIMULATOR_REJECTED' | 'RISK_PLAN_REJECTED' | 'RISK_PLAN_UNPROTECTED';
 
 export interface PracticeRejection {
   code: PracticeRejectionCode;
@@ -122,6 +135,7 @@ const CAPABILITY_FOR_INTENT: Record<PracticeIntent['kind'], CapabilityId> = {
   SCALE_IN: 'SCALE_IN',
   PARTIAL_CLOSE: 'PARTIAL_EXIT',
   PLACE_STOP: 'STOP_MARKET',
+  BUY_RISK_PLANNED: 'RISK_PERCENT_SIZING',
 };
 
 export interface PracticeStoreOptions {
@@ -317,6 +331,15 @@ export class PracticeSessionStore {
       return this.reject('INSTRUMENT_LOCKED', `An open position on ${position.instrumentId} must be closed before trading another instrument.`);
     }
 
+    if (intent.kind === 'BUY_RISK_PLANNED') {
+      // CUSTOM_POSITION_SIZE is what actually authorises a non-fixed ticket;
+      // RISK_PERCENT_SIZING (checked above) authorises deriving it from risk.
+      if (!this.hasCapability('CUSTOM_POSITION_SIZE')) {
+        return this.reject('CAPABILITY_LOCKED', 'CUSTOM_POSITION_SIZE is not authorised by your Career yet.');
+      }
+      return this.submitRiskPlannedEntry(intent, gate.observation, eventTimeMs);
+    }
+
     if (intent.kind === 'PLACE_STOP') {
       const result = placeSpotStop(sim, { stopId: `${sim.sessionId}:stop:${sim.lastSequence + 1}`, stopPriceX18: intent.stopPriceX18, observation: gate.observation, eventTimeMs }, DEFAULT_SPOT_FILL_CONFIG);
       if (!result.accepted) return this.reject('SIMULATOR_REJECTED', result.reason ?? 'The simulator refused this stop.');
@@ -344,6 +367,98 @@ export class PracticeSessionStore {
     return { accepted: true };
   }
 
+  /**
+   * Freeze a risk plan, enter at the size it derives, and place the stop it was
+   * sized against — in that order, against one observation.
+   *
+   * The stop is validated as placeable *before* the entry executes, so the
+   * sequence cannot leave the account long and unprotected because the market
+   * moved through the stop between the two steps.
+   */
+  private submitRiskPlannedEntry(
+    intent: Extract<PracticeIntent, { kind: 'BUY_RISK_PLANNED' }>,
+    observation: MarketObservation,
+    eventTimeMs: number,
+  ): PracticeIntentResult {
+    const { sim } = this.snapshot;
+    if (sim.position) {
+      return this.reject('SIMULATOR_REJECTED', 'A risk plan is defined before entry; close the open position first.');
+    }
+    // `placeSpotStop` refuses a stop at or above the reference price. Checking
+    // it here keeps the failure atomic rather than half-applied.
+    if (intent.stopPriceX18 <= 0n || intent.stopPriceX18 >= observation.referencePriceX18) {
+      return this.reject('RISK_PLAN_REJECTED', 'The stop must sit strictly below the current market price.');
+    }
+
+    const ordinal = sim.lastSequence + 1;
+    const planId = `${sim.sessionId}:plan:${ordinal}`;
+    const planned = setSpotRiskPlan(sim, { planId, observation, stopPriceX18: intent.stopPriceX18, riskBps: intent.riskBps, eventTimeMs }, DEFAULT_SPOT_FILL_CONFIG);
+    if (!planned.accepted || !planned.plan) {
+      return this.reject('RISK_PLAN_REJECTED', planned.reason ?? 'The simulator refused this risk plan.');
+    }
+    const plan = planned.plan;
+
+    const entry = executeSpotAction(planned.state, {
+      type: 'BUY',
+      intentId: `${sim.sessionId}:i${ordinal}`,
+      fillId: `${sim.sessionId}:f${ordinal}`,
+      eventTimeMs,
+      observation,
+      quoteNotionalWei: plan.plannedNotionalWei,
+      config: DEFAULT_SPOT_FILL_CONFIG,
+    });
+    if (!entry.accepted) {
+      const rejection: PracticeRejection = { code: 'SIMULATOR_REJECTED', message: entry.reason ?? 'The simulator refused the planned entry.', atMs: eventTimeMs };
+      this.commit({ sim: entry.state, lastRejection: rejection });
+      return { accepted: false, rejection };
+    }
+
+    const stop = placeSpotStop(entry.state, { stopId: `${sim.sessionId}:stop:${ordinal}`, stopPriceX18: plan.stopPriceX18, observation, eventTimeMs }, DEFAULT_SPOT_FILL_CONFIG);
+    if (!stop.accepted) {
+      // The entry is real and recorded; saying so plainly beats pretending the
+      // whole intent failed while the account is actually exposed.
+      const rejection: PracticeRejection = {
+        code: 'RISK_PLAN_UNPROTECTED',
+        message: `The sized entry filled but the protective stop was refused (${stop.reason ?? 'unknown'}). Place a stop now.`,
+        atMs: eventTimeMs,
+      };
+      this.applyRiskPlannedCommit(stop.state, observation.instrumentId, observation.provenance, plan, rejection);
+      return { accepted: false, rejection };
+    }
+
+    this.applyRiskPlannedCommit(stop.state, observation.instrumentId, observation.provenance, plan, null);
+    return { accepted: true };
+  }
+
+  /** Fold a risk-planned entry into session state and record the Career fact. */
+  private applyRiskPlannedCommit(
+    nextSim: SimState,
+    instrumentId: string,
+    evidenceProvenance: ProvenanceState,
+    plan: RiskPlan,
+    rejection: PracticeRejection | null,
+  ): void {
+    let career = reduceCareer(this.snapshot.career, {
+      type: 'RISK_PLAN_CREATED',
+      eventId: `${plan.planId}:career`,
+      sourceReceiptId: `${plan.planId}:risk-plan`,
+      planId: plan.planId,
+      evidenceProvenance,
+    });
+    // The planned entry places a real protective stop, so it counts as one
+    // exactly like a hand-placed stop does. Reading it off the recorded stop
+    // rather than the intent keeps the fact tied to what the simulator did.
+    if (nextSim.activeStop) {
+      career = reduceCareer(career, {
+        type: 'STOP_PLACED',
+        eventId: `${nextSim.activeStop.stopId}:career`,
+        sourceReceiptId: `${nextSim.activeStop.stopId}:placed`,
+        evidenceProvenance,
+      });
+    }
+    this.commit({ sim: nextSim, career, instrumentId, lastRejection: rejection });
+  }
+
   private buildAction(
     intent: PracticeIntent,
     gate: Extract<PracticeEligibility, { status: 'SUPPORTED' }>,
@@ -358,7 +473,9 @@ export class PracticeSessionStore {
     if (intent.kind === 'BUY_FIXED') {
       return { action: { ...base, type: 'BUY', quoteNotionalWei: DEFAULT_FIRST_TICKET_WEI } };
     }
-    if (intent.kind === 'PLACE_STOP') {
+    if (intent.kind === 'PLACE_STOP' || intent.kind === 'BUY_RISK_PLANNED') {
+      // Both are session-domain intents handled directly in `submit`; neither
+      // maps to a single SpotAction.
       return { rejection: this.reject('SIMULATOR_REJECTED', 'This intent is handled by the session domain.') };
     }
     if (intent.kind === 'SCALE_IN') {
@@ -416,12 +533,35 @@ export class PracticeSessionStore {
           stopUsed: summary.stopUsed,
           partialExitUsed: summary.partialExitUsed,
           liquidated: summary.liquidated,
+          // Process facts the simulator recorded. Career applies its own
+          // STOP_PLAN_WINDOW_MS to these; the store never pre-judges them.
+          openedAtMs: summary.openedAtMs,
+          firstStopPlacedAtMs: summary.firstStopPlacedAtMs,
+          stopWidened: summary.stopWidened,
+          riskPlanned: summary.riskPlan !== null,
+          riskBudgetViolated: summary.riskBudgetViolated,
+          riskBudgetVerified: summary.riskBudgetVerified,
           // Straight from the simulator's own record of what the trade was
           // executed against. The store never supplies its own opinion here.
           evidenceProvenance: summary.evidenceProvenance,
         },
       });
       if (summary.stopUsed) careerEvents.push({ type: 'STOP_HIT', eventId: `${nextSim.sessionId}:${summary.tradeId}:stop-hit`, sourceReceiptId: `${nextSim.sessionId}:${summary.tradeId}`, evidenceProvenance: summary.evidenceProvenance });
+      // Compliance is a fact about a closed risk-planned trade, taken from the
+      // simulator's own latched flags — never from a UI observation.
+      //
+      // A cycle the simulator could not check against its budget produces
+      // neither fact. "We could not verify" is not "they complied", and an
+      // affirmative compliance record feeds the MARGIN_2X gate.
+      if (summary.riskPlan !== null && (summary.riskBudgetViolated || summary.riskBudgetVerified)) {
+        careerEvents.push({
+          type: summary.riskBudgetViolated ? 'RISK_BUDGET_VIOLATED' : 'RISK_BUDGET_RESPECTED',
+          eventId: `${nextSim.sessionId}:${summary.tradeId}:risk-budget`,
+          sourceReceiptId: `${nextSim.sessionId}:${summary.tradeId}`,
+          tradeId: summary.tradeId,
+          evidenceProvenance: summary.evidenceProvenance,
+        });
+      }
     }
 
     const careerBefore = career;

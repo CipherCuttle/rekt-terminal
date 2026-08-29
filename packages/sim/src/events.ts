@@ -1,4 +1,4 @@
-import type { AccountState, ActiveStop, PositionState, SimState, SpotFill, TradeSummary, Wei } from './types.js';
+import type { AccountState, ActiveStop, PositionState, RiskPlan, SimState, SpotFill, TradeSummary, Wei } from './types.js';
 
 export interface EventBase {
   eventId: string;
@@ -67,6 +67,45 @@ export interface StopTriggeredEvent extends EventBase {
   triggerPriceX18: bigint;
 }
 
+/**
+ * A risk plan was frozen. Recording it in the append-only log is what makes
+ * planned risk survive reload and replay unchanged.
+ */
+export interface RiskPlanSetEvent extends EventBase {
+  type: 'RISK_PLAN_SET';
+  plan: RiskPlan;
+}
+
+/**
+ * Projected exposure passed the active plan's budget plus tolerance.
+ *
+ * The simulator records the behaviour; it never blocks it. Career reads this
+ * fact and decides what it means.
+ */
+export interface RiskBudgetBreachedEvent extends EventBase {
+  type: 'RISK_BUDGET_BREACHED';
+  planId: string;
+  cycleId: string;
+  projectedLossWei: Wei;
+  budgetWei: Wei;
+  toleranceLimitWei: Wei;
+  observationId: string;
+}
+
+/**
+ * The plan's exposure could not be checked against its budget.
+ *
+ * Latched for the cycle, so a trade that spent any time in an uncheckable state
+ * can never be reported as having respected its budget.
+ */
+export interface RiskExposureUnverifiedEvent extends EventBase {
+  type: 'RISK_EXPOSURE_UNVERIFIED';
+  planId: string;
+  cycleId: string;
+  reason: 'UNPROTECTED' | 'UNAVAILABLE';
+  observationId: string;
+}
+
 export type SimEvent =
   | SessionOpenedEvent
   | OrderIntentAcceptedEvent
@@ -77,7 +116,10 @@ export type SimEvent =
   | TradeSummaryRecordedEvent
   | StopPlacedEvent
   | StopReplacedEvent
-  | StopTriggeredEvent;
+  | StopTriggeredEvent
+  | RiskPlanSetEvent
+  | RiskBudgetBreachedEvent
+  | RiskExposureUnverifiedEvent;
 
 export function nextEventSequence(state: SimState): number {
   return state.lastSequence + 1;

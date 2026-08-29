@@ -45,7 +45,40 @@ export interface CareerActionAttemptEvent {
 export interface SkillUnlockedEvent {
   type: 'SKILL_UNLOCKED';
   eventId: string;
-  skillId: 'SPOT_BASIC' | 'SCALE_CONTROL' | 'STOP_LOSS';
+  skillId: 'SPOT_BASIC' | 'SCALE_CONTROL' | 'STOP_LOSS' | 'RISK_SIZING';
+}
+
+/**
+ * A risk plan was frozen in the simulator.
+ *
+ * Recorded so MARGIN_2X can later require explicit risk plans and so the
+ * RISK OFFICER receipt has a countable fact. It grants nothing on its own —
+ * freezing plans in a loop is an action, not a demonstrated behaviour.
+ */
+export interface RiskPlanCreatedEvent extends EvidenceBacked {
+  type: 'RISK_PLAN_CREATED';
+  eventId: string;
+  sourceReceiptId: string;
+  planId: string;
+}
+
+/** A risk-planned trade closed without ever breaching its budget. */
+export interface RiskBudgetRespectedEvent extends EvidenceBacked {
+  type: 'RISK_BUDGET_RESPECTED';
+  eventId: string;
+  sourceReceiptId: string;
+  tradeId: string;
+}
+
+/**
+ * A risk-planned trade's projected exposure passed budget plus tolerance —
+ * the player widened a stop or increased exposure past their own plan.
+ */
+export interface RiskBudgetViolatedEvent extends EvidenceBacked {
+  type: 'RISK_BUDGET_VIOLATED';
+  eventId: string;
+  sourceReceiptId: string;
+  tradeId: string;
 }
 
 export interface StopPlacedEvent extends EvidenceBacked { type: 'STOP_PLACED'; eventId: string; sourceReceiptId: string; }
@@ -59,4 +92,7 @@ export type CareerEvent =
   | CareerActionAttemptEvent
   | SkillUnlockedEvent
   | StopPlacedEvent
-  | StopHitEvent;
+  | StopHitEvent
+  | RiskPlanCreatedEvent
+  | RiskBudgetRespectedEvent
+  | RiskBudgetViolatedEvent;

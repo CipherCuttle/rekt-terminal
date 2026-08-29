@@ -116,6 +116,27 @@ export function priceX18FromNumber(value: number | null | undefined): PriceX18 |
   }
 }
 
+/**
+ * Parse a user-typed decimal price straight into 1e18 fixed point.
+ *
+ * The stop price is the load-bearing input of a risk plan — it sets the stop
+ * distance, the position size, the projected loss, and the recorded stop — so it
+ * must not detour through a JS double. `parseFixed` is the parser
+ * `SIM_CONTRACT_V0` §3 mandates at the adapter boundary: it is exact, and it
+ * rejects the hex and exponent forms `Number()` silently accepts (`Number('0x10')`
+ * is 16, which would become a 16 ETH stop).
+ */
+export function priceX18FromDecimalString(value: string): PriceX18 | null {
+  const trimmed = value.trim();
+  if (trimmed === '' || !/^\d*(?:\.\d*)?$/.test(trimmed)) return null;
+  try {
+    const scaled = parseFixed(trimmed === '.' ? '0' : trimmed, 18);
+    return scaled > 0n ? priceX18(scaled) : null;
+  } catch {
+    return null;
+  }
+}
+
 function usdMicros(value: number | null | undefined): bigint | null {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value >= MAX_CONVERTIBLE) return null;
   try {

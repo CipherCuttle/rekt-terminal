@@ -1,9 +1,36 @@
-import type { CareerStats, QualificationState, ScaleControlQualification } from './types.js';
+import type { CareerStats, CareerTradeSummaryFact, QualificationState, RiskSizingQualification, ScaleControlQualification } from './types.js';
 
 export const SCALE_CONTROL_TRADE_TARGET = 3;
 export const SCALE_CONTROL_LOSS_LIMIT_BPS = 1_000;
 export const STOP_LOSS_TRADE_TARGET = 5;
 export const STOP_LOSS_EQUITY_FLOOR_WEI = 350_000_000_000_000_000n;
+
+/**
+ * How long after the opening fill a protective stop still counts as "planned
+ * with the entry".
+ *
+ * `TUNABLE`, and evaluated against **simulator event time** — never browser
+ * wall-clock time. A save restored an hour later replays the same event times
+ * and therefore reaches the same verdict.
+ */
+export const STOP_PLAN_WINDOW_MS = 60_000;
+export const RISK_SIZING_TRADE_TARGET = 3;
+export const RISK_SIZING_PARTIAL_EXIT_TARGET = 1;
+
+/**
+ * Did this closed trade demonstrate "invalidation decided at entry, then
+ * honoured"?
+ *
+ * Requires a stop placed inside the window measured from the opening fill and
+ * no widening anywhere in the cycle. A losing trade qualifies exactly as
+ * readily as a winning one: this grades process, not outcome.
+ */
+export function isStopPlannedTrade(fact: Pick<CareerTradeSummaryFact, 'openedAtMs' | 'firstStopPlacedAtMs' | 'stopWidened'>): boolean {
+  if (fact.stopWidened) return false;
+  if (fact.firstStopPlacedAtMs === null) return false;
+  if (!Number.isSafeInteger(fact.firstStopPlacedAtMs) || !Number.isSafeInteger(fact.openedAtMs)) return false;
+  return fact.firstStopPlacedAtMs - fact.openedAtMs <= STOP_PLAN_WINDOW_MS;
+}
 
 export function evaluateScaleControl(stats: CareerStats): boolean {
   return stats.qualifyingScaleTrades >= SCALE_CONTROL_TRADE_TARGET
@@ -28,6 +55,17 @@ export function createInitialQualification(): QualificationState {
       accountEquityAtLeast70Percent: true,
       qualified: false,
     },
+    riskSizing: createInitialRiskSizingQualification(),
+  };
+}
+
+export function createInitialRiskSizingQualification(): RiskSizingQualification {
+  return {
+    stopPlannedTrades: 0,
+    targetStopPlannedTrades: 3,
+    partialExitsUsed: 0,
+    targetPartialExits: 1,
+    qualified: false,
   };
 }
 
@@ -42,6 +80,19 @@ export function updateQualification(stats: CareerStats, previous: QualificationS
     qualified: previous.scaleControl.qualified || evaluateScaleControl(stats),
   };
   return { ...previous, scaleControl };
+}
+
+/**
+ * `CAREER_CONTRACT_V0` §8. STOP_LOSS unlocked, three trades whose stop was
+ * planned at entry and never widened, and at least one partial exit somewhere
+ * in Career history.
+ *
+ * Nothing here counts orders, clicks, notional, or profit.
+ */
+export function evaluateRiskSizing(state: { unlockedSkills: readonly string[]; stats: CareerStats }): boolean {
+  return state.unlockedSkills.includes('STOP_LOSS')
+    && state.stats.stopPlannedTrades >= RISK_SIZING_TRADE_TARGET
+    && state.stats.partialExitsUsed >= RISK_SIZING_PARTIAL_EXIT_TARGET;
 }
 
 export function evaluateStopLoss(state: { unlockedSkills: readonly string[]; stats: CareerStats }): boolean {

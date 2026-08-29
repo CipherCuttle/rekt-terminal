@@ -213,7 +213,7 @@ for (const pkg of ['packages/sim', 'packages/career']) {
 
 // Every economic mutation must go through the practice session store. React
 // components may read simulator state but must never advance it.
-const MUTATORS = /\b(executeSpotAction|applySimEvent|markSpot|replayEvents|reduceCareer|reduceCareerEvents)\s*\(/;
+const MUTATORS = /\b(executeSpotAction|applySimEvent|markSpot|replayEvents|reduceCareer|reduceCareerEvents|placeSpotStop|setSpotRiskPlan)\s*\(/;
 const MUTATION_ALLOWLIST = new Set([
   'apps/web/src/practice/store.ts',
   'apps/web/src/practice/persistence.ts',
@@ -223,6 +223,41 @@ for (const file of walk('apps/web/src', ['.ts', '.tsx'])) {
   if (file.startsWith(path.join('apps', 'web', 'src', 'test'))) continue;
   if (MUTATION_ALLOWLIST.has(file.split(path.sep).join('/'))) continue;
   if (MUTATORS.test(read(file))) fail(`${file} calls a simulator/Career mutator directly; route it through PracticeSessionStore`);
+}
+
+/**
+ * RISK_SIZING_V0.
+ *
+ * Risk arithmetic is domain arithmetic. A React component may render a plan and
+ * dispatch an intent, but it must never compute money with floating point, and
+ * the risk model must live in exactly one place.
+ */
+const RISK_MONEY_IDENTIFIERS = 'riskBudget|budgetWei|maxLoss|projectedLoss|positionSize|plannedNotional|stopPrice|equityWei';
+const RISK_FLOAT_PATTERNS = [
+  // A risk/loss/budget/size/stop quantity routed through JS number arithmetic.
+  new RegExp(`\\b(${RISK_MONEY_IDENTIFIERS})[A-Za-z0-9]*\\s*=\\s*[^;\\n]*\\b(Number|parseFloat)\\s*\\(`),
+  // ...or through a double on the way into fixed point.
+  /priceX18FromNumber\s*\(\s*Number\s*\(/,
+];
+for (const file of walk('apps/web/src', ['.ts', '.tsx'])) {
+  if (file.includes('test')) continue;
+  const source = code(read(file));
+  for (const pattern of RISK_FLOAT_PATTERNS) {
+    if (pattern.test(source)) fail(`${file} derives a risk quantity with floating-point arithmetic (${pattern}); risk math is bigint domain code`);
+  }
+}
+if (!read('packages/sim/src/risk.ts').includes('RISK_PLAN_V0')) {
+  fail('packages/sim/src/risk.ts does not declare the RISK_PLAN_V0 model version');
+}
+// The plan must never be able to fund more notional than the account holds.
+if (!/entryCostWei \+ trip\.entryFeeWei > capitalWei/.test(read('packages/sim/src/risk.ts'))) {
+  fail('the risk sizer does not bound planned notional by available capital; spot sizing must never create implicit leverage');
+}
+// Career grades planned-stop timing against simulator event time, not wall clock.
+{
+  const qualification = code(read('packages/career/src/qualification.ts'));
+  if (!qualification.includes('STOP_PLAN_WINDOW_MS')) fail('packages/career/src/qualification.ts does not define STOP_PLAN_WINDOW_MS');
+  if (/Date\.now\(\)/.test(qualification)) fail('packages/career/src/qualification.ts reads wall-clock time; qualification uses simulator event time');
 }
 
 /* -------------------------------------------------------------------------- */

@@ -12,6 +12,7 @@ const SKILL_TIERS: readonly { id: SkillId; capabilities: readonly CapabilityId[]
   { id: 'SPOT_BASIC', capabilities: ['SPOT_MARKET_BUY_FIXED', 'SPOT_SELL_ALL'], blurb: 'Fixed-size spot entry and full close.' },
   { id: 'SCALE_CONTROL', capabilities: ['SCALE_IN', 'PARTIAL_EXIT'], blurb: 'Add to a position and take partial exits.' },
   { id: 'STOP_LOSS', capabilities: ['STOP_MARKET'], blurb: 'Place a protective stop on a long spot position.' },
+  { id: 'RISK_SIZING', capabilities: ['CUSTOM_POSITION_SIZE', 'RISK_PERCENT_SIZING'], blurb: 'Size a position from your stop distance and an account-risk budget.' },
 ];
 
 const CAPABILITY_LABEL: Record<string, string> = {
@@ -20,11 +21,14 @@ const CAPABILITY_LABEL: Record<string, string> = {
   SCALE_IN: 'Scale into an open position',
   PARTIAL_EXIT: 'Partial close at 25 / 50 / 75%',
   STOP_MARKET: 'Protective stop-market trigger',
+  CUSTOM_POSITION_SIZE: 'Entry size beyond the fixed ticket',
+  RISK_PERCENT_SIZING: 'Stop distance to position size, at a chosen account risk',
 };
 
 export function CareerScreen({ career }: { career: CareerState }) {
   const qualification = career.qualification.scaleControl;
   const stop = career.qualification.stopLoss;
+  const risk = career.qualification.riskSizing;
 
   return (
     <section className="screen career-screen">
@@ -55,7 +59,7 @@ export function CareerScreen({ career }: { career: CareerState }) {
               );
             })}
           </ul>
-          <p className="panel-foot">Later tiers (RISK_SIZING, MARGIN_2X, SHORT) are not part of this build.</p>
+          <p className="panel-foot">Later tiers (MARGIN_2X, SHORT) are not part of this build.</p>
         </div>
 
         <div className="career-column-stack">
@@ -89,6 +93,20 @@ export function CareerScreen({ career }: { career: CareerState }) {
           </div>
 
           <div className="panel">
+            <header className="panel-head"><h2>RISK_SIZING QUALIFICATION</h2></header>
+            <dl className="truth-grid">
+              <Fact
+                label="STOPS PLANNED AT ENTRY"
+                value={`${risk.stopPlannedTrades} / ${risk.targetStopPlannedTrades}`}
+                note="NEVER WIDENED"
+              />
+              <Fact label="PARTIAL EXITS USED" value={`${risk.partialExitsUsed} / ${risk.targetPartialExits}`} />
+              <Fact label="QUALIFIED" value={risk.qualified ? 'YES' : 'NOT YET'} />
+            </dl>
+            <p className="panel-foot">{career.objective.text}</p>
+          </div>
+
+          <div className="panel">
             <header className="panel-head">
               <h2>BEHAVIOUR</h2>
               <span className="panel-note">FROM SIMULATOR RECEIPTS ONLY</span>
@@ -96,6 +114,13 @@ export function CareerScreen({ career }: { career: CareerState }) {
             <dl className="truth-grid">
               <Fact label="SCALE-INS USED" value={String(career.stats.scaleInsUsed)} />
               <Fact label="PARTIAL EXITS USED" value={String(career.stats.partialExitsUsed)} />
+              <Fact label="RISK PLANS SET" value={String(career.stats.riskPlansCreated)} />
+              <Fact label="RISK BUDGETS RESPECTED" value={String(career.stats.riskBudgetsRespected)} />
+              <Fact
+                label="RISK BUDGETS VIOLATED"
+                value={String(career.stats.riskBudgetViolations)}
+                note="HISTORY ONLY"
+              />
             </dl>
           </div>
 
