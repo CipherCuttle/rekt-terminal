@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -p ../../packages/sim/tsconfig.json && tsc -p ../../packages/career/tsconfig.json && tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
     "pretest": "tsc -p ../../packages/sim/tsconfig.json && tsc -p ../../packages/career/tsconfig.json",
@@ -14,6 +14,8 @@
     "@fontsource/jetbrains-mono": "5.3.0",
     "@fontsource/plus-jakarta-sans": "5.3.0",
     "@fontsource/press-start-2p": "5.3.0",
+    "@rekt-ink/career": "*",
+    "@rekt-ink/sim": "*",
     "dexie": "^4.4.5",
     "lightweight-charts": "5.2.1",
     "react": "19.1.1",
