@@ -1,6 +1,6 @@
 # RISK_SIZING_V0
 
-Status: `IMPLEMENTED / BOUNDED`
+Status: `IMPLEMENTED / HOSTILE_REVIEW_REPAIRED / BOUNDED`
 
 ## Identity
 
@@ -166,6 +166,63 @@ what the domain returns. It computes no money. On commit the store recomputes
 the plan from simulator state; nothing a component calculated is trusted into
 the ledger.
 
+## Hostile review and repairs
+
+One independent hostile review was performed against axes A–J. Axes A
+(deterministic arithmetic — 38 400 fuzzed plans, zero over-budget projections,
+zero over-funded entries), B (leverage), C (stop direction), F (persistence and
+replay) and J (STOP_LOSS regression) came back clean. Repairs made:
+
+**HIGH — an unpriceable stop exit read as compliance.** `projectStopExit`
+returned `null` once the position outgrew the fill model's participation
+ceiling, so `projectPlannedRisk` reported `UNAVAILABLE`, the breach recorder
+treated "could not check" as "no breach", and the closed trade asserted
+`riskBudgetViolated: false`. Against a 0.11 ETH pool a single fixed scale-in
+closed at 10.5x the frozen budget while Career recorded an affirmative
+`RISK_BUDGET_RESPECTED` — the counter behind the MARGIN_2X gate. Two changes:
+
+1. `projectStopExit` now prices such an exit at the model's maximum impact and
+   flags `exitExecutable: false`. That figure is a *lower bound* on the cost of
+   unwinding, which is enough to detect the breach; the terminal states the
+   bound rather than presenting it as the outcome. The reviewer's scenario now
+   records `OVER_BUDGET` and `riskBudgetViolated: true`.
+2. A cycle whose exposure could not be checked at all — no protective stop, or
+   evidence the model cannot price — latches `RISK_EXPOSURE_UNVERIFIED` and
+   closes with `riskBudgetVerified: false`. The store then emits **neither**
+   compliance fact. "We could not verify" is not "they complied". The instant
+   between a planned entry and its stop is exempt, since the stop is the next
+   step of the same user action; a cycle that never carries a stop is still
+   caught at close.
+
+**MEDIUM — a plan could be frozen for a trade that can never execute.**
+`planRiskSizedEntry` did not check the quote asset, so a plan could be written
+to the log for a pair `SPOT_FILL_V0` refuses, and the orphaned plan then
+attached to the next unrelated cycle and was reported as its risk plan.
+`UNSUPPORTED_QUOTE` is now a plan rejection code, and a position opening on an
+instrument other than the plan's drops the plan rather than inheriting it.
+
+**MEDIUM — the risk block understated what it was showing.** "IF STOP FILLS" is
+now "IF STOP FILLS AT TRIGGER … EST", with `A STOP IS AN INSTRUCTION · A GAP
+FILLS WORSE THAN THIS` beside the figure (`SIM_CONTRACT_V0` §10), and MAX LOSS
+and POSITION SIZE render `—` rather than an authoritative-looking number when
+the domain rejected the plan.
+
+**MEDIUM — the stop price detoured through a JS double.**
+`priceX18FromNumber(Number(input))` is replaced by `priceX18FromDecimalString`,
+which uses `parseFixed` per `SIM_CONTRACT_V0` §3. Beyond precision this closes an
+input hole: `Number('0x10')` is 16, which became a 16 ETH stop. Applied to the
+`STOP_LOSS_V0` stop input too, where the same pattern predated this phase.
+
+**LOW** — the budget figure now uses the domain's `mulDiv` floor rather than
+arithmetic in the component; an unparseable CUSTOM % no longer leaves the
+previous percentage armed behind an empty field; the stop placed by a planned
+entry now counts toward `stats.stopUses`; and a migrated save recomputes its
+objective instead of showing the line it was saved with. The
+`verify-source.mjs` risk guard was broadened to the identifiers actually in use.
+
+One targeted re-review of these repairs followed; no further Critical/High
+findings.
+
 ## Deferred
 
 - Re-planning an already-open position (`RISK_PLAN_POSITION_OPEN`). A plan is
@@ -175,6 +232,16 @@ the ledger.
   `riskPlansCreated` / `riskBudgetsRespected` are recorded for them.
 - Headless adversarial tuning (`CAREER_CONTRACT_V0` §19). All thresholds here
   are `PROVISIONAL`.
+- **Gate strength (review finding 7, LOW).** `isStopPlannedTrade` requires only
+  a stop inside the window and no widening — there is no minimum hold and no
+  requirement that the stop was ever at risk, so three same-tick
+  BUY/STOP/SELL loops satisfy it. This is `CAREER_CONTRACT_V0` §8 exactly as
+  written, so tightening it is a change to a frozen contract and is not this
+  phase's to make. Recorded for the §19 tuning pass, which §22 requires before
+  thresholds are release-frozen.
+- `stats.riskPlansCreated` counts plans whose entry succeeded, so it can differ
+  from the count of `RISK_PLAN_SET` events in the log. Both are facts; neither
+  gates anything in V0.
 
 ## Stop condition
 

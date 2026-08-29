@@ -97,6 +97,9 @@ export const RISK_PLAN_PRESET_BPS: readonly Bps[] = [bps(50n), bps(100n), bps(20
 
 export const RISK_PLAN_TUNING_VERSION = 'RISK_PLAN_V0_PROVISIONAL';
 
+/** Quote assets `SPOT_FILL_V0` will actually execute, mirrored here. */
+const SUPPORTED_PLAN_QUOTE_ASSETS: readonly string[] = ['ETH', 'WETH'];
+
 /* -------------------------------------------------------------------------- */
 /* model replay                                                                */
 /* -------------------------------------------------------------------------- */
@@ -208,6 +211,7 @@ export type RiskPlanRejectionCode =
   | 'RISK_BUDGET_ABOVE_MAX'
   | 'MISSING_LIQUIDITY'
   | 'INSUFFICIENT_CAPITAL'
+  | 'UNSUPPORTED_QUOTE'
   | 'SIZE_BELOW_MINIMUM';
 
 export interface RiskPlanInput {
@@ -303,6 +307,12 @@ export function planRiskSizedEntry(input: RiskPlanInput): RiskPlanResult {
   if (!Number.isSafeInteger(input.createdAtMs) || input.createdAtMs < 0) {
     return refuse('MODEL_INPUT_UNAVAILABLE', 'a risk plan must be stamped with simulator event time');
   }
+  // SPOT_FILL_V0 only executes ETH/WETH-quoted pairs. Sizing a plan the
+  // simulator could never fill would freeze a budget onto the ledger for a
+  // trade that cannot happen, so the same gate applies here.
+  if (!SUPPORTED_PLAN_QUOTE_ASSETS.includes(input.quoteAsset.toUpperCase())) {
+    return refuse('UNSUPPORTED_QUOTE', 'spot risk planning requires an ETH or WETH quote');
+  }
   if (input.equityAtPlanWei <= 0n) {
     return refuse('INVALID_EQUITY', 'a risk budget cannot be derived from non-positive account equity');
   }
@@ -393,6 +403,18 @@ export interface StopExitProjection {
   realizedWei: Wei;
   /** Positive magnitude of the loss, or zero if the stop exits in profit. */
   lossWei: Wei;
+  /**
+   * False when the position has outgrown the fill model's participation
+   * ceiling, so `SPOT_FILL_V0` would refuse this exit outright.
+   *
+   * The projection is still produced, priced at the model's maximum impact, and
+   * is then a *lower bound* on the real cost of unwinding: a stop the model will
+   * not fill cannot cost less than one it barely fills. Returning nothing here
+   * was worse than returning a bound — an unpriceable exit used to read as
+   * "no breach detected", which let a position grow past its budget while the
+   * closed trade still claimed compliance.
+   */
+  exitExecutable: boolean;
 }
 
 /**
@@ -406,11 +428,15 @@ export function projectStopExit(
   usableQuoteLiquidityWei: bigint,
   config: SpotFillConfig = DEFAULT_SPOT_FILL_CONFIG,
 ): StopExitProjection | null {
-  if (stopPriceX18 <= 0n || position.openQuantityAtoms <= 0n) return null;
+  if (stopPriceX18 <= 0n || position.openQuantityAtoms <= 0n || usableQuoteLiquidityWei <= 0n) return null;
   const quantity = position.openQuantityAtoms;
   const requested = quoteForQuantity(quantityAtoms(quantity), priceX18(stopPriceX18), 'ceil');
-  const impact = modelImpactBps(requested, usableQuoteLiquidityWei, config);
-  if (impact === null) return null;
+  const modelled = modelImpactBps(requested, usableQuoteLiquidityWei, config);
+  // Past the participation ceiling the model refuses the order. Price the exit
+  // at the model's worst admissible impact instead of declining to answer, and
+  // say so: a bound the caller can act on beats silence that reads as safety.
+  const exitExecutable = modelled !== null;
+  const impact = modelled ?? config.maxImpactBps;
   const stopFill = sellFillPrice(stopPriceX18, impact);
   if (stopFill <= 0n) return null;
   const proceeds = quoteForQuantity(quantityAtoms(quantity), priceX18(stopFill), 'floor');
@@ -426,6 +452,7 @@ export function projectStopExit(
     impactBps: bps(impact),
     realizedWei: wei(realized),
     lossWei: wei(realized < 0n ? -realized : 0n),
+    exitExecutable,
   };
 }
 
@@ -478,8 +505,19 @@ export interface RiskProjection {
   /** How far projected loss exceeds the budget, zero when inside it. */
   overBudgetWei: Wei;
   stopPriceX18: PriceX18 | null;
+  /**
+   * False when the model would refuse an exit of this size at this depth, so
+   * `projectedLossWei` is a lower bound rather than the modelled outcome.
+   */
+  exitExecutable: boolean;
   /** Latched: the cycle already recorded a budget breach. */
   breached: boolean;
+  /**
+   * Latched: at some point in the cycle the plan's exposure could not be
+   * checked against its budget at all (no protective stop, or evidence the
+   * model could not price). Compliance can never be claimed for such a cycle.
+   */
+  unverified: boolean;
   provenance: 'DERIVED';
   modelVersion: typeof RISK_PLAN_MODEL_VERSION;
 }
@@ -510,7 +548,9 @@ export function projectPlannedRisk(
     toleranceLimitWei: plan ? riskToleranceLimitWei(plan.maxLossWei) : wei(0n),
     overBudgetWei: wei(0n),
     stopPriceX18: state.activeStop ? priceX18(state.activeStop.stopPriceX18) : null,
+    exitExecutable: true,
     breached: state.riskBudgetBreached,
+    unverified: !state.riskBudgetVerified,
     provenance: 'DERIVED' as const,
     modelVersion: RISK_PLAN_MODEL_VERSION,
   };
@@ -529,6 +569,7 @@ export function projectPlannedRisk(
     projectedLossWei: projection.lossWei,
     overBudgetWei: wei(overBudget),
     stopPriceX18: projection.stopPriceX18,
+    exitExecutable: projection.exitExecutable,
   };
 }
 
@@ -566,29 +607,62 @@ export function buildRiskPlanEvent(state: SimState, plan: RiskPlan, eventTimeMs:
 }
 
 /**
- * The simulator records a breach; it never prevents one.
+ * Record what this action did to the plan's exposure.
  *
- * `CAREER_CONTRACT_V0` §13 is explicit that Practice does not stop a player
- * from widening a stop or scaling past their own budget. The behaviour is
- * recorded as a fact so Career can grade it.
+ * Two facts can come out of an exposure-changing action, and both are recorded
+ * rather than prevented — `CAREER_CONTRACT_V0` §13 is explicit that Practice
+ * observes the behaviour instead of blocking it:
+ *
+ *   - `RISK_BUDGET_BREACHED`: projected loss passed budget plus tolerance.
+ *   - `RISK_EXPOSURE_UNVERIFIED`: the exposure could not be checked against the
+ *     budget at all, because the position carries no protective stop or the
+ *     evidence cannot price one.
+ *
+ * The second exists because the alternative is worse than useless: treating an
+ * uncheckable exposure as "no breach found" let a cycle close claiming a
+ * compliance it had never demonstrated.
  */
-export function buildRiskBudgetBreachEvent(
+export function buildRiskExposureEvent(
   state: SimState,
   observation: MarketObservation,
   eventTimeMs: number,
   config: SpotFillConfig = DEFAULT_SPOT_FILL_CONFIG,
+  options: { positionJustOpened?: boolean } = {},
 ): SimEvent | null {
-  if (state.riskBudgetBreached || !state.position || !state.activeRiskPlan) return null;
+  if (!state.position || !state.activeRiskPlan) return null;
+  const plan = state.activeRiskPlan;
   const projection = projectPlannedRisk(state, observation, eventTimeMs, config);
-  if (projection.status !== 'OVER_BUDGET') return null;
+
+  if (projection.status === 'UNPROTECTED' || projection.status === 'UNAVAILABLE') {
+    if (!state.riskBudgetVerified) return null;
+    // The instant a planned entry fills it is briefly stopless, because the
+    // protective stop is the next step of the same user action. Flagging that
+    // instant would mark every correctly-planned trade unverified. A cycle that
+    // never carries a stop at all is still caught, at close, by TradeSummary.
+    if (options.positionJustOpened && projection.status === 'UNPROTECTED') return null;
+    return {
+      type: 'RISK_EXPOSURE_UNVERIFIED',
+      eventId: `${plan.planId}:unverified:${observation.observationId}`,
+      sequence: nextEventSequence(state),
+      sessionId: state.sessionId,
+      modelVersion: state.modelVersion,
+      eventTimeMs,
+      planId: plan.planId,
+      cycleId: state.position.cycleId,
+      reason: projection.status,
+      observationId: observation.observationId,
+    };
+  }
+
+  if (projection.status !== 'OVER_BUDGET' || state.riskBudgetBreached) return null;
   return {
     type: 'RISK_BUDGET_BREACHED',
-    eventId: `${state.activeRiskPlan.planId}:breach:${observation.observationId}`,
+    eventId: `${plan.planId}:breach:${observation.observationId}`,
     sequence: nextEventSequence(state),
     sessionId: state.sessionId,
     modelVersion: state.modelVersion,
     eventTimeMs,
-    planId: state.activeRiskPlan.planId,
+    planId: plan.planId,
     cycleId: state.position.cycleId,
     projectedLossWei: projection.projectedLossWei,
     budgetWei: projection.budgetWei,

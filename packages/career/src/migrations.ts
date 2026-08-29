@@ -1,5 +1,6 @@
 import { CAREER_SAVE_VERSION, createInitialCareer } from './reducer.js';
 import { createInitialRiskSizingQualification } from './qualification.js';
+import { getNextObjective } from './objective.js';
 import type { CareerState } from './types.js';
 
 export interface CareerSaveEnvelope {
@@ -89,6 +90,9 @@ export function migrateCareerSave(input: unknown): CareerSaveEnvelope | null {
   if (version !== CAREER_SAVE_VERSION) return null;
 
   state.saveVersion = CAREER_SAVE_VERSION;
+  // The objective is derived from qualification state, so a migrated save must
+  // recompute it rather than show the line it was saved with.
+  if (input.saveVersion !== CAREER_SAVE_VERSION) state.objective = getNextObjective(state);
   return { kind: 'REKT_INK_CAREER_SAVE', saveVersion: CAREER_SAVE_VERSION, state };
 }
 

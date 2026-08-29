@@ -4,6 +4,7 @@ import {
   RISK_PLAN_MAX_RISK_BPS,
   RISK_PLAN_PRESET_BPS,
   bps,
+  mulDiv,
   planRiskSizedEntry,
   priceX18,
   projectPlannedRisk,
@@ -13,7 +14,7 @@ import {
   type SimState,
 } from '@rekt-ink/sim';
 import { formatBpsPercent, formatEth, formatPriceEth, formatSignedEth } from '../practice/format';
-import { priceX18FromNumber } from '../practice/quote';
+import { priceX18FromDecimalString } from '../practice/quote';
 import type { PracticeIntent } from '../practice/store';
 
 /**
@@ -74,9 +75,12 @@ export function RiskTicket({ sim, blockedReason, observation, observationTimeMs,
   const [riskBps, setRiskBps] = useState<bigint>(PRESETS[1]);
   const [customOpen, setCustomOpen] = useState(false);
   const [customInput, setCustomInput] = useState('');
+  // A CUSTOM field that does not parse must not leave the previous percentage
+  // silently armed behind an empty box.
+  const customValid = !customOpen || riskBpsFromPercent(customInput) !== null;
 
   const marketBlocked = blockedReason !== null;
-  const stopPriceX18 = priceX18FromNumber(Number(stopInput));
+  const stopPriceX18 = priceX18FromDecimalString(stopInput);
 
   const plan: RiskPlanResult | null =
     observation === null || stopPriceX18 === null
@@ -97,8 +101,11 @@ export function RiskTicket({ sim, blockedReason, observation, observationTimeMs,
           config: DEFAULT_SPOT_FILL_CONFIG,
         });
 
-  const budgetWei = (sim.account.equityWei * riskBps) / 10_000n;
-  const ready = plan !== null && plan.ok && !marketBlocked;
+  // The domain's own rounding, not the component's: this is the same floor
+  // division `planRiskSizedEntry` applies, so the figure on screen is the
+  // figure the plan is built from.
+  const budgetWei = wei(mulDiv(sim.account.equityWei, riskBps, 10_000n, 'floor'));
+  const ready = plan !== null && plan.ok && !marketBlocked && customValid;
 
   return (
     <section className="risk-ticket" aria-label="Risk plan">
@@ -159,7 +166,7 @@ export function RiskTicket({ sim, blockedReason, observation, observationTimeMs,
               setCustomInput(event.target.value);
               const parsed = riskBpsFromPercent(event.target.value);
               // An unparseable or out-of-range entry is left visible and
-              // refused downstream rather than snapped to a nearby legal value.
+              // refused rather than snapped to a nearby legal value.
               if (parsed !== null) setRiskBps(parsed);
             }}
             aria-label="Custom account risk percent"
@@ -171,22 +178,28 @@ export function RiskTicket({ sim, blockedReason, observation, observationTimeMs,
         <div className="risk-figure">
           <dt>MAX LOSS</dt>
           <dd className="num">
-            {formatEth(wei(budgetWei), 4)}
+            {/* Only shown for a budget the domain accepted. A rejected risk
+                percentage must not render a figure that looks authoritative. */}
+            {plan?.ok && customValid ? formatEth(budgetWei, 4) : '—'}
             <span className="figure-unit">ETH</span>
           </dd>
         </div>
         <div className="risk-figure">
           <dt>POSITION SIZE</dt>
           <dd className="num">
-            {plan?.ok ? formatEth(plan.plan.plannedNotionalWei, 4) : '—'}
+            {plan?.ok && customValid ? formatEth(plan.plan.plannedNotionalWei, 4) : '—'}
             <span className="figure-unit">ETH</span>
           </dd>
         </div>
       </dl>
 
-      {plan?.ok && (
+      {plan?.ok && customValid && (
         <p className="risk-note">
-          IF STOP FILLS · {formatSignedEth(wei(-plan.plan.projectedLossWei), 4)} ETH · DERIVED / RISK_PLAN_V0
+          IF STOP FILLS AT TRIGGER · {formatSignedEth(wei(-plan.plan.projectedLossWei), 4)} ETH EST · DERIVED / RISK_PLAN_V0
+          <br />
+          {/* SIM_CONTRACT_V0 §10: a stop is an instruction, not a guaranteed
+              fill. Saying so where the number is read, not in a modal. */}
+          A STOP IS AN INSTRUCTION · A GAP FILLS WORSE THAN THIS
         </p>
       )}
       {plan !== null && !plan.ok && (
@@ -197,20 +210,25 @@ export function RiskTicket({ sim, blockedReason, observation, observationTimeMs,
         </p>
       )}
       {plan === null && <p className="risk-reason">Enter an invalidation price to size the trade.</p>}
+      {customOpen && !customValid && (
+        <p className="risk-reason" role="status">
+          CUSTOM_RISK_INVALID · Enter an account risk between 0.01% and {formatBpsPercent(RISK_PLAN_MAX_RISK_BPS)}.
+        </p>
+      )}
 
       <button
         type="button"
         className="action action-buy risk-action"
         disabled={!ready}
         onClick={() => {
-          if (!plan?.ok || stopPriceX18 === null) return;
+          if (!plan?.ok || stopPriceX18 === null || !customValid) return;
           onSubmit({ kind: 'BUY_RISK_PLANNED', stopPriceX18, riskBps });
           setStopInput('');
         }}
       >
         <span className="action-verb">BUY</span>
         <span className="action-size">
-          {plan?.ok ? `${formatEth(plan.plan.plannedNotionalWei, 4)} ETH · RISK ${formatBpsPercent(riskBps)}` : 'SIZED BY RISK PLAN'}
+          {plan?.ok && customValid ? `${formatEth(plan.plan.plannedNotionalWei, 4)} ETH · RISK ${formatBpsPercent(riskBps)}` : 'SIZED BY RISK PLAN'}
         </span>
       </button>
       {marketBlocked && <p className="action-reason">{blockedReason}</p>}
@@ -269,7 +287,21 @@ export function RiskExposure({
           ? 'NO ACTIVE STOP · LOSS IS UNBOUNDED'
           : projection.status === 'UNAVAILABLE'
             ? 'PROJECTION UNAVAILABLE ON CURRENT EVIDENCE'
-            : `DERIVED / RISK_PLAN_V0${projection.breached ? ' · BUDGET BREACHED THIS TRADE' : ''}`}
+            : `EST · DERIVED / RISK_PLAN_V0${projection.breached ? ' · BUDGET BREACHED THIS TRADE' : ''}`}
+        {/* The model would refuse an exit this large at this depth, so the
+            figure above is a floor on the cost of unwinding, not the cost. */}
+        {!projection.exitExecutable && (
+          <>
+            <br />
+            POSITION EXCEEDS MODELLED EXIT DEPTH · REAL COST IS WORSE
+          </>
+        )}
+        {projection.unverified && (
+          <>
+            <br />
+            EXPOSURE UNVERIFIED THIS TRADE · COMPLIANCE NOT CLAIMED
+          </>
+        )}
       </p>
     </section>
   );

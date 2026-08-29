@@ -141,6 +141,11 @@ export interface CareerTradeSummaryFact {
   /** Projected exposure breached the plan's budget plus tolerance. */
   riskBudgetViolated: boolean;
   /**
+   * The plan's exposure was checkable against its budget for the whole cycle.
+   * False is "not demonstrated", never "violated" — and never compliance.
+   */
+  riskBudgetVerified: boolean;
+  /**
    * Weakest market-evidence provenance behind this trade, taken from the
    * simulator's TradeSummary. Only CONFIRMED and DERIVED advance qualification;
    * SYNTHETIC (DEMO, seeded fixtures, deterministic rehearsals) never does.

@@ -438,13 +438,24 @@ export class PracticeSessionStore {
     plan: RiskPlan,
     rejection: PracticeRejection | null,
   ): void {
-    const career = reduceCareer(this.snapshot.career, {
+    let career = reduceCareer(this.snapshot.career, {
       type: 'RISK_PLAN_CREATED',
       eventId: `${plan.planId}:career`,
       sourceReceiptId: `${plan.planId}:risk-plan`,
       planId: plan.planId,
       evidenceProvenance,
     });
+    // The planned entry places a real protective stop, so it counts as one
+    // exactly like a hand-placed stop does. Reading it off the recorded stop
+    // rather than the intent keeps the fact tied to what the simulator did.
+    if (nextSim.activeStop) {
+      career = reduceCareer(career, {
+        type: 'STOP_PLACED',
+        eventId: `${nextSim.activeStop.stopId}:career`,
+        sourceReceiptId: `${nextSim.activeStop.stopId}:placed`,
+        evidenceProvenance,
+      });
+    }
     this.commit({ sim: nextSim, career, instrumentId, lastRejection: rejection });
   }
 
@@ -529,6 +540,7 @@ export class PracticeSessionStore {
           stopWidened: summary.stopWidened,
           riskPlanned: summary.riskPlan !== null,
           riskBudgetViolated: summary.riskBudgetViolated,
+          riskBudgetVerified: summary.riskBudgetVerified,
           // Straight from the simulator's own record of what the trade was
           // executed against. The store never supplies its own opinion here.
           evidenceProvenance: summary.evidenceProvenance,
@@ -536,8 +548,12 @@ export class PracticeSessionStore {
       });
       if (summary.stopUsed) careerEvents.push({ type: 'STOP_HIT', eventId: `${nextSim.sessionId}:${summary.tradeId}:stop-hit`, sourceReceiptId: `${nextSim.sessionId}:${summary.tradeId}`, evidenceProvenance: summary.evidenceProvenance });
       // Compliance is a fact about a closed risk-planned trade, taken from the
-      // simulator's own latched breach flag — never from a UI observation.
-      if (summary.riskPlan !== null) {
+      // simulator's own latched flags — never from a UI observation.
+      //
+      // A cycle the simulator could not check against its budget produces
+      // neither fact. "We could not verify" is not "they complied", and an
+      // affirmative compliance record feeds the MARGIN_2X gate.
+      if (summary.riskPlan !== null && (summary.riskBudgetViolated || summary.riskBudgetVerified)) {
         careerEvents.push({
           type: summary.riskBudgetViolated ? 'RISK_BUDGET_VIOLATED' : 'RISK_BUDGET_RESPECTED',
           eventId: `${nextSim.sessionId}:${summary.tradeId}:risk-budget`,

@@ -42,6 +42,7 @@ function closed(id, overrides = {}) {
       stopWidened: false,
       riskPlanned: false,
       riskBudgetViolated: false,
+      riskBudgetVerified: true,
       evidenceProvenance: 'DERIVED',
       ...overrides,
     },
@@ -225,4 +226,17 @@ test('a v3 save round-trips unchanged', () => {
   const restored = migrateCareerSave(save);
   assert.deepEqual(restored.state, state);
   assert.equal(migrateCareerSave({ ...save, saveVersion: 99 }), null);
+});
+
+test('a migrated save recomputes its objective instead of showing the saved line', () => {
+  let state = stopLossUnlocked('risk-objective');
+  const stale = createCareerSave(state);
+  stale.state.objective = { id: 'stale', kind: 'CLOSE_SPOT', text: 'NEXT // stale copy from an older save.', progress: 0, target: 1 };
+  const migrated = migrateCareerSave({ ...stale, saveVersion: 2 });
+  assert.notEqual(migrated.state.objective.text, 'NEXT // stale copy from an older save.');
+  assert.equal(migrated.state.objective.kind, 'RISK_SIZING_UNLOCKED');
+
+  // A same-version save is passed through untouched, objective included.
+  const current = createCareerSave(state);
+  assert.deepEqual(migrateCareerSave(current).state.objective, current.state.objective);
 });

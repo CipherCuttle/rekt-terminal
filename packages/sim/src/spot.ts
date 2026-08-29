@@ -1,6 +1,6 @@
 import { applySimEvent } from './ledger.js';
 import { assertUsableObservation } from './observation.js';
-import { buildRiskBudgetBreachEvent, buildRiskPlanEvent, planRiskSizedEntry, type RiskPlanIntent, type RiskPlanRejectionCode } from './risk.js';
+import { buildRiskExposureEvent, buildRiskPlanEvent, planRiskSizedEntry, type RiskPlanIntent, type RiskPlanRejectionCode } from './risk.js';
 import { createSpotFill, DEFAULT_SPOT_FILL_CONFIG, makeFixtureObservation } from './fill-models/spot-fill-v0.js';
 import { quoteForQuantity } from './math.js';
 import { nextEventSequence, type SimEvent } from './events.js';
@@ -139,8 +139,8 @@ export function setSpotRiskPlan(state: SimState, intent: RiskPlanIntent, config:
 }
 
 /**
- * Append a `RISK_BUDGET_BREACHED` record if this action pushed projected
- * exposure past the active plan's budget plus tolerance.
+ * Record what this action did to an active plan's exposure — a breach, or the
+ * fact that the exposure could not be checked at all.
  *
  * Practice never refuses the action — `CAREER_CONTRACT_V0` §13 is explicit that
  * the simulator records the behaviour rather than preventing it.
@@ -150,9 +150,10 @@ function withRiskBudgetCheck<T extends { state: SimState; accepted: boolean; eve
   observation: MarketObservation,
   eventTimeMs: number,
   config: SpotFillConfig,
+  options: { positionJustOpened?: boolean } = {},
 ): T {
   if (!result.accepted) return result;
-  const event = buildRiskBudgetBreachEvent(result.state, observation, eventTimeMs, config);
+  const event = buildRiskExposureEvent(result.state, observation, eventTimeMs, config, options);
   if (!event) return result;
   return { ...result, state: applySimEvent(result.state, event), events: [...result.events, event] };
 }
@@ -405,7 +406,7 @@ export function executeSpotAction(state: SimState, action: SpotAction): SpotActi
     emitted.push(snapshotEvent);
     // Scaling in, or reducing, changes projected exposure against a frozen
     // budget. Evaluated after the position event so the check sees real state.
-    return withRiskBudgetCheck({ state: next, accepted: true, events: emitted }, action.observation, action.eventTimeMs, config);
+    return withRiskBudgetCheck({ state: next, accepted: true, events: emitted }, action.observation, action.eventTimeMs, config, { positionJustOpened: !wasOpen });
   } catch (error) {
     return rejectAction(state, action, error);
   }

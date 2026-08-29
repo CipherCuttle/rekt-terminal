@@ -92,6 +92,20 @@ export interface RiskBudgetBreachedEvent extends EventBase {
   observationId: string;
 }
 
+/**
+ * The plan's exposure could not be checked against its budget.
+ *
+ * Latched for the cycle, so a trade that spent any time in an uncheckable state
+ * can never be reported as having respected its budget.
+ */
+export interface RiskExposureUnverifiedEvent extends EventBase {
+  type: 'RISK_EXPOSURE_UNVERIFIED';
+  planId: string;
+  cycleId: string;
+  reason: 'UNPROTECTED' | 'UNAVAILABLE';
+  observationId: string;
+}
+
 export type SimEvent =
   | SessionOpenedEvent
   | OrderIntentAcceptedEvent
@@ -104,7 +118,8 @@ export type SimEvent =
   | StopReplacedEvent
   | StopTriggeredEvent
   | RiskPlanSetEvent
-  | RiskBudgetBreachedEvent;
+  | RiskBudgetBreachedEvent
+  | RiskExposureUnverifiedEvent;
 
 export function nextEventSequence(state: SimState): number {
   return state.lastSequence + 1;

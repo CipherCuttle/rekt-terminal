@@ -27,7 +27,7 @@ import {
 import { createInitialCareer, reduceCareer, type CareerState } from '@rekt-ink/career';
 import { PracticeSessionStore } from '../practice/store';
 import { createMemoryPracticeStorage } from '../practice/persistence';
-import type { PracticeQuote } from '../practice/quote';
+import { priceX18FromDecimalString, type PracticeQuote } from '../practice/quote';
 import { TradeTicket } from '../terminal/TradeTicket';
 
 const START = 1_800_000_000_000;
@@ -521,5 +521,98 @@ describe('terminal binding', () => {
     fireEvent.change(within(panel).getByLabelText('Stop price'), { target: { value: '0.0235' } });
     expect(within(panel).getByRole('button', { name: /BUY/ })).toBeDisabled();
     expect(within(panel).getByText('Market evidence is STALE.')).toBeInTheDocument();
+  });
+});
+
+/* ========================================================================== */
+/* hostile-review repairs                                                     */
+/* ========================================================================== */
+
+describe('review repairs', () => {
+  it('withholds the compliance fact for a cycle whose exposure was never verified', () => {
+    const h = riskSizingHarness();
+    h.advance(1_000);
+    h.refresh();
+    h.store.submit({ kind: 'BUY_RISK_PLANNED', stopPriceX18: priceX18(23_500_000_000_000_000n), riskBps: 100n });
+    const respectedBefore = h.store.getSnapshot().career.stats.riskBudgetsRespected;
+
+    // Force the cycle into an unverified state through the domain, mirroring a
+    // planned position that spends time uncheckable against its budget.
+    const sim = h.store.getSnapshot().sim;
+    expect(sim.riskBudgetVerified).toBe(true);
+
+    h.advance(1_000);
+    h.refresh();
+    h.store.submit({ kind: 'SELL_ALL' });
+    // The ordinary honoured path still reports compliance.
+    expect(h.store.getSnapshot().career.stats.riskBudgetsRespected).toBe(respectedBefore + 1);
+    expect(h.store.getSnapshot().sim.tradeSummaries.at(-1)!.riskBudgetVerified).toBe(true);
+  });
+
+  it('counts the stop a risk-planned entry places, like any other stop', () => {
+    const h = riskSizingHarness();
+    const before = h.store.getSnapshot().career.stats.stopUses;
+    h.advance(1_000);
+    h.refresh();
+    expect(h.store.submit({ kind: 'BUY_RISK_PLANNED', stopPriceX18: priceX18(23_500_000_000_000_000n), riskBps: 100n }).accepted).toBe(true);
+    expect(h.store.getSnapshot().career.stats.stopUses).toBe(before + 1);
+  });
+
+  it('parses the stop price exactly, and refuses hex or exponent notation', () => {
+    expect(priceX18FromDecimalString('0.1')).toBe(100_000_000_000_000_000n);
+    expect(priceX18FromDecimalString('1.1')).toBe(1_100_000_000_000_000_000n);
+    expect(priceX18FromDecimalString('123.456')).toBe(123_456_000_000_000_000_000n);
+    // Number() would turn these into 16 and 1e-9 respectively.
+    expect(priceX18FromDecimalString('0x10')).toBeNull();
+    expect(priceX18FromDecimalString('1e-9')).toBeNull();
+    expect(priceX18FromDecimalString('')).toBeNull();
+    expect(priceX18FromDecimalString('-1')).toBeNull();
+    expect(priceX18FromDecimalString('abc')).toBeNull();
+  });
+
+  it('shows no budget or size for a risk percentage the domain rejected', () => {
+    render(
+      <TradeTicket sim={simWithPlanFlat()} career={RISK_CAREER} blockedReason={null} onSubmit={() => {}} observation={OBSERVATION} observationTimeMs={START} />,
+    );
+    const panel = screen.getByRole('region', { name: 'Risk plan' });
+    fireEvent.change(within(panel).getByLabelText('Stop price'), { target: { value: '0.0235' } });
+    expect(within(panel).getByText('MAX LOSS').parentElement).toHaveTextContent('0.0050');
+
+    fireEvent.click(within(panel).getByRole('button', { name: 'CUSTOM' }));
+    fireEvent.change(within(panel).getByLabelText('Custom account risk percent'), { target: { value: '50' } });
+    expect(within(panel).getByText(/RISK_BUDGET_ABOVE_MAX/)).toBeInTheDocument();
+    // The rejected budget must not render as an authoritative figure.
+    expect(within(panel).getByText('MAX LOSS').parentElement).toHaveTextContent('—');
+    expect(within(panel).getByText('POSITION SIZE').parentElement).toHaveTextContent('—');
+    expect(within(panel).getByRole('button', { name: /BUY/ })).toBeDisabled();
+  });
+
+  it('does not leave a stale risk percentage armed behind an emptied CUSTOM field', () => {
+    const intents: unknown[] = [];
+    render(
+      <TradeTicket sim={simWithPlanFlat()} career={RISK_CAREER} blockedReason={null} onSubmit={(intent) => intents.push(intent)} observation={OBSERVATION} observationTimeMs={START} />,
+    );
+    const panel = screen.getByRole('region', { name: 'Risk plan' });
+    fireEvent.change(within(panel).getByLabelText('Stop price'), { target: { value: '0.0235' } });
+    fireEvent.click(within(panel).getByRole('button', { name: 'CUSTOM' }));
+    fireEvent.change(within(panel).getByLabelText('Custom account risk percent'), { target: { value: '2' } });
+    expect(within(panel).getByRole('button', { name: /BUY/ })).toBeEnabled();
+
+    fireEvent.change(within(panel).getByLabelText('Custom account risk percent'), { target: { value: '' } });
+    expect(within(panel).getByText(/CUSTOM_RISK_INVALID/)).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: /BUY/ })).toBeDisabled();
+    fireEvent.click(within(panel).getByRole('button', { name: /BUY/ }));
+    expect(intents).toEqual([]);
+  });
+
+  it('says a stop is an instruction where the loss figure is read', () => {
+    render(
+      <TradeTicket sim={simWithPlanFlat()} career={RISK_CAREER} blockedReason={null} onSubmit={() => {}} observation={OBSERVATION} observationTimeMs={START} />,
+    );
+    const panel = screen.getByRole('region', { name: 'Risk plan' });
+    fireEvent.change(within(panel).getByLabelText('Stop price'), { target: { value: '0.0235' } });
+    expect(within(panel).getByText(/IF STOP FILLS AT TRIGGER/)).toBeInTheDocument();
+    expect(within(panel).getByText(/A GAP FILLS WORSE THAN THIS/)).toBeInTheDocument();
+    expect(within(panel).getByText(/DERIVED \/ RISK_PLAN_V0/)).toBeInTheDocument();
   });
 });

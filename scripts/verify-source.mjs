@@ -232,10 +232,12 @@ for (const file of walk('apps/web/src', ['.ts', '.tsx'])) {
  * dispatch an intent, but it must never compute money with floating point, and
  * the risk model must live in exactly one place.
  */
+const RISK_MONEY_IDENTIFIERS = 'riskBudget|budgetWei|maxLoss|projectedLoss|positionSize|plannedNotional|stopPrice|equityWei';
 const RISK_FLOAT_PATTERNS = [
-  // A risk/loss/budget/size quantity computed with JS number arithmetic.
-  /\b(riskBudget|maxLoss|projectedLoss|positionSize|plannedNotional)[A-Za-z]*\s*=\s*[^;\n]*\bNumber\s*\(/,
-  /\b(riskBudget|maxLoss|projectedLoss|plannedNotional)[A-Za-z]*\s*=\s*[^;\n]*\bparseFloat\s*\(/,
+  // A risk/loss/budget/size/stop quantity routed through JS number arithmetic.
+  new RegExp(`\\b(${RISK_MONEY_IDENTIFIERS})[A-Za-z0-9]*\\s*=\\s*[^;\\n]*\\b(Number|parseFloat)\\s*\\(`),
+  // ...or through a double on the way into fixed point.
+  /priceX18FromNumber\s*\(\s*Number\s*\(/,
 ];
 for (const file of walk('apps/web/src', ['.ts', '.tsx'])) {
   if (file.includes('test')) continue;

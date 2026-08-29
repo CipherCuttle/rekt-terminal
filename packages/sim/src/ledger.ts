@@ -60,6 +60,7 @@ export function createInitialSimState(input: InitialSimStateInput = {}): SimStat
     activeStop: null,
     activeRiskPlan: null,
     riskBudgetBreached: false,
+    riskBudgetVerified: true,
   };
 }
 
@@ -118,6 +119,7 @@ function makeTradeSummary(state: SimState, position: PositionState, fill: SpotFi
     state.cycleEvidenceProvenance ?? fill.observationProvenance,
     fill.observationProvenance,
   );
+  const firstStopAtMs = firstStopPlacedAtMs(state, position.cycleId);
   return {
     tradeId: position.cycleId,
     sessionId: state.sessionId,
@@ -146,9 +148,12 @@ function makeTradeSummary(state: SimState, position: PositionState, fill: SpotFi
     stopWidened: state.events.some((event) => event.type === 'STOP_REPLACED' && event.stop.cycleId === position.cycleId && event.widened),
     // Raw behavioural facts. Career applies its own tuning window to the first
     // stop time; the simulator only reports when it happened.
-    firstStopPlacedAtMs: firstStopPlacedAtMs(state, position.cycleId),
+    firstStopPlacedAtMs: firstStopAtMs,
     riskPlan: state.activeRiskPlan,
     riskBudgetViolated: state.riskBudgetBreached,
+    // A planned cycle that never carried a protective stop was never checkable
+    // against its budget, whatever the latch says.
+    riskBudgetVerified: state.riskBudgetVerified && (state.activeRiskPlan === null || firstStopAtMs !== null),
     liquidated: false,
     evidenceProvenance,
     modelVersions: [SPOT_FILL_MODEL_VERSION],
@@ -202,6 +207,13 @@ function applyFill(state: SimState, fill: SpotFill): {
             cycleAllocatedEntryFeesWei: wei(0n),
             cycleExitFeesWei: wei(0n),
             cycleEvidenceProvenance: fill.observationProvenance,
+            // A plan sizes one instrument. An entry on a different one is not
+            // the trade it planned, so the plan is dropped rather than
+            // inherited — otherwise an unrelated cycle would close carrying a
+            // budget it was never sized to, and report compliance with it.
+            activeRiskPlan: state.activeRiskPlan && state.activeRiskPlan.instrumentId === fill.instrumentId ? state.activeRiskPlan : null,
+            riskBudgetBreached: false,
+            riskBudgetVerified: true,
           }
         : { cycleEvidenceProvenance: accumulateEvidence(state, fill) },
     };
@@ -258,6 +270,7 @@ function applyFill(state: SimState, fill: SpotFill): {
         // unplanned rather than inheriting a stale budget.
         activeRiskPlan: null,
         riskBudgetBreached: false,
+        riskBudgetVerified: true,
       },
   };
 }
@@ -318,6 +331,7 @@ export function applySimEvent(state: SimState, event: SimEvent): SimState {
     return appendEvent(state, event, state.account, state.position, state.markPriceX18, state.tradeSummaries, {
       activeRiskPlan: event.plan,
       riskBudgetBreached: false,
+      riskBudgetVerified: true,
     });
   }
 
@@ -327,6 +341,15 @@ export function applySimEvent(state: SimState, event: SimEvent): SimState {
     }
     return appendEvent(state, event, state.account, state.position, state.markPriceX18, state.tradeSummaries, {
       riskBudgetBreached: true,
+    });
+  }
+
+  if (event.type === 'RISK_EXPOSURE_UNVERIFIED') {
+    if (!state.position || !state.activeRiskPlan || state.activeRiskPlan.planId !== event.planId || state.position.cycleId !== event.cycleId) {
+      throw new SimError('INVALID_EVENT', 'an unverified-exposure record must reference the open position and its active plan');
+    }
+    return appendEvent(state, event, state.account, state.position, state.markPriceX18, state.tradeSummaries, {
+      riskBudgetVerified: false,
     });
   }
 

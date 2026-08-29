@@ -183,6 +183,12 @@ export interface TradeSummary {
    * simulator records it and Career grades it.
    */
   riskBudgetViolated: boolean;
+  /**
+   * True only if the plan's exposure was checkable against its budget for the
+   * whole cycle. False means "not demonstrated", which is not the same as
+   * "violated" and must never be reported as compliance.
+   */
+  riskBudgetVerified: boolean;
   liquidated: false;
   /**
    * Weakest market-evidence provenance across every fill in this trade cycle.
@@ -293,6 +299,11 @@ export interface SimState {
    * erase the fact that the budget was knowingly breached.
    */
   riskBudgetBreached: boolean;
+  /**
+   * False once the cycle's exposure could not be checked against its plan at
+   * all. Compliance is never claimed for an unverified cycle.
+   */
+  riskBudgetVerified: boolean;
 }
 
 export type SimErrorCode =

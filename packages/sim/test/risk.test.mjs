@@ -496,3 +496,127 @@ test('16. STOP_LOSS behaviour is unchanged for an unplanned trade', () => {
   assert.equal(triggered.events.some((event) => event.type === 'RISK_BUDGET_BREACHED'), false);
   assert.equal(DEFAULT_SPOT_FILL_CONFIG.feeBps, 30n);
 });
+
+/* ========================================================================== */
+/* hostile-review repairs                                                     */
+/* ========================================================================== */
+
+/** The reviewer's thin-depth pool: usable ETH depth of 0.11 ETH. */
+const THIN_LIQUIDITY = 110_000_000_000_000_000n;
+
+test('R1. an exit the model would refuse is bounded and breached, never read as compliant', () => {
+  let state = opened('thin-breach');
+  const entryObs = observation('thin-entry', ENTRY, START, THIN_LIQUIDITY);
+  state = setSpotRiskPlan(state, { planId: 'thin-plan', observation: entryObs, stopPriceX18: STOP, riskBps: 100n, eventTimeMs: START }).state;
+  state = executeSpotAction(state, {
+    type: 'BUY', intentId: 'thin-i', fillId: 'thin-f', eventTimeMs: START,
+    observation: entryObs, quoteNotionalWei: state.activeRiskPlan.plannedNotionalWei,
+  }).state;
+  state = placeSpotStop(state, { stopId: 'thin-s', stopPriceX18: priceX18(STOP), observation: entryObs, eventTimeMs: START }).state;
+  assert.equal(projectPlannedRisk(state, entryObs, START).status, 'WITHIN_BUDGET');
+
+  // One fixed scale-in triples the position against a shallow pool. The stop
+  // exit now exceeds the model's participation ceiling.
+  const scaleObs = observation('thin-scale', ENTRY, START + 1_000, THIN_LIQUIDITY);
+  const scaled = executeSpotAction(state, {
+    type: 'SCALE_IN', intentId: 'thin-i2', fillId: 'thin-f2', eventTimeMs: START + 1_000,
+    observation: scaleObs, quoteNotionalWei: wei(50_000_000_000_000_000n),
+  });
+  assert.equal(scaled.accepted, true);
+
+  const projection = projectPlannedRisk(scaled.state, scaleObs, START + 1_000);
+  // The projection is produced as a lower bound and flagged, rather than
+  // withheld — withholding it used to read as "no breach found".
+  assert.equal(projection.exitExecutable, false);
+  assert.equal(projection.status, 'OVER_BUDGET');
+  assert.equal(projection.projectedLossWei > projection.toleranceLimitWei, true);
+  assert.equal(scaled.state.riskBudgetBreached, true);
+  assert.equal(scaled.events.filter((event) => event.type === 'RISK_BUDGET_BREACHED').length, 1);
+
+  const closed = markSpot(scaled.state, observation('thin-close', STOP, START + 2_000), START + 2_000);
+  const summary = closed.state.tradeSummaries.at(-1);
+  assert.equal(summary.riskBudgetViolated, true);
+  assert.equal(-summary.realizedPnlWei > summary.riskPlan.maxLossWei, true);
+});
+
+test('R2. a planned cycle that never carries a stop is not reported as compliant', () => {
+  let state = opened('never-stopped');
+  const obs = observation('never-obs');
+  state = setSpotRiskPlan(state, { planId: 'never-plan', observation: obs, stopPriceX18: STOP, riskBps: 100n, eventTimeMs: START }).state;
+  const entry = executeSpotAction(state, {
+    type: 'BUY', intentId: 'never-i', fillId: 'never-f', eventTimeMs: START,
+    observation: obs, quoteNotionalWei: state.activeRiskPlan.plannedNotionalWei,
+  });
+  // The entry itself is not flagged: its protective stop is the next step of
+  // the same user action.
+  assert.equal(entry.state.riskBudgetVerified, true);
+  assert.equal(entry.events.some((event) => event.type === 'RISK_EXPOSURE_UNVERIFIED'), false);
+
+  // Scaling in while still stopless is a different matter.
+  const scaled = executeSpotAction(entry.state, {
+    type: 'SCALE_IN', intentId: 'never-i2', fillId: 'never-f2', eventTimeMs: START + 1_000,
+    observation: observation('never-obs-2', ENTRY, START + 1_000), quoteNotionalWei: wei(50_000_000_000_000_000n),
+  });
+  assert.equal(scaled.state.riskBudgetVerified, false);
+  const unverified = scaled.events.find((event) => event.type === 'RISK_EXPOSURE_UNVERIFIED');
+  assert.equal(unverified.reason, 'UNPROTECTED');
+
+  const closed = executeSpotAction(scaled.state, {
+    type: 'FULL_CLOSE', intentId: 'never-i3', fillId: 'never-f3', eventTimeMs: START + 2_000,
+    observation: observation('never-obs-3', ENTRY, START + 2_000),
+  });
+  const summary = closed.state.tradeSummaries.at(-1);
+  // Not violated, but never verified either. The two are different claims.
+  assert.equal(summary.riskBudgetViolated, false);
+  assert.equal(summary.riskBudgetVerified, false);
+
+  // Even a plain entry that is never stopped at all fails verification.
+  let plain = opened('never-stopped-2');
+  const plainObs = observation('plain-obs');
+  plain = setSpotRiskPlan(plain, { planId: 'plain-plan', observation: plainObs, stopPriceX18: STOP, riskBps: 100n, eventTimeMs: START }).state;
+  plain = executeSpotAction(plain, { type: 'BUY', intentId: 'plain-i', fillId: 'plain-f', eventTimeMs: START, observation: plainObs, quoteNotionalWei: plain.activeRiskPlan.plannedNotionalWei }).state;
+  const plainClosed = executeSpotAction(plain, { type: 'FULL_CLOSE', intentId: 'plain-i2', fillId: 'plain-f2', eventTimeMs: START + 1_000, observation: observation('plain-obs-2', ENTRY, START + 1_000) });
+  assert.equal(plainClosed.state.tradeSummaries.at(-1).riskBudgetVerified, false);
+});
+
+test('R3. an honoured plan is still verified, and unverified state replays exactly', () => {
+  const { state } = plannedPosition('verified');
+  assert.equal(state.riskBudgetVerified, true);
+  const closed = executeSpotAction(state, {
+    type: 'FULL_CLOSE', intentId: 'verified-i2', fillId: 'verified-f2', eventTimeMs: START + 1_000,
+    observation: observation('verified-close', ENTRY, START + 1_000),
+  });
+  assert.equal(closed.state.tradeSummaries.at(-1).riskBudgetVerified, true);
+  // Cleared for the next cycle.
+  assert.equal(closed.state.riskBudgetVerified, true);
+
+  const replayed = replayEvents(closed.state.events, createInitialSimState({ sessionId: closed.state.sessionId, startedAtMs: START }));
+  assert.equal(stableReplayDigest(replayed), stableReplayDigest(closed.state));
+  assert.deepEqual(replayed.tradeSummaries.at(-1), closed.state.tradeSummaries.at(-1));
+});
+
+test('R4. a plan cannot be frozen for a quote the simulator will never fill', () => {
+  const refused = plan({ quoteAsset: 'USDC' });
+  assert.equal(refused.ok, false);
+  assert.equal(refused.code, 'UNSUPPORTED_QUOTE');
+});
+
+test('R5. a plan is never inherited by an entry on a different instrument', () => {
+  let state = opened('instrument-bind');
+  const planned = observation('bind-plan');
+  state = setSpotRiskPlan(state, { planId: 'bind-plan-id', observation: planned, stopPriceX18: STOP, riskBps: 100n, eventTimeMs: START }).state;
+  assert.notEqual(state.activeRiskPlan, null);
+
+  // Enter a different instrument entirely.
+  const other = makeFixtureObservation({
+    observationId: 'other-obs', instrumentId: 'INK-OTHER-SPOT',
+    referencePriceX18: priceX18(ENTRY), usableQuoteLiquidityWei: wei(LIQUIDITY), observedAtMs: START,
+  });
+  const entry = executeSpotAction(state, { type: 'BUY', intentId: 'bind-i', fillId: 'bind-f', eventTimeMs: START, observation: other, quoteNotionalWei: wei(50_000_000_000_000_000n) });
+  assert.equal(entry.accepted, true);
+  assert.equal(entry.state.activeRiskPlan, null);
+
+  const closed = executeSpotAction(entry.state, { type: 'FULL_CLOSE', intentId: 'bind-i2', fillId: 'bind-f2', eventTimeMs: START + 1_000, observation: { ...other, observationId: 'other-close', observedAtMs: START + 1_000 } });
+  // The unrelated trade does not close carrying a budget it was never sized to.
+  assert.equal(closed.state.tradeSummaries.at(-1).riskPlan, null);
+});
