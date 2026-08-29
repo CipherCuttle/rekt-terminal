@@ -1,0 +1,32 @@
+.chart-realtime {
+  position: absolute;
+  right: 18px;
+  bottom: 34px;
+  z-index: 4;
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid var(--acid-dim);
+  border-radius: 2px;
+  background: rgba(13, 11, 24, 0.9);
+  color: var(--acid);
+  font: 600 8px/1 var(--mono);
+  letter-spacing: 0.1em;
+  box-shadow: 0 0 0 1px rgba(8, 7, 14, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.chart-realtime:hover {
+  background: rgba(139, 255, 88, 0.08);
+  border-color: var(--acid);
+}
+
+.chart-realtime:active {
+  transform: translateY(1px);
+}
+
+@media (max-width: 760px) {
+  .chart-realtime {
+    right: 10px;
+    bottom: 32px;
+  }
+}

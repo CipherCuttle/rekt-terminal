@@ -58,13 +58,15 @@ export function TerminalScreen(props: TerminalScreenProps) {
   simRef.current = sim;
   const overlayLabel = asset.quote?.toUpperCase() || 'ETH';
   const [chartSeries, setChartSeries] = useState<ChartSeriesResolution | null>(null);
+  const [awayFromRealtime, setAwayFromRealtime] = useState(false);
 
   // Chart lifecycle. The chart is imperative on purpose: ticks never pass
   // through React state.
   useEffect(() => {
     const box = boxRef.current;
     if (!box) return undefined;
-    const chart = new MarketChart(box);
+    setAwayFromRealtime(false);
+    const chart = new MarketChart(box, { onRealtimeStateChange: setAwayFromRealtime });
     chartRef.current = chart;
     chartSink.current = { tick: (tick) => chart.update(tick.price, tick.side, tick.volume, tick.timeSeconds) };
 
@@ -145,6 +147,11 @@ export function TerminalScreen(props: TerminalScreenProps) {
       <div className="terminal-body">
         <div className="panel chart-panel">
           <div ref={boxRef} className="chart-box" />
+          {awayFromRealtime && (
+            <button type="button" className="chart-realtime" onClick={() => chartRef.current?.scrollToRealtime()}>
+              RETURN TO LIVE →
+            </button>
+          )}
           {chartSeries?.status === 'UNAVAILABLE' && (
             <div className="chart-unavailable" role="status">
               <p className="chart-unavailable-code">HISTORY UNAVAILABLE · {chartSeries.code}</p>
