@@ -1,0 +1,36 @@
+name: LIVE_PROVIDER_SMOKE_V0
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: github.head_ref == 'agent/live-provider-smoke-v0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Run frozen live-provider smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx tsx scripts/live-provider-smoke-v0.ts | tee live-provider-smoke-v0.json
+
+      - name: Preserve receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-provider-smoke-v0
+          path: live-provider-smoke-v0.json
+          if-no-files-found: error
