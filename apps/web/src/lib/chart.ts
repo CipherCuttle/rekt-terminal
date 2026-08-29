@@ -18,6 +18,7 @@ import {
   markerProjectionKey,
   nextFillMarkerLod,
   projectFillMarkers,
+  visibleDataBars,
   type FillMarkerLod,
 } from './chart-marker-lod';
 
@@ -63,13 +64,16 @@ export class MarketChart {
   private markerLod: FillMarkerLod = 'DETAIL';
   private visibleBars = DEFAULT_VISIBLE_BARS;
   private markerKey = markerProjectionKey('DETAIL', DEFAULT_VISIBLE_BARS);
+  private lastDataIndex: number | null = null;
   private realtimeOffset = DEFAULT_RIGHT_OFFSET;
   private awayFromRealtime = false;
   private readonly onRealtimeStateChange?: (awayFromRealtime: boolean) => void;
 
   private readonly handleVisibleRange = (range: { from: number; to: number } | null) => {
     if (!range) return;
-    const visibleBars = Math.max(1, range.to - range.from + 1);
+    // Right-side whitespace is navigation chrome, not market history. Counting it
+    // as bars made the default 84-bar view immediately collapse to COMPACT.
+    const visibleBars = visibleDataBars(range, this.lastDataIndex);
     const nextLod = nextFillMarkerLod(this.markerLod, visibleBars);
     const nextKey = markerProjectionKey(nextLod, visibleBars);
     this.visibleBars = visibleBars;
@@ -159,6 +163,7 @@ export class MarketChart {
 
   load(bars: Bar[]) {
     this.last = bars.at(-1) || null;
+    this.lastDataIndex = bars.length > 0 ? bars.length - 1 : null;
     this.candle.setData(bars.map((bar) => ({ ...bar, time: bar.time as UTCTimestamp })));
     this.volume.setData(
       bars.map((bar) => ({
@@ -172,7 +177,7 @@ export class MarketChart {
     if (bars.length > DEFAULT_VISIBLE_BARS) {
       const lastIndex = bars.length - 1;
       timeScale.setVisibleLogicalRange({
-        from: Math.max(0, lastIndex - DEFAULT_VISIBLE_BARS),
+        from: Math.max(0, lastIndex - (DEFAULT_VISIBLE_BARS - 1)),
         to: lastIndex + DEFAULT_RIGHT_OFFSET,
       });
     } else {
@@ -194,6 +199,7 @@ export class MarketChart {
         close: price,
         volume,
       };
+      if (this.lastDataIndex !== null) this.lastDataIndex += 1;
     } else {
       this.last = {
         ...this.last,
