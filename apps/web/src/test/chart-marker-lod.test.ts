@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clusterBucketSeconds, nextFillMarkerLod, projectFillMarkers } from '../lib/chart-marker-lod';
+import { clusterBucketSeconds, nextFillMarkerLod, projectFillMarkers, visibleDataBars } from '../lib/chart-marker-lod';
 
 const stamps = [
   { id: 'b1', side: 'BUY' as const, timeSeconds: 60, price: 1.01, label: 'BUY 1.01' },
@@ -16,6 +16,16 @@ describe('fill marker semantic zoom', () => {
     expect(nextFillMarkerLod('COMPACT', 221)).toBe('CLUSTER');
     expect(nextFillMarkerLod('CLUSTER', 180)).toBe('CLUSTER');
     expect(nextFillMarkerLod('CLUSTER', 169)).toBe('COMPACT');
+  });
+
+  it('resolves multi-tier jumps in one range update', () => {
+    expect(nextFillMarkerLod('DETAIL', 500)).toBe('CLUSTER');
+    expect(nextFillMarkerLod('CLUSTER', 50)).toBe('DETAIL');
+  });
+
+  it('excludes right-side whitespace from visible bar density', () => {
+    expect(visibleDataBars({ from: 100, to: 195 }, 183)).toBe(84);
+    expect(nextFillMarkerLod('DETAIL', visibleDataBars({ from: 100, to: 195 }, 183))).toBe('DETAIL');
   });
 
   it('keeps exact execution price in detail and compact modes', () => {

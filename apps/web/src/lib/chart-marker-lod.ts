@@ -26,14 +26,36 @@ const CLUSTER_EXIT_BARS = 170;
 /**
  * Hysteretic marker LOD. The gap between enter/exit thresholds prevents labels
  * from flickering when a wheel or pinch gesture hovers around one boundary.
+ * Large resize/programmatic jumps still resolve directly to the final tier in
+ * one update; no second range event is required.
  */
 export function nextFillMarkerLod(current: FillMarkerLod, visibleBars: number): FillMarkerLod {
   if (!Number.isFinite(visibleBars) || visibleBars <= 0) return current;
-  if (current === 'DETAIL') return visibleBars > DETAIL_EXIT_BARS ? 'COMPACT' : 'DETAIL';
-  if (current === 'CLUSTER') return visibleBars < CLUSTER_EXIT_BARS ? 'COMPACT' : 'CLUSTER';
+
+  if (current === 'DETAIL') {
+    if (visibleBars > CLUSTER_ENTER_BARS) return 'CLUSTER';
+    if (visibleBars > DETAIL_EXIT_BARS) return 'COMPACT';
+    return 'DETAIL';
+  }
+
+  if (current === 'CLUSTER') {
+    if (visibleBars < DETAIL_REENTER_BARS) return 'DETAIL';
+    if (visibleBars < CLUSTER_EXIT_BARS) return 'COMPACT';
+    return 'CLUSTER';
+  }
+
   if (visibleBars < DETAIL_REENTER_BARS) return 'DETAIL';
   if (visibleBars > CLUSTER_ENTER_BARS) return 'CLUSTER';
   return 'COMPACT';
+}
+
+/**
+ * Count only logical bars backed by market data. Positive right-side whitespace
+ * is interaction chrome and must not push execution markers into a coarser LOD.
+ */
+export function visibleDataBars(range: { from: number; to: number }, lastDataIndex: number | null): number {
+  const to = lastDataIndex === null ? range.to : Math.min(range.to, lastDataIndex);
+  return Math.max(1, to - range.from + 1);
 }
 
 /** Cluster width only changes at coarse zoom tiers, not on every pixel of zoom. */
