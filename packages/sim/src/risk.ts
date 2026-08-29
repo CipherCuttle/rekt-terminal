@@ -633,7 +633,12 @@ export function buildRiskExposureEvent(
   const plan = state.activeRiskPlan;
   const projection = projectPlannedRisk(state, observation, eventTimeMs, config);
 
-  if (projection.status === 'UNPROTECTED' || projection.status === 'UNAVAILABLE') {
+  const cannotVerifyCompliance =
+    projection.status === 'UNPROTECTED'
+    || projection.status === 'UNAVAILABLE'
+    || (!projection.exitExecutable && projection.status !== 'OVER_BUDGET');
+
+  if (cannotVerifyCompliance) {
     if (!state.riskBudgetVerified) return null;
     // The instant a planned entry fills it is briefly stopless, because the
     // protective stop is the next step of the same user action. Flagging that
@@ -649,7 +654,11 @@ export function buildRiskExposureEvent(
       eventTimeMs,
       planId: plan.planId,
       cycleId: state.position.cycleId,
-      reason: projection.status,
+      // A non-executable exit whose lower-bound loss is still inside tolerance
+      // is not evidence of compliance; the fill model cannot verify the actual
+      // unwind. Reuse the existing UNAVAILABLE reason rather than inventing a
+      // new event vocabulary for the same epistemic state.
+      reason: projection.status === 'UNPROTECTED' ? 'UNPROTECTED' : 'UNAVAILABLE',
       observationId: observation.observationId,
     };
   }
