@@ -1,6 +1,6 @@
 # LIVE_PROVIDER_SMOKE_V0
 
-Status: `AUTHORIZED / BOUNDED_OPERATIONAL_QUALIFICATION`
+Status: `CLOSED / PASS`
 
 ## Goal
 
@@ -50,6 +50,22 @@ Fail closed on any:
 
 ## Closure
 
-On PASS: record a compact receipt containing pool identity, request counts, observed field/schema identities, provenance/currency assertions, and timestamp; then STOP.
+PASS observed at `2026-08-29T09:49:37.657Z` against frozen Ink pool `0x716ddc8df376488660e85eefda8df74f447c453a` (ANITA/WETH, InkySwap).
 
-On FAIL: preserve the receipt and open exactly one targeted provider-adapter repair. Do not redesign MARKET_TRUTH_V1 or expand product scope.
+Observed qualification:
+
+- exactly 3 GeckoTerminal requests;
+- quote relationship resolved to Ink WETH `0x4200000000000000000000000000000000000006`;
+- 20 finite OHLCV bars requested directly in quote-token denomination (`WETH`);
+- pool aggregates and OHLCV remained `DERIVED`;
+- 100 recent trades carried transaction identity and were classified `CONFIRMED`;
+- no `SYNTHETIC` values appeared;
+- no current-FX historical conversion occurred;
+- no DEMO fallback occurred;
+- no provider-adapter source change was required.
+
+The first CI harness attempt failed before any provider request because its root TypeScript entry used top-level await under CommonJS transformation. The harness was wrapped in an async entrypoint and the bounded provider qualification then passed. The failed harness attempt consumed zero provider requests.
+
+Canonical receipt: `docs/LIVE_PROVIDER_SMOKE_V0_RECEIPT.json`.
+
+STOP. Next product phase is `RISK_SIZING_V0`; it is not part of this qualification.
