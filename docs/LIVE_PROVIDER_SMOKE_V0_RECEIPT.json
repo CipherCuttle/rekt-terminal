@@ -1,0 +1,52 @@
+{
+  "qualification": "LIVE_PROVIDER_SMOKE_V0",
+  "verdict": "PASS",
+  "observedAt": "2026-08-29T09:49:37.657Z",
+  "sourceCommit": "b83efa6b5ffce0f14db74caebc51699923dd095c",
+  "githubActionsRunId": 33246372583,
+  "pool": {
+    "address": "0x716ddc8df376488660e85eefda8df74f447c453a",
+    "id": "ink_0x716ddc8df376488660e85eefda8df74f447c453a",
+    "venue": "inkyswap",
+    "baseTokenAddress": "0x0606fc632ee812ba970af72f8489baaa443c4b98",
+    "baseSymbol": "ANITA",
+    "quoteTokenAddress": "0x4200000000000000000000000000000000000006",
+    "quoteSymbol": "WETH",
+    "quoteIdentityResolved": true
+  },
+  "requests": [
+    {
+      "index": 1,
+      "url": "https://api.geckoterminal.com/api/v2/networks/ink/pools?page=1&include=base_token%2Cquote_token"
+    },
+    {
+      "index": 2,
+      "url": "https://api.geckoterminal.com/api/v2/networks/ink/pools/0x716ddc8df376488660e85eefda8df74f447c453a/ohlcv/minute?aggregate=5&limit=20&currency=token&token=base"
+    },
+    {
+      "index": 3,
+      "url": "https://api.geckoterminal.com/api/v2/networks/ink/pools/0x716ddc8df376488660e85eefda8df74f447c453a/trades"
+    }
+  ],
+  "requestCount": 3,
+  "assertions": {
+    "relationshipIdentity": true,
+    "expectedWethAddress": true,
+    "quoteCurrency": "QUOTE_TOKEN",
+    "quoteCurrencyLabel": "WETH",
+    "ohlcvBars": 20,
+    "aggregatesProvenance": "DERIVED",
+    "ohlcvProvenance": "DERIVED",
+    "tradeCount": 100,
+    "confirmedTrades": 100,
+    "derivedTrades": 0,
+    "syntheticLeakage": false,
+    "currentFxConversion": false,
+    "demoFallback": false
+  },
+  "qualificationNotes": {
+    "initialHarnessAttempt": "Failed before any provider request because root tsx execution treated top-level await as CommonJS; harness-only repair wrapped execution in an async entrypoint.",
+    "providerRequestsConsumedByFailedHarnessAttempt": 0,
+    "providerAdapterSourceChanges": 0
+  }
+}
