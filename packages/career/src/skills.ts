@@ -6,6 +6,7 @@ export const SCALE_CONTROL_CAPABILITIES: readonly CapabilityId[] = ['SCALE_IN', 
 export const STOP_LOSS_CAPABILITIES: readonly CapabilityId[] = ['STOP_MARKET'];
 export const RISK_SIZING_CAPABILITIES: readonly CapabilityId[] = ['CUSTOM_POSITION_SIZE', 'RISK_PERCENT_SIZING'];
 export const MARGIN_2X_CAPABILITIES: readonly CapabilityId[] = ['PERP_LONG_2X'];
+export const SHORT_CAPABILITIES: readonly CapabilityId[] = ['PERP_SHORT_2X'];
 
 export function capabilitiesForSkill(skill: SkillId): readonly CapabilityId[] {
   if (skill === 'SPOT_BASIC') return STARTING_CAPABILITIES;
@@ -13,5 +14,6 @@ export function capabilitiesForSkill(skill: SkillId): readonly CapabilityId[] {
   if (skill === 'STOP_LOSS') return STOP_LOSS_CAPABILITIES;
   if (skill === 'RISK_SIZING') return RISK_SIZING_CAPABILITIES;
   if (skill === 'MARGIN_2X') return MARGIN_2X_CAPABILITIES;
+  if (skill === 'SHORT') return SHORT_CAPABILITIES;
   return [];
 }
