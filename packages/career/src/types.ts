@@ -23,6 +23,11 @@ export type CapabilityId =
   | 'PERP_LONG_2X'
   | 'PERP_SHORT_2X';
 
+export interface RiskPlannedOutcome {
+  tradeId: string;
+  outcome: 'UNVERIFIED' | 'RESPECTED' | 'VIOLATED';
+}
+
 export interface CareerStats {
   closedSpotTrades: number;
   scaleInsUsed: number;
@@ -36,19 +41,26 @@ export interface CareerStats {
   accountEquityAtLeast70Percent: boolean;
   /**
    * Closed trades whose protective stop was placed within the frozen
-   * STOP_PLAN_WINDOW_MS of the opening fill *and* was never widened. This is
-   * the RISK_SIZING process gate: the player decided their invalidation near
-   * entry and then honoured it.
+   * STOP_PLAN_WINDOW_MS of the opening fill *and* was never widened.
    */
   stopPlannedTrades: number;
   /** Closed trades that carried an explicit risk plan. */
   riskPlannedTrades: number;
-  /** Risk plans frozen. Recorded for MARGIN_2X and receipts; gates nothing here. */
+  /** Risk plans frozen. Recorded for MARGIN_2X and receipts; gates nothing alone. */
   riskPlansCreated: number;
   /** Closed risk-planned trades whose projected exposure stayed inside budget. */
   riskBudgetsRespected: number;
   /** Closed risk-planned trades that breached budget plus tolerance. */
   riskBudgetViolations: number;
+  /** Rolling last three closed risk-planned simulator outcomes. */
+  recentRiskPlannedOutcomes: RiskPlannedOutcome[];
+  /** Cumulative simulator account drawdown seen on gradable closed trades. */
+  maxAccountDrawdownBps: number | null;
+  /**
+   * Number of bankroll resets used in this Career. `null` means an older save
+   * predates reset receipts, so "no reset used" cannot be proven.
+   */
+  accountResetsUsed: number | null;
 }
 
 export interface ScaleControlQualification {
@@ -68,6 +80,21 @@ export interface RiskSizingQualification {
   qualified: boolean;
 }
 
+export interface Margin2xQualification {
+  closedSpotTrades: number;
+  targetClosedSpotTrades: 8;
+  riskPlannedTrades: number;
+  targetRiskPlannedTrades: 3;
+  partialExitsUsed: number;
+  targetPartialExits: 2;
+  recentRiskPlannedOutcomes: RiskPlannedOutcome[];
+  targetCleanRecentRiskPlans: 3;
+  maxAccountDrawdownBps: number | null;
+  drawdownLimitBps: 2_000;
+  accountResetsUsed: number | null;
+  qualified: boolean;
+}
+
 export interface QualificationState {
   scaleControl: ScaleControlQualification;
   stopLoss: {
@@ -79,9 +106,10 @@ export interface QualificationState {
     qualified: boolean;
   };
   riskSizing: RiskSizingQualification;
+  margin2x: Margin2xQualification;
 }
 
-export type ObjectiveKind = 'CLOSE_SPOT' | 'PROTECT_EQUITY' | 'SCALE_CONTROL_UNLOCKED' | 'STOP_LOSS_UNLOCKED' | 'RISK_SIZING_UNLOCKED';
+export type ObjectiveKind = 'CLOSE_SPOT' | 'PROTECT_EQUITY' | 'SCALE_CONTROL_UNLOCKED' | 'STOP_LOSS_UNLOCKED' | 'RISK_SIZING_UNLOCKED' | 'MARGIN_2X_UNLOCKED';
 
 export interface ObjectiveState {
   id: string;
@@ -122,33 +150,19 @@ export interface CareerTradeSummaryFact {
   accountEquityAtCloseWei: bigint;
   lossBpsOfThenCurrentEquity: bigint;
   accountEquityAtOpenWei: bigint;
+  /** Cumulative account drawdown recorded by the simulator at this close. */
+  maxDrawdownBpsAtClose: bigint;
   exitReason: 'MANUAL' | 'STOP' | 'PROTECT_CAPITAL';
   stopUsed: boolean;
   partialExitUsed: boolean;
   liquidated: false;
-  /** Simulator event time the cycle opened. */
   openedAtMs: number;
-  /**
-   * Simulator event time of the first protective stop in the cycle, or null.
-   * Career compares it to `openedAtMs` against its own tuning window; the
-   * simulator never applies a Career constant.
-   */
   firstStopPlacedAtMs: number | null;
-  /** The cycle's stop was moved further from entry at some point. */
   stopWidened: boolean;
-  /** The cycle carried an explicit risk plan. */
   riskPlanned: boolean;
-  /** Projected exposure breached the plan's budget plus tolerance. */
   riskBudgetViolated: boolean;
-  /**
-   * The plan's exposure was checkable against its budget for the whole cycle.
-   * False is "not demonstrated", never "violated" — and never compliance.
-   */
+  /** False is "not demonstrated", never "violated" — and never compliance. */
   riskBudgetVerified: boolean;
-  /**
-   * Weakest market-evidence provenance behind this trade, taken from the
-   * simulator's TradeSummary. Only CONFIRMED and DERIVED advance qualification;
-   * SYNTHETIC (DEMO, seeded fixtures, deterministic rehearsals) never does.
-   */
+  /** Only CONFIRMED and DERIVED evidence can advance qualification. */
   evidenceProvenance: ProvenanceState;
 }

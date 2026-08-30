@@ -1,24 +1,14 @@
 import { getNextObjective } from './objective.js';
-import { capabilitiesForSkill, RISK_SIZING_CAPABILITIES, SCALE_CONTROL_CAPABILITIES, STARTING_CAPABILITIES, STARTING_SKILL } from './skills.js';
-import { createInitialQualification, updateQualification, evaluateScaleControl, evaluateStopLoss, evaluateRiskSizing, isStopPlannedTrade, STOP_LOSS_EQUITY_FLOOR_WEI } from './qualification.js';
+import { capabilitiesForSkill, MARGIN_2X_CAPABILITIES, RISK_SIZING_CAPABILITIES, SCALE_CONTROL_CAPABILITIES, STARTING_CAPABILITIES, STARTING_SKILL } from './skills.js';
+import { createInitialQualification, updateQualification, evaluateScaleControl, evaluateStopLoss, evaluateRiskSizing, evaluateMargin2x, isStopPlannedTrade, margin2xQualificationFromStats, STOP_LOSS_EQUITY_FLOOR_WEI } from './qualification.js';
 import type { CareerEvent } from './events.js';
-import type { CareerEffect, CareerState, CareerStats, CareerTradeSummaryFact, ProvenanceState, SkillId } from './types.js';
+import type { CareerEffect, CareerState, CareerStats, CareerTradeSummaryFact, ProvenanceState, RiskPlannedOutcome, SkillId } from './types.js';
 
-/**
- * Evidence classes Career is willing to grade.
- *
- * MARKET_TRUTH_V1: qualification claims a player demonstrated a behaviour in a
- * real market. A trade executed against fabricated data demonstrates nothing,
- * so SYNTHETIC / STALE / UNAVAILABLE evidence advances no statistic, no
- * qualification, and no unlock. This is the single choke point that keeps DEMO
- * activity and the deterministic PROTECT_CAPITAL rehearsal out of real Career
- * progression.
- */
 export function isGradableEvidence(state: ProvenanceState): boolean {
   return state === 'CONFIRMED' || state === 'DERIVED';
 }
 
-export const CAREER_SAVE_VERSION = 3;
+export const CAREER_SAVE_VERSION = 4;
 
 function initialStats(): CareerStats {
   return {
@@ -37,6 +27,9 @@ function initialStats(): CareerStats {
     riskPlansCreated: 0,
     riskBudgetsRespected: 0,
     riskBudgetViolations: 0,
+    recentRiskPlannedOutcomes: [],
+    maxAccountDrawdownBps: null,
+    accountResetsUsed: 0,
   };
 }
 
@@ -52,13 +45,7 @@ export function createInitialCareer(careerId = 'career-0', startedAtMs = 0): Car
     stats: initialStats(),
     qualification: createInitialQualification(),
     receipts: {},
-    objective: {
-      id: 'scale-control-close-trades',
-      kind: 'CLOSE_SPOT',
-      text: 'NEXT // Complete 3 controlled spot trades.',
-      progress: 0,
-      target: 3,
-    },
+    objective: { id: 'scale-control-close-trades', kind: 'CLOSE_SPOT', text: 'NEXT // Complete 3 controlled spot trades.', progress: 0, target: 3 },
     effectSeq: 0,
     recentEffects: [],
     processedEventIds: [],
@@ -73,11 +60,7 @@ function addUnique<T>(values: readonly T[], value: T): T[] {
 
 function addEffect(state: CareerState, effect: Omit<CareerEffect, 'effectSeq'>): CareerState {
   const effectSeq = state.effectSeq + 1;
-  return {
-    ...state,
-    effectSeq,
-    recentEffects: [...state.recentEffects, { ...effect, effectSeq }].slice(-8),
-  };
+  return { ...state, effectSeq, recentEffects: [...state.recentEffects, { ...effect, effectSeq }].slice(-8) };
 }
 
 function unlockScaleControl(state: CareerState): CareerState {
@@ -87,20 +70,9 @@ function unlockScaleControl(state: CareerState): CareerState {
     unlockedSkills: addUnique(state.unlockedSkills, 'SCALE_CONTROL'),
     unlockedCapabilities: [...state.unlockedCapabilities, ...SCALE_CONTROL_CAPABILITIES.filter((capability) => !state.unlockedCapabilities.includes(capability))],
   };
-  next = addEffect(next, {
-    effectId: 'scale-control-unlocked',
-    kind: 'SKILL_UNLOCKED',
-    text: 'SCALE_CONTROL unlocked: scale in and partial exit are authorized.',
-  });
-  next = {
-    ...next,
-    receipts: { ...next.receipts, SCALE_CONTROL_AUTHORIZED: (next.receipts.SCALE_CONTROL_AUTHORIZED ?? 0) + 1 },
-  };
-  return addEffect(next, {
-    effectId: 'scale-control-receipt',
-    kind: 'RECEIPT_AWARDED',
-    text: 'Receipt awarded: SCALE CONTROL AUTHORIZED.',
-  });
+  next = addEffect(next, { effectId: 'scale-control-unlocked', kind: 'SKILL_UNLOCKED', text: 'SCALE_CONTROL unlocked: scale in and partial exit are authorized.' });
+  next = { ...next, receipts: { ...next.receipts, SCALE_CONTROL_AUTHORIZED: (next.receipts.SCALE_CONTROL_AUTHORIZED ?? 0) + 1 } };
+  return addEffect(next, { effectId: 'scale-control-receipt', kind: 'RECEIPT_AWARDED', text: 'Receipt awarded: SCALE CONTROL AUTHORIZED.' });
 }
 
 function unlockStopLoss(state: CareerState): CareerState {
@@ -117,29 +89,46 @@ function unlockRiskSizing(state: CareerState): CareerState {
     unlockedSkills: addUnique(state.unlockedSkills, 'RISK_SIZING' as SkillId),
     unlockedCapabilities: [...state.unlockedCapabilities, ...RISK_SIZING_CAPABILITIES.filter((capability) => !state.unlockedCapabilities.includes(capability))],
   };
-  next = addEffect(next, {
-    effectId: 'risk-sizing-unlocked',
-    kind: 'SKILL_UNLOCKED',
-    text: 'RISK_SIZING unlocked: size a position from your stop and an account-risk budget.',
-  });
+  next = addEffect(next, { effectId: 'risk-sizing-unlocked', kind: 'SKILL_UNLOCKED', text: 'RISK_SIZING unlocked: size a position from your stop and an account-risk budget.' });
   return { ...next, receipts: { ...next.receipts, RISK_SIZING_AUTHORIZED: (next.receipts.RISK_SIZING_AUTHORIZED ?? 0) + 1 } };
 }
 
-function normalizeLossBps(value: bigint): number {
+function unlockMargin2x(state: CareerState): CareerState {
+  if (state.unlockedSkills.includes('MARGIN_2X')) return state;
+  let next: CareerState = {
+    ...state,
+    unlockedSkills: addUnique(state.unlockedSkills, 'MARGIN_2X'),
+    unlockedCapabilities: [...state.unlockedCapabilities, ...MARGIN_2X_CAPABILITIES.filter((capability) => !state.unlockedCapabilities.includes(capability))],
+  };
+  next = addEffect(next, { effectId: 'margin-2x-unlocked', kind: 'SKILL_UNLOCKED', text: 'MARGIN_2X unlocked: isolated historical long training at 1x / 2x is authorized.' });
+  next = { ...next, receipts: { ...next.receipts, MARGIN_2X_AUTHORIZED: (next.receipts.MARGIN_2X_AUTHORIZED ?? 0) + 1 } };
+  return addEffect(next, { effectId: 'margin-2x-receipt', kind: 'RECEIPT_AWARDED', text: 'NEW DESK AUTHORIZED // MARGIN // 2x' });
+}
+
+function normalizeBps(value: bigint): number {
   if (value <= 0n) return 0;
   if (value > 10_000n) return 10_001;
   return Number(value);
 }
 
+function riskOutcome(summary: CareerTradeSummaryFact): RiskPlannedOutcome['outcome'] {
+  if (summary.riskBudgetViolated) return 'VIOLATED';
+  if (summary.riskBudgetVerified) return 'RESPECTED';
+  return 'UNVERIFIED';
+}
+
+function pushRecentRiskOutcome(stats: CareerStats, summary: CareerTradeSummaryFact): RiskPlannedOutcome[] {
+  if (!summary.riskPlanned) return [...stats.recentRiskPlannedOutcomes];
+  return [...stats.recentRiskPlannedOutcomes, { tradeId: summary.tradeId, outcome: riskOutcome(summary) }].slice(-3);
+}
+
 function reduceTradeClosed(state: CareerState, summary: CareerTradeSummaryFact): CareerState {
   if (summary.mode !== 'SPOT' || summary.liquidated) return state;
   if (state.processedTradeIds.includes(summary.tradeId)) return state;
-  // Record the trade as seen so it cannot be re-offered under a stronger
-  // label later, but advance nothing from evidence Career cannot grade.
-  if (!isGradableEvidence(summary.evidenceProvenance)) {
-    return { ...state, processedTradeIds: [...state.processedTradeIds, summary.tradeId] };
-  }
-  const lossBps = normalizeLossBps(summary.lossBpsOfThenCurrentEquity);
+  if (!isGradableEvidence(summary.evidenceProvenance)) return { ...state, processedTradeIds: [...state.processedTradeIds, summary.tradeId] };
+
+  const lossBps = normalizeBps(summary.lossBpsOfThenCurrentEquity);
+  const drawdownBps = normalizeBps(summary.maxDrawdownBpsAtClose);
   const stats: CareerStats = {
     ...state.stats,
     closedSpotTrades: state.stats.closedSpotTrades + 1,
@@ -149,43 +138,36 @@ function reduceTradeClosed(state: CareerState, summary: CareerTradeSummaryFact):
     manualLossCuts: state.stats.manualLossCuts + (summary.exitReason === 'MANUAL' && summary.realizedPnlWei < 0n && lossBps < 500 && summary.accountEquityAtOpenWei > 0n ? 1 : 0),
     protectCapitalChallenges: state.stats.protectCapitalChallenges + (summary.exitReason === 'PROTECT_CAPITAL' && summary.realizedPnlWei < 0n && lossBps < 500 && summary.accountEquityAtOpenWei > 0n ? 1 : 0),
     accountEquityAtLeast70Percent: state.stats.accountEquityAtLeast70Percent && summary.accountEquityAtCloseWei >= STOP_LOSS_EQUITY_FLOOR_WEI,
-    // Process facts, read straight off the simulator's recorded TradeSummary.
     stopPlannedTrades: state.stats.stopPlannedTrades + (isStopPlannedTrade(summary) ? 1 : 0),
     riskPlannedTrades: state.stats.riskPlannedTrades + (summary.riskPlanned ? 1 : 0),
+    recentRiskPlannedOutcomes: pushRecentRiskOutcome(state.stats, summary),
+    maxAccountDrawdownBps: state.stats.maxAccountDrawdownBps === null ? drawdownBps : Math.max(state.stats.maxAccountDrawdownBps, drawdownBps),
   };
-  let next: CareerState = {
-    ...state,
-    stats,
-    processedTradeIds: [...state.processedTradeIds, summary.tradeId],
-  };
+  let next: CareerState = { ...state, stats, processedTradeIds: [...state.processedTradeIds, summary.tradeId] };
   next = { ...next, qualification: updateQualification(next.stats, next.qualification) };
   next = { ...next, qualification: { ...next.qualification, stopLoss: { ...next.qualification.stopLoss, totalClosedSpotTrades: next.stats.closedSpotTrades, manualLossCuts: next.stats.manualLossCuts, protectCapitalChallenges: next.stats.protectCapitalChallenges, accountEquityAtLeast70Percent: next.stats.accountEquityAtLeast70Percent, qualified: next.qualification.stopLoss.qualified || evaluateStopLoss(next) } } };
   next = { ...next, qualification: { ...next.qualification, riskSizing: { ...next.qualification.riskSizing, stopPlannedTrades: next.stats.stopPlannedTrades, partialExitsUsed: next.stats.partialExitsUsed } } };
   if (!state.unlockedSkills.includes('SCALE_CONTROL') && evaluateScaleControl(next.stats)) next = unlockScaleControl(next);
   if (!next.unlockedSkills.includes('STOP_LOSS') && next.qualification.stopLoss.qualified) next = unlockStopLoss(next);
   next = applyRiskSizingQualification(next);
-  return next;
+  return applyMargin2xQualification(next);
 }
 
-/**
- * RISK_SIZING is evaluated after any fact that could satisfy it — a closed
- * trade or a partial exit — because its gate spans both.
- */
 function applyRiskSizingQualification(state: CareerState): CareerState {
   const qualified = state.qualification.riskSizing.qualified || evaluateRiskSizing(state);
   let next: CareerState = {
     ...state,
-    qualification: {
-      ...state.qualification,
-      riskSizing: {
-        ...state.qualification.riskSizing,
-        stopPlannedTrades: state.stats.stopPlannedTrades,
-        partialExitsUsed: state.stats.partialExitsUsed,
-        qualified,
-      },
-    },
+    qualification: { ...state.qualification, riskSizing: { ...state.qualification.riskSizing, stopPlannedTrades: state.stats.stopPlannedTrades, partialExitsUsed: state.stats.partialExitsUsed, qualified } },
   };
   if (qualified && !next.unlockedSkills.includes('RISK_SIZING')) next = unlockRiskSizing(next);
+  return next;
+}
+
+function applyMargin2xQualification(state: CareerState): CareerState {
+  const synced = margin2xQualificationFromStats(state.stats, state.qualification.margin2x);
+  const qualified = state.qualification.margin2x.qualified || evaluateMargin2x(state);
+  let next: CareerState = { ...state, qualification: { ...state.qualification, margin2x: { ...synced, qualified } } };
+  if (qualified && !next.unlockedSkills.includes('MARGIN_2X')) next = unlockMargin2x(next);
   return next;
 }
 
@@ -204,11 +186,10 @@ export function reduceCareer(state: CareerState, event: CareerEvent): CareerStat
       if (event.sourceReceiptId && isGradableEvidence(event.evidenceProvenance ?? 'UNAVAILABLE')) {
         next = { ...next, stats: { ...next.stats, partialExitsUsed: next.stats.partialExitsUsed + 1 } };
         next = applyRiskSizingQualification(next);
+        next = applyMargin2xQualification(next);
       }
       break;
     case 'RISK_PLAN_CREATED':
-      // Counted, never rewarded. Freezing plans repeatedly is an action, and
-      // actions do not grant progression.
       if (event.sourceReceiptId && isGradableEvidence(event.evidenceProvenance ?? 'UNAVAILABLE')) next = { ...next, stats: { ...next.stats, riskPlansCreated: next.stats.riskPlansCreated + 1 } };
       break;
     case 'RISK_BUDGET_RESPECTED':
@@ -217,21 +198,20 @@ export function reduceCareer(state: CareerState, event: CareerEvent): CareerStat
     case 'RISK_BUDGET_VIOLATED':
       if (event.sourceReceiptId && isGradableEvidence(event.evidenceProvenance ?? 'UNAVAILABLE')) next = { ...next, stats: { ...next.stats, riskBudgetViolations: next.stats.riskBudgetViolations + 1 } };
       break;
+    case 'ACCOUNT_RESET_USED':
+      next = { ...next, stats: { ...next.stats, accountResetsUsed: next.stats.accountResetsUsed === null ? null : next.stats.accountResetsUsed + 1 } };
+      next = applyMargin2xQualification(next);
+      break;
     case 'SKILL_UNLOCKED':
-      if (event.skillId === 'SPOT_BASIC' || event.skillId === 'SCALE_CONTROL' || event.skillId === 'STOP_LOSS' || event.skillId === 'RISK_SIZING') {
+      if (event.skillId === 'SPOT_BASIC' || event.skillId === 'SCALE_CONTROL' || event.skillId === 'STOP_LOSS' || event.skillId === 'RISK_SIZING' || event.skillId === 'MARGIN_2X') {
         const skill: SkillId = event.skillId;
-        next = {
-          ...next,
-          unlockedSkills: addUnique(next.unlockedSkills, skill),
-          unlockedCapabilities: [...next.unlockedCapabilities, ...capabilitiesForSkill(skill).filter((capability) => !next.unlockedCapabilities.includes(capability))],
-        };
+        next = { ...next, unlockedSkills: addUnique(next.unlockedSkills, skill), unlockedCapabilities: [...next.unlockedCapabilities, ...capabilitiesForSkill(skill).filter((capability) => !next.unlockedCapabilities.includes(capability))] };
       }
       break;
     case 'STOP_PLACED':
       if (isGradableEvidence(event.evidenceProvenance ?? 'UNAVAILABLE')) next = { ...next, stats: { ...next.stats, stopUses: next.stats.stopUses + 1 } };
       break;
     case 'STOP_HIT':
-      break;
     case 'CAREER_STARTED':
     case 'NON_ECONOMIC_ACTION':
       break;

@@ -1,4 +1,4 @@
-import type { CareerStats, CareerTradeSummaryFact, QualificationState, RiskSizingQualification, ScaleControlQualification } from './types.js';
+import type { CareerStats, CareerTradeSummaryFact, Margin2xQualification, QualificationState, RiskSizingQualification, ScaleControlQualification } from './types.js';
 
 export const SCALE_CONTROL_TRADE_TARGET = 3;
 export const SCALE_CONTROL_LOSS_LIMIT_BPS = 1_000;
@@ -16,6 +16,12 @@ export const STOP_LOSS_EQUITY_FLOOR_WEI = 350_000_000_000_000_000n;
 export const STOP_PLAN_WINDOW_MS = 60_000;
 export const RISK_SIZING_TRADE_TARGET = 3;
 export const RISK_SIZING_PARTIAL_EXIT_TARGET = 1;
+
+export const MARGIN_2X_CLOSED_SPOT_TARGET = 8;
+export const MARGIN_2X_RISK_PLANNED_TARGET = 3;
+export const MARGIN_2X_PARTIAL_EXIT_TARGET = 2;
+export const MARGIN_2X_RECENT_RISK_TARGET = 3;
+export const MARGIN_2X_DRAWDOWN_LIMIT_BPS = 2_000;
 
 /**
  * Did this closed trade demonstrate "invalidation decided at entry, then
@@ -56,6 +62,7 @@ export function createInitialQualification(): QualificationState {
       qualified: false,
     },
     riskSizing: createInitialRiskSizingQualification(),
+    margin2x: createInitialMargin2xQualification(),
   };
 }
 
@@ -65,6 +72,23 @@ export function createInitialRiskSizingQualification(): RiskSizingQualification 
     targetStopPlannedTrades: 3,
     partialExitsUsed: 0,
     targetPartialExits: 1,
+    qualified: false,
+  };
+}
+
+export function createInitialMargin2xQualification(): Margin2xQualification {
+  return {
+    closedSpotTrades: 0,
+    targetClosedSpotTrades: 8,
+    riskPlannedTrades: 0,
+    targetRiskPlannedTrades: 3,
+    partialExitsUsed: 0,
+    targetPartialExits: 2,
+    recentRiskPlannedOutcomes: [],
+    targetCleanRecentRiskPlans: 3,
+    maxAccountDrawdownBps: null,
+    drawdownLimitBps: 2_000,
+    accountResetsUsed: 0,
     qualified: false,
   };
 }
@@ -100,4 +124,36 @@ export function evaluateStopLoss(state: { unlockedSkills: readonly string[]; sta
     && state.stats.closedSpotTrades >= STOP_LOSS_TRADE_TARGET
     && state.stats.accountEquityAtLeast70Percent
     && state.stats.manualLossCuts + state.stats.protectCapitalChallenges >= 1;
+}
+
+/**
+ * `CAREER_CONTRACT_V0` §9. Leverage is earned by repeated process quality, not
+ * profit or notional. The recent-risk gate deliberately requires three
+ * affirmative RESPECTED facts. UNVERIFIED is not a pass.
+ */
+export function evaluateMargin2x(state: { unlockedSkills: readonly string[]; stats: CareerStats }): boolean {
+  const recent = state.stats.recentRiskPlannedOutcomes;
+  const recentClean = recent.length === MARGIN_2X_RECENT_RISK_TARGET
+    && recent.every((entry) => entry.outcome === 'RESPECTED');
+  const drawdownKnownAndControlled = state.stats.maxAccountDrawdownBps !== null
+    && state.stats.maxAccountDrawdownBps <= MARGIN_2X_DRAWDOWN_LIMIT_BPS;
+  return state.unlockedSkills.includes('RISK_SIZING')
+    && state.stats.closedSpotTrades >= MARGIN_2X_CLOSED_SPOT_TARGET
+    && state.stats.riskPlannedTrades >= MARGIN_2X_RISK_PLANNED_TARGET
+    && state.stats.partialExitsUsed >= MARGIN_2X_PARTIAL_EXIT_TARGET
+    && recentClean
+    && drawdownKnownAndControlled
+    && state.stats.accountResetsUsed === 0;
+}
+
+export function margin2xQualificationFromStats(stats: CareerStats, previous: Margin2xQualification): Margin2xQualification {
+  return {
+    ...previous,
+    closedSpotTrades: stats.closedSpotTrades,
+    riskPlannedTrades: stats.riskPlannedTrades,
+    partialExitsUsed: stats.partialExitsUsed,
+    recentRiskPlannedOutcomes: [...stats.recentRiskPlannedOutcomes],
+    maxAccountDrawdownBps: stats.maxAccountDrawdownBps,
+    accountResetsUsed: stats.accountResetsUsed,
+  };
 }
