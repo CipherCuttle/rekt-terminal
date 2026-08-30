@@ -9,7 +9,9 @@ import {
 
 function marginUnlocked(id = 'short-career') {
   let state = createInitialCareer(id, 0);
-  state = reduceCareer(state, { type: 'SKILL_UNLOCKED', eventId: `${id}:margin`, skillId: 'MARGIN_2X' });
+  for (const skillId of ['SCALE_CONTROL', 'STOP_LOSS', 'RISK_SIZING', 'MARGIN_2X']) {
+    state = reduceCareer(state, { type: 'SKILL_UNLOCKED', eventId: `${id}:${skillId}`, skillId });
+  }
   return state;
 }
 
