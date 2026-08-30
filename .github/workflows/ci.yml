@@ -17,17 +17,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Secret scanning covers repository history, not only the tip.
+          fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
 
-      # Bootstrap mode: setup-node npm caching requires a committed lockfile.
-      # After the first networked install/Codex phase commits package-lock.json,
-      # switch this install step to `npm ci` and re-enable `cache: npm` above.
       - name: Install
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Core deterministic invariants
         run: npm run verify:core
@@ -44,13 +46,49 @@ jobs:
       - name: Production build
         run: npm run build
 
-      - name: Reject committed secrets
+      - name: Fast secret sanity check
         shell: bash
         run: |
           set -euo pipefail
-          # Exclude this workflow because the scanner necessarily contains its
-          # own detection patterns. Docs/examples are also intentionally excluded.
-          if git grep -nE '(sk-or-v1-|REACT_BITS.*KEY=.*[^$]|OPENROUTER_API_KEY=.*[^$]|ANTHROPIC_API_KEY=.*[^$])' -- ':!*.example' ':!docs/**' ':!.github/workflows/ci.yml'; then
+          # This cheap guard catches common high-signal credential formats before
+          # the full history scanner below. The workflow itself is excluded
+          # because it necessarily contains the detection patterns.
+          if git grep -nE '(sk-or-v1-|gh[pousr]_[A-Za-z0-9_]{20,}|REACT_BITS.*KEY=.*[^$]|OPENROUTER_API_KEY=.*[^$]|ANTHROPIC_API_KEY=.*[^$]|-----BEGIN ([A-Z0-9 ]+ )?PRIVATE KEY-----)' -- ':!*.example' ':!.github/workflows/ci.yml'; then
             echo 'Potential secret committed.' >&2
             exit 1
           fi
+
+      - name: Install pinned Gitleaks
+        shell: bash
+        env:
+          # v8.30.1 has a reported false-negative regression; stay on the prior
+          # signed release until a verified successor is available.
+          GITLEAKS_VERSION: '8.30.0'
+        run: |
+          set -euo pipefail
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          curl -fsSLo "$archive" "$base/$archive"
+          curl -fsSLo gitleaks_checksums.txt "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep " ${archive}$" gitleaks_checksums.txt | sha256sum --check --
+          tar -xzf "$archive" gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Verify Gitleaks detector
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+          # Assemble the canary at runtime so no token-shaped literal is stored
+          # in the repository being scanned.
+          printf 'token = "ghp_%s%s"\n' 'aBcDeFgHiJkLmNoPqR' 'sTuVwXyZ0123456789' > "$tmpdir/canary.txt"
+          if gitleaks dir "$tmpdir" --no-banner --redact >/dev/null 2>&1; then
+            echo 'Gitleaks self-test failed: synthetic secret was not detected.' >&2
+            exit 1
+          fi
+
+      - name: Gitleaks history scan
+        shell: bash
+        run: gitleaks git . --no-banner --redact --exit-code 1
