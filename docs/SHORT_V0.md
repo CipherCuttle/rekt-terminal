@@ -1,6 +1,6 @@
 # SHORT_V0
 
-Status: `IMPLEMENTED_PENDING_HOSTILE_REVIEW`
+Status: `CLOSED_PASS`
 
 Canonical base: `275d59b99cbe700016b4e130431ccfaffbbae7cc`
 
@@ -26,6 +26,7 @@ Authorized scope:
 
 - `MARGIN_2X` is already unlocked;
 - two **distinct** historical long-training `episodeId`s have produced qualifying simulator completion receipts;
+- each qualifying replay reaches `EPISODE_END`; an immediate manual close is a valid trade but is not a completed training episode;
 - neither qualifying long was liquidated;
 - a protective stop was present at entry in both;
 - the entry-time modeled maximum account risk was known and `<= 500 bps` in both;
@@ -124,7 +125,9 @@ The simulator does not assume an unseen voluntary fill occurred before insolvenc
 
 The simulator derives a `MarginEpisodeCompletion` receipt from completed margin state.
 
-Career receives only this typed completion fact through the Practice store. The React screen does not calculate or assert:
+The Practice store accepts completed simulator LONG state plus the immutable episode and derives the completion receipt itself before reducing Career. React does not submit caller-constructed graded completion fields.
+
+The React screen does not calculate or assert:
 
 - completion;
 - liquidation status;
@@ -164,9 +167,24 @@ After authorization:
 - position truth remains literal: side, margin, notional, entry, mark, uPNL, ROE, funding, estimated liquidation, stop, position equity;
 - future historical marks remain hidden until replay advance.
 
-## Verification targets
+## Verification
 
-Simulator tests must cover:
+Final repaired candidate before this closure-only documentation commit:
+
+- candidate: `a6e5d21efd8bf9f12e69f7d686092ae26bd74213`;
+- GitHub Actions CI run: `33285245695` / run `177`;
+- core deterministic invariants: `PASS`;
+- source invariants: `PASS`;
+- typecheck: `PASS`;
+- simulator tests: `85/85 PASS`;
+- Career tests: `45/45 PASS`;
+- API tests: `20/20 PASS`;
+- web tests: `102/102 PASS`;
+- total tests: `252/252 PASS`;
+- production build: `PASS`;
+- committed-secret rejection: `PASS`.
+
+Simulator coverage includes:
 
 - SHORT 1x and 2x;
 - >2x rejection;
@@ -182,17 +200,18 @@ Simulator tests must cover:
 - byte-identical public interactive vs replay behavior;
 - entry-time-only planned-risk derivation.
 
-Career tests must cover:
+Career coverage includes:
 
 - one qualifying distinct episode does not unlock;
 - same episode repeated does not grind progress;
 - two distinct qualifying episodes unlock;
+- immediate manual close does not count as episode completion;
 - liquidation, missing stop, unknown risk, >500 bps risk, SHORT-side completion, and ungradable evidence do not qualify;
 - exactly 500 bps qualifies;
 - SHORT grants only `PERP_SHORT_2X`;
 - v4 migration gives no back-credit.
 
-Web tests must cover:
+Web coverage includes:
 
 - SHORT hidden before authorization;
 - LONG remains usable;
@@ -201,6 +220,36 @@ Web tests must cover:
 - SHORT 1x / 2x entry;
 - no >2x control;
 - current-mark SHORT stop rejection visible from the domain.
+
+## Hostile review closure
+
+One hostile review pass found two High findings.
+
+### H-01 — instant manual-close qualification bypass
+
+The initial gate treated any non-liquidated protected close as an episode completion. A player could open and immediately manually close EP1 and EP2 without traversing either historical replay and unlock SHORT.
+
+Repair:
+
+- qualifying long completion now requires `closeReason === 'EPISODE_END'`;
+- manual close remains a valid trade receipt but is not SHORT qualification evidence;
+- regression added proving two immediate manual closes grant zero qualifying episode IDs.
+
+Targeted re-review: `PASS`.
+
+### H-02 — caller-supplied completion authority
+
+The initial Practice bridge exposed a method accepting a preconstructed `MarginEpisodeCompletionFact`. Although the product screen used simulator derivation, another web caller could supply fabricated graded fields directly to Career.
+
+Repair:
+
+- the Practice boundary now accepts completed simulator LONG state plus the frozen episode;
+- `deriveLongMarginCompletion()` executes inside the Practice store;
+- React no longer constructs or submits the graded completion fact.
+
+Targeted re-review: `PASS`.
+
+No further Critical/High findings were identified in the reviewed SHORT liquidation/funding math, entry-time planned-risk calculation, distinct-episode anti-grind gate, replay parity, migration behavior, or preservation of existing LONG regressions.
 
 ## Non-goals
 
@@ -218,6 +267,8 @@ Explicitly deferred:
 
 ## Completion policy
 
-`IMPLEMENT -> TEST -> ONE hostile review -> fix Critical/High only -> ONE targeted re-review only if Critical/High repair was required -> COMMIT -> MOVE FORWARD`
+This phase followed:
 
-This document must not become `CLOSED_PASS` until the exact candidate has passed repository CI and the bounded hostile-review gate.
+`IMPLEMENT -> TEST -> ONE hostile review -> fix Critical/High -> ONE targeted re-review because High repairs were required -> COMMIT -> MOVE FORWARD`
+
+Verdict: `SHORT_V0 = CLOSED_PASS`.
