@@ -45,13 +45,13 @@ export interface CareerActionAttemptEvent {
 export interface SkillUnlockedEvent {
   type: 'SKILL_UNLOCKED';
   eventId: string;
-  skillId: 'SPOT_BASIC' | 'SCALE_CONTROL' | 'STOP_LOSS' | 'RISK_SIZING';
+  skillId: 'SPOT_BASIC' | 'SCALE_CONTROL' | 'STOP_LOSS' | 'RISK_SIZING' | 'MARGIN_2X';
 }
 
 /**
  * A risk plan was frozen in the simulator.
  *
- * Recorded so MARGIN_2X can later require explicit risk plans and so the
+ * Recorded so MARGIN_2X can require explicit risk plans and so the
  * RISK OFFICER receipt has a countable fact. It grants nothing on its own —
  * freezing plans in a loop is an action, not a demonstrated behaviour.
  */
