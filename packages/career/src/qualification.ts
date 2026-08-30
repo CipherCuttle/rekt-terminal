@@ -1,79 +1,32 @@
-import type { CareerStats, CareerTradeSummaryFact, Margin2xQualification, QualificationState, RiskSizingQualification, ScaleControlQualification } from './types.js';
+import type { CareerStats, CareerTradeSummaryFact, Margin2xQualification, MarginEpisodeCompletionFact, QualificationState, RiskSizingQualification, ScaleControlQualification, ShortQualification } from './types.js';
 
 export const SCALE_CONTROL_TRADE_TARGET = 3;
 export const SCALE_CONTROL_LOSS_LIMIT_BPS = 1_000;
 export const STOP_LOSS_TRADE_TARGET = 5;
 export const STOP_LOSS_EQUITY_FLOOR_WEI = 350_000_000_000_000_000n;
-
-/**
- * How long after the opening fill a protective stop still counts as "planned
- * with the entry".
- *
- * `TUNABLE`, and evaluated against **simulator event time** — never browser
- * wall-clock time. A save restored an hour later replays the same event times
- * and therefore reaches the same verdict.
- */
 export const STOP_PLAN_WINDOW_MS = 60_000;
 export const RISK_SIZING_TRADE_TARGET = 3;
 export const RISK_SIZING_PARTIAL_EXIT_TARGET = 1;
-
 export const MARGIN_2X_CLOSED_SPOT_TARGET = 8;
 export const MARGIN_2X_RISK_PLANNED_TARGET = 3;
 export const MARGIN_2X_PARTIAL_EXIT_TARGET = 2;
 export const MARGIN_2X_RECENT_RISK_TARGET = 3;
 export const MARGIN_2X_DRAWDOWN_LIMIT_BPS = 2_000;
+export const SHORT_LONG_EPISODE_TARGET = 2;
+export const SHORT_PLANNED_RISK_LIMIT_BPS = 500n;
 
-/**
- * Did this closed trade demonstrate "invalidation decided at entry, then
- * honoured"?
- *
- * Requires a stop placed inside the window measured from the opening fill and
- * no widening anywhere in the cycle. A losing trade qualifies exactly as
- * readily as a winning one: this grades process, not outcome.
- */
 export function isStopPlannedTrade(fact: Pick<CareerTradeSummaryFact, 'openedAtMs' | 'firstStopPlacedAtMs' | 'stopWidened'>): boolean {
-  if (fact.stopWidened) return false;
-  if (fact.firstStopPlacedAtMs === null) return false;
+  if (fact.stopWidened || fact.firstStopPlacedAtMs === null) return false;
   if (!Number.isSafeInteger(fact.firstStopPlacedAtMs) || !Number.isSafeInteger(fact.openedAtMs)) return false;
   return fact.firstStopPlacedAtMs - fact.openedAtMs <= STOP_PLAN_WINDOW_MS;
 }
 
 export function evaluateScaleControl(stats: CareerStats): boolean {
-  return stats.qualifyingScaleTrades >= SCALE_CONTROL_TRADE_TARGET
-    && stats.lastClosedTradeAccountPositive;
-}
-
-export function createInitialQualification(): QualificationState {
-  return {
-    scaleControl: {
-      closedSpotTrades: 0,
-      targetClosedSpotTrades: 3,
-      maxClosedLossBps: 0,
-      lossLimitBps: 1_000,
-      positiveAccountEquity: true,
-      qualified: false,
-    },
-    stopLoss: {
-      totalClosedSpotTrades: 0,
-      targetClosedSpotTrades: 5,
-      manualLossCuts: 0,
-      protectCapitalChallenges: 0,
-      accountEquityAtLeast70Percent: true,
-      qualified: false,
-    },
-    riskSizing: createInitialRiskSizingQualification(),
-    margin2x: createInitialMargin2xQualification(),
-  };
+  return stats.qualifyingScaleTrades >= SCALE_CONTROL_TRADE_TARGET && stats.lastClosedTradeAccountPositive;
 }
 
 export function createInitialRiskSizingQualification(): RiskSizingQualification {
-  return {
-    stopPlannedTrades: 0,
-    targetStopPlannedTrades: 3,
-    partialExitsUsed: 0,
-    targetPartialExits: 1,
-    qualified: false,
-  };
+  return { stopPlannedTrades: 0, targetStopPlannedTrades: 3, partialExitsUsed: 0, targetPartialExits: 1, qualified: false };
 }
 
 export function createInitialMargin2xQualification(): Margin2xQualification {
@@ -93,11 +46,23 @@ export function createInitialMargin2xQualification(): Margin2xQualification {
   };
 }
 
+export function createInitialShortQualification(): ShortQualification {
+  return { qualifyingLongEpisodeIds: [], targetQualifyingLongEpisodes: 2, riskLimitBps: 500, qualified: false };
+}
+
+export function createInitialQualification(): QualificationState {
+  return {
+    scaleControl: { closedSpotTrades: 0, targetClosedSpotTrades: 3, maxClosedLossBps: 0, lossLimitBps: 1_000, positiveAccountEquity: true, qualified: false },
+    stopLoss: { totalClosedSpotTrades: 0, targetClosedSpotTrades: 5, manualLossCuts: 0, protectCapitalChallenges: 0, accountEquityAtLeast70Percent: true, qualified: false },
+    riskSizing: createInitialRiskSizingQualification(),
+    margin2x: createInitialMargin2xQualification(),
+    short: createInitialShortQualification(),
+  };
+}
+
 export function updateQualification(stats: CareerStats, previous: QualificationState): QualificationState {
   const scaleControl: ScaleControlQualification = {
     ...previous.scaleControl,
-    // Keep the historical field name for save compatibility; this is now
-    // explicitly the user-facing controlled-trade progress.
     closedSpotTrades: stats.qualifyingScaleTrades,
     maxClosedLossBps: stats.maxClosedLossBps,
     positiveAccountEquity: stats.lastClosedTradeAccountPositive,
@@ -106,13 +71,6 @@ export function updateQualification(stats: CareerStats, previous: QualificationS
   return { ...previous, scaleControl };
 }
 
-/**
- * `CAREER_CONTRACT_V0` §8. STOP_LOSS unlocked, three trades whose stop was
- * planned at entry and never widened, and at least one partial exit somewhere
- * in Career history.
- *
- * Nothing here counts orders, clicks, notional, or profit.
- */
 export function evaluateRiskSizing(state: { unlockedSkills: readonly string[]; stats: CareerStats }): boolean {
   return state.unlockedSkills.includes('STOP_LOSS')
     && state.stats.stopPlannedTrades >= RISK_SIZING_TRADE_TARGET
@@ -126,17 +84,10 @@ export function evaluateStopLoss(state: { unlockedSkills: readonly string[]; sta
     && state.stats.manualLossCuts + state.stats.protectCapitalChallenges >= 1;
 }
 
-/**
- * `CAREER_CONTRACT_V0` §9. Leverage is earned by repeated process quality, not
- * profit or notional. The recent-risk gate deliberately requires three
- * affirmative RESPECTED facts. UNVERIFIED is not a pass.
- */
 export function evaluateMargin2x(state: { unlockedSkills: readonly string[]; stats: CareerStats }): boolean {
   const recent = state.stats.recentRiskPlannedOutcomes;
-  const recentClean = recent.length === MARGIN_2X_RECENT_RISK_TARGET
-    && recent.every((entry) => entry.outcome === 'RESPECTED');
-  const drawdownKnownAndControlled = state.stats.maxAccountDrawdownBps !== null
-    && state.stats.maxAccountDrawdownBps <= MARGIN_2X_DRAWDOWN_LIMIT_BPS;
+  const recentClean = recent.length === MARGIN_2X_RECENT_RISK_TARGET && recent.every((entry) => entry.outcome === 'RESPECTED');
+  const drawdownKnownAndControlled = state.stats.maxAccountDrawdownBps !== null && state.stats.maxAccountDrawdownBps <= MARGIN_2X_DRAWDOWN_LIMIT_BPS;
   return state.unlockedSkills.includes('RISK_SIZING')
     && state.stats.closedSpotTrades >= MARGIN_2X_CLOSED_SPOT_TARGET
     && state.stats.riskPlannedTrades >= MARGIN_2X_RISK_PLANNED_TARGET
@@ -155,5 +106,34 @@ export function margin2xQualificationFromStats(stats: CareerStats, previous: Mar
     recentRiskPlannedOutcomes: [...stats.recentRiskPlannedOutcomes],
     maxAccountDrawdownBps: stats.maxAccountDrawdownBps,
     accountResetsUsed: stats.accountResetsUsed,
+  };
+}
+
+/** Exact process receipt required by CAREER_CONTRACT_V0 §10. */
+export function isQualifyingLongMarginCompletion(summary: MarginEpisodeCompletionFact): boolean {
+  return summary.side === 'LONG'
+    // "Complete an episode" means the replay reached its terminal historical mark.
+    // A manual close immediately after entry is a valid simulated trade but is not
+    // evidence that the player completed the leverage-training episode.
+    && summary.closeReason === 'EPISODE_END'
+    && !summary.liquidated
+    && summary.protectiveStopUsed
+    && summary.plannedMaxAccountRiskBps !== null
+    && summary.plannedMaxAccountRiskBps <= SHORT_PLANNED_RISK_LIMIT_BPS
+    && (summary.marketProvenance === 'CONFIRMED' || summary.marketProvenance === 'DERIVED')
+    && summary.simulationProvenance === 'SYNTHETIC'
+    && summary.modelVersion === 'SIM_MARGIN_V0';
+}
+
+export function evaluateShort(state: { unlockedSkills: readonly string[]; stats: CareerStats }): boolean {
+  return state.unlockedSkills.includes('MARGIN_2X')
+    && state.stats.qualifyingLongMarginEpisodeIds.length >= SHORT_LONG_EPISODE_TARGET;
+}
+
+export function shortQualificationFromStats(stats: CareerStats, previous: ShortQualification): ShortQualification {
+  return {
+    ...previous,
+    qualifyingLongEpisodeIds: [...stats.qualifyingLongMarginEpisodeIds],
+    qualified: previous.qualified || stats.qualifyingLongMarginEpisodeIds.length >= SHORT_LONG_EPISODE_TARGET,
   };
 }

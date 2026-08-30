@@ -30,38 +30,12 @@ export const ETHUSDT_PERP_TRAINING_20260828_0530: MarginEpisode = {
   endTimeMs: 1_787_897_700_000,
   startEthUsdPriceMicros: usdMicros('2488.93'),
   marks: [
-    {
-      markId: 'open',
-      eventTimeMs: 1_787_895_000_000,
-      priceUsdMicros: usdMicros('2488.93'),
-      sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-28T05:30Z:OPEN',
-      provenance: 'DERIVED',
-    },
-    {
-      markId: 'low',
-      eventTimeMs: 1_787_895_900_000,
-      priceUsdMicros: usdMicros('2488.62'),
-      sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-28T05:30Z:LOW',
-      provenance: 'DERIVED',
-    },
-    {
-      markId: 'high',
-      eventTimeMs: 1_787_896_800_000,
-      priceUsdMicros: usdMicros('2488.99'),
-      sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-28T05:30Z:HIGH',
-      provenance: 'DERIVED',
-    },
-    {
-      markId: 'close',
-      eventTimeMs: 1_787_897_700_000,
-      priceUsdMicros: usdMicros('2488.84'),
-      sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-28T05:30Z:CLOSE',
-      provenance: 'DERIVED',
-    },
+    { markId: 'open', eventTimeMs: 1_787_895_000_000, priceUsdMicros: usdMicros('2488.93'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-28T05:30Z:OPEN', provenance: 'DERIVED' },
+    { markId: 'low', eventTimeMs: 1_787_895_900_000, priceUsdMicros: usdMicros('2488.62'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-28T05:30Z:LOW', provenance: 'DERIVED' },
+    { markId: 'high', eventTimeMs: 1_787_896_800_000, priceUsdMicros: usdMicros('2488.99'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-28T05:30Z:HIGH', provenance: 'DERIVED' },
+    { markId: 'close', eventTimeMs: 1_787_897_700_000, priceUsdMicros: usdMicros('2488.84'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-28T05:30Z:CLOSE', provenance: 'DERIVED' },
   ],
   funding: [],
-  // Venue-neutral training assumptions. These are simulator parameters, not a
-  // claim about Binance's account-specific liquidation schedule.
   maintenanceMarginBps: 50n,
   takerFeeBps: 5n,
   liquidationFeeBps: 50n,
@@ -71,3 +45,46 @@ export const ETHUSDT_PERP_TRAINING_20260828_0530: MarginEpisode = {
   intrabarRule: MARGIN_INTRABAR_MODEL_VERSION,
   modelVersion: SIM_MARGIN_MODEL_VERSION,
 };
+
+/**
+ * Second distinct LONG qualification episode for SHORT_V0.
+ *
+ * Public historical source observation:
+ *   Binance ETHUSDT perpetual via TradeIdea, 2026-08-05 20:55 UTC
+ *   O 1919.99 / H 1919.99 / L 1916.82 / C 1917.00
+ *
+ * TradeIdea explicitly identifies the page as Binance ETHUSDT perpetual data
+ * sourced from the Binance perpetual futures market. The public observation is
+ * still OHLC rather than venue-authoritative tick order, so the deterministic
+ * training path remains OPEN -> LOW -> HIGH -> CLOSE and each ordered mark is
+ * DERIVED. The one-minute sub-times below are replay anchors only.
+ */
+export const ETHUSDT_PERP_TRAINING_20260805_2055: MarginEpisode = {
+  episodeId: 'ETHUSDT_PERP_20260805_2055_OHLC_PATH_V0',
+  instrumentId: 'ETHUSDT-PERP',
+  sourceVenue: 'BINANCE',
+  sourceLabel: 'BINANCE ETHUSDT PERPETUAL / TRADEIDEA MIRROR',
+  startTimeMs: 1_785_963_300_000,
+  endTimeMs: 1_785_963_480_000,
+  startEthUsdPriceMicros: usdMicros('1919.99'),
+  marks: [
+    { markId: 'open', eventTimeMs: 1_785_963_300_000, priceUsdMicros: usdMicros('1919.99'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-05T20:55Z:OPEN', provenance: 'DERIVED' },
+    { markId: 'low', eventTimeMs: 1_785_963_360_000, priceUsdMicros: usdMicros('1916.82'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-05T20:55Z:LOW', provenance: 'DERIVED' },
+    { markId: 'high', eventTimeMs: 1_785_963_420_000, priceUsdMicros: usdMicros('1919.99'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-05T20:55Z:HIGH', provenance: 'DERIVED' },
+    { markId: 'close', eventTimeMs: 1_785_963_480_000, priceUsdMicros: usdMicros('1917.00'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-05T20:55Z:CLOSE', provenance: 'DERIVED' },
+  ],
+  funding: [],
+  maintenanceMarginBps: 50n,
+  takerFeeBps: 5n,
+  liquidationFeeBps: 50n,
+  fillSlippageBps: 5n,
+  liquidationSlippageBps: 25n,
+  marketProvenance: 'DERIVED',
+  intrabarRule: MARGIN_INTRABAR_MODEL_VERSION,
+  modelVersion: SIM_MARGIN_MODEL_VERSION,
+};
+
+export const MARGIN_TRAINING_EPISODES = [
+  ETHUSDT_PERP_TRAINING_20260828_0530,
+  ETHUSDT_PERP_TRAINING_20260805_2055,
+] as const;

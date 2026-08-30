@@ -1,16 +1,7 @@
-/**
- * Canonical provenance taxonomy, mirrored from the simulator so the Career
- * package stays dependency-free. The five states are the only vocabulary.
- */
+/** Canonical provenance taxonomy mirrored from the simulator. */
 export type ProvenanceState = 'CONFIRMED' | 'DERIVED' | 'SYNTHETIC' | 'STALE' | 'UNAVAILABLE';
 
-export type SkillId =
-  | 'SPOT_BASIC'
-  | 'SCALE_CONTROL'
-  | 'STOP_LOSS'
-  | 'RISK_SIZING'
-  | 'MARGIN_2X'
-  | 'SHORT';
+export type SkillId = 'SPOT_BASIC' | 'SCALE_CONTROL' | 'STOP_LOSS' | 'RISK_SIZING' | 'MARGIN_2X' | 'SHORT';
 
 export type CapabilityId =
   | 'SPOT_MARKET_BUY_FIXED'
@@ -39,28 +30,16 @@ export interface CareerStats {
   protectCapitalChallenges: number;
   stopUses: number;
   accountEquityAtLeast70Percent: boolean;
-  /**
-   * Closed trades whose protective stop was placed within the frozen
-   * STOP_PLAN_WINDOW_MS of the opening fill *and* was never widened.
-   */
   stopPlannedTrades: number;
-  /** Closed trades that carried an explicit risk plan. */
   riskPlannedTrades: number;
-  /** Risk plans frozen. Recorded for MARGIN_2X and receipts; gates nothing alone. */
   riskPlansCreated: number;
-  /** Closed risk-planned trades whose projected exposure stayed inside budget. */
   riskBudgetsRespected: number;
-  /** Closed risk-planned trades that breached budget plus tolerance. */
   riskBudgetViolations: number;
-  /** Rolling last three closed risk-planned simulator outcomes. */
   recentRiskPlannedOutcomes: RiskPlannedOutcome[];
-  /** Cumulative simulator account drawdown seen on gradable closed trades. */
   maxAccountDrawdownBps: number | null;
-  /**
-   * Number of bankroll resets used in this Career. `null` means an older save
-   * predates reset receipts, so "no reset used" cannot be proven.
-   */
   accountResetsUsed: number | null;
+  /** Distinct long historical episodes that satisfied the SHORT process gate. */
+  qualifyingLongMarginEpisodeIds: string[];
 }
 
 export interface ScaleControlQualification {
@@ -95,6 +74,13 @@ export interface Margin2xQualification {
   qualified: boolean;
 }
 
+export interface ShortQualification {
+  qualifyingLongEpisodeIds: string[];
+  targetQualifyingLongEpisodes: 2;
+  riskLimitBps: 500;
+  qualified: boolean;
+}
+
 export interface QualificationState {
   scaleControl: ScaleControlQualification;
   stopLoss: {
@@ -107,9 +93,10 @@ export interface QualificationState {
   };
   riskSizing: RiskSizingQualification;
   margin2x: Margin2xQualification;
+  short: ShortQualification;
 }
 
-export type ObjectiveKind = 'CLOSE_SPOT' | 'PROTECT_EQUITY' | 'SCALE_CONTROL_UNLOCKED' | 'STOP_LOSS_UNLOCKED' | 'RISK_SIZING_UNLOCKED' | 'MARGIN_2X_UNLOCKED';
+export type ObjectiveKind = 'CLOSE_SPOT' | 'PROTECT_EQUITY' | 'SCALE_CONTROL_UNLOCKED' | 'STOP_LOSS_UNLOCKED' | 'RISK_SIZING_UNLOCKED' | 'MARGIN_2X_UNLOCKED' | 'SHORT_UNLOCKED';
 
 export interface ObjectiveState {
   id: string;
@@ -150,7 +137,6 @@ export interface CareerTradeSummaryFact {
   accountEquityAtCloseWei: bigint;
   lossBpsOfThenCurrentEquity: bigint;
   accountEquityAtOpenWei: bigint;
-  /** Cumulative account drawdown recorded by the simulator at this close. */
   maxDrawdownBpsAtClose: bigint;
   exitReason: 'MANUAL' | 'STOP' | 'PROTECT_CAPITAL';
   stopUsed: boolean;
@@ -161,8 +147,23 @@ export interface CareerTradeSummaryFact {
   stopWidened: boolean;
   riskPlanned: boolean;
   riskBudgetViolated: boolean;
-  /** False is "not demonstrated", never "violated" — and never compliance. */
   riskBudgetVerified: boolean;
-  /** Only CONFIRMED and DERIVED evidence can advance qualification. */
   evidenceProvenance: ProvenanceState;
+}
+
+/** Simulator-authored fact consumed by Career; React must not manufacture it. */
+export interface MarginEpisodeCompletionFact {
+  completionId: string;
+  sessionId: string;
+  episodeId: string;
+  tradeId: string;
+  side: 'LONG' | 'SHORT';
+  leverage: 1 | 2;
+  closeReason: 'MANUAL' | 'STOP' | 'LIQUIDATION' | 'EPISODE_END';
+  liquidated: boolean;
+  protectiveStopUsed: boolean;
+  plannedMaxAccountRiskBps: bigint | null;
+  marketProvenance: ProvenanceState;
+  simulationProvenance: 'SYNTHETIC';
+  modelVersion: 'SIM_MARGIN_V0';
 }
