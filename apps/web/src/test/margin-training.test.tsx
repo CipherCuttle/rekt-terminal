@@ -19,7 +19,7 @@ function makeSnapshot(marginAuthorized: boolean, shortAuthorized = false): Pract
 
 function renderDesk(marginAuthorized = true, shortAuthorized = false): void {
   const snapshot = makeSnapshot(marginAuthorized, shortAuthorized);
-  const session = { subscribe: () => () => {}, getSnapshot: () => snapshot, recordMarginEpisodeCompletion: () => {} };
+  const session = { subscribe: () => () => {}, getSnapshot: () => snapshot, recordLongMarginEpisodeCompletion: () => true };
   const runtime = { session, feed: {} } as unknown as PracticeRuntime;
   render(<PracticeProvider runtime={runtime}><MarginTrainingScreen /></PracticeProvider>);
 }
