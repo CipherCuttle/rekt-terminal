@@ -1,6 +1,6 @@
 import { getNextObjective } from './objective.js';
-import { capabilitiesForSkill, MARGIN_2X_CAPABILITIES, RISK_SIZING_CAPABILITIES, SCALE_CONTROL_CAPABILITIES, STARTING_CAPABILITIES, STARTING_SKILL } from './skills.js';
-import { createInitialQualification, updateQualification, evaluateScaleControl, evaluateStopLoss, evaluateRiskSizing, evaluateMargin2x, isStopPlannedTrade, margin2xQualificationFromStats, STOP_LOSS_EQUITY_FLOOR_WEI } from './qualification.js';
+import { capabilitiesForSkill, MARGIN_2X_CAPABILITIES, RISK_SIZING_CAPABILITIES, SCALE_CONTROL_CAPABILITIES, SHORT_CAPABILITIES, STARTING_CAPABILITIES, STARTING_SKILL } from './skills.js';
+import { createInitialQualification, updateQualification, evaluateScaleControl, evaluateStopLoss, evaluateRiskSizing, evaluateMargin2x, evaluateShort, isQualifyingLongMarginCompletion, isStopPlannedTrade, margin2xQualificationFromStats, shortQualificationFromStats, STOP_LOSS_EQUITY_FLOOR_WEI } from './qualification.js';
 import type { CareerEvent } from './events.js';
 import type { CareerEffect, CareerState, CareerStats, CareerTradeSummaryFact, ProvenanceState, RiskPlannedOutcome, SkillId } from './types.js';
 
@@ -8,7 +8,7 @@ export function isGradableEvidence(state: ProvenanceState): boolean {
   return state === 'CONFIRMED' || state === 'DERIVED';
 }
 
-export const CAREER_SAVE_VERSION = 4;
+export const CAREER_SAVE_VERSION = 5;
 
 function initialStats(): CareerStats {
   return {
@@ -30,13 +30,14 @@ function initialStats(): CareerStats {
     recentRiskPlannedOutcomes: [],
     maxAccountDrawdownBps: null,
     accountResetsUsed: 0,
+    qualifyingLongMarginEpisodeIds: [],
   };
 }
 
 export function createInitialCareer(careerId = 'career-0', startedAtMs = 0): CareerState {
   if (!careerId) throw new RangeError('career identity is required');
   if (!Number.isSafeInteger(startedAtMs) || startedAtMs < 0) throw new RangeError('career start time must be a non-negative safe integer');
-  const state: CareerState = {
+  return {
     saveVersion: CAREER_SAVE_VERSION,
     careerId,
     startedAtMs,
@@ -51,13 +52,9 @@ export function createInitialCareer(careerId = 'career-0', startedAtMs = 0): Car
     processedEventIds: [],
     processedTradeIds: [],
   };
-  return state;
 }
 
-function addUnique<T>(values: readonly T[], value: T): T[] {
-  return values.includes(value) ? [...values] : [...values, value];
-}
-
+function addUnique<T>(values: readonly T[], value: T): T[] { return values.includes(value) ? [...values] : [...values, value]; }
 function addEffect(state: CareerState, effect: Omit<CareerEffect, 'effectSeq'>): CareerState {
   const effectSeq = state.effectSeq + 1;
   return { ...state, effectSeq, recentEffects: [...state.recentEffects, { ...effect, effectSeq }].slice(-8) };
@@ -65,11 +62,7 @@ function addEffect(state: CareerState, effect: Omit<CareerEffect, 'effectSeq'>):
 
 function unlockScaleControl(state: CareerState): CareerState {
   if (state.unlockedSkills.includes('SCALE_CONTROL')) return state;
-  let next: CareerState = {
-    ...state,
-    unlockedSkills: addUnique(state.unlockedSkills, 'SCALE_CONTROL'),
-    unlockedCapabilities: [...state.unlockedCapabilities, ...SCALE_CONTROL_CAPABILITIES.filter((capability) => !state.unlockedCapabilities.includes(capability))],
-  };
+  let next: CareerState = { ...state, unlockedSkills: addUnique(state.unlockedSkills, 'SCALE_CONTROL'), unlockedCapabilities: [...state.unlockedCapabilities, ...SCALE_CONTROL_CAPABILITIES.filter((capability) => !state.unlockedCapabilities.includes(capability))] };
   next = addEffect(next, { effectId: 'scale-control-unlocked', kind: 'SKILL_UNLOCKED', text: 'SCALE_CONTROL unlocked: scale in and partial exit are authorized.' });
   next = { ...next, receipts: { ...next.receipts, SCALE_CONTROL_AUTHORIZED: (next.receipts.SCALE_CONTROL_AUTHORIZED ?? 0) + 1 } };
   return addEffect(next, { effectId: 'scale-control-receipt', kind: 'RECEIPT_AWARDED', text: 'Receipt awarded: SCALE CONTROL AUTHORIZED.' });
@@ -84,49 +77,61 @@ function unlockStopLoss(state: CareerState): CareerState {
 
 function unlockRiskSizing(state: CareerState): CareerState {
   if (state.unlockedSkills.includes('RISK_SIZING')) return state;
-  let next: CareerState = {
-    ...state,
-    unlockedSkills: addUnique(state.unlockedSkills, 'RISK_SIZING' as SkillId),
-    unlockedCapabilities: [...state.unlockedCapabilities, ...RISK_SIZING_CAPABILITIES.filter((capability) => !state.unlockedCapabilities.includes(capability))],
-  };
+  let next: CareerState = { ...state, unlockedSkills: addUnique(state.unlockedSkills, 'RISK_SIZING'), unlockedCapabilities: [...state.unlockedCapabilities, ...RISK_SIZING_CAPABILITIES.filter((capability) => !state.unlockedCapabilities.includes(capability))] };
   next = addEffect(next, { effectId: 'risk-sizing-unlocked', kind: 'SKILL_UNLOCKED', text: 'RISK_SIZING unlocked: size a position from your stop and an account-risk budget.' });
   return { ...next, receipts: { ...next.receipts, RISK_SIZING_AUTHORIZED: (next.receipts.RISK_SIZING_AUTHORIZED ?? 0) + 1 } };
 }
 
 function unlockMargin2x(state: CareerState): CareerState {
   if (state.unlockedSkills.includes('MARGIN_2X')) return state;
-  let next: CareerState = {
-    ...state,
-    unlockedSkills: addUnique(state.unlockedSkills, 'MARGIN_2X'),
-    unlockedCapabilities: [...state.unlockedCapabilities, ...MARGIN_2X_CAPABILITIES.filter((capability) => !state.unlockedCapabilities.includes(capability))],
-  };
+  let next: CareerState = { ...state, unlockedSkills: addUnique(state.unlockedSkills, 'MARGIN_2X'), unlockedCapabilities: [...state.unlockedCapabilities, ...MARGIN_2X_CAPABILITIES.filter((capability) => !state.unlockedCapabilities.includes(capability))] };
   next = addEffect(next, { effectId: 'margin-2x-unlocked', kind: 'SKILL_UNLOCKED', text: 'MARGIN_2X unlocked: isolated historical long training at 1x / 2x is authorized.' });
   next = { ...next, receipts: { ...next.receipts, MARGIN_2X_AUTHORIZED: (next.receipts.MARGIN_2X_AUTHORIZED ?? 0) + 1 } };
   return addEffect(next, { effectId: 'margin-2x-receipt', kind: 'RECEIPT_AWARDED', text: 'NEW DESK AUTHORIZED // MARGIN // 2x' });
 }
 
-function normalizeBps(value: bigint): number {
-  if (value <= 0n) return 0;
-  if (value > 10_000n) return 10_001;
-  return Number(value);
+function unlockShort(state: CareerState): CareerState {
+  if (state.unlockedSkills.includes('SHORT')) return state;
+  let next: CareerState = { ...state, unlockedSkills: addUnique(state.unlockedSkills, 'SHORT'), unlockedCapabilities: [...state.unlockedCapabilities, ...SHORT_CAPABILITIES.filter((capability) => !state.unlockedCapabilities.includes(capability))] };
+  next = addEffect(next, { effectId: 'short-unlocked', kind: 'SKILL_UNLOCKED', text: 'SHORT unlocked: isolated historical short training at 1x / 2x is authorized.' });
+  next = { ...next, receipts: { ...next.receipts, SHORT_AUTHORIZED: (next.receipts.SHORT_AUTHORIZED ?? 0) + 1 } };
+  return addEffect(next, { effectId: 'short-receipt', kind: 'RECEIPT_AWARDED', text: 'DIRECTIONAL INVERSION AUTHORIZED // SHORT // 2x' });
 }
 
-function riskOutcome(summary: CareerTradeSummaryFact): RiskPlannedOutcome['outcome'] {
-  if (summary.riskBudgetViolated) return 'VIOLATED';
-  if (summary.riskBudgetVerified) return 'RESPECTED';
-  return 'UNVERIFIED';
-}
-
+function normalizeBps(value: bigint): number { if (value <= 0n) return 0; if (value > 10_000n) return 10_001; return Number(value); }
+function riskOutcome(summary: CareerTradeSummaryFact): RiskPlannedOutcome['outcome'] { if (summary.riskBudgetViolated) return 'VIOLATED'; if (summary.riskBudgetVerified) return 'RESPECTED'; return 'UNVERIFIED'; }
 function pushRecentRiskOutcome(stats: CareerStats, summary: CareerTradeSummaryFact): RiskPlannedOutcome[] {
   if (!summary.riskPlanned) return [...stats.recentRiskPlannedOutcomes];
   return [...stats.recentRiskPlannedOutcomes, { tradeId: summary.tradeId, outcome: riskOutcome(summary) }].slice(-3);
+}
+
+function applyRiskSizingQualification(state: CareerState): CareerState {
+  const qualified = state.qualification.riskSizing.qualified || evaluateRiskSizing(state);
+  let next: CareerState = { ...state, qualification: { ...state.qualification, riskSizing: { ...state.qualification.riskSizing, stopPlannedTrades: state.stats.stopPlannedTrades, partialExitsUsed: state.stats.partialExitsUsed, qualified } } };
+  if (qualified && !next.unlockedSkills.includes('RISK_SIZING')) next = unlockRiskSizing(next);
+  return next;
+}
+
+function applyMargin2xQualification(state: CareerState): CareerState {
+  const synced = margin2xQualificationFromStats(state.stats, state.qualification.margin2x);
+  const qualified = state.qualification.margin2x.qualified || evaluateMargin2x(state);
+  let next: CareerState = { ...state, qualification: { ...state.qualification, margin2x: { ...synced, qualified } } };
+  if (qualified && !next.unlockedSkills.includes('MARGIN_2X')) next = unlockMargin2x(next);
+  return next;
+}
+
+function applyShortQualification(state: CareerState): CareerState {
+  const synced = shortQualificationFromStats(state.stats, state.qualification.short);
+  const qualified = state.qualification.short.qualified || evaluateShort(state);
+  let next: CareerState = { ...state, qualification: { ...state.qualification, short: { ...synced, qualified } } };
+  if (qualified && !next.unlockedSkills.includes('SHORT')) next = unlockShort(next);
+  return next;
 }
 
 function reduceTradeClosed(state: CareerState, summary: CareerTradeSummaryFact): CareerState {
   if (summary.mode !== 'SPOT' || summary.liquidated) return state;
   if (state.processedTradeIds.includes(summary.tradeId)) return state;
   if (!isGradableEvidence(summary.evidenceProvenance)) return { ...state, processedTradeIds: [...state.processedTradeIds, summary.tradeId] };
-
   const lossBps = normalizeBps(summary.lossBpsOfThenCurrentEquity);
   const drawdownBps = normalizeBps(summary.maxDrawdownBpsAtClose);
   const stats: CareerStats = {
@@ -151,24 +156,6 @@ function reduceTradeClosed(state: CareerState, summary: CareerTradeSummaryFact):
   if (!next.unlockedSkills.includes('STOP_LOSS') && next.qualification.stopLoss.qualified) next = unlockStopLoss(next);
   next = applyRiskSizingQualification(next);
   return applyMargin2xQualification(next);
-}
-
-function applyRiskSizingQualification(state: CareerState): CareerState {
-  const qualified = state.qualification.riskSizing.qualified || evaluateRiskSizing(state);
-  let next: CareerState = {
-    ...state,
-    qualification: { ...state.qualification, riskSizing: { ...state.qualification.riskSizing, stopPlannedTrades: state.stats.stopPlannedTrades, partialExitsUsed: state.stats.partialExitsUsed, qualified } },
-  };
-  if (qualified && !next.unlockedSkills.includes('RISK_SIZING')) next = unlockRiskSizing(next);
-  return next;
-}
-
-function applyMargin2xQualification(state: CareerState): CareerState {
-  const synced = margin2xQualificationFromStats(state.stats, state.qualification.margin2x);
-  const qualified = state.qualification.margin2x.qualified || evaluateMargin2x(state);
-  let next: CareerState = { ...state, qualification: { ...state.qualification, margin2x: { ...synced, qualified } } };
-  if (qualified && !next.unlockedSkills.includes('MARGIN_2X')) next = unlockMargin2x(next);
-  return next;
 }
 
 export function reduceCareer(state: CareerState, event: CareerEvent): CareerState {
@@ -202,8 +189,14 @@ export function reduceCareer(state: CareerState, event: CareerEvent): CareerStat
       next = { ...next, stats: { ...next.stats, accountResetsUsed: next.stats.accountResetsUsed === null ? null : next.stats.accountResetsUsed + 1 } };
       next = applyMargin2xQualification(next);
       break;
+    case 'MARGIN_EPISODE_COMPLETED':
+      if (event.sourceReceiptId && isQualifyingLongMarginCompletion(event.summary)) {
+        next = { ...next, stats: { ...next.stats, qualifyingLongMarginEpisodeIds: addUnique(next.stats.qualifyingLongMarginEpisodeIds, event.summary.episodeId) } };
+        next = applyShortQualification(next);
+      }
+      break;
     case 'SKILL_UNLOCKED':
-      if (event.skillId === 'SPOT_BASIC' || event.skillId === 'SCALE_CONTROL' || event.skillId === 'STOP_LOSS' || event.skillId === 'RISK_SIZING' || event.skillId === 'MARGIN_2X') {
+      if (event.skillId === 'SPOT_BASIC' || event.skillId === 'SCALE_CONTROL' || event.skillId === 'STOP_LOSS' || event.skillId === 'RISK_SIZING' || event.skillId === 'MARGIN_2X' || event.skillId === 'SHORT') {
         const skill: SkillId = event.skillId;
         next = { ...next, unlockedSkills: addUnique(next.unlockedSkills, skill), unlockedCapabilities: [...next.unlockedCapabilities, ...capabilitiesForSkill(skill).filter((capability) => !next.unlockedCapabilities.includes(capability))] };
       }
