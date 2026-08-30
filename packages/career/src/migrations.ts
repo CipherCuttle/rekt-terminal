@@ -1,5 +1,5 @@
 import { CAREER_SAVE_VERSION, createInitialCareer } from './reducer.js';
-import { createInitialRiskSizingQualification } from './qualification.js';
+import { createInitialMargin2xQualification, createInitialRiskSizingQualification } from './qualification.js';
 import { getNextObjective } from './objective.js';
 import type { CareerState } from './types.js';
 
@@ -31,12 +31,7 @@ function isCareerState(value: unknown): value is CareerState {
     && Array.isArray(value.processedTradeIds);
 }
 
-/**
- * v1 -> v2 added the STOP_LOSS statistics.
- *
- * A v1 save has no record of *when* a stop was placed relative to entry, so it
- * cannot claim any qualifying trades. Zero is the honest reconstruction.
- */
+/** v1 -> v2 added STOP_LOSS statistics. */
 function migrateV1ToV2(state: CareerState): CareerState {
   const next = structuredClone(state);
   next.stats = { ...next.stats, manualLossCuts: 0, protectCapitalChallenges: 0, stopUses: 0, accountEquityAtLeast70Percent: true };
@@ -47,14 +42,7 @@ function migrateV1ToV2(state: CareerState): CareerState {
   return next;
 }
 
-/**
- * v2 -> v3 added the RISK_SIZING statistics and qualification.
- *
- * Same principle: the pre-RISK_SIZING save carries no evidence about stop
- * timing, widening, or risk plans, so every new counter starts at zero and the
- * player earns the unlock from facts recorded after the migration. Nothing is
- * back-credited, because a migration must never invent demonstrated behaviour.
- */
+/** v2 -> v3 added RISK_SIZING evidence. Nothing is back-credited. */
 function migrateV2ToV3(state: CareerState): CareerState {
   const next = structuredClone(state);
   next.stats = {
@@ -68,6 +56,36 @@ function migrateV2ToV3(state: CareerState): CareerState {
   next.qualification = {
     ...next.qualification,
     riskSizing: { ...createInitialRiskSizingQualification(), partialExitsUsed: next.stats.partialExitsUsed },
+  };
+  return next;
+}
+
+/**
+ * v3 -> v4 adds the evidence needed for MARGIN_2X.
+ *
+ * Old aggregate counts cannot reconstruct which risk-planned trades were the
+ * most recent three, so the rolling outcomes start empty. Likewise a Career
+ * v3 save alone cannot prove cumulative simulator drawdown; `null` forces one
+ * new gradable closed trade, whose TradeSummary carries the simulator's
+ * cumulative max drawdown. V0 has no account-reset action, so reset count 0 is
+ * a truthful migration rather than invented good behaviour.
+ */
+function migrateV3ToV4(state: CareerState): CareerState {
+  const next = structuredClone(state);
+  next.stats = {
+    ...next.stats,
+    recentRiskPlannedOutcomes: [],
+    maxAccountDrawdownBps: null,
+    accountResetsUsed: 0,
+  };
+  next.qualification = {
+    ...next.qualification,
+    margin2x: {
+      ...createInitialMargin2xQualification(),
+      closedSpotTrades: next.stats.closedSpotTrades,
+      riskPlannedTrades: next.stats.riskPlannedTrades,
+      partialExitsUsed: next.stats.partialExitsUsed,
+    },
   };
   return next;
 }
@@ -86,6 +104,10 @@ export function migrateCareerSave(input: unknown): CareerSaveEnvelope | null {
   if (version === 2) {
     state = migrateV2ToV3(state);
     version = 3;
+  }
+  if (version === 3) {
+    state = migrateV3ToV4(state);
+    version = 4;
   }
   if (version !== CAREER_SAVE_VERSION) return null;
 
