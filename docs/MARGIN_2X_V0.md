@@ -1,6 +1,6 @@
 # MARGIN_2X_V0
 
-Status: `IMPLEMENTED_PENDING_FINAL_REVIEW`
+Status: `CLOSED_PASS`
 
 Canonical base: `ebcaa1a7cad0e7eada57a818c24ea8def9b7d24f`
 
@@ -109,7 +109,8 @@ Domain tests cover:
 - frozen episode execution;
 - duplicate-action idempotency;
 - byte-identical deterministic replay;
-- current-mark stop rejection.
+- current-mark stop rejection;
+- interactive/public execution and replay using the same current-mark stop authority.
 
 Career tests cover:
 
@@ -129,10 +130,37 @@ Web tests cover:
 - absence of a >2x control;
 - already-crossed stop rejection at the UI/domain boundary.
 
+## Review closure
+
+One hostile review pass found one High finding:
+
+- `H-01 REPLAY/PUBLIC-GATE DIVERGENCE` — interactive calls used the public current-mark stop guard while `replayMarginActions()` still folded actions through raw open/stop functions. The same action stream could therefore diverge depending on whether it was executed interactively or replayed.
+
+Repair:
+
+- public replay now folds `OPEN_LONG` through public `openMarginLong()` and `PLACE_STOP` through public `placeMarginStop()`;
+- repair commit: `290626f5f7f5072b46e54930531214aff5ca545d`;
+- targeted byte-identical interactive-vs-replay regression commit: `a8a90aaaedfbaafefaececd5934819a293317f83`.
+
+Targeted re-review of H-01: `PASS`.
+
+No further Critical/High findings were identified in the reviewed liquidation settlement, Career reset/migration gate, or UI authority boundary.
+
+Final repaired candidate verification:
+
+- candidate: `a8a90aaaedfbaafefaececd5934819a293317f83`;
+- GitHub Actions CI run: `33283653213` / run `141`;
+- core deterministic invariants: `PASS`;
+- source invariants: `PASS`;
+- typecheck: `PASS`;
+- unit tests: `PASS`;
+- production build: `PASS`;
+- committed-secret rejection: `PASS`.
+
 ## Closure policy
 
-This phase follows the bounded completion policy:
+This phase followed the bounded completion policy:
 
-`IMPLEMENT -> TEST -> ONE independent hostile review -> fix Critical/High only -> ONE targeted re-review only if Critical/High fixes were required -> COMMIT -> MOVE FORWARD`
+`IMPLEMENT -> TEST -> ONE hostile review -> fix Critical/High -> ONE targeted re-review because a High repair was required -> COMMIT -> MOVE FORWARD`
 
-The document remains `IMPLEMENTED_PENDING_FINAL_REVIEW` until the final candidate CI and hostile review are closed.
+Verdict: `MARGIN_2X_V0 = CLOSED_PASS`.
