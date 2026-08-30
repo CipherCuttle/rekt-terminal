@@ -1,8 +1,12 @@
 import {
+  advanceMarginMark,
+  closeMarginLong,
+  createMarginSession,
   openMarginLong as openMarginLongUnsafe,
   placeMarginStop as placeMarginStopUnsafe,
   type MarginActionResult,
   type MarginEpisode,
+  type MarginReplayAction,
   type MarginSessionState,
 } from './margin-v0.js';
 
@@ -25,7 +29,6 @@ export {
   marginPositionSnapshot,
   closeMarginLong,
   advanceMarginMark,
-  replayMarginActions,
   serializeMarginState,
   type MarginLeverage,
   type MarginMarketProvenance,
@@ -87,4 +90,23 @@ export function placeMarginStop(
     return { ...forced, code: 'INVALID_STOP', reason: 'a long protective stop must remain below the current mark' };
   }
   return placeMarginStopUnsafe(state, episode, input);
+}
+
+/**
+ * Replay is part of the public authority boundary, not a backdoor into the raw
+ * engine. Every action is therefore folded through the exact same open/stop
+ * gates used by interactive training so one action stream cannot produce a
+ * different state merely because it was replayed.
+ */
+export function replayMarginActions(input: { sessionId: string; careerEquityWei: bigint; episode: MarginEpisode; actions: readonly MarginReplayAction[] }): MarginSessionState {
+  let state = createMarginSession({ sessionId: input.sessionId, careerEquityWei: input.careerEquityWei, episode: input.episode });
+  for (const action of input.actions) {
+    let result: MarginActionResult;
+    if (action.type === 'OPEN_LONG') result = openMarginLong(state, input.episode, action);
+    else if (action.type === 'PLACE_STOP') result = placeMarginStop(state, input.episode, action);
+    else if (action.type === 'ADVANCE') result = advanceMarginMark(state, input.episode, action);
+    else result = closeMarginLong(state, input.episode, action);
+    state = result.state;
+  }
+  return state;
 }
