@@ -42,6 +42,11 @@ export interface CareerActionAttemptEvent {
   action: string;
 }
 
+export interface AccountResetUsedEvent {
+  type: 'ACCOUNT_RESET_USED';
+  eventId: string;
+}
+
 export interface SkillUnlockedEvent {
   type: 'SKILL_UNLOCKED';
   eventId: string;
@@ -90,6 +95,7 @@ export type CareerEvent =
   | ScaleInUsedEvent
   | PartialExitUsedEvent
   | CareerActionAttemptEvent
+  | AccountResetUsedEvent
   | SkillUnlockedEvent
   | StopPlacedEvent
   | StopHitEvent
