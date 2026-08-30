@@ -10,6 +10,7 @@ import {
   DEFAULT_SPOT_FILL_CONFIG,
   createInitialSimState,
   createSessionOpenedEvent,
+  deriveLongMarginCompletion,
   executeSpotAction,
   placeSpotStop,
   markSpot,
@@ -18,6 +19,8 @@ import {
   replayEvents,
   setSpotRiskPlan,
   type EvidencePolicy,
+  type MarginEpisode,
+  type MarginSessionState,
   type MarketObservation,
   type RiskPlan,
   type ProvenanceState,
@@ -32,7 +35,6 @@ import {
   type CapabilityId,
   type CareerEvent,
   type CareerState,
-  type MarginEpisodeCompletionFact,
 } from '@rekt-ink/career';
 import { evaluatePracticeEligibility, type PracticeBlockCode, type PracticeEligibility } from './eligibility';
 import { deriveTradeEconomics, type TradeReviewEconomics } from './derive';
@@ -136,8 +138,14 @@ export class PracticeSessionStore {
 
   hasCapability(capability: CapabilityId): boolean { return this.snapshot.career.unlockedCapabilities.includes(capability); }
 
-  /** Only simulator-authored margin completion receipts may cross this boundary. */
-  recordMarginEpisodeCompletion(summary: MarginEpisodeCompletionFact): void {
+  /**
+   * Margin progression crosses the web boundary as simulator state, not as a
+   * caller-supplied Career fact. The store derives the immutable completion
+   * receipt itself before reducing Career.
+   */
+  recordLongMarginEpisodeCompletion(state: MarginSessionState, episode: MarginEpisode): boolean {
+    const summary = deriveLongMarginCompletion(state, episode);
+    if (!summary) return false;
     const career = reduceCareer(this.snapshot.career, {
       type: 'MARGIN_EPISODE_COMPLETED',
       eventId: `${summary.completionId}:career`,
@@ -145,6 +153,7 @@ export class PracticeSessionStore {
       summary,
     });
     this.commit({ career });
+    return true;
   }
 
   private reject(code: PracticeRejectionCode, message: string): PracticeIntentResult {
