@@ -23,6 +23,11 @@ export type CapabilityId =
   | 'PERP_LONG_2X'
   | 'PERP_SHORT_2X';
 
+export interface RiskPlannedOutcome {
+  tradeId: string;
+  outcome: 'UNVERIFIED' | 'RESPECTED' | 'VIOLATED';
+}
+
 export interface CareerStats {
   closedSpotTrades: number;
   scaleInsUsed: number;
@@ -43,12 +48,23 @@ export interface CareerStats {
   stopPlannedTrades: number;
   /** Closed trades that carried an explicit risk plan. */
   riskPlannedTrades: number;
-  /** Risk plans frozen. Recorded for MARGIN_2X and receipts; gates nothing here. */
+  /** Risk plans frozen. Recorded for MARGIN_2X and receipts; gates nothing alone. */
   riskPlansCreated: number;
   /** Closed risk-planned trades whose projected exposure stayed inside budget. */
   riskBudgetsRespected: number;
   /** Closed risk-planned trades that breached budget plus tolerance. */
   riskBudgetViolations: number;
+  /**
+   * Rolling last three closed risk-planned trades. A freshly closed planned
+   * trade starts UNVERIFIED until its simulator-backed budget fact arrives.
+   * This is intentionally stronger than subtracting aggregate counters: an old
+   * violation may age out, while missing evidence can never read as compliance.
+   */
+  recentRiskPlannedOutcomes: RiskPlannedOutcome[];
+  /** Cumulative simulator account drawdown seen on gradable closed trades. */
+  maxAccountDrawdownBps: number | null;
+  /** Reserved for an explicit reset mechanic. V0 has none, so this remains 0. */
+  accountResetsUsed: number;
 }
 
 export interface ScaleControlQualification {
@@ -68,6 +84,21 @@ export interface RiskSizingQualification {
   qualified: boolean;
 }
 
+export interface Margin2xQualification {
+  closedSpotTrades: number;
+  targetClosedSpotTrades: 8;
+  riskPlannedTrades: number;
+  targetRiskPlannedTrades: 3;
+  partialExitsUsed: number;
+  targetPartialExits: 2;
+  recentRiskPlannedOutcomes: RiskPlannedOutcome[];
+  targetCleanRecentRiskPlans: 3;
+  maxAccountDrawdownBps: number | null;
+  drawdownLimitBps: 2_000;
+  accountResetsUsed: number;
+  qualified: boolean;
+}
+
 export interface QualificationState {
   scaleControl: ScaleControlQualification;
   stopLoss: {
@@ -79,9 +110,10 @@ export interface QualificationState {
     qualified: boolean;
   };
   riskSizing: RiskSizingQualification;
+  margin2x: Margin2xQualification;
 }
 
-export type ObjectiveKind = 'CLOSE_SPOT' | 'PROTECT_EQUITY' | 'SCALE_CONTROL_UNLOCKED' | 'STOP_LOSS_UNLOCKED' | 'RISK_SIZING_UNLOCKED';
+export type ObjectiveKind = 'CLOSE_SPOT' | 'PROTECT_EQUITY' | 'SCALE_CONTROL_UNLOCKED' | 'STOP_LOSS_UNLOCKED' | 'RISK_SIZING_UNLOCKED' | 'MARGIN_2X_UNLOCKED';
 
 export interface ObjectiveState {
   id: string;
@@ -122,6 +154,8 @@ export interface CareerTradeSummaryFact {
   accountEquityAtCloseWei: bigint;
   lossBpsOfThenCurrentEquity: bigint;
   accountEquityAtOpenWei: bigint;
+  /** Cumulative account drawdown recorded by the simulator at this close. */
+  maxDrawdownBpsAtClose: bigint;
   exitReason: 'MANUAL' | 'STOP' | 'PROTECT_CAPITAL';
   stopUsed: boolean;
   partialExitUsed: boolean;
