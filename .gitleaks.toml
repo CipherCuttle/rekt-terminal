@@ -1,0 +1,11 @@
+title = "rekt-terminal secret scanning"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public EVM token-address evidence is not a credential."
+regexTarget = "line"
+regexes = [
+  '''^\s*"baseTokenAddress"\s*:\s*"0x[a-fA-F0-9]{40}",?\s*$'''
+]

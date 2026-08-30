@@ -1,14 +1,28 @@
 node_modules/
 dist/
+coverage/
+*.log
+npm-debug.log*
+
+# Local environment and platform state
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+.vercel/
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# Browser/test artifacts
 playwright-report/
 test-results/
-.DS_Store
-
-# browser-automation artifacts
 .playwright-mcp/
 
-# TypeScript incremental build state
+# Tool/build caches
+.vite/
+.cache/
 *.tsbuildinfo
+
+# OS metadata
+.DS_Store
