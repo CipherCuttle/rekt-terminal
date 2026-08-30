@@ -7,7 +7,6 @@ import {
   closeMarginShort,
   createMarginSession,
   createShortMarginSession,
-  deriveLongMarginCompletion,
   formatUsdMicros,
   marginPositionSnapshot,
   openMarginLong,
@@ -107,8 +106,7 @@ export function MarginTrainingScreen() {
 
   function apply(result: TrainingResult): void {
     if (side === 'LONG' && !state.closed && result.state.closed) {
-      const completion = deriveLongMarginCompletion(result.state as MarginSessionState, episode);
-      if (completion) runtime.session.recordMarginEpisodeCompletion(completion);
+      runtime.session.recordLongMarginEpisodeCompletion(result.state as MarginSessionState, episode);
     }
     setState(result.state);
     setMessage(result.accepted ? null : `${result.code ?? 'REJECTED'} // ${result.reason ?? 'The simulator refused this action.'}`);
