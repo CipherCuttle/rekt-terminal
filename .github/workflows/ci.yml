@@ -22,30 +22,6 @@ jobs:
           # Secret scanning covers repository history, not only the tip.
           fetch-depth: 0
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Install
-        run: npm ci --no-audit --no-fund
-
-      - name: Core deterministic invariants
-        run: npm run verify:core
-
-      - name: Source invariants
-        run: npm run verify:source
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Unit tests
-        run: npm test
-
-      - name: Production build
-        run: npm run build
-
       - name: Fast secret sanity check
         shell: bash
         run: |
@@ -75,6 +51,7 @@ jobs:
           tar -xzf "$archive" gitleaks
           sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
           gitleaks version
+          rm -f "$archive" gitleaks_checksums.txt gitleaks
 
       - name: Verify Gitleaks detector
         shell: bash
@@ -85,14 +62,14 @@ jobs:
           # Assemble the upstream regression canary at runtime so no
           # token-shaped literal is stored in the repository being scanned.
           printf 'token = "ghp_%s%s"\n' 'aBcDeFgHiJkLmNoPqR' 'sTuVwXyZ0123456789' > "$tmpdir/canary.txt"
-          if gitleaks detect --no-git --source "$tmpdir/canary.txt" --no-banner --redact >/dev/null 2>&1; then
+          if gitleaks detect --no-git --source "$tmpdir/canary.txt" --config .gitleaks.toml --no-banner --redact >/dev/null 2>&1; then
             echo 'Gitleaks self-test failed: synthetic secret was not detected.' >&2
             exit 1
           fi
 
       - name: Gitleaks working-tree scan
         shell: bash
-        run: gitleaks detect --no-git --source . --no-banner --redact --verbose --exit-code 1
+        run: gitleaks detect --no-git --source . --config .gitleaks.toml --no-banner --redact --verbose --exit-code 1
 
       - name: Gitleaks history scan
         shell: bash
@@ -101,4 +78,28 @@ jobs:
           # Validate that Git itself can traverse every fetched patch before
           # trusting Gitleaks' git-history mode.
           git log -p --all >/dev/null
-          gitleaks detect --source . --no-banner --redact --verbose --exit-code 1
+          gitleaks detect --source . --config .gitleaks.toml --no-banner --redact --verbose --exit-code 1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Core deterministic invariants
+        run: npm run verify:core
+
+      - name: Source invariants
+        run: npm run verify:source
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
