@@ -13,9 +13,9 @@ import {
   openMarginLong,
   openMarginShort,
   placeMarginShortStop,
+  placeMarginStop,
   replayMarginShortActions,
   serializeShortMarginState,
-  shortMarginPositionSnapshot,
   usdMicros,
 } from '../dist/index.js';
 
@@ -147,8 +147,7 @@ test('LONG completion receipt uses only entry-time stop and computes conservativ
 
   let late = createMarginSession({ sessionId: 'late-stop', careerEquityWei: INITIAL_BANKROLL_WEI, episode: ep });
   late = openMarginLong(late, ep, { actionId: 'open', marginUsdMicros: usdMicros('100'), leverage: 2, stopPriceUsdMicros: null }).state;
-  // A later stop must never retroactively become an entry-time plan.
-  const laterStop = (await import('../dist/index.js')).placeMarginStop(late, ep, { actionId: 'later-stop', stopPriceUsdMicros: usdMicros('2450') });
-  late = closeMarginLong(laterStop.state, ep, { actionId: 'close' }).state;
+  late = placeMarginStop(late, ep, { actionId: 'later-stop', stopPriceUsdMicros: usdMicros('2450') }).state;
+  late = closeMarginLong(late, ep, { actionId: 'close' }).state;
   assert.equal(deriveLongMarginCompletion(late, ep).plannedMaxAccountRiskBps, null);
 });
