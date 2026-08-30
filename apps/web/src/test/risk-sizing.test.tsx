@@ -24,7 +24,7 @@ import {
   wei,
   type SimState,
 } from '@rekt-ink/sim';
-import { createInitialCareer, reduceCareer, type CareerState } from '@rekt-ink/career';
+import { CAREER_SAVE_VERSION, createInitialCareer, reduceCareer, type CareerState } from '@rekt-ink/career';
 import { PracticeSessionStore } from '../practice/store';
 import { createMemoryPracticeStorage } from '../practice/persistence';
 import { priceX18FromDecimalString, type PracticeQuote } from '../practice/quote';
@@ -143,7 +143,6 @@ describe('capability disclosure', () => {
     const locked = h.store.submit({ kind: 'BUY_RISK_PLANNED', stopPriceX18: priceX18(23_500_000_000_000_000n), riskBps: 100n });
     expect(locked.accepted).toBe(false);
     expect(locked.rejection?.code).toBe('CAPABILITY_LOCKED');
-    // Nothing economic happened: no plan, no entry, no ledger growth.
     const { sim } = h.store.getSnapshot();
     expect(sim.activeRiskPlan).toBeNull();
     expect(sim.events.filter((event) => event.type !== 'SESSION_OPENED')).toHaveLength(0);
@@ -163,12 +162,9 @@ describe('capability disclosure', () => {
     const h = harness();
     for (let i = 0; i < 8; i += 1) roundTrip(h);
     const career = h.store.getSnapshot().career;
-    // Eight ordinary closed trades, no stops planned at entry, no partial exit.
     expect(career.unlockedSkills).toContain('STOP_LOSS');
     expect(career.unlockedSkills).not.toContain('RISK_SIZING');
     expect(career.stats.stopPlannedTrades).toBe(0);
-
-    // Neither does spamming refused risk intents.
     for (let i = 0; i < 60; i += 1) {
       h.store.submit({ kind: 'BUY_RISK_PLANNED', stopPriceX18: priceX18(23_500_000_000_000_000n), riskBps: 100n });
     }
@@ -199,10 +195,7 @@ describe('risk-planned entry', () => {
     const plan = sim.activeRiskPlan!;
     expect(plan.modelVersion).toBe(RISK_PLAN_MODEL_VERSION);
     expect(plan.provenance).toBe('DERIVED');
-    // 1% of equity at plan time, exactly.
     expect(plan.maxLossWei).toBe((plan.equityAtPlanWei * 100n) / 10_000n);
-    // The entry consumed exactly the planned notional, and nothing was funded
-    // beyond free ETH.
     expect(sim.position!.costBasisWei).toBeLessThanOrEqual(plan.plannedNotionalWei);
     expect(sim.account.freeEthWei).toBeGreaterThanOrEqual(0n);
     expect(sim.activeStop!.stopPriceX18).toBe(plan.stopPriceX18);
@@ -214,8 +207,6 @@ describe('risk-planned entry', () => {
     h.advance(1_000);
     h.refresh();
     const equity = h.store.getSnapshot().sim.account.freeEthWei;
-    // A very tight stop at the maximum authorized risk: the demand for notional
-    // far exceeds the bankroll, so capital has to be what bounds it.
     expect(h.store.submit({ kind: 'BUY_RISK_PLANNED', stopPriceX18: priceX18(24_960_000_000_000_000n), riskBps: 1_000n }).accepted).toBe(true);
     const { sim } = h.store.getSnapshot();
     expect(sim.activeRiskPlan!.plannedNotionalWei).toBeLessThan(equity);
@@ -234,7 +225,6 @@ describe('risk-planned entry', () => {
       expect(result.accepted).toBe(false);
       expect(result.rejection?.code).toBe('RISK_PLAN_REJECTED');
     }
-    // A stop just under price is placeable but too close to size against.
     const tooTight = h.store.submit({ kind: 'BUY_RISK_PLANNED', stopPriceX18: priceX18(24_999_999_000_000_000n), riskBps: 100n });
     expect(tooTight.accepted).toBe(false);
     expect(tooTight.rejection?.message).toContain('STOP_DISTANCE_TOO_SMALL');
@@ -286,7 +276,6 @@ describe('risk budget facts', () => {
 
     h.advance(1_000);
     h.refresh();
-    // Move the stop far away from entry: exposure now dwarfs the frozen budget.
     expect(h.store.submit({ kind: 'PLACE_STOP', stopPriceX18: priceX18(12_500_000_000_000_000n) }).accepted).toBe(true);
     expect(h.store.getSnapshot().sim.riskBudgetBreached).toBe(true);
 
@@ -298,9 +287,7 @@ describe('risk budget facts', () => {
     expect(sim.tradeSummaries.at(-1)!.riskBudgetViolated).toBe(true);
     expect(sim.tradeSummaries.at(-1)!.stopWidened).toBe(true);
     expect(career.stats.riskBudgetViolations).toBe(1);
-    // A violated trade is not counted as a respected one.
     expect(career.stats.riskBudgetsRespected).toBe(0);
-    // And it does not count toward the planned-stop process gate either.
     expect(sim.tradeSummaries.at(-1)!.stopWidened).toBe(true);
   });
 
@@ -309,8 +296,6 @@ describe('risk budget facts', () => {
     h.advance(1_000);
     h.refresh();
     h.store.submit({ kind: 'BUY_RISK_PLANNED', stopPriceX18: priceX18(23_500_000_000_000_000n), riskBps: 100n });
-    // Projected against the session's own event time and the depth the plan was
-    // actually sized against, so the reading is the one the terminal shows.
     const openedSim = h.store.getSnapshot().sim;
     const atMs = openedSim.events.at(-1)!.eventTimeMs;
     const before = projectPlannedRisk(
@@ -361,12 +346,11 @@ describe('persistence', () => {
 
     expect(after.restoreStatus).toBe('RESTORED');
     expect(stableReplayDigest(after.sim)).toBe(stableReplayDigest(before.sim));
-    // Planned risk is restored to the wei, not recomputed against new prices.
     expect(after.sim.activeRiskPlan).toEqual(before.sim.activeRiskPlan);
     expect(after.sim.riskBudgetBreached).toBe(before.sim.riskBudgetBreached);
     expect(after.career.unlockedCapabilities).toEqual(before.career.unlockedCapabilities);
     expect(after.career.stats).toEqual(before.career.stats);
-    expect(after.career.saveVersion).toBe(3);
+    expect(after.career.saveVersion).toBe(CAREER_SAVE_VERSION);
   });
 
   it('a breached budget survives reload as a recorded fact', async () => {
@@ -404,7 +388,6 @@ function simWithPlanFlat(): SimState {
   return replayEvents([createSessionOpenedEvent(initial, START)], initial);
 }
 
-/** An open, risk-planned, stop-protected position built through the simulator. */
 function simWithPlannedPosition(stopPriceX18 = 23_500_000_000_000_000n): SimState {
   let state = simWithPlanFlat();
   state = setSpotRiskPlan(state, { planId: 'ui-plan', observation: OBSERVATION, stopPriceX18: 23_500_000_000_000_000n, riskBps: 100n, eventTimeMs: START }, DEFAULT_SPOT_FILL_CONFIG).state;
@@ -429,7 +412,6 @@ describe('terminal binding', () => {
       <TradeTicket sim={simWithPlanFlat()} career={createInitialCareer('locked', START)} blockedReason={null} onSubmit={() => {}} observation={OBSERVATION} observationTimeMs={START} />,
     );
     expect(screen.queryByRole('region', { name: 'Risk plan' })).toBeNull();
-    // The fixed ticket is still the entry, unchanged.
     expect(screen.getByRole('button', { name: /BUY/ })).toHaveTextContent('0.05 ETH');
   });
 
@@ -442,8 +424,6 @@ describe('terminal binding', () => {
       .getAllByText(/^(STOP|ACCOUNT RISK|MAX LOSS|POSITION SIZE)$/)
       .map((node) => node.textContent);
     expect(labels).toEqual(['STOP', 'ACCOUNT RISK', 'MAX LOSS', 'POSITION SIZE']);
-
-    // Without an invalidation price there is no size and no armed entry.
     expect(within(panel).getByText(/Enter an invalidation price/)).toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: /BUY/ })).toBeDisabled();
   });
@@ -459,12 +439,10 @@ describe('terminal binding', () => {
     const wideSize = within(panel).getByRole('button', { name: /BUY/ }).textContent!;
     expect(within(panel).getByText('MAX LOSS').parentElement).toHaveTextContent('0.0050');
 
-    // A tighter stop buys more size at the same account risk.
     fireEvent.change(stop, { target: { value: '0.0245' } });
     const tightSize = within(panel).getByRole('button', { name: /BUY/ }).textContent!;
     expect(tightSize).not.toEqual(wideSize);
 
-    // Doubling account risk doubles the budget shown.
     fireEvent.click(within(panel).getByRole('button', { name: '2.00%' }));
     expect(within(panel).getByText('MAX LOSS').parentElement).toHaveTextContent('0.0100');
   });
@@ -477,7 +455,6 @@ describe('terminal binding', () => {
     fireEvent.change(within(panel).getByLabelText('Stop price'), { target: { value: '0.03' } });
     expect(within(panel).getByText(/STOP_NOT_BELOW_ENTRY/)).toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: /BUY/ })).toBeDisabled();
-    // The typed value stays visible; nothing was silently snapped to a legal one.
     expect(within(panel).getByLabelText('Stop price')).toHaveValue('0.03');
   });
 
@@ -498,7 +475,6 @@ describe('terminal binding', () => {
     );
     const panel = screen.getByRole('region', { name: 'Planned risk' });
     expect(within(panel).getByText('BUDGET').parentElement).toHaveTextContent('0.0050');
-    // The projection is signed, negative, and labelled as derived model output.
     expect(within(panel).getByText('IF STOP FILLS').parentElement).toHaveTextContent('-0.00');
     expect(within(panel).getByText(/DERIVED \/ RISK_PLAN_V0/)).toBeInTheDocument();
   });
@@ -536,15 +512,12 @@ describe('review repairs', () => {
     h.store.submit({ kind: 'BUY_RISK_PLANNED', stopPriceX18: priceX18(23_500_000_000_000_000n), riskBps: 100n });
     const respectedBefore = h.store.getSnapshot().career.stats.riskBudgetsRespected;
 
-    // Force the cycle into an unverified state through the domain, mirroring a
-    // planned position that spends time uncheckable against its budget.
     const sim = h.store.getSnapshot().sim;
     expect(sim.riskBudgetVerified).toBe(true);
 
     h.advance(1_000);
     h.refresh();
     h.store.submit({ kind: 'SELL_ALL' });
-    // The ordinary honoured path still reports compliance.
     expect(h.store.getSnapshot().career.stats.riskBudgetsRespected).toBe(respectedBefore + 1);
     expect(h.store.getSnapshot().sim.tradeSummaries.at(-1)!.riskBudgetVerified).toBe(true);
   });
@@ -562,7 +535,6 @@ describe('review repairs', () => {
     expect(priceX18FromDecimalString('0.1')).toBe(100_000_000_000_000_000n);
     expect(priceX18FromDecimalString('1.1')).toBe(1_100_000_000_000_000_000n);
     expect(priceX18FromDecimalString('123.456')).toBe(123_456_000_000_000_000_000n);
-    // Number() would turn these into 16 and 1e-9 respectively.
     expect(priceX18FromDecimalString('0x10')).toBeNull();
     expect(priceX18FromDecimalString('1e-9')).toBeNull();
     expect(priceX18FromDecimalString('')).toBeNull();
@@ -581,7 +553,6 @@ describe('review repairs', () => {
     fireEvent.click(within(panel).getByRole('button', { name: 'CUSTOM' }));
     fireEvent.change(within(panel).getByLabelText('Custom account risk percent'), { target: { value: '50' } });
     expect(within(panel).getByText(/RISK_BUDGET_ABOVE_MAX/)).toBeInTheDocument();
-    // The rejected budget must not render as an authoritative figure.
     expect(within(panel).getByText('MAX LOSS').parentElement).toHaveTextContent('—');
     expect(within(panel).getByText('POSITION SIZE').parentElement).toHaveTextContent('—');
     expect(within(panel).getByRole('button', { name: /BUY/ })).toBeDisabled();
