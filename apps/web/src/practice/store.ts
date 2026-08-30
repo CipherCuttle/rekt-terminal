@@ -53,40 +53,18 @@ import {
 import type { PracticeQuote } from './quote';
 import type { MarketEnvironment } from '../types/api';
 
-/**
- * A DEMO session is the only way fabricated evidence reaches the simulator, and
- * it is an explicit opt-in rather than an inference from a failed provider.
- */
+/** A DEMO session is the only way fabricated evidence reaches the simulator. */
 export const EVIDENCE_POLICY_FOR_ENVIRONMENT: Record<MarketEnvironment, EvidencePolicy> = {
   LIVE: 'LIVE_ONLY',
   DEMO: 'DEMO_ALLOW_SYNTHETIC',
 };
 
-/**
- * MARKET_TRUTH_V1: `PROTECT_CAPITAL` is no longer a submittable intent.
- *
- * It used to fabricate `referencePrice x 0.96`, label that invented future
- * observation DERIVED, execute it, and count the result toward STOP_LOSS
- * qualification — one button press "proving" the player could cut a loss. The
- * Career contract still keeps PROTECT_CAPITAL as a conceptual alternate path to
- * STOP_LOSS, to be satisfied by a future real historical Replay mission; it is
- * simply not reachable from product flow until that mission exists.
- */
 export type PracticeIntent =
   | { kind: 'BUY_FIXED' }
   | { kind: 'SCALE_IN' }
   | { kind: 'SELL_ALL' }
   | { kind: 'PARTIAL_CLOSE'; percent: number }
   | { kind: 'PLACE_STOP'; stopPriceX18: bigint }
-  /**
-   * RISK_SIZING_V0: one user decision — "risk this much of the account, with
-   * invalidation here" — recorded as three simulator facts in order: the frozen
-   * plan, the sized entry, and the protective stop it was sized against.
-   *
-   * The store recomputes the plan from simulator state and the gated
-   * observation. The stop price and risk percentage are the only things taken
-   * from the UI, and neither is a monetary quantity.
-   */
   | { kind: 'BUY_RISK_PLANNED'; stopPriceX18: bigint; riskBps: bigint };
 
 export type PracticeRejectionCode = PracticeBlockCode | 'CAPABILITY_LOCKED' | 'NO_MARKET_INPUT' | 'INSTRUMENT_LOCKED' | 'NO_OPEN_POSITION' | 'INVALID_QUANTITY' | 'SIMULATOR_REJECTED' | 'RISK_PLAN_REJECTED' | 'RISK_PLAN_UNPROTECTED';
@@ -102,15 +80,11 @@ export interface PracticeIntentResult {
   rejection?: PracticeRejection;
 }
 
-/** OUTCOME facts and PROCESS facts are kept apart on purpose. */
 export interface TradeReview {
   summary: TradeSummary;
   economics: TradeReviewEconomics;
-  /** True only if this trade incremented Career's qualifying-trade counter. */
   countedTowardQualification: boolean;
-  /** Career snapshot taken immediately after the trade was reduced. */
   careerAfter: CareerState;
-  /** Skills newly unlocked by this trade. */
   unlockedSkills: readonly string[];
 }
 
@@ -119,9 +93,7 @@ export type PracticeRestoreStatus = 'FRESH' | 'RESTORED' | 'RESET_SAVE_UNUSABLE'
 export interface PracticeSnapshot {
   sim: SimState;
   career: CareerState;
-  /** Data environment this session's economic state belongs to. */
   environment: MarketEnvironment;
-  /** Instrument the session's economic state is bound to, if any. */
   instrumentId: string | null;
   lastRejection: PracticeRejection | null;
   tradeReview: TradeReview | null;
@@ -140,11 +112,9 @@ const CAPABILITY_FOR_INTENT: Record<PracticeIntent['kind'], CapabilityId> = {
 
 export interface PracticeStoreOptions {
   sessionId?: string;
-  /** Defaults to LIVE. DEMO must be asked for. */
   environment?: MarketEnvironment;
   now?: () => number;
   storage?: PracticeStorage;
-  /** Latest usable quote for the instrument currently on screen. */
   getQuote?: () => PracticeQuote | null;
   persistDebounceMs?: number;
 }
@@ -184,15 +154,9 @@ export class PracticeSessionStore {
     };
   }
 
-  /* ---------------------------------------------------------------------- */
-  /* subscription                                                            */
-  /* ---------------------------------------------------------------------- */
-
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return () => { this.listeners.delete(listener); };
   };
 
   getSnapshot = (): PracticeSnapshot => this.snapshot;
@@ -207,51 +171,25 @@ export class PracticeSessionStore {
     if (persist) this.schedulePersist();
   }
 
-  /* ---------------------------------------------------------------------- */
-  /* hydration                                                               */
-  /* ---------------------------------------------------------------------- */
-
-  /**
-   * Restore a previous practice session by replaying its event log. Any fault
-   * — malformed save, failed Career migration, digest mismatch — discards the
-   * save and starts clean rather than showing a partially reconstructed ledger.
-   */
   hydrate(): Promise<void> {
-    // React StrictMode runs mount effects twice; hydration must happen once.
     return (this.hydration ??= this.runHydration());
   }
 
   private async runHydration(): Promise<void> {
     let loaded: unknown = null;
-    try {
-      loaded = await this.storage.load();
-    } catch {
-      loaded = null;
-    }
+    try { loaded = await this.storage.load(); } catch { loaded = null; }
     if (loaded === null || loaded === undefined) {
       this.commit({ hydrated: true, restoreStatus: 'FRESH' }, false);
       return;
     }
     try {
       const restored = restorePracticeSave(loaded);
-      // A ledger belongs to the environment it was built in. Restoring a DEMO
-      // session into a LIVE one would put positions derived from fabricated
-      // evidence behind a LIVE label, so a mismatch discards the save.
       if (restored.environment !== this.snapshot.environment) {
         await this.storage.clear();
         this.commit({ hydrated: true, restoreStatus: 'RESET_ENVIRONMENT_CHANGED' }, false);
         return;
       }
-      this.commit(
-        {
-          sim: restored.sim,
-          career: restored.career.state,
-          instrumentId: restored.instrumentId,
-          hydrated: true,
-          restoreStatus: 'RESTORED',
-        },
-        false,
-      );
+      this.commit({ sim: restored.sim, career: restored.career.state, instrumentId: restored.instrumentId, hydrated: true, restoreStatus: 'RESTORED' }, false);
     } catch {
       await this.storage.clear();
       this.commit({ hydrated: true, restoreStatus: 'RESET_SAVE_UNUSABLE' }, false);
@@ -268,32 +206,14 @@ export class PracticeSessionStore {
 
   async persistNow(): Promise<void> {
     const { sim, career, instrumentId, environment } = this.snapshot;
-    const envelope = createPracticeSave({
-      sim,
-      career: createCareerSave(career),
-      instrumentId,
-      environment,
-      savedAtMs: this.now(),
-    });
+    const envelope = createPracticeSave({ sim, career: createCareerSave(career), instrumentId, environment, savedAtMs: this.now() });
     await this.storage.save(envelope);
   }
 
-  /* ---------------------------------------------------------------------- */
-  /* clock                                                                   */
-  /* ---------------------------------------------------------------------- */
-
-  /**
-   * The simulator refuses events that move backwards in time, so the session
-   * clock is monotonic with respect to the recorded log.
-   */
   private eventTime(): number {
     const last = this.snapshot.sim.events[this.snapshot.sim.events.length - 1]?.eventTimeMs ?? this.snapshot.sim.startedAtMs;
     return Math.max(this.now(), last);
   }
-
-  /* ---------------------------------------------------------------------- */
-  /* gates                                                                   */
-  /* ---------------------------------------------------------------------- */
 
   hasCapability(capability: CapabilityId): boolean {
     return this.snapshot.career.unlockedCapabilities.includes(capability);
@@ -305,15 +225,9 @@ export class PracticeSessionStore {
     return { accepted: false, rejection };
   }
 
-  /* ---------------------------------------------------------------------- */
-  /* intents                                                                 */
-  /* ---------------------------------------------------------------------- */
-
   submit(intent: PracticeIntent): PracticeIntentResult {
     const capability = CAPABILITY_FOR_INTENT[intent.kind];
-    if (!this.hasCapability(capability)) {
-      return this.reject('CAPABILITY_LOCKED', `${capability} is not authorised by your Career yet.`);
-    }
+    if (!this.hasCapability(capability)) return this.reject('CAPABILITY_LOCKED', `${capability} is not authorised by your Career yet.`);
 
     const quote = this.getQuote();
     if (!quote) return this.reject('NO_MARKET_INPUT', 'No market observation is available for this instrument.');
@@ -324,19 +238,12 @@ export class PracticeSessionStore {
 
     const { sim } = this.snapshot;
     const position = sim.position;
-
-    // A spot session cannot mix instruments; the simulator enforces this and
-    // the UI must not offer an action that would trip it.
     if (position && position.instrumentId !== gate.observation.instrumentId) {
       return this.reject('INSTRUMENT_LOCKED', `An open position on ${position.instrumentId} must be closed before trading another instrument.`);
     }
 
     if (intent.kind === 'BUY_RISK_PLANNED') {
-      // CUSTOM_POSITION_SIZE is what actually authorises a non-fixed ticket;
-      // RISK_PERCENT_SIZING (checked above) authorises deriving it from risk.
-      if (!this.hasCapability('CUSTOM_POSITION_SIZE')) {
-        return this.reject('CAPABILITY_LOCKED', 'CUSTOM_POSITION_SIZE is not authorised by your Career yet.');
-      }
+      if (!this.hasCapability('CUSTOM_POSITION_SIZE')) return this.reject('CAPABILITY_LOCKED', 'CUSTOM_POSITION_SIZE is not authorised by your Career yet.');
       return this.submitRiskPlannedEntry(intent, gate.observation, eventTimeMs);
     }
 
@@ -353,12 +260,7 @@ export class PracticeSessionStore {
 
     const result = executeSpotAction(sim, action.action);
     if (!result.accepted) {
-      // The rejection is itself a recorded simulator event; keep it.
-      const rejection: PracticeRejection = {
-        code: 'SIMULATOR_REJECTED',
-        message: result.reason ?? 'The simulator refused this intent.',
-        atMs: eventTimeMs,
-      };
+      const rejection: PracticeRejection = { code: 'SIMULATOR_REJECTED', message: result.reason ?? 'The simulator refused this intent.', atMs: eventTimeMs };
       this.commit({ sim: result.state, lastRejection: rejection });
       return { accepted: false, rejection };
     }
@@ -367,45 +269,24 @@ export class PracticeSessionStore {
     return { accepted: true };
   }
 
-  /**
-   * Freeze a risk plan, enter at the size it derives, and place the stop it was
-   * sized against — in that order, against one observation.
-   *
-   * The stop is validated as placeable *before* the entry executes, so the
-   * sequence cannot leave the account long and unprotected because the market
-   * moved through the stop between the two steps.
-   */
   private submitRiskPlannedEntry(
     intent: Extract<PracticeIntent, { kind: 'BUY_RISK_PLANNED' }>,
     observation: MarketObservation,
     eventTimeMs: number,
   ): PracticeIntentResult {
     const { sim } = this.snapshot;
-    if (sim.position) {
-      return this.reject('SIMULATOR_REJECTED', 'A risk plan is defined before entry; close the open position first.');
-    }
-    // `placeSpotStop` refuses a stop at or above the reference price. Checking
-    // it here keeps the failure atomic rather than half-applied.
-    if (intent.stopPriceX18 <= 0n || intent.stopPriceX18 >= observation.referencePriceX18) {
-      return this.reject('RISK_PLAN_REJECTED', 'The stop must sit strictly below the current market price.');
-    }
+    if (sim.position) return this.reject('SIMULATOR_REJECTED', 'A risk plan is defined before entry; close the open position first.');
+    if (intent.stopPriceX18 <= 0n || intent.stopPriceX18 >= observation.referencePriceX18) return this.reject('RISK_PLAN_REJECTED', 'The stop must sit strictly below the current market price.');
 
     const ordinal = sim.lastSequence + 1;
     const planId = `${sim.sessionId}:plan:${ordinal}`;
     const planned = setSpotRiskPlan(sim, { planId, observation, stopPriceX18: intent.stopPriceX18, riskBps: intent.riskBps, eventTimeMs }, DEFAULT_SPOT_FILL_CONFIG);
-    if (!planned.accepted || !planned.plan) {
-      return this.reject('RISK_PLAN_REJECTED', planned.reason ?? 'The simulator refused this risk plan.');
-    }
+    if (!planned.accepted || !planned.plan) return this.reject('RISK_PLAN_REJECTED', planned.reason ?? 'The simulator refused this risk plan.');
     const plan = planned.plan;
 
     const entry = executeSpotAction(planned.state, {
-      type: 'BUY',
-      intentId: `${sim.sessionId}:i${ordinal}`,
-      fillId: `${sim.sessionId}:f${ordinal}`,
-      eventTimeMs,
-      observation,
-      quoteNotionalWei: plan.plannedNotionalWei,
-      config: DEFAULT_SPOT_FILL_CONFIG,
+      type: 'BUY', intentId: `${sim.sessionId}:i${ordinal}`, fillId: `${sim.sessionId}:f${ordinal}`, eventTimeMs, observation,
+      quoteNotionalWei: plan.plannedNotionalWei, config: DEFAULT_SPOT_FILL_CONFIG,
     });
     if (!entry.accepted) {
       const rejection: PracticeRejection = { code: 'SIMULATOR_REJECTED', message: entry.reason ?? 'The simulator refused the planned entry.', atMs: eventTimeMs };
@@ -415,13 +296,7 @@ export class PracticeSessionStore {
 
     const stop = placeSpotStop(entry.state, { stopId: `${sim.sessionId}:stop:${ordinal}`, stopPriceX18: plan.stopPriceX18, observation, eventTimeMs }, DEFAULT_SPOT_FILL_CONFIG);
     if (!stop.accepted) {
-      // The entry is real and recorded; saying so plainly beats pretending the
-      // whole intent failed while the account is actually exposed.
-      const rejection: PracticeRejection = {
-        code: 'RISK_PLAN_UNPROTECTED',
-        message: `The sized entry filled but the protective stop was refused (${stop.reason ?? 'unknown'}). Place a stop now.`,
-        atMs: eventTimeMs,
-      };
+      const rejection: PracticeRejection = { code: 'RISK_PLAN_UNPROTECTED', message: `The sized entry filled but the protective stop was refused (${stop.reason ?? 'unknown'}). Place a stop now.`, atMs: eventTimeMs };
       this.applyRiskPlannedCommit(stop.state, observation.instrumentId, observation.provenance, plan, rejection);
       return { accepted: false, rejection };
     }
@@ -430,57 +305,28 @@ export class PracticeSessionStore {
     return { accepted: true };
   }
 
-  /** Fold a risk-planned entry into session state and record the Career fact. */
-  private applyRiskPlannedCommit(
-    nextSim: SimState,
-    instrumentId: string,
-    evidenceProvenance: ProvenanceState,
-    plan: RiskPlan,
-    rejection: PracticeRejection | null,
-  ): void {
+  private applyRiskPlannedCommit(nextSim: SimState, instrumentId: string, evidenceProvenance: ProvenanceState, plan: RiskPlan, rejection: PracticeRejection | null): void {
     let career = reduceCareer(this.snapshot.career, {
-      type: 'RISK_PLAN_CREATED',
-      eventId: `${plan.planId}:career`,
-      sourceReceiptId: `${plan.planId}:risk-plan`,
-      planId: plan.planId,
-      evidenceProvenance,
+      type: 'RISK_PLAN_CREATED', eventId: `${plan.planId}:career`, sourceReceiptId: `${plan.planId}:risk-plan`, planId: plan.planId, evidenceProvenance,
     });
-    // The planned entry places a real protective stop, so it counts as one
-    // exactly like a hand-placed stop does. Reading it off the recorded stop
-    // rather than the intent keeps the fact tied to what the simulator did.
     if (nextSim.activeStop) {
       career = reduceCareer(career, {
-        type: 'STOP_PLACED',
-        eventId: `${nextSim.activeStop.stopId}:career`,
-        sourceReceiptId: `${nextSim.activeStop.stopId}:placed`,
-        evidenceProvenance,
+        type: 'STOP_PLACED', eventId: `${nextSim.activeStop.stopId}:career`, sourceReceiptId: `${nextSim.activeStop.stopId}:placed`, evidenceProvenance,
       });
     }
     this.commit({ sim: nextSim, career, instrumentId, lastRejection: rejection });
   }
 
-  private buildAction(
-    intent: PracticeIntent,
-    gate: Extract<PracticeEligibility, { status: 'SUPPORTED' }>,
-    eventTimeMs: number,
-  ): { action: SpotAction } | { rejection: PracticeIntentResult } {
+  private buildAction(intent: PracticeIntent, gate: Extract<PracticeEligibility, { status: 'SUPPORTED' }>, eventTimeMs: number): { action: SpotAction } | { rejection: PracticeIntentResult } {
     const { sim } = this.snapshot;
     const ordinal = sim.lastSequence + 1;
     const intentId = `${sim.sessionId}:i${ordinal}`;
     const fillId = `${sim.sessionId}:f${ordinal}`;
     const base = { intentId, fillId, eventTimeMs, observation: gate.observation, config: DEFAULT_SPOT_FILL_CONFIG };
 
-    if (intent.kind === 'BUY_FIXED') {
-      return { action: { ...base, type: 'BUY', quoteNotionalWei: DEFAULT_FIRST_TICKET_WEI } };
-    }
-    if (intent.kind === 'PLACE_STOP' || intent.kind === 'BUY_RISK_PLANNED') {
-      // Both are session-domain intents handled directly in `submit`; neither
-      // maps to a single SpotAction.
-      return { rejection: this.reject('SIMULATOR_REJECTED', 'This intent is handled by the session domain.') };
-    }
-    if (intent.kind === 'SCALE_IN') {
-      return { action: { ...base, type: 'SCALE_IN', quoteNotionalWei: DEFAULT_FIRST_TICKET_WEI } };
-    }
+    if (intent.kind === 'BUY_FIXED') return { action: { ...base, type: 'BUY', quoteNotionalWei: DEFAULT_FIRST_TICKET_WEI } };
+    if (intent.kind === 'PLACE_STOP' || intent.kind === 'BUY_RISK_PLANNED') return { rejection: this.reject('SIMULATOR_REJECTED', 'This intent is handled by the session domain.') };
+    if (intent.kind === 'SCALE_IN') return { action: { ...base, type: 'SCALE_IN', quoteNotionalWei: DEFAULT_FIRST_TICKET_WEI } };
     if (intent.kind === 'SELL_ALL') {
       if (!sim.position) return { rejection: this.reject('NO_OPEN_POSITION', 'There is no open position to close.') };
       return { action: { ...base, type: 'FULL_CLOSE' } };
@@ -488,20 +334,12 @@ export class PracticeSessionStore {
 
     if (!sim.position) return { rejection: this.reject('NO_OPEN_POSITION', 'There is no open position to reduce.') };
     const percent = BigInt(Math.trunc(intent.percent));
-    if (percent <= 0n || percent >= 100n) {
-      return { rejection: this.reject('INVALID_QUANTITY', 'A partial close must be between 1% and 99% of the open position.') };
-    }
+    if (percent <= 0n || percent >= 100n) return { rejection: this.reject('INVALID_QUANTITY', 'A partial close must be between 1% and 99% of the open position.') };
     const quantity = mulDiv(sim.position.openQuantityAtoms, percent, 100n, 'floor');
-    if (quantity <= 0n || quantity >= sim.position.openQuantityAtoms) {
-      return { rejection: this.reject('INVALID_QUANTITY', 'That fraction does not leave a tradable remainder at this position size.') };
-    }
+    if (quantity <= 0n || quantity >= sim.position.openQuantityAtoms) return { rejection: this.reject('INVALID_QUANTITY', 'That fraction does not leave a tradable remainder at this position size.') };
     return { action: { ...base, type: 'PARTIAL_CLOSE', quantityAtoms: quantityAtoms(quantity) } };
   }
 
-  /**
-   * Fold the accepted simulator result into session state and feed Career from
-   * the facts the simulator recorded — never from the click that caused them.
-   */
   private applyAccepted(intent: PracticeIntent, nextSim: SimState, instrumentId: string, evidenceProvenance: ProvenanceState): void {
     const previousSummaryCount = this.snapshot.sim.tradeSummaries.length;
     const newSummaries = nextSim.tradeSummaries.slice(previousSummaryCount);
@@ -510,12 +348,8 @@ export class PracticeSessionStore {
     let career = this.snapshot.career;
     const careerEvents: CareerEvent[] = [];
 
-    if (intent.kind === 'SCALE_IN' && acceptedFillId) {
-      careerEvents.push({ type: 'SCALE_IN_USED', eventId: `${acceptedFillId}:scale-in`, sourceReceiptId: acceptedFillId, evidenceProvenance });
-    }
-    if (intent.kind === 'PARTIAL_CLOSE' && acceptedFillId) {
-      careerEvents.push({ type: 'PARTIAL_EXIT_USED', eventId: `${acceptedFillId}:partial-exit`, sourceReceiptId: acceptedFillId, evidenceProvenance });
-    }
+    if (intent.kind === 'SCALE_IN' && acceptedFillId) careerEvents.push({ type: 'SCALE_IN_USED', eventId: `${acceptedFillId}:scale-in`, sourceReceiptId: acceptedFillId, evidenceProvenance });
+    if (intent.kind === 'PARTIAL_CLOSE' && acceptedFillId) careerEvents.push({ type: 'PARTIAL_EXIT_USED', eventId: `${acceptedFillId}:partial-exit`, sourceReceiptId: acceptedFillId, evidenceProvenance });
     for (const summary of newSummaries) {
       careerEvents.push({
         type: 'TRADE_CLOSED',
@@ -529,30 +363,21 @@ export class PracticeSessionStore {
           accountEquityAtCloseWei: summary.accountEquityAtCloseWei,
           lossBpsOfThenCurrentEquity: summary.lossBpsOfThenCurrentEquity,
           accountEquityAtOpenWei: summary.accountEquityAtOpenWei,
+          maxDrawdownBpsAtClose: summary.maxDrawdownBpsAtClose,
           exitReason: summary.exitReason,
           stopUsed: summary.stopUsed,
           partialExitUsed: summary.partialExitUsed,
           liquidated: summary.liquidated,
-          // Process facts the simulator recorded. Career applies its own
-          // STOP_PLAN_WINDOW_MS to these; the store never pre-judges them.
           openedAtMs: summary.openedAtMs,
           firstStopPlacedAtMs: summary.firstStopPlacedAtMs,
           stopWidened: summary.stopWidened,
           riskPlanned: summary.riskPlan !== null,
           riskBudgetViolated: summary.riskBudgetViolated,
           riskBudgetVerified: summary.riskBudgetVerified,
-          // Straight from the simulator's own record of what the trade was
-          // executed against. The store never supplies its own opinion here.
           evidenceProvenance: summary.evidenceProvenance,
         },
       });
       if (summary.stopUsed) careerEvents.push({ type: 'STOP_HIT', eventId: `${nextSim.sessionId}:${summary.tradeId}:stop-hit`, sourceReceiptId: `${nextSim.sessionId}:${summary.tradeId}`, evidenceProvenance: summary.evidenceProvenance });
-      // Compliance is a fact about a closed risk-planned trade, taken from the
-      // simulator's own latched flags — never from a UI observation.
-      //
-      // A cycle the simulator could not check against its budget produces
-      // neither fact. "We could not verify" is not "they complied", and an
-      // affirmative compliance record feeds the MARGIN_2X gate.
       if (summary.riskPlan !== null && (summary.riskBudgetViolated || summary.riskBudgetVerified)) {
         careerEvents.push({
           type: summary.riskBudgetViolated ? 'RISK_BUDGET_VIOLATED' : 'RISK_BUDGET_RESPECTED',
@@ -572,34 +397,15 @@ export class PracticeSessionStore {
       ? {
           summary: closedSummary,
           economics: deriveTradeEconomics(nextSim.events, closedSummary),
-          // Read the verdict off Career's own counter rather than restating the rule here.
           countedTowardQualification: career.stats.qualifyingScaleTrades > careerBefore.stats.qualifyingScaleTrades,
           careerAfter: career,
           unlockedSkills: career.unlockedSkills.filter((skill) => !careerBefore.unlockedSkills.includes(skill)),
         }
       : this.snapshot.tradeReview;
 
-    this.commit({
-      sim: nextSim,
-      career,
-      instrumentId,
-      lastRejection: null,
-      tradeReview,
-    });
+    this.commit({ sim: nextSim, career, instrumentId, lastRejection: null, tradeReview });
   }
 
-  /* ---------------------------------------------------------------------- */
-  /* marking                                                                 */
-  /* ---------------------------------------------------------------------- */
-
-  /**
-   * Push a fresh mark into the simulator so equity and unrealized PnL stay
-   * simulator truth rather than a UI calculation.
-   *
-   * Called on a slow cadence and only while a position is open. If the market
-   * gate is closed, nothing is marked — a stale feed must not silently keep
-   * revaluing an open position.
-   */
   markToMarket(): boolean {
     const { sim } = this.snapshot;
     if (!sim.position) return false;
@@ -609,23 +415,14 @@ export class PracticeSessionStore {
     const gate = evaluatePracticeEligibility(quote, eventTimeMs, { evidencePolicy: this.snapshot.sim.evidencePolicy });
     if (gate.status === 'BLOCKED') return false;
     if (gate.observation.instrumentId !== sim.position.instrumentId) return false;
-    // An unchanged price revalues to the same equity. Skipping it keeps the
-    // append-only log from growing once per second in a quiet market.
     if (gate.observation.referencePriceX18 === sim.markPriceX18 && !(sim.activeStop && gate.observation.referencePriceX18 <= sim.activeStop.stopPriceX18)) return false;
 
     const result = markSpot(sim, gate.observation, eventTimeMs, DEFAULT_SPOT_FILL_CONFIG);
     if (!result.accepted || result.state === sim) return false;
-    // Marks are revaluations, not new commitments, so they do not trigger a
-    // save; the next fill persists them along with itself. A reload mid-position
-    // restores the same position and balance and re-marks within a second.
     if (result.state.tradeSummaries.length > sim.tradeSummaries.length) this.applyAccepted({ kind: 'SELL_ALL' }, result.state, gate.observation.instrumentId, gate.observation.provenance);
     else this.commit({ sim: result.state }, false);
     return true;
   }
-
-  /* ---------------------------------------------------------------------- */
-  /* session controls                                                        */
-  /* ---------------------------------------------------------------------- */
 
   dismissTradeReview(): void {
     if (!this.snapshot.tradeReview) return;
@@ -637,11 +434,22 @@ export class PracticeSessionStore {
     this.commit({ lastRejection: null }, false);
   }
 
-  /** Start a clean bankroll. Career progress is intentionally preserved. */
+  /** Every clean-bankroll restart is a Career fact before a new session exists. */
+  private careerAfterAccountReset(): CareerState {
+    const { career } = this.snapshot;
+    return reduceCareer(career, {
+      type: 'ACCOUNT_RESET_USED',
+      eventId: `${career.careerId}:account-reset:${career.processedEventIds.length + 1}`,
+    });
+  }
+
+  /** Start a clean bankroll. Career progress is preserved, so the reset is recorded. */
   resetSession(): void {
     const startedAtMs = this.now();
+    const career = this.careerAfterAccountReset();
     this.commit({
       sim: openedSession(`practice-${startedAtMs}`, startedAtMs, this.snapshot.environment),
+      career,
       instrumentId: null,
       lastRejection: null,
       tradeReview: null,
@@ -649,20 +457,15 @@ export class PracticeSessionStore {
     });
   }
 
-  /**
-   * Switch data environment.
-   *
-   * The evidence policy is fixed when a session opens, so changing environment
-   * starts a new session rather than mutating the gate underneath an open
-   * position — a LIVE position cannot be carried into DEMO or vice versa.
-   * Career state is preserved; DEMO could not have advanced it anyway.
-   */
+  /** Switching environment also starts a clean bankroll and therefore counts as a reset. */
   setEnvironment(environment: MarketEnvironment): void {
     if (this.snapshot.environment === environment) return;
     const startedAtMs = this.now();
+    const career = this.careerAfterAccountReset();
     this.commit({
       environment,
       sim: openedSession(`practice-${environment.toLowerCase()}-${startedAtMs}`, startedAtMs, environment),
+      career,
       instrumentId: null,
       lastRejection: null,
       tradeReview: null,
