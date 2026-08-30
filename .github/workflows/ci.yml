@@ -92,7 +92,7 @@ jobs:
 
       - name: Gitleaks working-tree scan
         shell: bash
-        run: gitleaks detect --no-git --source . --no-banner --redact --exit-code 1
+        run: gitleaks detect --no-git --source . --no-banner --redact --verbose --exit-code 1
 
       - name: Gitleaks history scan
         shell: bash
@@ -101,4 +101,4 @@ jobs:
           # Validate that Git itself can traverse every fetched patch before
           # trusting Gitleaks' git-history mode.
           git log -p --all >/dev/null
-          gitleaks detect --source . --no-banner --redact --exit-code 1
+          gitleaks detect --source . --no-banner --redact --verbose --exit-code 1
