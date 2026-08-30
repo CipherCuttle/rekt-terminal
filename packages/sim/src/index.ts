@@ -11,3 +11,5 @@ export * from './spot.js';
 export * from './replay.js';
 export * from './fixtures.js';
 export * from './fill-models/spot-fill-v0.js';
+export * from './margin/margin-v0.js';
+export * from './margin/episode-v0.js';
