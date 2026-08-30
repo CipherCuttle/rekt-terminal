@@ -56,6 +56,44 @@ export function getNextObjective(state: Pick<CareerState, 'unlockedSkills' | 'qu
       };
     }
   }
+
+  const margin = state.qualification.margin2x;
+  if (!state.unlockedSkills.includes('MARGIN_2X')) {
+    if (margin.closedSpotTrades < margin.targetClosedSpotTrades) {
+      const remaining = margin.targetClosedSpotTrades - margin.closedSpotTrades;
+      return { id: 'margin-2x-spot-trades', kind: 'MARGIN_2X_UNLOCKED', text: `NEXT // Close ${remaining} more spot ${remaining === 1 ? 'trade' : 'trades'} before leverage.`, progress: margin.closedSpotTrades, target: margin.targetClosedSpotTrades };
+    }
+    if (margin.riskPlannedTrades < margin.targetRiskPlannedTrades) {
+      const remaining = margin.targetRiskPlannedTrades - margin.riskPlannedTrades;
+      return { id: 'margin-2x-risk-plans', kind: 'MARGIN_2X_UNLOCKED', text: `NEXT // Complete ${remaining} more risk-planned ${remaining === 1 ? 'trade' : 'trades'}.`, progress: margin.riskPlannedTrades, target: margin.targetRiskPlannedTrades };
+    }
+    if (margin.partialExitsUsed < margin.targetPartialExits) {
+      return { id: 'margin-2x-partial-exits', kind: 'MARGIN_2X_UNLOCKED', text: 'NEXT // Use one more partial exit before leverage.', progress: margin.partialExitsUsed, target: margin.targetPartialExits };
+    }
+    const clean = margin.recentRiskPlannedOutcomes.filter((entry) => entry.outcome === 'RESPECTED').length;
+    if (margin.recentRiskPlannedOutcomes.length < margin.targetCleanRecentRiskPlans || clean < margin.targetCleanRecentRiskPlans) {
+      return { id: 'margin-2x-recent-risk', kind: 'MARGIN_2X_UNLOCKED', text: 'NEXT // Finish 3 consecutive risk-planned trades with verified budget discipline.', progress: clean, target: margin.targetCleanRecentRiskPlans };
+    }
+    if (margin.maxAccountDrawdownBps === null) {
+      return { id: 'margin-2x-drawdown-evidence', kind: 'MARGIN_2X_UNLOCKED', text: 'NEXT // Close one real-evidence trade so current account drawdown can be verified.', progress: 0, target: 1 };
+    }
+    if (margin.maxAccountDrawdownBps > margin.drawdownLimitBps) {
+      return { id: 'margin-2x-drawdown', kind: 'MARGIN_2X_UNLOCKED', text: 'MARGIN_2X BLOCKED // Career max drawdown exceeded 20%.', progress: margin.drawdownLimitBps, target: margin.maxAccountDrawdownBps };
+    }
+    if (margin.accountResetsUsed > 0) {
+      return { id: 'margin-2x-reset', kind: 'MARGIN_2X_UNLOCKED', text: 'MARGIN_2X BLOCKED // This Career used an account reset.', progress: 0, target: 1 };
+    }
+  }
+
+  if (state.unlockedSkills.includes('MARGIN_2X')) {
+    return {
+      id: 'margin-2x-authorized',
+      kind: 'MARGIN_2X_UNLOCKED',
+      text: 'MARGIN // 2x AUTHORIZED // Historical isolated long training is available.',
+      progress: 1,
+      target: 1,
+    };
+  }
   if (state.unlockedSkills.includes('RISK_SIZING')) {
     return {
       id: 'risk-sizing-authorized',
@@ -67,8 +105,6 @@ export function getNextObjective(state: Pick<CareerState, 'unlockedSkills' | 'qu
   }
   return {
     id: 'stop-loss-authorized',
-    // Keep the existing objective kind stable for consumers; the copy now
-    // points to the next STOP_LOSS milestone.
     kind: 'SCALE_CONTROL_UNLOCKED',
     text: 'STOP_LOSS AUTHORIZED // Place a protective stop.',
     progress: 1,
