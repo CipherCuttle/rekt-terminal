@@ -6,6 +6,8 @@ import {
   createMarginSession,
   openMarginLong,
   placeMarginStop,
+  replayMarginActions,
+  serializeMarginState,
   usdMicros,
 } from '../dist/index.js';
 
@@ -62,4 +64,28 @@ test('replacement refuses a stop above the current mark after price has moved th
   assert.equal(result.code, 'INVALID_STOP');
   assert.equal(result.state.position.stopPriceUsdMicros, usdMicros('2400'));
   assert.equal(result.state.events.at(-1).type, 'ORDER_INTENT_REJECTED');
+});
+
+test('replay folds stale-stop actions through the same public gate as interactive execution', () => {
+  const actions = [
+    { type: 'OPEN_LONG', actionId: 'open', marginUsdMicros: usdMicros('100'), leverage: 2, stopPriceUsdMicros: usdMicros('2400') },
+    { type: 'ADVANCE', actionId: 'down' },
+    { type: 'PLACE_STOP', actionId: 'stale-stop', stopPriceUsdMicros: usdMicros('2475') },
+  ];
+
+  let interactive = session('replay-stop');
+  interactive = openMarginLong(interactive, episode, actions[0]).state;
+  interactive = advanceMarginMark(interactive, episode, actions[1]).state;
+  interactive = placeMarginStop(interactive, episode, actions[2]).state;
+
+  const replayed = replayMarginActions({
+    sessionId: 'replay-stop',
+    careerEquityWei: INITIAL_BANKROLL_WEI,
+    episode,
+    actions,
+  });
+
+  assert.equal(serializeMarginState(replayed), serializeMarginState(interactive));
+  assert.equal(replayed.position.stopPriceUsdMicros, usdMicros('2400'));
+  assert.equal(replayed.events.at(-1).type, 'ORDER_INTENT_REJECTED');
 });
