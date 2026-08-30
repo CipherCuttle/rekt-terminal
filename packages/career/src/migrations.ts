@@ -64,11 +64,12 @@ function migrateV2ToV3(state: CareerState): CareerState {
  * v3 -> v4 adds the evidence needed for MARGIN_2X.
  *
  * Old aggregate counts cannot reconstruct which risk-planned trades were the
- * most recent three, so the rolling outcomes start empty. Likewise a Career
- * v3 save alone cannot prove cumulative simulator drawdown; `null` forces one
- * new gradable closed trade, whose TradeSummary carries the simulator's
- * cumulative max drawdown. V0 has no account-reset action, so reset count 0 is
- * a truthful migration rather than invented good behaviour.
+ * most recent three, so the rolling outcomes start empty. A v3 Career save
+ * alone also cannot prove cumulative simulator drawdown, or whether the
+ * already-existing bankroll reset control was used. Both facts therefore
+ * migrate to UNKNOWN (`null`) rather than invented clean history. A legacy
+ * Career cannot earn leverage until the contract has evidence; starting a new
+ * Career is the only way to establish a known zero-reset history.
  */
 function migrateV3ToV4(state: CareerState): CareerState {
   const next = structuredClone(state);
@@ -76,7 +77,7 @@ function migrateV3ToV4(state: CareerState): CareerState {
     ...next.stats,
     recentRiskPlannedOutcomes: [],
     maxAccountDrawdownBps: null,
-    accountResetsUsed: 0,
+    accountResetsUsed: null,
   };
   next.qualification = {
     ...next.qualification,
@@ -85,6 +86,7 @@ function migrateV3ToV4(state: CareerState): CareerState {
       closedSpotTrades: next.stats.closedSpotTrades,
       riskPlannedTrades: next.stats.riskPlannedTrades,
       partialExitsUsed: next.stats.partialExitsUsed,
+      accountResetsUsed: null,
     },
   };
   return next;
@@ -112,8 +114,6 @@ export function migrateCareerSave(input: unknown): CareerSaveEnvelope | null {
   if (version !== CAREER_SAVE_VERSION) return null;
 
   state.saveVersion = CAREER_SAVE_VERSION;
-  // The objective is derived from qualification state, so a migrated save must
-  // recompute it rather than show the line it was saved with.
   if (input.saveVersion !== CAREER_SAVE_VERSION) state.objective = getNextObjective(state);
   return { kind: 'REKT_INK_CAREER_SAVE', saveVersion: CAREER_SAVE_VERSION, state };
 }
