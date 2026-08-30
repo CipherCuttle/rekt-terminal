@@ -14,13 +14,7 @@ export function getNextObjective(state: Pick<CareerState, 'unlockedSkills' | 'qu
       };
     }
     if (!qualification.positiveAccountEquity) {
-      return {
-        id: 'scale-control-positive-equity',
-        kind: 'PROTECT_EQUITY',
-        text: 'NEXT // Keep account equity positive to unlock SCALE_CONTROL.',
-        progress: 0,
-        target: 1,
-      };
+      return { id: 'scale-control-positive-equity', kind: 'PROTECT_EQUITY', text: 'NEXT // Keep account equity positive to unlock SCALE_CONTROL.', progress: 0, target: 1 };
     }
   }
   const stop = state.qualification.stopLoss;
@@ -38,22 +32,10 @@ export function getNextObjective(state: Pick<CareerState, 'unlockedSkills' | 'qu
   if (!state.unlockedSkills.includes('RISK_SIZING')) {
     if (risk.stopPlannedTrades < risk.targetStopPlannedTrades) {
       const remaining = risk.targetStopPlannedTrades - risk.stopPlannedTrades;
-      return {
-        id: 'risk-sizing-planned-stops',
-        kind: 'RISK_SIZING_UNLOCKED',
-        text: `NEXT // Close ${remaining} more ${remaining === 1 ? 'trade' : 'trades'} with a stop set at entry and never widened.`,
-        progress: risk.stopPlannedTrades,
-        target: risk.targetStopPlannedTrades,
-      };
+      return { id: 'risk-sizing-planned-stops', kind: 'RISK_SIZING_UNLOCKED', text: `NEXT // Close ${remaining} more ${remaining === 1 ? 'trade' : 'trades'} with a stop set at entry and never widened.`, progress: risk.stopPlannedTrades, target: risk.targetStopPlannedTrades };
     }
     if (risk.partialExitsUsed < risk.targetPartialExits) {
-      return {
-        id: 'risk-sizing-partial-exit',
-        kind: 'RISK_SIZING_UNLOCKED',
-        text: 'NEXT // Use a partial exit.',
-        progress: risk.partialExitsUsed,
-        target: risk.targetPartialExits,
-      };
+      return { id: 'risk-sizing-partial-exit', kind: 'RISK_SIZING_UNLOCKED', text: 'NEXT // Use a partial exit.', progress: risk.partialExitsUsed, target: risk.targetPartialExits };
     }
   }
 
@@ -80,34 +62,19 @@ export function getNextObjective(state: Pick<CareerState, 'unlockedSkills' | 'qu
     if (margin.maxAccountDrawdownBps > margin.drawdownLimitBps) {
       return { id: 'margin-2x-drawdown', kind: 'MARGIN_2X_UNLOCKED', text: 'MARGIN_2X BLOCKED // Career max drawdown exceeded 20%.', progress: margin.drawdownLimitBps, target: margin.maxAccountDrawdownBps };
     }
+    if (margin.accountResetsUsed === null) {
+      return { id: 'margin-2x-reset-history', kind: 'MARGIN_2X_UNLOCKED', text: 'MARGIN_2X BLOCKED // Legacy Career cannot prove zero bankroll resets.', progress: 0, target: 1 };
+    }
     if (margin.accountResetsUsed > 0) {
       return { id: 'margin-2x-reset', kind: 'MARGIN_2X_UNLOCKED', text: 'MARGIN_2X BLOCKED // This Career used an account reset.', progress: 0, target: 1 };
     }
   }
 
   if (state.unlockedSkills.includes('MARGIN_2X')) {
-    return {
-      id: 'margin-2x-authorized',
-      kind: 'MARGIN_2X_UNLOCKED',
-      text: 'MARGIN // 2x AUTHORIZED // Historical isolated long training is available.',
-      progress: 1,
-      target: 1,
-    };
+    return { id: 'margin-2x-authorized', kind: 'MARGIN_2X_UNLOCKED', text: 'MARGIN // 2x AUTHORIZED // Historical isolated long training is available.', progress: 1, target: 1 };
   }
   if (state.unlockedSkills.includes('RISK_SIZING')) {
-    return {
-      id: 'risk-sizing-authorized',
-      kind: 'RISK_SIZING_UNLOCKED',
-      text: 'RISK_SIZING AUTHORIZED // Set a stop, then let account risk size the trade.',
-      progress: 1,
-      target: 1,
-    };
+    return { id: 'risk-sizing-authorized', kind: 'RISK_SIZING_UNLOCKED', text: 'RISK_SIZING AUTHORIZED // Set a stop, then let account risk size the trade.', progress: 1, target: 1 };
   }
-  return {
-    id: 'stop-loss-authorized',
-    kind: 'SCALE_CONTROL_UNLOCKED',
-    text: 'STOP_LOSS AUTHORIZED // Place a protective stop.',
-    progress: 1,
-    target: 1,
-  };
+  return { id: 'stop-loss-authorized', kind: 'SCALE_CONTROL_UNLOCKED', text: 'STOP_LOSS AUTHORIZED // Place a protective stop.', progress: 1, target: 1 };
 }
