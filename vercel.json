@@ -1,6 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "case \"${VERCEL_PROJECT_PRODUCTION_URL:-}\" in *rekt-terminal-demo*) echo 'Skipping duplicate rekt-terminal-demo project'; exit 0 ;; *) exit 1 ;; esac",
   "git": {
     "deploymentEnabled": {
       "*": false,
