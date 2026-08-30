@@ -112,6 +112,10 @@ export function margin2xQualificationFromStats(stats: CareerStats, previous: Mar
 /** Exact process receipt required by CAREER_CONTRACT_V0 §10. */
 export function isQualifyingLongMarginCompletion(summary: MarginEpisodeCompletionFact): boolean {
   return summary.side === 'LONG'
+    // "Complete an episode" means the replay reached its terminal historical mark.
+    // A manual close immediately after entry is a valid simulated trade but is not
+    // evidence that the player completed the leverage-training episode.
+    && summary.closeReason === 'EPISODE_END'
     && !summary.liquidated
     && summary.protectiveStopUsed
     && summary.plannedMaxAccountRiskBps !== null
