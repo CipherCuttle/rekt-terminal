@@ -23,7 +23,7 @@ function completion(episodeId, overrides = {}) {
     tradeId: `trade:${episodeId}`,
     side: 'LONG',
     leverage: 2,
-    closeReason: 'MANUAL',
+    closeReason: 'EPISODE_END',
     liquidated: false,
     protectiveStopUsed: true,
     plannedMaxAccountRiskBps: 500n,
@@ -62,6 +62,14 @@ test('repeating the same historical episode cannot grind SHORT qualification', (
   state = reduceCompletion(state, completion('EP_A', { completionId: 'a-1' }));
   state = reduceCompletion(state, completion('EP_A', { completionId: 'a-2', tradeId: 'trade-a-2', sessionId: 'session-a-2' }));
   assert.deepEqual(state.stats.qualifyingLongMarginEpisodeIds, ['EP_A']);
+  assert.equal(state.unlockedSkills.includes('SHORT'), false);
+});
+
+test('an immediate manual close is a valid trade receipt but not a completed training episode', () => {
+  let state = marginUnlocked('manual-close');
+  state = reduceCompletion(state, completion('EP_A', { closeReason: 'MANUAL' }));
+  state = reduceCompletion(state, completion('EP_B', { closeReason: 'MANUAL' }));
+  assert.deepEqual(state.stats.qualifyingLongMarginEpisodeIds, []);
   assert.equal(state.unlockedSkills.includes('SHORT'), false);
 });
 
