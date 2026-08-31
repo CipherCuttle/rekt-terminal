@@ -11,9 +11,10 @@
     "build": "npm run build -w @rekt-ink/sim && npm run build -w @rekt-ink/career && npm run build -w @rekt-ink/api && npm run build -w @rekt-ink/web",
     "typecheck": "npm run build -w @rekt-ink/sim && npm run build -w @rekt-ink/career && npm run typecheck -w @rekt-ink/sim && npm run typecheck -w @rekt-ink/career && npm run typecheck -w @rekt-ink/api && npm run typecheck -w @rekt-ink/web",
     "verify:core": "node scripts/verify-core.mjs",
-    "test": "npm run verify:core && npm run verify:source && npm run test -w @rekt-ink/sim && npm run test -w @rekt-ink/career && npm run test -w @rekt-ink/api && npm run test -w @rekt-ink/web",
     "verify:source": "node scripts/verify-source.mjs",
-    "verify": "npm run verify:core && npm run verify:source && npm run typecheck && npm test && npm run build"
+    "verify:pwa": "node scripts/verify-pwa.mjs",
+    "test": "npm run verify:core && npm run verify:source && npm run verify:pwa && npm run test -w @rekt-ink/sim && npm run test -w @rekt-ink/career && npm run test -w @rekt-ink/api && npm run test -w @rekt-ink/web",
+    "verify": "npm run verify:core && npm run verify:source && npm run verify:pwa && npm run typecheck && npm test && npm run build"
   },
   "engines": {
     "node": ">=20"
