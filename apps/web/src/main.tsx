@@ -8,10 +8,15 @@ import '@fontsource/jetbrains-mono/500.css';
 import '@fontsource/jetbrains-mono/600.css';
 import './styles.css';
 import './chart-interaction.css';
+import './pwa.css';
 import App from './App';
+import { PwaStatus, registerPwa } from './pwa';
+
+void registerPwa();
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    <PwaStatus />
     <App />
   </React.StrictMode>,
 );
