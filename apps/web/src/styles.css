@@ -838,6 +838,323 @@ table.radar .truth {
   gap: 1px;
 }
 
+/* Learning is a compact terminal surface, not a second navigation mode. */
+.mission-strip {
+  flex: none;
+  padding: 10px 12px;
+  background: var(--ink-panel);
+  border-top: 1px solid var(--ink-edge);
+  border-bottom: 1px solid var(--ink-edge);
+}
+
+.mission-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mission-kicker,
+.mission-note,
+.mission-state,
+.mission-guide-toggle,
+.mission-worked,
+.mission-help {
+  font: 700 8px var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--mute);
+}
+
+.mission-head h2 {
+  margin-top: 4px;
+  font: 700 13px var(--sans);
+  letter-spacing: 0.04em;
+}
+
+.mission-kicker {
+  color: var(--amber);
+}
+
+.mission-state {
+  flex: none;
+  padding: 4px 6px;
+  border: 1px solid var(--ink-edge);
+}
+
+.mission-state-pass {
+  color: var(--acid);
+  border-color: var(--acid-dim);
+}
+
+.mission-state-fail {
+  color: var(--loss);
+  border-color: var(--loss);
+}
+
+.mission-objective {
+  max-width: 920px;
+  margin-top: 6px;
+  color: var(--paper-dim);
+  line-height: 1.45;
+}
+
+.mission-guide-toggle {
+  margin-top: 7px;
+  padding: 4px 0;
+  color: var(--ink-purple-soft);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.mission-guide {
+  max-width: 920px;
+  padding: 7px 9px;
+  border-left: 2px solid var(--ink-purple);
+  background: var(--ink-raise);
+  color: var(--paper-dim);
+  line-height: 1.45;
+}
+
+.mission-interaction {
+  margin-top: 8px;
+}
+
+.mission-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 6px;
+  max-width: 1120px;
+}
+
+.mission-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  color: var(--paper-dim);
+  font: 700 8px var(--mono);
+  letter-spacing: 0.06em;
+}
+
+.mission-form select,
+.mission-form input {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 8px;
+  border: 1px solid var(--ink-edge);
+  border-radius: 2px;
+  background: var(--ink-raise);
+  color: var(--paper);
+  font: 700 9px var(--mono);
+}
+
+.mission-form select:disabled {
+  opacity: 0.75;
+}
+
+.mission-worked,
+.mission-help {
+  grid-column: 1 / -1;
+  padding: 6px 8px;
+  border-left: 2px solid var(--ink-purple);
+  background: var(--ink-raise);
+}
+
+.mission-toggle {
+  min-height: 34px;
+  padding: 7px 8px;
+  border: 1px solid var(--ink-edge);
+  border-radius: 2px;
+  color: var(--paper-dim);
+  font: 700 9px var(--mono);
+  text-align: left;
+}
+
+.mission-toggle-on {
+  color: var(--acid);
+  border-color: var(--acid-dim);
+  background: rgba(139, 255, 88, 0.06);
+}
+
+.mission-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 8px;
+}
+
+.mission-submit,
+.learning-cta {
+  min-height: 36px;
+  padding: 8px 11px;
+  border: 1px solid var(--acid-dim);
+  color: var(--acid);
+  background: rgba(139, 255, 88, 0.08);
+  font: 700 9px var(--mono);
+  letter-spacing: 0.08em;
+}
+
+.mission-task-toggle {
+  min-height: 36px;
+  padding: 8px 11px;
+  border: 1px solid var(--ink-purple);
+  color: var(--paper);
+  background: rgba(122, 92, 255, 0.1);
+  font: 700 9px var(--mono);
+  letter-spacing: 0.08em;
+}
+
+.mission-task-toggle:hover {
+  background: rgba(122, 92, 255, 0.18);
+}
+
+.mission-submit:hover,
+.learning-cta:hover {
+  background: rgba(139, 255, 88, 0.15);
+}
+
+.mission-debrief {
+  max-height: 260px;
+  overflow-y: auto;
+  margin-top: 9px;
+  padding: 8px;
+  border: 1px solid var(--ink-edge);
+  background: var(--ink-raise);
+}
+
+.mission-debrief-pass {
+  border-color: var(--acid-dim);
+}
+
+.mission-debrief-fail {
+  border-color: var(--loss);
+}
+
+.mission-debrief > header,
+.mission-debrief > section {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--ink-seam);
+}
+
+.mission-debrief > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mission-debrief h3 {
+  font: 700 10px var(--mono);
+  color: var(--acid);
+}
+
+.mission-debrief-fail h3 {
+  color: var(--loss);
+}
+
+.mission-debrief header span {
+  color: var(--amber);
+  font: 700 8px var(--mono);
+}
+
+.mission-debrief h4 {
+  margin-bottom: 5px;
+  font: 700 8px var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--ink-purple-soft);
+}
+
+.mission-debrief dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px 10px;
+}
+
+.mission-debrief dl div {
+  min-width: 0;
+}
+
+.mission-debrief dt {
+  color: var(--mute);
+  font: 700 7px var(--mono);
+}
+
+.mission-debrief dd {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  color: var(--paper-dim);
+  font: 8px/1.35 var(--mono);
+}
+
+/* Career is an entry point, not a new top-level product mode. */
+.learning-progress-panel {
+  min-width: 0;
+}
+
+.learning-boundary {
+  margin: 0 11px 7px;
+  padding: 0;
+  border: 0;
+}
+
+.learning-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 11px;
+}
+
+.learning-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-left: 2px solid var(--ink-edge);
+  background: var(--ink-raise);
+  color: var(--mute);
+  font: 700 9px var(--mono);
+}
+
+.learning-item > div {
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+}
+
+.learning-id,
+.learning-status {
+  flex: none;
+  color: var(--paper-dim);
+}
+
+.learning-item-next {
+  border-left-color: var(--amber);
+  color: var(--paper);
+}
+
+.learning-item-next .learning-status {
+  color: var(--amber);
+}
+
+.learning-item-done {
+  border-left-color: var(--acid-dim);
+}
+
+.learning-item-done .learning-status {
+  color: var(--acid);
+}
+
+.learning-cta {
+  width: calc(100% - 22px);
+  margin: 9px 11px 11px;
+}
+
+.learning-complete {
+  padding: 11px;
+  color: var(--acid);
+  font: 700 8px/1.4 var(--mono);
+}
+
 /* The chart is the centre of gravity: it takes every pixel the rail does not. */
 .chart-panel {
   display: flex;
@@ -2110,6 +2427,26 @@ table.radar .truth {
     gap: 1px;
   }
 
+  .mission-strip {
+    padding: 9px 10px;
+  }
+
+  .mission-head h2 {
+    font-size: 11px;
+  }
+
+  .mission-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mission-debrief {
+    max-height: 230px;
+  }
+
+  .mission-debrief dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .chart-panel {
     flex: none;
   }
@@ -2159,6 +2496,10 @@ table.radar .truth {
   .career-columns,
   .nft-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .learning-progress-panel {
+    order: -1;
   }
 
   .review-card {

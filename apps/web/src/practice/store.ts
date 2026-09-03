@@ -14,7 +14,9 @@ import {
   executeSpotAction,
   placeSpotStop,
   markSpot,
+  makeFixtureObservation,
   mulDiv,
+  priceX18,
   quantityAtoms,
   replayEvents,
   setSpotRiskPlan,
@@ -27,6 +29,7 @@ import {
   type SimState,
   type SpotAction,
   type TradeSummary,
+  type SpotActionResult,
 } from '@rekt-ink/sim';
 import {
   createCareerSave,
@@ -36,6 +39,17 @@ import {
   type CareerEvent,
   type CareerState,
 } from '@rekt-ink/career';
+import {
+  canStartMission,
+  createInitialLearningState,
+  evaluateMissionAttempt,
+  getMissionDefinition,
+  reduceLearningState,
+  type LearningStateV0,
+  type MissionLearnerInput,
+  type MissionReceiptV0,
+  type MissionId,
+} from '@rekt-ink/learning';
 import { evaluatePracticeEligibility, type PracticeBlockCode, type PracticeEligibility } from './eligibility';
 import { deriveTradeEconomics, type TradeReviewEconomics } from './derive';
 import { createMemoryPracticeStorage, createPracticeSave, restorePracticeSave, type PracticeStorage } from './persistence';
@@ -56,8 +70,9 @@ export type PracticeRejectionCode = PracticeBlockCode | 'CAPABILITY_LOCKED' | 'N
 export interface PracticeRejection { code: PracticeRejectionCode; message: string; atMs: number; }
 export interface PracticeIntentResult { accepted: boolean; rejection?: PracticeRejection; }
 export interface TradeReview { summary: TradeSummary; economics: TradeReviewEconomics; countedTowardQualification: boolean; careerAfter: CareerState; unlockedSkills: readonly string[]; }
-export type PracticeRestoreStatus = 'FRESH' | 'RESTORED' | 'RESET_SAVE_UNUSABLE' | 'RESET_ENVIRONMENT_CHANGED';
-export interface PracticeSnapshot { sim: SimState; career: CareerState; environment: MarketEnvironment; instrumentId: string | null; lastRejection: PracticeRejection | null; tradeReview: TradeReview | null; restoreStatus: PracticeRestoreStatus; hydrated: boolean; }
+export type PracticeRestoreStatus = 'FRESH' | 'RESTORED' | 'RESET_SAVE_UNUSABLE' | 'RESET_ENVIRONMENT_CHANGED' | 'RESET_LEARNING_SAVE_UNUSABLE';
+export interface PracticeSnapshot { sim: SimState; career: CareerState; environment: MarketEnvironment; instrumentId: string | null; lastRejection: PracticeRejection | null; tradeReview: TradeReview | null; restoreStatus: PracticeRestoreStatus; hydrated: boolean; learning?: LearningStateV0; }
+export type LearningTrainingAction = 'EX_ENTRY' | 'EX_EXIT' | 'ST_ENTRY' | 'ST_PLACE_STOP' | 'ST_ALLOW_EXIT';
 
 const CAPABILITY_FOR_INTENT: Record<PracticeIntent['kind'], CapabilityId> = {
   BUY_FIXED: 'SPOT_MARKET_BUY_FIXED',
@@ -84,6 +99,8 @@ export class PracticeSessionStore {
   private getQuote: () => PracticeQuote | null;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
   private hydration: Promise<void> | null = null;
+  /** Ephemeral simulator used only by the synthetic lesson interaction. */
+  private learningTrainingSim: SimState | null = null;
 
   constructor(options: PracticeStoreOptions = {}) {
     this.now = options.now ?? (() => Date.now());
@@ -93,7 +110,7 @@ export class PracticeSessionStore {
     const startedAtMs = this.now();
     const environment = options.environment ?? 'LIVE';
     const sessionId = options.sessionId ?? `practice-${startedAtMs}`;
-    this.snapshot = { sim: openedSession(sessionId, startedAtMs, environment), career: createInitialCareer(`career-${sessionId}`, startedAtMs), environment, instrumentId: null, lastRejection: null, tradeReview: null, restoreStatus: 'FRESH', hydrated: false };
+    this.snapshot = { sim: openedSession(sessionId, startedAtMs, environment), career: createInitialCareer(`career-${sessionId}`, startedAtMs), environment, instrumentId: null, lastRejection: null, tradeReview: null, restoreStatus: 'FRESH', hydrated: false, learning: createInitialLearningState() };
   }
 
   subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
@@ -114,7 +131,7 @@ export class PracticeSessionStore {
     try {
       const restored = restorePracticeSave(loaded);
       if (restored.environment !== this.snapshot.environment) { await this.storage.clear(); this.commit({ hydrated: true, restoreStatus: 'RESET_ENVIRONMENT_CHANGED' }, false); return; }
-      this.commit({ sim: restored.sim, career: restored.career.state, instrumentId: restored.instrumentId, hydrated: true, restoreStatus: 'RESTORED' }, false);
+      this.commit({ sim: restored.sim, career: restored.career.state, instrumentId: restored.instrumentId, learning: restored.learning, hydrated: true, restoreStatus: restored.learningReset ? 'RESET_LEARNING_SAVE_UNUSABLE' : 'RESTORED' }, false);
     } catch {
       await this.storage.clear();
       this.commit({ hydrated: true, restoreStatus: 'RESET_SAVE_UNUSABLE' }, false);
@@ -127,8 +144,8 @@ export class PracticeSessionStore {
   }
 
   async persistNow(): Promise<void> {
-    const { sim, career, instrumentId, environment } = this.snapshot;
-    await this.storage.save(createPracticeSave({ sim, career: createCareerSave(career), instrumentId, environment, savedAtMs: this.now() }));
+    const { sim, career, instrumentId, environment, learning } = this.snapshot;
+    await this.storage.save(createPracticeSave({ sim, career: createCareerSave(career), instrumentId, environment, learning: learning ?? createInitialLearningState(), savedAtMs: this.now() }));
   }
 
   private eventTime(): number {
@@ -137,6 +154,69 @@ export class PracticeSessionStore {
   }
 
   hasCapability(capability: CapabilityId): boolean { return this.snapshot.career.unlockedCapabilities.includes(capability); }
+
+  getLearningState(): LearningStateV0 { return this.snapshot.learning ?? createInitialLearningState(); }
+
+  startMission(missionId: MissionId): boolean {
+    try {
+      const learning = reduceLearningState(this.getLearningState(), { type: 'MISSION_STARTED', missionId });
+      this.learningTrainingSim = null;
+      this.commit({ learning }, false);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Run the mechanical lesson controls through the same simulator functions as
+   * the practice terminal. This state is deliberately ephemeral and separate
+   * from the user's economic session: synthetic rehearsal cannot alter balance,
+   * Career, or the persisted practice ledger.
+   */
+  recordLearningAction(missionId: MissionId, action: LearningTrainingAction): void {
+    const start = 1_800_000_000_000;
+    if (!this.learningTrainingSim) {
+      const initial = createInitialSimState({ sessionId: `learning-${missionId}`, startedAtMs: start, evidencePolicy: 'DEMO_ALLOW_SYNTHETIC' });
+      this.learningTrainingSim = replayEvents([createSessionOpenedEvent(initial, start)], initial);
+    }
+    const current = this.learningTrainingSim;
+    const synthetic = (id: string, at: number, reference: bigint, liquidity = 10_000_000_000_000_000_000n) => makeFixtureObservation({ observationId: `${missionId}-${id}`, referencePriceX18: priceX18(reference), usableQuoteLiquidityWei: liquidity as never, observedAtMs: at, sourceId: 'REKT_LEARNING_SYNTHETIC_FIXTURE_V0', provenance: 'SYNTHETIC' });
+    const run = (result: SpotActionResult) => { if (result.accepted) this.learningTrainingSim = result.state; };
+    if ((action === 'EX_ENTRY' || action === 'ST_ENTRY') && !current.position) {
+      run(executeSpotAction(current, { type: 'BUY', intentId: `${missionId}:entry`, fillId: `${missionId}:entry-fill`, eventTimeMs: start, observation: synthetic('entry', start, 25_000_000_000_000_000n), quoteNotionalWei: DEFAULT_FIRST_TICKET_WEI, config: DEFAULT_SPOT_FILL_CONFIG }));
+    }
+    if (action === 'EX_EXIT' && current.position) {
+      run(executeSpotAction(current, { type: 'FULL_CLOSE', intentId: `${missionId}:exit`, fillId: `${missionId}:exit-fill`, eventTimeMs: start + 2_000, observation: synthetic('exit', start + 2_000, 24_000_000_000_000_000n, 5_000_000_000_000_000_000n), config: DEFAULT_SPOT_FILL_CONFIG }));
+    }
+    if (action === 'ST_PLACE_STOP' && current.position && !current.activeStop) {
+      const result = placeSpotStop(current, { stopId: `${missionId}:stop`, stopPriceX18: priceX18(24_500_000_000_000_000n), observation: synthetic('stop', start + 1_000, 25_000_000_000_000_000n), eventTimeMs: start + 1_000 }, DEFAULT_SPOT_FILL_CONFIG);
+      if (result.accepted) this.learningTrainingSim = result.state;
+    }
+    if (action === 'ST_ALLOW_EXIT' && current.position && current.activeStop) {
+      const result = markSpot(current, synthetic('trigger', start + 2_000, 24_000_000_000_000_000n, 2_000_000_000_000_000_000n), start + 2_000, DEFAULT_SPOT_FILL_CONFIG);
+      if (result.accepted) this.learningTrainingSim = result.state;
+    }
+  }
+
+  /** Submit learner choices; the domain evaluator, never a UI flag, decides PASS/FAIL. */
+  submitMission(learnerInput: MissionLearnerInput): MissionReceiptV0 | null {
+    const missionId = learnerInput.kind as MissionId;
+    const learning = this.getLearningState();
+    if (learning.currentMissionId !== missionId || !canStartMission(learning, missionId)) return null;
+    try {
+      const receipt = evaluateMissionAttempt({ missionId, missionVersion: getMissionDefinition(missionId).version, learnerInput, completedAtSimMs: this.learningEventTime() }).receipt;
+      this.commit({ learning: reduceLearningState(learning, { type: 'MISSION_ATTEMPT_RECORDED', receipt }) });
+      return receipt;
+    } catch {
+      return null;
+    }
+  }
+
+  private learningEventTime(): number {
+    const lastEventTime = this.snapshot.sim.events.at(-1)?.eventTimeMs ?? this.snapshot.sim.startedAtMs;
+    return Math.max(lastEventTime, this.snapshot.sim.startedAtMs) + this.getLearningState().attempts.length;
+  }
 
   /**
    * Margin progression crosses the web boundary as simulator state, not as a
