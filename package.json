@@ -14,7 +14,7 @@
     "verify:source": "node scripts/verify-source.mjs",
     "verify:pwa": "node scripts/verify-pwa.mjs",
     "verify:career-tuning": "node scripts/verify-career-tuning.mjs",
-    "test:career-tuning": "node --test scripts/career-tuning/test/harness.test.mjs",
+    "test:career-tuning": "node --test scripts/career-tuning/test/*.test.mjs",
     "test": "npm run verify:core && npm run verify:source && npm run verify:pwa && npm run test -w @rekt-ink/sim && npm run test -w @rekt-ink/career && npm run test -w @rekt-ink/api && npm run test -w @rekt-ink/web && npm run test:career-tuning",
     "verify": "npm run verify:core && npm run verify:source && npm run verify:pwa && npm run typecheck && npm test && npm run build"
   },

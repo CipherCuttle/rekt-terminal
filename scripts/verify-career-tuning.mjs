@@ -23,7 +23,7 @@ function run(command, args) {
 try {
   run('npm', ['run', 'build', '-w', '@rekt-ink/sim']);
   run('npm', ['run', 'build', '-w', '@rekt-ink/career']);
-  run(process.execPath, ['--test', 'scripts/career-tuning/test/harness.test.mjs']);
+  run(process.execPath, ['--test', 'scripts/career-tuning/test/*.test.mjs']);
   run(process.execPath, ['scripts/sim-career-agents.mjs', '--check']);
   console.log('\nVERIFY_CAREER_TUNING=PASS');
 } catch (error) {

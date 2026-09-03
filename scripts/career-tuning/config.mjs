@@ -73,6 +73,19 @@ export const SPOT_INSTRUMENT_ID = 'INK-ETH-SPOT';
 export const SPOT_QUOTE_ASSET = 'WETH';
 /** TUNING_SYNTHETIC marker carried on every synthetic observation's sourceId. */
 export const TUNING_SYNTHETIC_TAG = 'TUNING_SYNTHETIC';
+
+/**
+ * FINDING 1 repair. The fabricated tuning paths are `SYNTHETIC` — the canonical
+ * taxonomy word for "fabricated / demo / simulator-generated market scenario".
+ * They are NOT relabelled `DERIVED`. To run the real simulator on them the
+ * session is opened under the explicit synthetic/demo evidence policy; the
+ * resulting `TradeSummary` facts then carry `evidenceProvenance: 'SYNTHETIC'`,
+ * which the shipped `isGradableEvidence` refuses. Progression in this harness is
+ * measured by the harness-local `TUNING_ANALYSIS_ONLY` evaluator, never by a
+ * weakened production gate.
+ */
+export const SYNTHETIC_PROVENANCE = 'SYNTHETIC';
+export const TUNING_EVIDENCE_POLICY = 'DEMO_ALLOW_SYNTHETIC';
 export const START_PRICE_X18 = 25_000_000_000_000_000n;
 export const USABLE_LIQUIDITY_WEI = 10_000_000_000_000_000_000n;
 
@@ -89,6 +102,51 @@ export const REGIMES = Object.freeze([
   { id: 'HIGH_VOL', driftBps: -3, volBps: 95, shock: null },
   { id: 'SHOCK_DOWN', driftBps: -2, volBps: 34, shock: { atTick: 300, factorBps: 7_800 } },
 ]);
+
+/* -------------------------------------------------------------------------- */
+/* Gate F comparator regime — PRE-DECLARED, favourable to reckless exposure     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * FINDING 3 repair. Gate F must contrast a DISCIPLINED *losing* process against
+ * a RECKLESS *lucky winning* process. The main matrix has no reckless winner
+ * (down / choppy regimes), so a dedicated deterministic regime is committed
+ * here — a strong-drift melt-up with enough tick noise that naive maximum long
+ * exposure ends above starting equity but only after large equity swings (the
+ * reckless-process signal). It is declared BEFORE any policy runs; every
+ * comparator policy trades the byte-identical `MELT_UP` price path at a seed
+ * (no policy gets special prices); the scenario is `TUNING_SYNTHETIC` /
+ * `TUNING_ANALYSIS_ONLY` like every other path here. No policy is handed future
+ * information and no fill / fee / final equity is set for it. Empirically ALL_IN
+ * ends > 1.0x in every comparator seed with ~1300+ bps drawdown vs DISCIPLINED's
+ * ~180 bps, and never progresses past STOP_LOSS.
+ */
+export const GATE_F_REGIME = Object.freeze({ id: 'MELT_UP', driftBps: 30, volBps: 20, shock: null });
+export const GATE_F_SEED_COUNT = 24;
+export const GATE_F_SEEDS = Object.freeze(
+  Array.from({ length: GATE_F_SEED_COUNT }, (_unused, index) => SEED_BASE + 100_003 + index * 11),
+);
+/** Policies run over the comparator regime. DISCIPLINED is the reference; the
+ *  rest are the reckless field a lucky winner may come from. */
+export const GATE_F_COMPARATOR_POLICIES = Object.freeze(['DISCIPLINED', 'ALL_IN', 'OVERTRADER', 'RANDOM', 'REVENGE']);
+
+/* -------------------------------------------------------------------------- */
+/* primary falsification metric (FINDING 2)                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The frozen PROJECT_PLAN_V2 §6.1 criterion is "must not reach RISK_SIZING /
+ * MARGIN_2X / SHORT faster than DISCIPLINED behavior in expectation". The
+ * deterministic operationalisation is BOUNDED_EXPECTED_ACTIONS_TO_UNLOCK: for
+ * each policy/seed, the value is the accepted-action count at unlock, or
+ * `MAX_ACTIONS + 1` if the skill never unlocked within the equal run budget.
+ * The arithmetic mean over the SAME full seed set is the comparison statistic —
+ * it folds unlock probability and unlock speed into one number and cannot be
+ * gamed by survivor selection. There is no materiality threshold: an adversary
+ * falsifies the criterion only if its mean is strictly LOWER than DISCIPLINED's.
+ */
+export const NON_UNLOCK_ACTION_VALUE = MAX_ACTIONS + 1;
+export const PRIMARY_METRIC = 'BOUNDED_EXPECTED_ACTIONS_TO_UNLOCK';
 
 /* -------------------------------------------------------------------------- */
 /* shipped Career constants — SNAPSHOT ONLY, never redefined                    */
@@ -128,3 +186,6 @@ export const TRACKED_SKILLS = Object.freeze([
   'MARGIN_2X',
   'SHORT',
 ]);
+
+/** The three skills named by the frozen PROJECT_PLAN_V2 §6.1 speed criterion. */
+export const LATE_UNLOCK_SKILLS = Object.freeze(['RISK_SIZING', 'MARGIN_2X', 'SHORT']);

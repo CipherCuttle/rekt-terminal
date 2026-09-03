@@ -1,37 +1,44 @@
 /**
  * CAREER_TUNING_HARNESS_V0 — TUNING_SYNTHETIC market scenarios.
  *
- * ## Synthetic-tuning boundary (read this)
+ * ## Synthetic-tuning boundary (read this) — FINDING 1 repair
  *
  * These price paths are fabricated. They are deterministic functions of an
- * integer seed and nothing else. They are:
+ * integer seed and nothing else. A deterministic transformation of a committed
+ * scenario definition does not make the underlying market observation real, so
+ * they are:
  *
  *   - identified everywhere as `TUNING_SYNTHETIC` (regime id + sourceId tag);
+ *   - stamped with the canonical `SYNTHETIC` provenance — the taxonomy word for
+ *     "fabricated / demo / simulator-generated market scenario evidence" — and
+ *     NEVER relabelled `DERIVED`;
  *   - never written into product provenance, product docs, or any CONFIRMED /
- *     DERIVED real-market claim;
- *   - used only to exercise the *real* shipped simulator math and the *real*
- *     shipped Career reducer offline.
+ *     DERIVED real-market claim.
  *
- * They enter the real simulator through observations labelled `DERIVED`, which
- * is the exact mechanism `packages/sim`'s own golden-replay fixture
- * (`createGoldenReplay`, `makeFixtureObservation`) uses to test the simulator.
- * `DERIVED` here means precisely what the provenance taxonomy says — "a
- * deterministic calculation from observed inputs" — where the observed input is
- * the committed synthetic scenario definition. No fabricated *market history* is
- * ever presented as real; the harness is falsification tooling, not a data
- * source.
+ * Because they are `SYNTHETIC`, the real simulator only accepts them under a
+ * session opened with `DEMO_ALLOW_SYNTHETIC` (`config.TUNING_EVIDENCE_POLICY`) —
+ * the explicit synthetic/demo evidence policy the simulator already provides for
+ * exactly this purpose. The resulting sim `TradeSummary` facts carry
+ * `evidenceProvenance: 'SYNTHETIC'`, which the shipped `isGradableEvidence`
+ * refuses. Progression is therefore measured by the harness-local,
+ * NON-AUTHORITATIVE `TuningCareerEvaluator` (`TUNING_ANALYSIS_ONLY`), which
+ * applies the current shipped qualification rules to these synthetic facts. The
+ * real `reduceCareer` is still fed everything and — correctly — grades none of
+ * it. Nothing here weakens a production evidence gate.
  *
  * Every agent at a given seed trades the identical frozen price array. Only
  * policy behaviour differs between agents.
  */
 import { makePrng } from './prng.mjs';
 import {
+  GATE_F_REGIME,
   MAX_TICKS,
   REGIMES,
   SPOT_INSTRUMENT_ID,
   SPOT_QUOTE_ASSET,
   START_MS,
   START_PRICE_X18,
+  SYNTHETIC_PROVENANCE,
   TICK_MS,
   TUNING_SYNTHETIC_TAG,
   USABLE_LIQUIDITY_WEI,
@@ -51,8 +58,13 @@ function clampPrice(value) {
  * construction so `priceAt` is a pure lookup and the market cannot drift between
  * agents.
  */
-export function buildScenario(seed) {
-  const regime = REGIMES[((seed % REGIMES.length) + REGIMES.length) % REGIMES.length];
+export function buildScenario(seed, regimeOverride = null) {
+  let regime;
+  if (regimeOverride && typeof regimeOverride === 'object') regime = regimeOverride;
+  else if (regimeOverride === GATE_F_REGIME.id) regime = GATE_F_REGIME;
+  else if (regimeOverride) regime = REGIMES.find((r) => r.id === regimeOverride);
+  else regime = REGIMES[((seed % REGIMES.length) + REGIMES.length) % REGIMES.length];
+  if (!regime) throw new RangeError(`unknown regime override: ${regimeOverride}`);
   const rng = makePrng((BigInt.asUintN(64, BigInt(seed)) ^ 0x5ca1ab1e5ca1ab1en));
 
   const prices = new Array(MAX_TICKS + 1);
@@ -82,7 +94,9 @@ export function buildScenario(seed) {
       const index = tick < 0 ? 0 : tick >= frozenPrices.length ? frozenPrices.length - 1 : tick;
       return frozenPrices[index];
     },
-    /** A fresh DERIVED observation for a tick — matches the sim's fixture shape. */
+    /** A fresh SYNTHETIC observation for a tick — matches the sim's fixture
+     *  shape. `SYNTHETIC` is the truthful label for a fabricated scenario; the
+     *  session's `DEMO_ALLOW_SYNTHETIC` policy is what lets it enter the sim. */
     observationAt(tick) {
       const eventTimeMs = START_MS + tick * TICK_MS;
       return {
@@ -93,7 +107,7 @@ export function buildScenario(seed) {
         usableQuoteLiquidityWei: USABLE_LIQUIDITY_WEI,
         observedAtMs: eventTimeMs,
         sourceId: `${TUNING_SYNTHETIC_TAG}:${seed}`,
-        provenance: 'DERIVED',
+        provenance: SYNTHETIC_PROVENANCE,
       };
     },
     eventTimeAt(tick) {

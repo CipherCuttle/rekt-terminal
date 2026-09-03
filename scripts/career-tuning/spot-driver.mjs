@@ -10,6 +10,24 @@
  * It introduces no Career authority: it fabricates no facts and never touches
  * `isGradableEvidence`. A locked capability is refused here exactly as the store
  * refuses it (`CAPABILITY_LOCKED`).
+ *
+ * ## Provenance boundary (FINDING 1 repair)
+ *
+ * The synthetic tuning paths enter the sim HONESTLY labelled `SYNTHETIC`, under
+ * a `DEMO_ALLOW_SYNTHETIC` session (the explicit synthetic/demo evidence policy
+ * required for simulator operation on fabricated scenarios). The resulting sim
+ * `TradeSummary` facts therefore carry `evidenceProvenance: 'SYNTHETIC'`.
+ *
+ *   - `this.career` is the REAL shipped `reduceCareer`, fed every derived event.
+ *     Because `isGradableEvidence('SYNTHETIC') === false` it grades NOTHING from
+ *     the synthetic spot path and stays at `SPOT_BASIC` forever. The harness
+ *     asserts this (test 2 / test "production Career refuses synthetic"). No
+ *     SYNTHETIC fact is ever relabelled DERIVED.
+ *   - `this.tuning` is the harness-local, NON-AUTHORITATIVE `TuningCareerEvaluator`
+ *     (`TUNING_ANALYSIS_ONLY`). It applies the CURRENT SHIPPED qualification
+ *     semantics to the simulator-produced synthetic facts and is what gates
+ *     capabilities in this harness. It answers "how would the current numerical
+ *     rules respond", never "production Career would grade this".
  */
 import {
   DEFAULT_FIRST_TICKET_WEI,
@@ -25,6 +43,8 @@ import {
   setSpotRiskPlan,
 } from '@rekt-ink/sim';
 import { createInitialCareer, reduceCareer } from '@rekt-ink/career';
+import { TUNING_EVIDENCE_POLICY, SYNTHETIC_PROVENANCE } from './config.mjs';
+import { TuningCareerEvaluator } from './tuning-evaluator.mjs';
 import {
   marginCompletionEvent,
   riskPlannedEntryEvents,
@@ -44,9 +64,12 @@ const CAPABILITY_FOR_INTENT = {
 
 export class SpotCareerRun {
   constructor({ sessionId, startedAtMs }) {
-    const initial = createInitialSimState({ sessionId, startedAtMs, evidencePolicy: 'LIVE_ONLY' });
+    const initial = createInitialSimState({ sessionId, startedAtMs, evidencePolicy: TUNING_EVIDENCE_POLICY });
     this.sim = replayEvents([createSessionOpenedEvent(initial, startedAtMs)], initial);
+    // REAL shipped reducer — fed every derived event, grades nothing synthetic.
     this.career = createInitialCareer(`career-${sessionId}`, startedAtMs);
+    // Harness-local analysis seam — TUNING_ANALYSIS_ONLY, gates this harness.
+    this.tuning = new TuningCareerEvaluator();
     this.tradesClosed = 0;
     this.lastClosedSummary = null;
     this.rejectedActions = 0;
@@ -67,9 +90,13 @@ export class SpotCareerRun {
   get equityWei() { return this.sim.account.equityWei; }
   get freeEthWei() { return this.sim.account.freeEthWei; }
   get maxDrawdownBps() { return this.sim.account.maxDrawdownBps; }
-  get unlockedSkills() { return this.career.unlockedSkills; }
-  hasCapability(capability) { return this.career.unlockedCapabilities.includes(capability); }
-  hasSkill(skill) { return this.career.unlockedSkills.includes(skill); }
+  // Progression views come from the TUNING_ANALYSIS_ONLY evaluator: the real
+  // `reduceCareer` grades nothing synthetic, so gating on it would freeze the
+  // whole harness at SPOT_BASIC. `this.career` is still fed everything and is
+  // asserted to stay at SPOT_BASIC (the fail-closed proof).
+  get unlockedSkills() { return this.tuning.unlockedSkills; }
+  hasCapability(capability) { return this.tuning.hasCapability(capability); }
+  hasSkill(skill) { return this.tuning.hasSkill(skill); }
 
   /** Kinds a policy may legally choose right now (capability + position state). */
   legalActionKinds() {
@@ -100,15 +127,20 @@ export class SpotCareerRun {
 
   #ordinal() { return this.sim.lastSequence + 1; }
 
+  /** Feed every derived event to BOTH the real reducer (fail-closed proof) and
+   *  the analysis evaluator (what actually gates this harness). */
   #applyCareerEvents(events) {
-    for (const event of events) this.career = reduceCareer(this.career, event);
+    for (const event of events) {
+      this.career = reduceCareer(this.career, event);
+      this.tuning.ingestSpotEvent(event);
+    }
   }
 
   #ingestNewSummaries(intentKind, nextSim) {
     const previousCount = this.sim.tradeSummaries.length;
     const newSummaries = nextSim.tradeSummaries.slice(previousCount);
     const acceptedFillId = nextSim.appliedFillIds[nextSim.appliedFillIds.length - 1];
-    this.#applyCareerEvents(spotAcceptedEvents(intentKind, nextSim, newSummaries, acceptedFillId, 'DERIVED'));
+    this.#applyCareerEvents(spotAcceptedEvents(intentKind, nextSim, newSummaries, acceptedFillId, SYNTHETIC_PROVENANCE));
     for (const summary of newSummaries) {
       this.tradesClosed += 1;
       this.lastClosedSummary = summary;
@@ -206,7 +238,7 @@ export class SpotCareerRun {
       return { accepted: false, reason: result.reason };
     }
     this.sim = result.state;
-    this.#applyCareerEvents(stopPlacedEvents(preSim, result.events, 'DERIVED'));
+    this.#applyCareerEvents(stopPlacedEvents(preSim, result.events, SYNTHETIC_PROVENANCE));
     this.acceptedActions += 1;
     const widened = result.events.some((event) => event.type === 'STOP_REPLACED' && event.widened);
     if (widened) this.stopWidenCount += 1;
@@ -235,21 +267,30 @@ export class SpotCareerRun {
     const stop = placeSpotStop(entry.state, { stopId: `${preSim.sessionId}:stop:${ordinal}`, stopPriceX18: plan.stopPriceX18, observation, eventTimeMs }, DEFAULT_SPOT_FILL_CONFIG);
     const nextSim = stop.state; // store passes stop.state through even if the stop was refused
     this.sim = nextSim;
-    this.#applyCareerEvents(riskPlannedEntryEvents(nextSim, plan, 'DERIVED'));
+    this.#applyCareerEvents(riskPlannedEntryEvents(nextSim, plan, SYNTHETIC_PROVENANCE));
     this.acceptedActions += 1;
     return { accepted: true, stopProtected: stop.accepted, plan };
   }
 
   /**
-   * Fold a real long-margin episode completion into Career, exactly as
-   * `store.ts` `recordLongMarginEpisodeCompletion` does. `completion` must be
-   * the output of the shipped `deriveLongMarginCompletion`; the harness never
-   * hand-authors one.
+   * Fold a real long-margin episode completion into the analysis evaluator,
+   * exactly as `store.ts` `recordLongMarginEpisodeCompletion` does. `completion`
+   * is the output of the shipped `deriveLongMarginCompletion` over the REAL
+   * frozen historical episodes; the harness never hand-authors one. The
+   * completion's `marketProvenance` is `DERIVED` (real historical marks), so the
+   * shipped `isQualifyingLongMarginCompletion` accepts it on its own terms —
+   * only the ladder-state check (`evaluateShort`, needs MARGIN_2X, itself only
+   * reached here via the synthetic spot analysis) lives in the evaluator.
+   *
+   * It is also handed to the REAL `reduceCareer`, which cannot unlock SHORT from
+   * it (real Career never reached MARGIN_2X on synthetic spot evidence) — the
+   * fail-closed proof stays intact.
    */
   recordLongMarginCompletion(completion, episodeId) {
     this.marginEpisodesAttempted.add(episodeId);
     if (!completion) return false;
     this.career = reduceCareer(this.career, marginCompletionEvent(completion));
+    this.tuning.ingestMarginCompletion(completion);
     return true;
   }
 }

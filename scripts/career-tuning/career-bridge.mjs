@@ -11,10 +11,13 @@
  * module graph does not load under plain Node.
  *
  * Instead, the functions below reconstruct — field for field — the event
- * derivation `store.ts` performs, and then feed the result to the *real*
- * `reduceCareer` from the shipped `@rekt-ink/career` package. Nothing here is a
- * new Career authority: it fabricates no Career facts, weakens no evidence gate,
- * and every progression decision is still made by the shipped reducer.
+ * derivation `store.ts` performs. The result is fed to BOTH the *real*
+ * `reduceCareer` (which refuses it — the synthetic spot facts carry
+ * `evidenceProvenance: 'SYNTHETIC'`) and the harness-local `TUNING_ANALYSIS_ONLY`
+ * evaluator (`tuning-evaluator.mjs`), which is what measures progression here.
+ * Nothing in this file is a new Career authority: it fabricates no Career facts,
+ * weakens no evidence gate, and relabels no SYNTHETIC fact as DERIVED — the
+ * `evidenceProvenance` it carries is exactly what the simulator stamped.
  *
  * Reference points in `apps/web/src/practice/store.ts` (branch base
  * 4843dc91eee91e871072f362618397249eb044e6):

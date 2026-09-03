@@ -40,14 +40,14 @@ function buildView(run, scenario, tick, memo, trade) {
     priceVsEntryFrac,
     ticksInPosition: position ? tick - (trade.openedTick ?? tick) : 0,
     tradesClosed: run.tradesClosed,
-    skills: new Set(run.career.unlockedSkills),
+    skills: new Set(run.tuning.unlockedSkills),
     has: (capability) => run.hasCapability(capability),
     legalKinds: run.legalActionKinds(),
-    stopPlannedTrades: run.career.stats.stopPlannedTrades,
-    partialExitsUsed: run.career.stats.partialExitsUsed,
-    riskPlannedTrades: run.career.stats.riskPlannedTrades,
-    qualifyingScaleTrades: run.career.stats.qualifyingScaleTrades,
-    manualLossCuts: run.career.stats.manualLossCuts,
+    stopPlannedTrades: run.tuning.stats.stopPlannedTrades,
+    partialExitsUsed: run.tuning.stats.partialExitsUsed,
+    riskPlannedTrades: run.tuning.stats.riskPlannedTrades,
+    qualifyingScaleTrades: run.tuning.stats.qualifyingScaleTrades,
+    manualLossCuts: run.tuning.stats.manualLossCuts,
     memo,
     trade,
   };
@@ -71,7 +71,7 @@ function runMarginPhase(run, runId, policy, scenario, tick, memo) {
     && run.equityWei > 0n
     && attemptsUsed < MARGIN_ATTEMPTS_PER_RUN
   ) {
-    const qualifying = new Set(run.career.stats.qualifyingLongMarginEpisodeIds);
+    const qualifying = new Set(run.tuning.stats.qualifyingLongMarginEpisodeIds);
     let index = MARGIN_TRAINING_EPISODES.findIndex(
       (episode, i) => !qualifying.has(episode.episodeId) && attemptsForEpisode[i] < MARGIN_ATTEMPTS_PER_EPISODE,
     );
@@ -98,8 +98,11 @@ function runMarginPhase(run, runId, policy, scenario, tick, memo) {
 
 export function runOne(policy, seed, options = {}) {
   const actionLog = options.trace ? [] : null;
-  const scenario = buildScenario(seed);
-  const runId = `ct-${policy.id}-${seed}`;
+  // `options.regimeId` forces a specific regime (the pre-declared Gate F
+  // MELT_UP comparator). Every comparator policy at a seed still gets the
+  // byte-identical price path — only the seed selects the regime otherwise.
+  const scenario = buildScenario(seed, options.regimeId ?? null);
+  const runId = `ct-${policy.id}-${seed}${options.regimeId ? `-${options.regimeId}` : ''}`;
   const run = new SpotCareerRun({ sessionId: runId, startedAtMs: START_MS });
   const spotRng = makePrng(deriveSeed(seed, `${policy.id}:spot`));
   const memo = {};
@@ -205,23 +208,26 @@ export function runOne(policy, seed, options = {}) {
     finalEquityWei: finalEquityWei.toString(),
     finalEquityFrac,
     maxAccountDrawdownBps: Number(run.maxDrawdownBps),
-    careerMaxAccountDrawdownBps: run.career.stats.maxAccountDrawdownBps,
+    tuningMaxAccountDrawdownBps: run.tuning.stats.maxAccountDrawdownBps,
     marginAttempts,
     marginLiquidated,
-    careerClosedSpotTrades: run.career.stats.closedSpotTrades,
-    careerStopPlannedTrades: run.career.stats.stopPlannedTrades,
-    careerPartialExits: run.career.stats.partialExitsUsed,
-    careerRiskPlannedTrades: run.career.stats.riskPlannedTrades,
-    careerQualifyingLongEpisodes: run.career.stats.qualifyingLongMarginEpisodeIds.length,
-    riskBudgetViolations: run.career.stats.riskBudgetViolations,
-    riskBudgetRespected: run.career.stats.riskBudgetsRespected,
+    tuningClosedSpotTrades: run.tuning.stats.closedSpotTrades,
+    tuningStopPlannedTrades: run.tuning.stats.stopPlannedTrades,
+    tuningPartialExits: run.tuning.stats.partialExitsUsed,
+    tuningRiskPlannedTrades: run.tuning.stats.riskPlannedTrades,
+    tuningQualifyingLongEpisodes: run.tuning.stats.qualifyingLongMarginEpisodeIds.length,
+    riskBudgetViolations: run.tuning.stats.riskBudgetViolations,
+    riskBudgetRespected: run.tuning.stats.riskBudgetsRespected,
     violatedRiskTrades: run.violatedRiskTrades,
     respectedRiskTrades: run.respectedRiskTrades,
     unverifiedRiskTrades: run.unverifiedRiskTrades,
     stopWidenCount: run.stopWidenCount,
-    accountResets: run.career.stats.accountResetsUsed === null ? 'UNKNOWN' : run.career.stats.accountResetsUsed,
-    receiptsAwarded: Object.values(run.career.receipts).reduce((sum, count) => sum + count, 0),
-    finalSkills: [...run.career.unlockedSkills],
+    accountResets: run.tuning.stats.accountResetsUsed === null ? 'UNKNOWN' : run.tuning.stats.accountResetsUsed,
+    receiptsAwarded: Object.values(run.tuning.receipts).reduce((sum, count) => sum + count, 0),
+    finalSkills: [...run.tuning.unlockedSkills],
+    // The REAL shipped reduceCareer, fed every derived event — must stay at
+    // SPOT_BASIC (synthetic spot evidence is not gradable). Fail-closed proof.
+    realCareerFinalSkills: [...run.career.unlockedSkills],
     ...(actionLog ? { actionLog } : {}),
   };
 }

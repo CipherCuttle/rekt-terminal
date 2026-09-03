@@ -19,23 +19,45 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { runOne } from './career-tuning/harness.mjs';
-import { POLICIES } from './career-tuning/policies.mjs';
+import { POLICIES, POLICY_BY_ID } from './career-tuning/policies.mjs';
 import { aggregateAgent, aggregateByRegime, digestOf } from './career-tuning/metrics.mjs';
 import { evaluateGates } from './career-tuning/gates.mjs';
 import {
   BASE_COMMIT,
   CAREER_CONSTANTS,
+  GATE_F_COMPARATOR_POLICIES,
+  GATE_F_REGIME,
+  GATE_F_SEEDS,
   HARNESS_VERSION,
+  LATE_UNLOCK_SKILLS,
   MAX_ACTIONS,
   MAX_TICKS,
+  NON_UNLOCK_ACTION_VALUE,
   POLICY_SET_VERSION,
+  PRIMARY_METRIC,
   SCENARIO_MODEL_VERSION,
   SEEDS,
   SEED_BASE,
   SEED_COUNT,
   SIM_MODEL_VERSIONS,
   TRACKED_SKILLS,
+  TUNING_EVIDENCE_POLICY,
 } from './career-tuning/config.mjs';
+
+// Absolute floor used ONLY to classify the comparator population as "reckless"
+// (a run that ends in profit but only after a large equity swing). It is not a
+// pass/fail bar on the frozen §6.1 criterion: Gate F's verdict rests on whether
+// the selected reckless winners progress farther/faster than DISCIPLINED, which
+// they do not for any floor in a wide range — ALL_IN comparator winners sit at
+// ~1340 bps drawdown and reach only SCALE_CONTROL.
+const GATE_F_DRAWDOWN_FLOOR_BPS = 800;
+
+function medianOf(numbers) {
+  if (numbers.length === 0) return null;
+  const sorted = [...numbers].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
 
 const ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const RECEIPT_PATH = path.join(ROOT, 'docs', 'CAREER_TUNING_HARNESS_V0_RECEIPT.json');
@@ -65,7 +87,7 @@ function compactRun(record) {
     wiped: record.wiped,
     finalEquityFrac: Math.round(record.finalEquityFrac * 10000) / 10000,
     maxAccountDrawdownBps: record.maxAccountDrawdownBps,
-    careerMaxAccountDrawdownBps: record.careerMaxAccountDrawdownBps,
+    tuningMaxAccountDrawdownBps: record.tuningMaxAccountDrawdownBps,
     marginAttempts: record.marginAttempts,
     marginLiquidated: record.marginLiquidated,
     riskBudgetViolations: record.riskBudgetViolations,
@@ -86,6 +108,39 @@ function stripInternal(agentAggregates) {
   return out;
 }
 
+/**
+ * The pre-declared Gate F comparator matrix (FINDING 3). Every comparator
+ * policy trades the byte-identical MELT_UP price path at a seed; the regime is
+ * committed in `config.mjs` before any policy runs. A "reckless lucky winner" is
+ * a non-DISCIPLINED run that (a) ended above starting equity and (b) ran a
+ * materially worse process than DISCIPLINED on that same favourable tape —
+ * larger drawdown than the DISCIPLINED comparator median AND above an absolute
+ * recklessness floor. Nothing hands a policy future information, special prices,
+ * or a set final equity.
+ */
+function runGateFComparator() {
+  const records = [];
+  for (const policyId of GATE_F_COMPARATOR_POLICIES) {
+    for (const seed of GATE_F_SEEDS) {
+      records.push(runOne(POLICY_BY_ID[policyId], seed, { regimeId: GATE_F_REGIME.id }));
+    }
+  }
+  const disciplinedRecords = records.filter((record) => record.agent === 'DISCIPLINED');
+  const disciplinedDrawdownMedian = medianOf(disciplinedRecords.map((record) => record.maxAccountDrawdownBps)) ?? 0;
+  const recklessWinners = records.filter((record) => record.agent !== 'DISCIPLINED'
+    && record.finalEquityFrac > 1
+    && record.maxAccountDrawdownBps >= GATE_F_DRAWDOWN_FLOOR_BPS
+    && record.maxAccountDrawdownBps > disciplinedDrawdownMedian);
+  return {
+    records,
+    seedCount: GATE_F_SEEDS.length,
+    recklessAgents: GATE_F_COMPARATOR_POLICIES.filter((id) => id !== 'DISCIPLINED'),
+    disciplined: aggregateAgent(disciplinedRecords),
+    disciplinedDrawdownMedian,
+    recklessWinners,
+  };
+}
+
 export function runMatrix() {
   const records = [];
   for (const policy of POLICIES) {
@@ -99,48 +154,52 @@ export function runMatrix() {
     agentAggregates[policy.id] = aggregateAgent(records.filter((record) => record.agent === policy.id));
   }
 
-  const gateResult = evaluateGates(agentAggregates);
+  const comparator = runGateFComparator();
+  const gateResult = evaluateGates(agentAggregates, comparator);
   const byRegime = {};
   for (const policy of POLICIES) {
     byRegime[policy.id] = aggregateByRegime(records.filter((record) => record.agent === policy.id));
   }
 
+  // The verdict is derived ONLY from the canonical §6.1 gates (see gates.mjs).
   const thresholdVerdict = gateResult.verdict === 'PASS'
     ? 'EVIDENCE_SUPPORTED_V0'
-    : 'FALSIFIED';
+    : gateResult.verdict; // FALSIFIED | HARNESS_EVIDENCE_INCOMPLETE
 
-  // Smallest future tuning repairs implied by the results. This phase does NOT
-  // implement any of them — repair is a separate bounded phase.
+  // Non-falsifying facts worth carrying forward for a LATER bounded tuning phase.
+  // These are OBSERVATIONS / FUTURE DESIGN-TUNING RISKS, not gate failures: under
+  // the frozen BOUNDED_EXPECTED_ACTIONS_TO_UNLOCK metric every adversary is
+  // slower in expectation than DISCIPLINED. This phase implements none of them.
   const random = agentAggregates.RANDOM;
   const disciplined = agentAggregates.DISCIPLINED;
   const widener = agentAggregates.STOP_WIDENER;
   const revenge = agentAggregates.REVENGE;
-  const recommendations = [];
-  if (random.unlockRate.RISK_SIZING >= 0.5 || widener.unlockRate.RISK_SIZING > 0.5 * disciplined.unlockRate.RISK_SIZING) {
-    recommendations.push({
+  const observations = [];
+  if (widener.unlockRate.RISK_SIZING > 0 || random.unlockRate.RISK_SIZING > 0) {
+    observations.push({
       id: 'RISK_SIZING_NO_RECENT_WINDOW',
-      severity: 'HIGH',
+      classification: 'FUTURE DESIGN-TUNING RISK',
       observedBy: ['RANDOM', 'STOP_WIDENER'],
-      finding: `RISK_SIZING counts 3 planned-stop trades + 1 partial exit cumulatively over all history, with no recency and no clean-rate requirement. RANDOM assembles it in ${(random.unlockRate.RISK_SIZING * 100).toFixed(0)}% of runs and a realistic STOP_WIDENER in ${(widener.unlockRate.RISK_SIZING * 100).toFixed(0)}%.`,
-      smallestRepairCandidate: 'Add a recent-window + clean-rate rule to the RISK_SIZING planned-stop requirement, mirroring MARGIN_2X’s recent-3-RESPECTED rule (e.g. "3 of the last N closed spot trades were planned-stop and none widened").',
+      finding: `RISK_SIZING counts 3 planned-stop trades + 1 partial exit cumulatively over all history, with no recency and no clean-rate requirement. RANDOM reaches it in ${(random.unlockRate.RISK_SIZING * 100).toFixed(0)}% of runs and a realistic STOP_WIDENER in ${(widener.unlockRate.RISK_SIZING * 100).toFixed(0)}% — but both SLOWER in expectation than DISCIPLINED (bounded-expected actions ${random.boundedExpectedActionsToUnlock.RISK_SIZING} / ${widener.boundedExpectedActionsToUnlock.RISK_SIZING} vs ${disciplined.boundedExpectedActionsToUnlock.RISK_SIZING}). Not a §6.1 falsification.`,
+      candidateRepairForALaterPhase: 'Add a recent-window + clean-rate rule to the RISK_SIZING planned-stop requirement, mirroring MARGIN_2X’s recent-3-RESPECTED rule.',
     });
   }
   if (widener.unlockRate.MARGIN_2X > 0) {
-    recommendations.push({
+    observations.push({
       id: 'MARGIN_2X_RECENT_RISK_IGNORES_WIDENING',
-      severity: 'HIGH',
+      classification: 'FUTURE DESIGN-TUNING RISK',
       observedBy: ['STOP_WIDENER'],
-      finding: `A risk-planned trade whose protective stop was WIDENED still closes RESPECTED (and counts toward MARGIN_2X’s recent-3) whenever the widen stays inside the RISK_BUDGET_TOLERANCE_BPS band. STOP_WIDENER reaches MARGIN_2X in ${(widener.unlockRate.MARGIN_2X * 100).toFixed(0)}% of runs despite widening in most of them.`,
-      smallestRepairCandidate: 'Make recentRiskPlannedOutcomes classify a trade with summary.stopWidened === true as not-RESPECTED (or add a "no STOP_WIDENED in the recent-N risk-planned trades" clause to evaluateMargin2x).',
+      finding: `A risk-planned trade whose protective stop was WIDENED still closes RESPECTED (and counts toward MARGIN_2X’s recent-3) whenever the widen stays inside RISK_BUDGET_TOLERANCE_BPS; evaluateMargin2x never consults summary.stopWidened. STOP_WIDENER reaches MARGIN_2X in ${(widener.unlockRate.MARGIN_2X * 100).toFixed(0)}% of runs but at ${widener.boundedExpectedActionsToUnlock.MARGIN_2X} bounded-expected actions vs DISCIPLINED’s ${disciplined.boundedExpectedActionsToUnlock.MARGIN_2X}. Slower, not faster.`,
+      candidateRepairForALaterPhase: 'Classify a trade with summary.stopWidened === true as not-RESPECTED in recentRiskPlannedOutcomes, or add a "no STOP_WIDENED in the recent-N risk-planned trades" clause to evaluateMargin2x.',
     });
   }
   if (revenge.unlockRate.MARGIN_2X > 0.15 && revenge.riskBudgetViolationTotal === 0) {
-    recommendations.push({
+    observations.push({
       id: 'RISK_BUDGET_ESCALATION_INVISIBLE',
-      severity: 'HIGH',
+      classification: 'FUTURE DESIGN-TUNING RISK',
       observedBy: ['REVENGE'],
-      finding: `RISK_BUDGET_VIOLATED fires only when projected loss exceeds a FROZEN plan’s own budget + tolerance (i.e. a post-freeze position/stop change). Raising the account-risk budget of the NEXT fresh plan after a loss is a fully-RESPECTED trade. REVENGE escalates its budget after every loss and reaches MARGIN_2X in ${(revenge.unlockRate.MARGIN_2X * 100).toFixed(0)}% / SHORT in ${(revenge.unlockRate.SHORT * 100).toFixed(0)}% of runs with ${revenge.riskBudgetViolationTotal} recorded risk-budget violations; only the 20% Career drawdown cap resists it, and it leaks.`,
-      smallestRepairCandidate: 'Record a discipline signal that a risk-planned trade’s maxLossBpsOfEquity increased versus the trailing baseline after a losing trade, and gate MARGIN_2X (and/or the discipline streak) on its absence in the recent-N risk-planned trades. Alternatively tighten MARGIN_2X_DRAWDOWN_LIMIT_BPS and/or add a per-trade drawdown-contribution cap.',
+      finding: `RISK_BUDGET_VIOLATED fires only on a post-freeze breach of a FROZEN plan’s own budget. Raising the account-risk budget of the NEXT fresh plan after a loss is a fully-RESPECTED trade. REVENGE escalates after every loss and reaches MARGIN_2X in ${(revenge.unlockRate.MARGIN_2X * 100).toFixed(0)}% / SHORT in ${(revenge.unlockRate.SHORT * 100).toFixed(0)}% of runs with ${revenge.riskBudgetViolationTotal} recorded violations — but SLOWER in expectation than DISCIPLINED (MARGIN_2X ${revenge.boundedExpectedActionsToUnlock.MARGIN_2X} vs ${disciplined.boundedExpectedActionsToUnlock.MARGIN_2X}; SHORT ${revenge.boundedExpectedActionsToUnlock.SHORT} vs ${disciplined.boundedExpectedActionsToUnlock.SHORT}). Not a §6.1 falsification; a resilience risk for the 20% drawdown cap.`,
+      candidateRepairForALaterPhase: 'Record a discipline signal that a risk-planned trade’s maxLossBpsOfEquity rose vs the trailing baseline after a losing trade, and gate MARGIN_2X on its absence in the recent-N risk-planned trades; and/or tighten MARGIN_2X_DRAWDOWN_LIMIT_BPS.',
     });
   }
 
@@ -150,6 +209,24 @@ export function runMatrix() {
     policySetVersion: POLICY_SET_VERSION,
     scenarioModelVersion: SCENARIO_MODEL_VERSION,
     scenarioClass: 'TUNING_SYNTHETIC',
+    // FINDING 1: synthetic facts enter the sim honestly labelled SYNTHETIC under
+    // DEMO_ALLOW_SYNTHETIC; progression is scored by the non-authoritative
+    // TUNING_ANALYSIS_ONLY evaluator, never by a weakened production gate.
+    syntheticAnalysisBoundary: {
+      spotObservationProvenance: 'SYNTHETIC',
+      simulatorEvidencePolicy: TUNING_EVIDENCE_POLICY,
+      progressionAuthority: 'TUNING_ANALYSIS_ONLY',
+      productionCareerGradesSyntheticSpotEvidence: false,
+      syntheticRelabelledToDerived: false,
+      marginEpisodeMarketProvenance: 'DERIVED',
+      note: 'Answers "how would the current numerical qualification rules respond to these simulator-produced synthetic outcomes" — NOT "production Career would grade this synthetic evidence".',
+    },
+    primaryFalsificationMetric: {
+      metric: PRIMARY_METRIC,
+      nonUnlockActionValue: NON_UNLOCK_ACTION_VALUE,
+      skills: LATE_UNLOCK_SKILLS,
+      rule: 'An adversary falsifies §6.1 for a skill iff its full-seed-set mean bounded-expected actions-to-unlock is strictly LOWER than DISCIPLINED’s. No materiality threshold.',
+    },
     careerScore: 'NOT_IMPLEMENTED',
     careerConstantsSnapshot: CAREER_CONSTANTS,
     simulatorModelVersions: SIM_MODEL_VERSIONS,
@@ -167,18 +244,28 @@ export function runMatrix() {
       maxTicksPerRun: MAX_TICKS,
       maxActionsPerRun: MAX_ACTIONS,
     },
+    gateFComparator: {
+      regime: GATE_F_REGIME,
+      seeds: GATE_F_SEEDS,
+      policies: GATE_F_COMPARATOR_POLICIES,
+      totalRuns: comparator.records.length,
+      disciplinedDrawdownMedianBps: comparator.disciplinedDrawdownMedian,
+      recklessLuckyWinnerRuns: comparator.recklessWinners.length,
+      recklessLuckyWinners: comparator.recklessWinners.map(compactRun),
+    },
     agents: stripInternal(agentAggregates),
     byRegime,
     falsificationGates: gateResult.gates,
     failingGates: gateResult.failing,
     gateVerdict: gateResult.verdict,
     thresholdVerdict,
-    recommendations,
+    observations,
     perRun: records.map(compactRun),
+    gateFComparatorPerRun: comparator.records.map(compactRun),
   };
 
   const digest = digestOf(receiptBody);
-  return { records, agentAggregates, gateResult, receipt: { ...receiptBody, deterministicArtifactDigest: digest } };
+  return { records, agentAggregates, comparator, gateResult, receipt: { ...receiptBody, deterministicArtifactDigest: digest } };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -210,9 +297,21 @@ function printSummary(result) {
     console.log(row.join(' '));
   }
 
+  console.log('\nprimary metric = BOUNDED_EXPECTED_ACTIONS_TO_UNLOCK (non-unlock = MAX_ACTIONS+1); lower = faster in expectation');
+  console.log(['agent'.padEnd(12), ...LATE_UNLOCK_SKILLS.map((s) => s.slice(0, 10).padStart(10))].join(' '));
+  for (const policy of POLICIES) {
+    const a = agentAggregates[policy.id];
+    console.log([policy.id.padEnd(12), ...LATE_UNLOCK_SKILLS.map((s) => String(a.boundedExpectedActionsToUnlock[s]).padStart(10))].join(' '));
+  }
+
+  console.log(`\ngate F comparator (${receipt.gateFComparator.regime.id}): `
+    + `${receipt.gateFComparator.recklessLuckyWinnerRuns} reckless lucky-winner runs `
+    + `over ${receipt.gateFComparator.totalRuns} comparator runs`);
+
   console.log('\nfalsification gates:');
   for (const [key, gate] of Object.entries(gateResult.gates)) {
-    console.log(`  GATE ${key} ${gate.name.padEnd(20)} ${gate.pass ? 'PASS' : 'FAIL'}`);
+    const verdict = gate.status ?? (gate.pass ? 'PASS' : 'FAIL');
+    console.log(`  GATE ${key} ${gate.name.padEnd(34)} ${verdict}`);
   }
   console.log(`\ngateVerdict = ${gateResult.verdict}`);
   console.log(`thresholdVerdict = ${receipt.thresholdVerdict}`);
@@ -227,10 +326,11 @@ function printSummary(result) {
  * text) and `--check` re-parses with JSON.parse.
  */
 function renderReceipt(receipt) {
-  const { perRun, ...rest } = receipt;
+  const { perRun, gateFComparatorPerRun, ...rest } = receipt;
   const head = JSON.stringify(rest, null, 2);
   const rows = perRun.map((row) => `    ${JSON.stringify(row)}`).join(',\n');
-  return `${head.slice(0, -2)},\n  "perRun": [\n${rows}\n  ]\n}\n`;
+  const comparatorRows = gateFComparatorPerRun.map((row) => `    ${JSON.stringify(row)}`).join(',\n');
+  return `${head.slice(0, -2)},\n  "perRun": [\n${rows}\n  ],\n  "gateFComparatorPerRun": [\n${comparatorRows}\n  ]\n}\n`;
 }
 
 function main() {
