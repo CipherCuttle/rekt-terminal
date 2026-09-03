@@ -1,5 +1,6 @@
 import {
   assertEpisodeArtifact,
+  EPISODE_LOAD_POLICY_V0,
   MARGIN_EPISODE_ARTIFACTS,
   type EpisodeArtifactV0,
   type EpisodeFundingSampleV0,
@@ -20,10 +21,7 @@ function parameter(artifact: EpisodeArtifactV0, key: string): bigint {
 }
 
 function marginEpisodeFromArtifact(artifact: EpisodeArtifactV0): MarginEpisode {
-  assertEpisodeArtifact(artifact, {
-    expectedMarketDataModelVersion: 'TRADEIDEA_OHLC_V0',
-    expectedSimulatorModelVersions: [SIM_MARGIN_MODEL_VERSION, PERP_FILL_MODEL_VERSION, MARGIN_FX_MODEL_VERSION],
-  });
+  assertEpisodeArtifact(artifact, EPISODE_LOAD_POLICY_V0);
   const marketSamples = artifact.samples.filter((sample): sample is EpisodeMarketMarkSampleV0 => sample.kind === 'MARKET' && sample.market.type === 'MARK');
   if (marketSamples.length !== artifact.samples.filter((sample) => sample.kind === 'MARKET').length) {
     throw new RangeError('SIM_MARGIN_V0 adapter only accepts ordered market mark samples');

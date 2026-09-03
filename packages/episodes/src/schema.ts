@@ -1,6 +1,16 @@
 export const EPISODE_SCHEMA_VERSION = 'EPISODES_V0' as const;
 export const EPISODE_DIGEST_ALGORITHM = 'SHA-256' as const;
 export const OHLC_PATH_V0 = 'OHLC_PATH_V0' as const;
+export const EPISODE_SUPPORTED_MARKET_DATA_MODEL_VERSIONS = Object.freeze(['TRADEIDEA_OHLC_V0'] as const);
+export const EPISODE_SUPPORTED_SIMULATOR_MODEL_VERSIONS = Object.freeze(['SIM_MARGIN_V0', 'PERP_FILL_V0', 'MARGIN_FX_V0'] as const);
+export const EPISODE_SUPPORTED_INTRABAR_RULES = Object.freeze([OHLC_PATH_V0] as const);
+
+/** Explicit V0 compatibility policy; callers must pass this or a narrower policy. */
+export const EPISODE_LOAD_POLICY_V0 = Object.freeze({
+  supportedMarketDataModelVersions: EPISODE_SUPPORTED_MARKET_DATA_MODEL_VERSIONS,
+  supportedSimulatorModelVersions: EPISODE_SUPPORTED_SIMULATOR_MODEL_VERSIONS,
+  supportedIntrabarRules: EPISODE_SUPPORTED_INTRABAR_RULES,
+});
 
 export type EpisodeEnvironment = 'REPLAY' | 'EXAM';
 export type EpisodeMarketType = 'SPOT' | 'PERP';
@@ -117,8 +127,9 @@ export interface EpisodeArtifactDraftV0 {
 }
 
 export interface EpisodeLoadOptionsV0 {
-  readonly expectedMarketDataModelVersion?: string;
-  readonly expectedSimulatorModelVersions?: readonly string[];
+  readonly supportedMarketDataModelVersions: readonly string[];
+  readonly supportedSimulatorModelVersions: readonly string[];
+  readonly supportedIntrabarRules: readonly string[];
 }
 
 export class EpisodeValidationError extends RangeError {

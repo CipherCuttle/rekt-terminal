@@ -330,7 +330,7 @@ A versioned liquidation safety buffer may warn/reject a requested stop too close
 
 ## 12. Funding
 
-Historical episode funding is an immutable ordered series with event ID, event time, rate, mark, source and provenance. Each applied funding event is a ledger adjustment. If an episode contains no funding timestamp, no funding is charged. If funding evidence should exist but is missing, the episode is ineligible for ranked leverage training.
+Historical episode funding is an immutable ordered series with event ID, event time, signed rate, mark, source and provenance. Each applied funding event is a ledger adjustment. If an episode contains no funding timestamp, no funding is charged. If funding evidence should exist but is missing, the episode is ineligible for ranked leverage training.
 
 ## 13. Historical episode contract
 
@@ -366,14 +366,17 @@ validated. Source references identify origin only: a digest proves committed
 normalized content integrity, not source truth, redistribution rights, venue
 execution identity, or tick ordering absent from the source.
 
-`loadEpisode()` fails closed on unsupported schema/model versions, malformed
+`loadEpisode()` requires an explicit V0 compatibility policy listing the
+supported market-data models, simulator models, and intrabar rules. The package
+owns the bounded current-value constants; unknown or future values fail closed
+even when the artifact digest is valid. Loading also fails closed on malformed
 fixed-point values, missing identity, invalid bounds/order, duplicate IDs,
 unsupported provenance, missing/unknown OHLC rules, and digest mismatch. It
-returns a loaded episode whose `start('REPLAY' | 'EXAM')` creates a private,
-immutable cursor. The cursor exposes only the prefix through the current sample;
-the full future sample array is not part of the public cursor API. Each cursor
-advances deterministically, and independent cursors share no mutable session
-state.
+returns a loaded episode whose mandatory `start('REPLAY' | 'EXAM')` creates a
+private, immutable cursor only when that environment is eligible. The cursor
+exposes only the prefix through the current sample; the full future sample array
+is not part of the public cursor API. Each cursor advances deterministically,
+and independent cursors share no mutable session state.
 
 Player action streams remain outside the immutable episode artifact. The same
 episode source can therefore be used by independent simulator sessions. The

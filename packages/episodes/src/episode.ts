@@ -3,7 +3,9 @@ import { sha256Hex } from './sha256.js';
 import {
   EPISODE_DIGEST_ALGORITHM,
   EPISODE_SCHEMA_VERSION,
-  OHLC_PATH_V0,
+  EPISODE_SUPPORTED_INTRABAR_RULES,
+  EPISODE_SUPPORTED_MARKET_DATA_MODEL_VERSIONS,
+  EPISODE_SUPPORTED_SIMULATOR_MODEL_VERSIONS,
   EpisodeValidationError,
   type EpisodeArtifactDraftV0,
   type EpisodeArtifactV0,
@@ -20,7 +22,7 @@ const DIGEST_PATTERN = /^SHA-256:[0-9a-f]{64}$/;
 const INTEGER_PATTERN = /^(?:0|-?[1-9][0-9]*)$/;
 const ENVIRONMENTS = new Set<EpisodeEnvironment>(['REPLAY', 'EXAM']);
 const PROVENANCE = new Set<EpisodeProvenance>(['CONFIRMED', 'DERIVED']);
-const INTRABAR_RULES = new Set<string>([OHLC_PATH_V0]);
+const INTRABAR_RULES = new Set<string>(EPISODE_SUPPORTED_INTRABAR_RULES);
 const MARKET_TYPES = new Set(['SPOT', 'PERP']);
 const REGIME_TREND = new Set(['UP', 'DOWN', 'RANGE', 'MIXED', 'UNKNOWN']);
 const REGIME_VOLATILITY = new Set(['LOW', 'MEDIUM', 'HIGH', 'UNKNOWN']);
@@ -66,13 +68,13 @@ function safeTime(value: unknown, label: string): number {
   return value;
 }
 
-function fixedInteger(value: unknown, label: string, positive = false): string {
+function fixedInteger(value: unknown, label: string, positive = false, allowNegative = false): string {
   if (typeof value !== 'string' || !INTEGER_PATTERN.test(value)) {
     throw new EpisodeValidationError('MALFORMED_FIXED_POINT', `${label} must be a canonical integer string`);
   }
   try {
     const parsed = BigInt(value);
-    if (positive ? parsed <= 0n : parsed < 0n) {
+    if (positive ? parsed <= 0n : !allowNegative && parsed < 0n) {
       throw new EpisodeValidationError('MALFORMED_FIXED_POINT', `${label} has an invalid sign`);
     }
   } catch (error) {
@@ -150,7 +152,7 @@ function normalizeSample(value: unknown): EpisodeSampleV0 {
       eventTimeMs: safeTime(sample.eventTimeMs, 'sample.eventTimeMs'),
       sourceId: text(sample.sourceId, 'sample.sourceId'),
       provenance: normalizeProvenance(sample.provenance, 'sample.provenance'),
-      ratePpm: fixedInteger(sample.ratePpm, 'sample.ratePpm'),
+      ratePpm: fixedInteger(sample.ratePpm, 'sample.ratePpm', false, true),
       markPriceUsdMicros: fixedInteger(sample.markPriceUsdMicros, 'sample.markPriceUsdMicros', true),
     });
   }
@@ -313,6 +315,56 @@ function deepFreezeArtifact(artifact: NormalizedArtifact): EpisodeArtifactV0 {
   return copyFrozen({ manifest: artifact.manifest, samples: artifact.samples });
 }
 
+type CompatibilitySets = {
+  readonly marketData: ReadonlySet<string>;
+  readonly simulator: ReadonlySet<string>;
+  readonly intrabar: ReadonlySet<string>;
+};
+
+function compatibilitySet(value: unknown, label: string, known: readonly string[]): ReadonlySet<string> {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new EpisodeValidationError('MISSING_COMPATIBILITY_POLICY', `${label} must be a non-empty list`);
+  }
+  const knownValues = new Set(known);
+  const values = value.map((entry, index) => text(entry, `${label}[${index}]`));
+  if (new Set(values).size !== values.length) {
+    throw new EpisodeValidationError('MALFORMED_COMPATIBILITY_POLICY', `${label} must not contain duplicates`);
+  }
+  for (const entry of values) {
+    if (!knownValues.has(entry)) {
+      throw new EpisodeValidationError('INCOMPATIBLE_MODEL', `${label} contains unsupported V0 value ${entry}`);
+    }
+  }
+  return new Set(values);
+}
+
+function normalizeLoadOptions(value: unknown): CompatibilitySets {
+  if (value === undefined) {
+    throw new EpisodeValidationError('MISSING_COMPATIBILITY_POLICY', 'loadEpisode requires an explicit compatibility policy');
+  }
+  const input = record(value, 'episode load options');
+  exactKeys(input, ['supportedMarketDataModelVersions', 'supportedSimulatorModelVersions', 'supportedIntrabarRules'], 'episode load options');
+  return {
+    marketData: compatibilitySet(input.supportedMarketDataModelVersions, 'supportedMarketDataModelVersions', EPISODE_SUPPORTED_MARKET_DATA_MODEL_VERSIONS),
+    simulator: compatibilitySet(input.supportedSimulatorModelVersions, 'supportedSimulatorModelVersions', EPISODE_SUPPORTED_SIMULATOR_MODEL_VERSIONS),
+    intrabar: compatibilitySet(input.supportedIntrabarRules, 'supportedIntrabarRules', EPISODE_SUPPORTED_INTRABAR_RULES),
+  };
+}
+
+function assertCompatibility(manifest: EpisodeManifestV0, options: CompatibilitySets): void {
+  if (!options.marketData.has(manifest.marketDataModelVersion)) {
+    throw new EpisodeValidationError('INCOMPATIBLE_MODEL', `unsupported market data model ${manifest.marketDataModelVersion}`);
+  }
+  for (const version of manifest.simulatorModelVersions) {
+    if (!options.simulator.has(version)) {
+      throw new EpisodeValidationError('INCOMPATIBLE_MODEL', `unsupported simulator model ${version}`);
+    }
+  }
+  if (manifest.intrabarRule !== undefined && !options.intrabar.has(manifest.intrabarRule)) {
+    throw new EpisodeValidationError('INCOMPATIBLE_MODEL', `unsupported intrabar rule ${manifest.intrabarRule}`);
+  }
+}
+
 export function createEpisodeArtifact(input: EpisodeArtifactDraftV0): EpisodeArtifactV0 {
   const base = normalizeArtifact(input, false);
   const sampleDigest = computeEpisodeDigest(base);
@@ -324,14 +376,10 @@ export function createEpisodeArtifact(input: EpisodeArtifactDraftV0): EpisodeArt
 }
 
 /** Validate an artifact without exposing a mutable normalized copy. */
-export function assertEpisodeArtifact(input: unknown, options: EpisodeLoadOptionsV0 = {}): void {
+export function assertEpisodeArtifact(input: unknown, options: EpisodeLoadOptionsV0): void {
+  const compatibility = normalizeLoadOptions(options);
   const normalized = normalizeArtifact(input, true);
-  if (options.expectedMarketDataModelVersion !== undefined && normalized.manifest.marketDataModelVersion !== options.expectedMarketDataModelVersion) {
-    throw new EpisodeValidationError('INCOMPATIBLE_MODEL', `expected market data model ${options.expectedMarketDataModelVersion}`);
-  }
-  for (const expected of options.expectedSimulatorModelVersions ?? []) {
-    if (!normalized.manifest.simulatorModelVersions.includes(expected)) throw new EpisodeValidationError('INCOMPATIBLE_MODEL', `simulator model ${expected} is not declared by the episode`);
-  }
+  assertCompatibility(normalized.manifest, compatibility);
 }
 
 export interface EpisodeCursor {
@@ -370,7 +418,7 @@ class EpisodeCursorImpl implements EpisodeCursor {
 
 export interface LoadedEpisode {
   readonly manifest: EpisodeManifestV0;
-  start(environment?: EpisodeEnvironment): EpisodeCursor;
+  start(environment: EpisodeEnvironment): EpisodeCursor;
 }
 
 class LoadedEpisodeImpl implements LoadedEpisode {
@@ -384,22 +432,18 @@ class LoadedEpisodeImpl implements LoadedEpisode {
     return this.#artifact.manifest;
   }
 
-  start(environment?: EpisodeEnvironment): EpisodeCursor {
-    if (environment !== undefined && !this.manifest.environmentEligibility.includes(environment)) {
+  start(environment: EpisodeEnvironment): EpisodeCursor {
+    if (!this.manifest.environmentEligibility.includes(environment)) {
       throw new EpisodeValidationError('INELIGIBLE_ENVIRONMENT', `${environment} is not declared as eligible for this episode`);
     }
     return new EpisodeCursorImpl(this.#artifact.samples);
   }
 }
 
-export function loadEpisode(input: unknown, options: EpisodeLoadOptionsV0 = {}): LoadedEpisode {
+export function loadEpisode(input: unknown, options: EpisodeLoadOptionsV0): LoadedEpisode {
+  const compatibility = normalizeLoadOptions(options);
   const normalized = normalizeArtifact(input, true);
-  if (options.expectedMarketDataModelVersion !== undefined && normalized.manifest.marketDataModelVersion !== options.expectedMarketDataModelVersion) {
-    throw new EpisodeValidationError('INCOMPATIBLE_MODEL', `expected market data model ${options.expectedMarketDataModelVersion}`);
-  }
-  for (const expected of options.expectedSimulatorModelVersions ?? []) {
-    if (!normalized.manifest.simulatorModelVersions.includes(expected)) throw new EpisodeValidationError('INCOMPATIBLE_MODEL', `simulator model ${expected} is not declared by the episode`);
-  }
+  assertCompatibility(normalized.manifest, compatibility);
   return new LoadedEpisodeImpl(deepFreezeArtifact(normalized));
 }
 

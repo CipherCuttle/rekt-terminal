@@ -1,5 +1,5 @@
-import { assertEpisodeArtifact } from './episode.js';
-import type { EpisodeArtifactV0, EpisodeArtifactDraftV0, EpisodeSampleV0 } from './schema.js';
+import { createEpisodeArtifact } from './episode.js';
+import type { EpisodeArtifactV0, EpisodeArtifactDraftV0 } from './schema.js';
 
 const SOURCE_REFERENCE = 'https://tradeidea.io/en/contract/binance/ethusdt';
 const SIMULATOR_MODELS = ['SIM_MARGIN_V0', 'PERP_FILL_V0', 'MARGIN_FX_V0'] as const;
@@ -76,17 +76,10 @@ const SECOND_MARGIN_EPISODE: EpisodeArtifactDraftV0 = {
 };
 
 function freezeFixture(draft: EpisodeArtifactDraftV0, sampleDigest: string): EpisodeArtifactV0 {
-  const freezeSample = (sample: EpisodeSampleV0): EpisodeSampleV0 => {
-    if (sample.kind !== 'MARKET') return Object.freeze({ ...sample });
-    if (sample.market.type === 'MARK') return Object.freeze({ ...sample, market: Object.freeze({ ...sample.market }) });
-    return Object.freeze({ ...sample, market: Object.freeze({ ...sample.market }) });
-  };
-  const samples = draft.samples.map(freezeSample);
-  const artifact: EpisodeArtifactV0 = Object.freeze({
-    manifest: Object.freeze({ ...draft.manifest, sampleDigest }),
-    samples: Object.freeze(samples),
-  });
-  assertEpisodeArtifact(artifact);
+  const artifact = createEpisodeArtifact(draft);
+  if (artifact.manifest.sampleDigest !== sampleDigest) {
+    throw new Error(`fixture digest changed for ${draft.manifest.episodeId}`);
+  }
   return artifact;
 }
 
