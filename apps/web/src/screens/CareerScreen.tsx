@@ -1,6 +1,7 @@
 import { PHASE_0_RECEIPTS, type CapabilityId, type CareerState, type SkillId } from '@rekt-ink/career';
 import { formatBpsPercent } from '../practice/format';
 import { MarginTrainingScreen } from '../margin/MarginTrainingScreen';
+import { MISSION_DEFINITIONS, MISSION_IDS, nextMissionId, type LearningStateV0, type MissionId } from '@rekt-ink/learning';
 
 /**
  * Career as a capability system.
@@ -28,7 +29,8 @@ const CAPABILITY_LABEL: Record<string, string> = {
   PERP_LONG_2X: 'Historical isolated perpetual long at 1x / 2x',
 };
 
-export function CareerScreen({ career }: { career: CareerState }) {
+export function CareerScreen({ career, learning, onStartMission }: { career: CareerState; learning?: LearningStateV0; onStartMission?: (missionId: MissionId) => void }) {
+  const learningState = learning;
   const qualification = career.qualification.scaleControl;
   const stop = career.qualification.stopLoss;
   const risk = career.qualification.riskSizing;
@@ -66,6 +68,8 @@ export function CareerScreen({ career }: { career: CareerState }) {
           </ul>
           <p className="panel-foot">SHORT remains locked until the later leveraged-long qualification phase.</p>
         </div>
+
+        <LearningProgressPanel learning={learningState} onStartMission={onStartMission} />
 
         <div className="career-column-stack">
           <div className="panel">
@@ -160,6 +164,29 @@ export function CareerScreen({ career }: { career: CareerState }) {
 
       {career.unlockedSkills.includes('MARGIN_2X') && <MarginTrainingScreen />}
     </section>
+  );
+}
+
+function LearningProgressPanel({ learning, onStartMission }: { learning?: LearningStateV0; onStartMission?: (missionId: MissionId) => void }) {
+  const completed = new Set(learning?.completed.map((entry) => entry.missionId) ?? []);
+  const next = learning ? nextMissionId(learning) : null;
+  return (
+    <div className="panel learning-progress-panel">
+      <header className="panel-head">
+        <h2>LEARNING MISSIONS</h2>
+        <span className="panel-note">COMPETENCE · NOT MASTERY</span>
+      </header>
+      <p className="panel-foot learning-boundary">Five deterministic terminal drills. Synthetic training evidence never grants Career capabilities or proves mastery.</p>
+      <ol className="learning-list">
+        {MISSION_IDS.map((id) => (
+          <li key={id} className={completed.has(id) ? 'learning-item learning-item-done' : id === next ? 'learning-item learning-item-next' : 'learning-item'}>
+            <div><span className="learning-id">{id}</span><span>{MISSION_DEFINITIONS[id].title.replace(`${id} — `, '')}</span></div>
+            <span className="learning-status">{completed.has(id) ? 'PASSED' : id === next ? 'READY' : 'LOCKED'}</span>
+          </li>
+        ))}
+      </ol>
+      {next && onStartMission ? <button type="button" className="learning-cta" onClick={() => onStartMission(next)}>OPEN {next} IN TERMINAL →</button> : <p className="learning-complete">VERTICAL_SLICE_COMPLETED · TRANSFER EXAM NOT INCLUDED</p>}
+    </div>
   );
 }
 

@@ -15,6 +15,7 @@
     "@fontsource/plus-jakarta-sans": "5.3.0",
     "@fontsource/press-start-2p": "5.3.0",
     "@rekt-ink/career": "*",
+    "@rekt-ink/learning": "*",
     "@rekt-ink/sim": "*",
     "dexie": "^4.4.5",
     "lightweight-charts": "5.2.1",

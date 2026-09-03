@@ -16,6 +16,7 @@ import {
   type SimState,
 } from '@rekt-ink/sim';
 import { CAREER_SAVE_VERSION, migrateCareerSave, type CareerSaveEnvelope } from '@rekt-ink/career';
+import { createInitialLearningState, parseLearningState, type LearningStateV0 } from '@rekt-ink/learning';
 import type { MarketEnvironment } from '../types/api';
 
 // v2 records the data environment. A save written before MARKET_TRUTH_V1 has no
@@ -44,6 +45,8 @@ export interface PracticeSaveEnvelope {
   /** Digest of the event log at save time; verified on restore. */
   replayDigest: string;
   career: CareerSaveEnvelope;
+  /** Independent, versioned learning progress. It never participates in sim replay. */
+  learning?: LearningStateV0;
   savedAtMs: number;
 }
 
@@ -94,6 +97,7 @@ export function createPracticeSave(input: {
   career: CareerSaveEnvelope;
   instrumentId: string | null;
   environment: MarketEnvironment;
+  learning?: LearningStateV0;
   savedAtMs: number;
 }): PracticeSaveEnvelope {
   return {
@@ -107,6 +111,7 @@ export function createPracticeSave(input: {
     simEventsJson: encodeSimEvents(input.sim.events),
     replayDigest: stableReplayDigest(input.sim),
     career: input.career,
+    learning: input.learning ?? createInitialLearningState(),
     savedAtMs: input.savedAtMs,
   };
 }
@@ -120,6 +125,8 @@ export interface PracticeRestore {
   career: CareerSaveEnvelope;
   instrumentId: string | null;
   environment: MarketEnvironment;
+  learning: LearningStateV0;
+  learningReset: boolean;
 }
 
 const EVIDENCE_POLICY: Record<MarketEnvironment, EvidencePolicy> = {
@@ -167,11 +174,25 @@ export function restorePracticeSave(input: unknown): PracticeRestore {
     throw new Error(`replay digest mismatch: expected ${input.replayDigest}, replayed ${digest}`);
   }
 
+  let learning = createInitialLearningState();
+  let learningReset = false;
+  if (input.learning !== undefined) {
+    try {
+      learning = parseLearningState(input.learning);
+    } catch {
+      // Learning is intentionally separable from the economic replay. A future
+      // or malformed learning save loses only its progress, never the ledger.
+      learningReset = true;
+    }
+  }
+
   return {
     sim,
     career,
     instrumentId: typeof input.instrumentId === 'string' ? input.instrumentId : null,
     environment,
+    learning,
+    learningReset,
   };
 }
 

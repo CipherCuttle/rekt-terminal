@@ -193,11 +193,16 @@ if (!server.includes('marketHub.subscribe(')) {
 /* domain packages stay framework-independent                                 */
 /* -------------------------------------------------------------------------- */
 
-for (const pkg of ['packages/episodes', 'packages/sim', 'packages/career']) {
+for (const pkg of ['packages/episodes', 'packages/sim', 'packages/career', 'packages/learning']) {
   const manifest = JSON.parse(read(`${pkg}/package.json`));
-  for (const field of ['dependencies', 'peerDependencies', 'devDependencies']) {
-    const names = Object.keys(manifest[field] ?? {});
-    if (names.length > 0) fail(`${pkg} declares ${field}: ${names.join(', ')} — domain packages must stay dependency-free`);
+  if (['packages/episodes', 'packages/sim', 'packages/career'].includes(pkg)) {
+    for (const field of ['dependencies', 'peerDependencies', 'devDependencies']) {
+      const names = Object.keys(manifest[field] ?? {});
+      if (names.length > 0) fail(`${pkg} declares ${field}: ${names.join(', ')} — this domain package must stay dependency-free`);
+    }
+  } else {
+    const names = Object.keys(manifest.dependencies ?? {});
+    if (names.some((name) => !['@rekt-ink/episodes', '@rekt-ink/sim'].includes(name))) fail(`${pkg} has an unexpected non-domain dependency: ${names.join(', ')}`);
   }
 
   for (const file of walk(`${pkg}/src`, ['.ts'])) {
@@ -277,7 +282,7 @@ const EXECUTION_PATTERNS = [
   /window\.ethereum/,
 ];
 
-for (const file of [...walk('apps/web/src', ['.ts', '.tsx']), ...walk('packages/sim/src', ['.ts']), ...walk('packages/career/src', ['.ts'])]) {
+for (const file of [...walk('apps/web/src', ['.ts', '.tsx']), ...walk('packages/sim/src', ['.ts']), ...walk('packages/career/src', ['.ts']), ...walk('packages/learning/src', ['.ts'])]) {
   const source = read(file);
   for (const pattern of EXECUTION_PATTERNS) {
     if (pattern.test(source)) fail(`${file} matches a real-execution pattern (${pattern}); practice must never sign or broadcast`);

@@ -1,6 +1,6 @@
 # Project Plan V2 — REKT Terminal
 
-`STATUS: CAPABILITY_LADDER_V0 CLOSED THROUGH SHORT / MARKET_TRUTH_V1 SHIPPED / LIVE_PROVIDER_SMOKE_V0 PASS / MOBILE_PWA_V0 CLOSED / CAREER_TUNING_HARNESS_V0 PASS / EPISODES_V0 IMPLEMENTED / CAREER_THRESHOLDS = PROVISIONAL / LEARNING_ARCHITECTURE NEXT`
+`STATUS: CAPABILITY_LADDER_V0 CLOSED THROUGH SHORT / MARKET_TRUTH_V1 SHIPPED / LIVE_PROVIDER_SMOKE_V0 PASS / MOBILE_PWA_V0 CLOSED / CAREER_TUNING_HARNESS_V0 PASS / EPISODES_V0 IMPLEMENTED / LEARNING_VERTICAL_SLICE_V0 IMPLEMENTED/PASS / CAREER_THRESHOLDS = PROVISIONAL / NEXT: MARKET_ANALYSIS_V0`
 
 Canonical forward-looking product plan. Supersedes `PROJECT_PLAN_V1.md` as the
 active roadmap. V1 is retained unchanged below its banner as historical
@@ -303,7 +303,7 @@ artifacts through a compatibility adapter. Their frozen values, digests,
 intrabar order, and `MARGIN_2X_V0` / `SHORT_V0` qualification behavior remain
 unchanged. This phase does not implement curriculum or learning UI.
 
-### 6.3 NEXT 3 — `LEARNING_VERTICAL_SLICE_V0`
+### 6.3 `LEARNING_VERTICAL_SLICE_V0` — IMPLEMENTED / PASS
 
 Exactly **five** missions. No more, until the slice is proven with users. All
 grading deterministic. No LLM anywhere in the PASS path. PnL never determines
@@ -616,11 +616,9 @@ pointing here and correcting its stale status token.
 
 ```text
 CAREER_TUNING_HARNESS_V0 = PASS
-EPISODES_V0 = IMPLEMENTED
-NEXT = LEARNING_VERTICAL_SLICE_V0
+EPISODES_V0 = IMPLEMENTED/PASS
+LEARNING_VERTICAL_SLICE_V0 = IMPLEMENTED/PASS
+NEXT = MARKET_ANALYSIS_V0
 ```
-
-Do not begin `LEARNING_VERTICAL_SLICE_V0` in the EPISODES_V0 implementation
-closure.
 
 Do not add more leverage yet.

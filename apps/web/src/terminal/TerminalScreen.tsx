@@ -12,12 +12,14 @@ import { chartFillStampsForSim } from '../practice/chart-stamps';
 import { PRACTICE_UNAVAILABLE_LABEL } from '../practice/eligibility';
 import { priceX18FromNumber } from '../practice/quote';
 import type { FeedSnapshot } from '../practice/feed-store';
-import type { PracticeIntent, PracticeRejection } from '../practice/store';
+import type { LearningTrainingAction, PracticeIntent, PracticeRejection } from '../practice/store';
 import { resolveChartSeries, type ChartSeriesResolution } from '../lib/chart-currency';
 import type { MarketEnvironment, RadarAsset } from '../types/api';
 import { PositionTruth } from './PositionTruth';
 import { TradeTicket } from './TradeTicket';
 import { CareerStrip } from './CareerStrip';
+import { LearningMissionPanel } from './LearningMissionPanel';
+import type { LearningStateV0, MissionLearnerInput, MissionId } from '@rekt-ink/learning';
 
 export interface ChartSink {
   tick(tick: ChartTick): void;
@@ -36,6 +38,10 @@ export interface TerminalScreenProps {
   onDismissRejection: () => void;
   showWalletTools: boolean;
   onWallet: (address: string) => void;
+  learning?: LearningStateV0;
+  onSubmitMission?: (input: MissionLearnerInput) => void;
+  onTrainingAction?: (action: LearningTrainingAction) => void;
+  onAcknowledgeDebrief?: () => void;
 }
 
 /**
@@ -49,7 +55,7 @@ export interface TerminalScreenProps {
 const OVERLAY_CURRENCY = 'QUOTE_TOKEN' as const;
 
 export function TerminalScreen(props: TerminalScreenProps) {
-  const { asset, environment, sim, career, feed, tape, rejection, chartSink, onSubmit, onDismissRejection, showWalletTools, onWallet } = props;
+  const { asset, environment, sim, career, feed, tape, rejection, chartSink, onSubmit, onDismissRejection, showWalletTools, onWallet, learning, onSubmitMission, onTrainingAction, onAcknowledgeDebrief } = props;
   const boxRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<MarketChart | null>(null);
   // Bars load asynchronously; the chart-creation effect must not paint overlays
@@ -143,6 +149,8 @@ export function TerminalScreen(props: TerminalScreenProps) {
           <span className="equity-unit">ETH</span>
         </div>
       </header>
+
+      {learning?.currentMissionId && onSubmitMission && <LearningMissionPanel missionId={learning.currentMissionId as MissionId} learning={learning} onSubmit={onSubmitMission} onTrainingAction={onTrainingAction} onAcknowledgeDebrief={onAcknowledgeDebrief} />}
 
       <div className="terminal-body">
         <div className="panel chart-panel">

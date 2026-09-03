@@ -4,7 +4,7 @@ import { connectMarketFeed } from './lib/market-feed';
 import { TapeBuffer } from './lib/tape-buffer';
 import { formatEth } from './practice/format';
 import { MarketFeedStore } from './practice/feed-store';
-import { PracticeSessionStore, type PracticeIntent } from './practice/store';
+import { PracticeSessionStore, type LearningTrainingAction, type PracticeIntent } from './practice/store';
 import { createDexiePracticeStorage, type PracticeStorage } from './practice/persistence';
 import { PracticeProvider, useFeedSnapshot, usePracticeRuntime, usePracticeSnapshot, type PracticeRuntime } from './practice/react';
 import { quoteFromRadarAsset } from './practice/quote';
@@ -14,6 +14,8 @@ import { DevScreen, WalletDrawer } from './screens/DevScreen';
 import { TerminalScreen, type ChartSink } from './terminal/TerminalScreen';
 import { TradeReviewCard } from './terminal/TradeReviewCard';
 import type { MarketEnvironment, RadarAsset, WalletTrace } from './types/api';
+import type { MissionId, MissionLearnerInput } from '@rekt-ink/learning';
+import { localAssets } from './lib/local-fixtures';
 
 type Screen = 'radar' | 'terminal' | 'career' | 'dev';
 
@@ -268,9 +270,28 @@ function Shell() {
     [environment],
   );
 
+  const startMission = useCallback((missionId: MissionId) => {
+    if (!session.startMission(missionId)) return;
+    setSelected((current) => current ?? items[0] ?? localAssets[0] ?? null);
+    setScreen('terminal');
+  }, [items, session]);
+
+  const submitMission = useCallback((input: MissionLearnerInput) => {
+    session.submitMission(input);
+  }, [session]);
+
+  const currentLearningMission = practice.learning?.currentMissionId;
+  const recordTrainingAction = useCallback((action: LearningTrainingAction) => {
+    if (currentLearningMission) session.recordLearningAction(currentLearningMission, action);
+  }, [currentLearningMission, session]);
+
+  const acknowledgeMissionDebrief = useCallback(() => {
+    session.acknowledgeMissionDebrief();
+  }, [session]);
+
   /* ----------------------------------------------------------------- render */
 
-  const { sim, career, tradeReview, lastRejection, restoreStatus } = practice;
+  const { sim, career, tradeReview, lastRejection, restoreStatus, learning } = practice;
   const reviewOpen = Boolean(tradeReview && selected);
 
   return (
@@ -377,6 +398,12 @@ function Shell() {
         </p>
       )}
 
+      {restoreStatus === 'RESET_LEARNING_SAVE_UNUSABLE' && (
+        <p className="save-notice" role="status">
+          Learning progress was malformed or from a future version and was reset. Simulator and Career history were preserved.
+        </p>
+      )}
+
       <main>
         {screen === 'radar' && <RadarScreen items={items} environment={environment} onOpen={openTerminal} />}
 
@@ -395,6 +422,10 @@ function Shell() {
               onDismissRejection={() => session.clearRejection()}
               showWalletTools={showDev}
               onWallet={loadWallet}
+              learning={learning}
+              onSubmitMission={submitMission}
+              onTrainingAction={recordTrainingAction}
+              onAcknowledgeDebrief={acknowledgeMissionDebrief}
             />
           ) : (
             <section className="screen">
@@ -406,7 +437,7 @@ function Shell() {
             </section>
           ))}
 
-        {screen === 'career' && <CareerScreen career={career} />}
+        {screen === 'career' && <CareerScreen career={career} learning={learning} onStartMission={startMission} />}
         {screen === 'dev' && showDev && <DevScreen environment={environment} onWallet={loadWallet} />}
       </main>
 
