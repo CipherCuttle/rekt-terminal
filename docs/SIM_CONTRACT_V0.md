@@ -334,27 +334,53 @@ Historical episode funding is an immutable ordered series with event ID, event t
 
 ## 13. Historical episode contract
 
-Future target:
+`EPISODES_V0` is implemented in the dependency-light `packages/episodes`
+domain package. It is historical evidence infrastructure only; it does not
+implement missions, grading, Career qualification, indicators, React, or
+network fetching.
 
 ```text
-packages/episodes/schema
-packages/episodes/fixtures
+packages/episodes/src/schema.ts
+packages/episodes/src/episode.ts
+packages/episodes/src/serialization.ts
+packages/episodes/src/sha256.ts
+packages/episodes/src/fixtures.ts
 ```
 
-Episode metadata freezes:
+The versioned manifest freezes:
 
-- episode/instrument ID;
-- source venue;
-- market-data model;
-- fill/margin model versions;
-- start/end time;
-- episode-start ETH/USD conversion when used;
-- MMR, maker/taker fees, liquidation fee;
-- market sample digest;
-- optional funding digest;
-- provenance.
+- `schemaVersion = EPISODES_V0`, episode identity/version, and `REPLAY` / `EXAM`
+  eligibility;
+- instrument, `SPOT` / `PERP` market type, timeframe, start/end milliseconds,
+  source venue/label/reference, market-data model, simulator model versions,
+  and bounded regime-selection metadata;
+- per-simulator fixed-point/integer parameters as canonical decimal strings;
+- aggregate market/funding provenance using only `CONFIRMED` or `DERIVED`;
+- the frozen `OHLC_PATH_V0` rule when OHLC-derived ordering is used;
+- a SHA-256 content digest and, when present, a separate SHA-256 funding digest.
 
-Ordered episode stream contains mark samples, execution/trade reference samples, funding events and source receipts. Player action stream is stored separately so the same episode can be replayed against multiple users/strategies.
+The ordered immutable sample stream contains market marks/bars, optional
+execution/trade references, and funding events. Sample identity, event time,
+source identity, provenance, fixed-point values, and explicit total ordering are
+validated. Source references identify origin only: a digest proves committed
+normalized content integrity, not source truth, redistribution rights, venue
+execution identity, or tick ordering absent from the source.
+
+`loadEpisode()` fails closed on unsupported schema/model versions, malformed
+fixed-point values, missing identity, invalid bounds/order, duplicate IDs,
+unsupported provenance, missing/unknown OHLC rules, and digest mismatch. It
+returns a loaded episode whose `start('REPLAY' | 'EXAM')` creates a private,
+immutable cursor. The cursor exposes only the prefix through the current sample;
+the full future sample array is not part of the public cursor API. Each cursor
+advances deterministically, and independent cursors share no mutable session
+state.
+
+Player action streams remain outside the immutable episode artifact. The same
+episode source can therefore be used by independent simulator sessions. The
+existing margin fixtures are adapted from these artifacts back into the
+simulator's established bigint `MarginEpisode` shape without changing their
+prices, event times, ordered `OPEN -> LOW -> HIGH -> CLOSE` path, fee/MMR/
+liquidation/slippage parameters, provenance, or completion behavior.
 
 ## 14. Determinism contract
 

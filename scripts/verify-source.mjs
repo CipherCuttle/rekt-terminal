@@ -193,7 +193,7 @@ if (!server.includes('marketHub.subscribe(')) {
 /* domain packages stay framework-independent                                 */
 /* -------------------------------------------------------------------------- */
 
-for (const pkg of ['packages/sim', 'packages/career']) {
+for (const pkg of ['packages/episodes', 'packages/sim', 'packages/career']) {
   const manifest = JSON.parse(read(`${pkg}/package.json`));
   for (const field of ['dependencies', 'peerDependencies', 'devDependencies']) {
     const names = Object.keys(manifest[field] ?? {});

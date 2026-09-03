@@ -1,6 +1,6 @@
 # Project Plan V2 — REKT Terminal
 
-`STATUS: CAPABILITY_LADDER_V0 CLOSED THROUGH SHORT / MARKET_TRUTH_V1 SHIPPED / LIVE_PROVIDER_SMOKE_V0 PASS / MOBILE_PWA_V0 CLOSED / CAREER_THRESHOLDS = PROVISIONAL / LEARNING_ARCHITECTURE NEXT`
+`STATUS: CAPABILITY_LADDER_V0 CLOSED THROUGH SHORT / MARKET_TRUTH_V1 SHIPPED / LIVE_PROVIDER_SMOKE_V0 PASS / MOBILE_PWA_V0 CLOSED / CAREER_TUNING_HARNESS_V0 PASS / EPISODES_V0 IMPLEMENTED / CAREER_THRESHOLDS = PROVISIONAL / LEARNING_ARCHITECTURE NEXT`
 
 Canonical forward-looking product plan. Supersedes `PROJECT_PLAN_V1.md` as the
 active roadmap. V1 is retained unchanged below its banner as historical
@@ -271,7 +271,7 @@ Until this passes: `CAREER_THRESHOLDS = PROVISIONAL`. See §8.
 Target artifact: `scripts/sim-career-agents.mjs` (name per `CAREER_CONTRACT_V0.md` §19),
 or a `packages/*` equivalent that the closure receipt names explicitly.
 
-### 6.2 NEXT 2 — `EPISODES_V0`
+### 6.2 IMPLEMENTED — `EPISODES_V0`
 
 Generalize the historical-training concept into an immutable episode contract.
 
@@ -297,11 +297,11 @@ REPLAY = recorded real history, future withheld, retry allowed
 EXAM   = unseen recorded real history, future withheld, guidance minimized
 ```
 
-The two existing margin episodes in
-`packages/sim/src/margin/episode-v0.ts` become consumers of this general
-contract. **Reuse and generalize; do not duplicate.** Migrating them must not
-change their frozen values, digests, or the `MARGIN_2X_V0` / `SHORT_V0`
-qualification behavior.
+Implemented in `packages/episodes`. The two existing margin episodes in
+`packages/sim/src/margin/episode-v0.ts` consume the verified immutable source
+artifacts through a compatibility adapter. Their frozen values, digests,
+intrabar order, and `MARGIN_2X_V0` / `SHORT_V0` qualification behavior remain
+unchanged. This phase does not implement curriculum or learning UI.
 
 ### 6.3 NEXT 3 — `LEARNING_VERTICAL_SLICE_V0`
 
@@ -434,11 +434,11 @@ that decision is **not** taken by the harness phase.
 
 ---
 
-## 8. Contract impact map (future work; contracts NOT edited in this phase)
+## 8. Remaining contract impact map (future work)
 
-`CAREER_CONTRACT_V0.md` and `SIM_CONTRACT_V0.md` are unchanged by this phase.
-The following are the anticipated future edits, to be made by the phase that
-implements each item — not now.
+`CAREER_CONTRACT_V0.md` remains unchanged by this phase. `SIM_CONTRACT_V0.md`
+§13 records the implemented episode substrate; the following are anticipated
+future edits, to be made by the phase that implements each item — not now.
 
 ### `CAREER_CONTRACT_V0.md` — future additions
 
@@ -456,10 +456,8 @@ implements each item — not now.
 
 ### `SIM_CONTRACT_V0.md` — future additions
 
-- **Episode contract**: promote §13 ("Historical episode contract", currently a
-  `packages/episodes/` future target) to a frozen `EPISODES_V0` schema with the
-  manifest fields in §6.2 above, including the mandatory intrabar path rule and
-  regime metadata.
+- **Episode contract**: `SIM_CONTRACT_V0.md` §13 now records the implemented
+  `EPISODES_V0` schema, digest, provenance, and withholding boundaries.
 - **Environment boundaries**: name `LIVE` / `REPLAY` / `EXAM` / `DEMO`
   explicitly and state that environment is orthogonal to the §15 provenance
   taxonomy.
@@ -614,13 +612,15 @@ pointing here and correcting its stale status token.
 
 ---
 
-## 13. Next single bounded phase
+## 13. Current bounded phase status
 
 ```text
-CAREER_TUNING_HARNESS_V0
+CAREER_TUNING_HARNESS_V0 = PASS
+EPISODES_V0 = IMPLEMENTED
+NEXT = LEARNING_VERTICAL_SLICE_V0
 ```
 
-Then `EPISODES_V0`, then `LEARNING_VERTICAL_SLICE_V0`, then
-`MARKET_ANALYSIS_V0`, then `TRANSFER_EXAM_V0`.
+Do not begin `LEARNING_VERTICAL_SLICE_V0` in the EPISODES_V0 implementation
+closure.
 
 Do not add more leverage yet.

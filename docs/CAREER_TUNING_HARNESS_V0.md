@@ -379,7 +379,7 @@ comparator validity, unsupported sensitivity claims. Dispositions:
 | Gate F never exercised | Pre-declared `MELT_UP` comparator; 24 real reckless winners; PASS requires them; absence → `UNTESTED` → `HARNESS_EVIDENCE_INCOMPLETE` (M10/M11). |
 | unsupported sensitivity numbers | Removed; report cites only the committed `+120 bps/loss` matrix. |
 | agent gets future information | Policies receive only a `view` of current/past; `scenario.priceAt` is never exposed to a policy; every comparator policy trades the identical frozen `MELT_UP` array per seed. |
-| threshold changes hidden in the harness | `git diff --stat <base> -- packages/` empty (M13); constants imported and only snapshotted. |
+| threshold changes hidden in the harness | `git diff --stat <base> -- packages/career/src/` empty (M13); constants imported and only snapshotted. |
 | nondeterminism | SplitMix64 only; no `Math.random` / `Date.now` / `performance.now` (test 9); digest byte-identical ×3 (M12). |
 
 No Critical/High **harness** defect survived the targeted re-review.
