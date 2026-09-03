@@ -11,4 +11,8 @@ assert.equal(missionUsesPnlForPass('EX-01'), false);
 const first = evaluateMissionAttempt({ missionId: 'MD-01', missionVersion: 1, learnerInput: { kind: 'MD-01', classifications: { 'aggregator-mark': 'DERIVED', 'simulator-fill': 'DERIVED', 'demo-observation': 'SYNTHETIC', 'aged-observation': 'STALE' }, freshnessAnswer: 'STALE' }, completedAtSimMs: 1_800_000_000_000 }).receipt;
 assert.equal(first.verdict, 'PASS');
 assert.equal(first.scenario.provenance, 'SYNTHETIC');
+const mechanicalWithoutSimulator = evaluateMissionAttempt({ missionId: 'EX-01', missionVersion: 1, learnerInput: { kind: 'EX-01', markAnswer: 'MARK_IS_OBSERVATION', feeAnswer: 'FEES_AND_EXECUTION_CHANGE_RESULT' }, completedAtSimMs: 1_800_000_000_000 }).receipt;
+assert.equal(mechanicalWithoutSimulator.verdict, 'FAIL');
+assert.equal(mechanicalWithoutSimulator.relevantFacts.entryAccepted, false);
+assert.equal(mechanicalWithoutSimulator.relevantFacts.exitAccepted, false);
 console.log('VERIFY_LEARNING=PASS');

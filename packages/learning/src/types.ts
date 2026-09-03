@@ -76,10 +76,8 @@ export interface MarketTruthLearnerInput {
 
 export interface ExecutionLearnerInput {
   readonly kind: 'EX-01';
-  readonly entered: boolean;
   readonly markAnswer: 'MARK_IS_OBSERVATION' | 'MARK_IS_FILL' | 'MARK_AND_FILL_ARE_IDENTICAL';
   readonly feeAnswer: 'FEES_AND_EXECUTION_CHANGE_RESULT' | 'FEES_DO_NOT_MATTER' | 'ONLY_PNL_MATTERS';
-  readonly closed: boolean;
 }
 
 export type LiquidityDecision = 'SEND' | 'RESIZE' | 'DECLINE';
@@ -94,8 +92,6 @@ export interface LiquidityLearnerInput {
 
 export interface StopLearnerInput {
   readonly kind: 'ST-01';
-  readonly entered: boolean;
-  readonly stopPlaced: boolean;
   readonly acknowledgement: 'STOP_IS_INSTRUCTION_NOT_GUARANTEED_FILL' | 'STOP_GUARANTEES_FILL' | 'STOP_IS_MARK_PRICE';
   readonly allowedWidening: 'NEVER_WIDEN' | 'WIDEN_IF_LOSING' | 'MOVE_AFTER_TRIGGER';
   readonly allowedExit: 'ALLOW_PLANNED_EXIT' | 'CANCEL_STOP' | 'WAIT_FOR_PROFIT';
@@ -133,8 +129,9 @@ export interface ExecutionFactsV0 {
   readonly scenarioId: string;
   readonly provenance: 'SYNTHETIC';
   readonly modelVersion: 'SPOT_FILL_V0';
-  readonly entered: true;
-  readonly closed: true;
+  /** Actual accepted actions in a learner attempt; static scenario references use false. */
+  readonly entryAccepted: boolean;
+  readonly exitAccepted: boolean;
   readonly referencePriceX18: string;
   readonly markPriceX18: string;
   readonly entryFillPriceX18: string;
@@ -171,11 +168,12 @@ export interface StopFactsV0 {
   readonly scenarioId: string;
   readonly provenance: 'SYNTHETIC';
   readonly modelVersion: 'SPOT_FILL_V0';
-  readonly entered: true;
-  readonly stopPlaced: true;
-  readonly stopTriggered: true;
+  /** Actual accepted actions in a learner attempt; static scenario references use false. */
+  readonly entryAccepted: boolean;
+  readonly stopPlacementAccepted: boolean;
+  readonly stopTriggered: boolean;
   readonly stopWidened: boolean;
-  readonly exitCompleted: true;
+  readonly exitCompleted: boolean;
   readonly planPriceX18: string;
   readonly triggerPriceX18: string;
   readonly actualFillPriceX18: string;
@@ -209,6 +207,49 @@ export interface RiskFactsV0 {
 
 export type MissionFacts = MarketTruthFactsV0 | ExecutionFactsV0 | LiquidityFactsV0 | StopFactsV0 | RiskFactsV0;
 
+export interface ExecutionMissionEvidenceV0 {
+  readonly kind: 'EX-01';
+  readonly modelVersion: string;
+  readonly entryAccepted: boolean;
+  readonly exitAccepted: boolean;
+  readonly entryFillId?: string;
+  readonly exitFillId?: string;
+  readonly entryReferencePriceX18?: string;
+  readonly markPriceX18?: string;
+  readonly exitReferencePriceX18?: string;
+  readonly entryFillPriceX18?: string;
+  readonly exitFillPriceX18?: string;
+  readonly entryImpactBps?: string;
+  readonly exitImpactBps?: string;
+  readonly entryFeeWei?: string;
+  readonly exitFeeWei?: string;
+  readonly unrealizedPnlBeforeCloseWei?: string;
+  readonly realizedPnlWei?: string;
+  readonly rejectedActionReasons: readonly string[];
+}
+
+export interface StopMissionEvidenceV0 {
+  readonly kind: 'ST-01';
+  readonly modelVersion: string;
+  readonly entryAccepted: boolean;
+  readonly stopPlacementAccepted: boolean;
+  readonly stopTriggered: boolean;
+  readonly exitCompleted: boolean;
+  readonly stopWidened: boolean;
+  readonly stopId?: string;
+  readonly triggerEventId?: string;
+  readonly exitFillId?: string;
+  readonly planPriceX18?: string;
+  readonly triggerPriceX18?: string;
+  readonly actualFillPriceX18?: string;
+  readonly impactBps?: string;
+  readonly feesWei?: string;
+  readonly realizedPnlWei?: string;
+  readonly rejectedActionReasons: readonly string[];
+}
+
+export type MissionSimulatorEvidenceV0 = ExecutionMissionEvidenceV0 | StopMissionEvidenceV0;
+
 export interface MissionAttemptV0 {
   readonly missionId: MissionId;
   readonly missionVersion: MissionVersion;
@@ -217,6 +258,8 @@ export interface MissionAttemptV0 {
   readonly completedAtSimMs: number;
   /** Optional only for future episode-backed missions; V0's five missions are synthetic. */
   readonly episode?: EpisodeIdentityV0;
+  /** Ephemeral simulator state. The evaluator derives action evidence from its events/state. */
+  readonly simulatorState?: import('@rekt-ink/sim').SimState;
 }
 
 export interface MissionReceiptV0 {
@@ -228,6 +271,8 @@ export interface MissionReceiptV0 {
   readonly scenarioDigest: string;
   readonly episodeDigest?: string;
   readonly learnerInput: MissionLearnerInput;
+  /** Derived from the ephemeral simulator; never authored by the UI. */
+  readonly simulatorEvidence?: MissionSimulatorEvidenceV0;
   readonly relevantFacts: MissionFacts;
   readonly verdict: MissionVerdict;
   readonly reasonCodes: readonly string[];
@@ -246,8 +291,11 @@ export interface LearningStateV0 {
   readonly completed: readonly MissionCompletionV0[];
   readonly attempts: readonly MissionReceiptV0[];
   readonly currentMissionId: MissionId | null;
+  /** PASS remains visible until this receipt is explicitly acknowledged. */
+  readonly pendingDebriefReceiptId: string | null;
 }
 
 export type LearningAction =
   | { readonly type: 'MISSION_STARTED'; readonly missionId: MissionId }
-  | { readonly type: 'MISSION_ATTEMPT_RECORDED'; readonly receipt: MissionReceiptV0 };
+  | { readonly type: 'MISSION_ATTEMPT_RECORDED'; readonly receipt: MissionReceiptV0 }
+  | { readonly type: 'MISSION_DEBRIEF_ACKNOWLEDGED'; readonly receiptId: string };

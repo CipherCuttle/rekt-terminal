@@ -14,22 +14,50 @@ import {
   reduceLearningState,
 } from '../dist/index.js';
 import { EPISODE_LOAD_POLICY_V0, ETHUSDT_PERP_EPISODE_20260828_0530, loadEpisode } from '../../episodes/dist/index.js';
+import { DEFAULT_SPOT_FILL_CONFIG, createInitialSimState, createSessionOpenedEvent, executeSpotAction, makeFixtureObservation, markSpot, placeSpotStop, priceX18, replayEvents, wei } from '../../sim/dist/index.js';
 
 const AT = 1_800_000_000_000;
 
 function input(id, overrides = {}) {
   const defaults = {
     'MD-01': { kind: 'MD-01', classifications: { 'aggregator-mark': 'DERIVED', 'simulator-fill': 'DERIVED', 'demo-observation': 'SYNTHETIC', 'aged-observation': 'STALE' }, freshnessAnswer: 'STALE' },
-    'EX-01': { kind: 'EX-01', entered: true, markAnswer: 'MARK_IS_OBSERVATION', feeAnswer: 'FEES_AND_EXECUTION_CHANGE_RESULT', closed: true },
+    'EX-01': { kind: 'EX-01', markAnswer: 'MARK_IS_OBSERVATION', feeAnswer: 'FEES_AND_EXECUTION_CHANGE_RESULT' },
     'LQ-01': { kind: 'LQ-01', deepDecision: 'SEND', thinDecision: 'DECLINE', modelAnswer: 'SPOT_FILL_V0_MODEL' },
-    'ST-01': { kind: 'ST-01', entered: true, stopPlaced: true, acknowledgement: 'STOP_IS_INSTRUCTION_NOT_GUARANTEED_FILL', allowedWidening: 'NEVER_WIDEN', allowedExit: 'ALLOW_PLANNED_EXIT' },
+    'ST-01': { kind: 'ST-01', acknowledgement: 'STOP_IS_INSTRUCTION_NOT_GUARANTEED_FILL', allowedWidening: 'NEVER_WIDEN', allowedExit: 'ALLOW_PLANNED_EXIT' },
     'RS-01': { kind: 'RS-01', selectedPositionSizeAtoms: createMissionFacts('RS-01').narrowStop.positionSizeAtoms, widthAnswer: 'WIDER_STOP_SMALLER_SIZE', modelAnswer: 'RISK_PLAN_V0' },
   };
   return { ...defaults[id], ...overrides };
 }
 
-function evaluate(id, overrides = {}, completedAtSimMs = AT) {
-  return evaluateMissionAttempt({ missionId: id, missionVersion: 1, learnerInput: input(id, overrides), completedAtSimMs });
+function open(id) {
+  const initial = createInitialSimState({ sessionId: `test-${id}`, startedAtMs: AT, evidencePolicy: 'DEMO_ALLOW_SYNTHETIC' });
+  return replayEvents([createSessionOpenedEvent(initial, AT)], initial);
+}
+
+function observation(id, time, price = 25_000_000_000_000_000n, liquidity = 10_000_000_000_000_000_000n) {
+  return makeFixtureObservation({ observationId: `${id}-${time}`, referencePriceX18: priceX18(price), usableQuoteLiquidityWei: wei(liquidity), observedAtMs: time, sourceId: 'REKT_LEARNING_TEST_FIXTURE_V0', provenance: 'SYNTHETIC' });
+}
+
+function executionState({ exitFirst = false, close = true } = {}) {
+  let state = open('EX-01');
+  if (exitFirst) state = executeSpotAction(state, { type: 'FULL_CLOSE', intentId: 'ex-exit-first', fillId: 'ex-exit-first-fill', eventTimeMs: AT, observation: observation('ex-exit-first', AT, 24_000_000_000_000_000n), config: DEFAULT_SPOT_FILL_CONFIG }).state;
+  state = executeSpotAction(state, { type: 'BUY', intentId: 'ex-entry', fillId: 'ex-entry-fill', eventTimeMs: AT, observation: observation('ex-entry', AT), quoteNotionalWei: wei(50_000_000_000_000_000n), config: DEFAULT_SPOT_FILL_CONFIG }).state;
+  state = markSpot(state, observation('ex-mark', AT + 1_000, 26_000_000_000_000_000n), AT + 1_000, DEFAULT_SPOT_FILL_CONFIG).state;
+  if (close) state = executeSpotAction(state, { type: 'FULL_CLOSE', intentId: 'ex-exit', fillId: 'ex-exit-fill', eventTimeMs: AT + 2_000, observation: observation('ex-exit', AT + 2_000, 24_000_000_000_000_000n, 5_000_000_000_000_000_000n), config: DEFAULT_SPOT_FILL_CONFIG }).state;
+  return state;
+}
+
+function stopState({ stopFirst = false, trigger = true, placeAfterEntry = true } = {}) {
+  let state = open('ST-01');
+  if (stopFirst) state = placeSpotStop(state, { stopId: 'st-stop-first', stopPriceX18: priceX18(24_500_000_000_000_000n), observation: observation('st-stop-first', AT), eventTimeMs: AT }, DEFAULT_SPOT_FILL_CONFIG).state;
+  state = executeSpotAction(state, { type: 'BUY', intentId: 'st-entry', fillId: 'st-entry-fill', eventTimeMs: AT, observation: observation('st-entry', AT), quoteNotionalWei: wei(50_000_000_000_000_000n), config: DEFAULT_SPOT_FILL_CONFIG }).state;
+  if (placeAfterEntry) state = placeSpotStop(state, { stopId: 'st-stop', stopPriceX18: priceX18(24_500_000_000_000_000n), observation: observation('st-stop', AT + 1_000), eventTimeMs: AT + 1_000 }, DEFAULT_SPOT_FILL_CONFIG).state;
+  if (trigger) state = markSpot(state, observation('st-trigger', AT + 2_000, 24_000_000_000_000_000n, 2_000_000_000_000_000_000n), AT + 2_000, DEFAULT_SPOT_FILL_CONFIG).state;
+  return state;
+}
+
+function evaluate(id, overrides = {}, simulatorState = undefined, completedAtSimMs = AT) {
+  return evaluateMissionAttempt({ missionId: id, missionVersion: 1, learnerInput: input(id, overrides), completedAtSimMs, simulatorState });
 }
 
 test('the vertical slice has exactly five immutable, versioned mission definitions', () => {
@@ -51,16 +79,28 @@ test('MD-01 grades canonical labels and stale evidence fail-closed', () => {
 });
 
 test('EX-01 uses production SPOT_FILL_V0 facts and ignores PnL sign for knowledge', () => {
-  const result = evaluate('EX-01');
+  const result = evaluate('EX-01', {}, executionState());
   assert.equal(result.receipt.verdict, 'PASS');
   assert.equal(result.facts.modelVersion, 'SPOT_FILL_V0');
   assert.notEqual(result.facts.markPriceX18, result.facts.entryFillPriceX18);
   assert.notEqual(result.facts.unrealizedPnlBeforeCloseWei, result.facts.realizedPnlWei);
   assert.notEqual(result.facts.entryFeeWei, '0');
   assert.notEqual(result.facts.exitFeeWei, '0');
-  assert.equal(evaluate('EX-01', { markAnswer: 'MARK_IS_FILL' }).receipt.verdict, 'FAIL');
-  assert.equal(evaluate('EX-01', { feeAnswer: 'FEES_DO_NOT_MATTER' }).receipt.verdict, 'FAIL');
-  assert.deepEqual(evaluate('EX-01').receipt.reasonCodes, evaluate('EX-01').receipt.reasonCodes);
+  assert.equal(evaluate('EX-01').receipt.verdict, 'FAIL');
+  assert.equal(evaluate('EX-01').facts.modelVersion, 'SPOT_FILL_V0');
+  assert.equal(evaluate('EX-01', { markAnswer: 'MARK_IS_FILL' }, executionState()).receipt.verdict, 'FAIL');
+  assert.equal(evaluate('EX-01', { feeAnswer: 'FEES_DO_NOT_MATTER' }, executionState()).receipt.verdict, 'FAIL');
+  assert.deepEqual(evaluate('EX-01', {}, executionState()).receipt.reasonCodes, evaluate('EX-01', {}, executionState()).receipt.reasonCodes);
+});
+
+test('EX-01 cannot launder an EXIT-before-ENTRY or duplicate action into accepted exit evidence', () => {
+  const invalidOrder = evaluate('EX-01', {}, executionState({ exitFirst: true, close: false }));
+  assert.equal(invalidOrder.receipt.verdict, 'FAIL');
+  assert.equal(invalidOrder.receipt.simulatorEvidence.exitAccepted, false);
+  assert.equal(invalidOrder.receipt.simulatorEvidence.rejectedActionReasons.some((reason) => reason.includes('NO_OPEN_POSITION')), true);
+  const noClose = evaluate('EX-01', {}, executionState({ close: false }));
+  assert.equal(noClose.receipt.verdict, 'FAIL');
+  assert.equal(noClose.receipt.relevantFacts.exitAccepted, false);
 });
 
 test('LQ-01 rewards a valid refusal or resize, never raw action count', () => {
@@ -72,13 +112,25 @@ test('LQ-01 rewards a valid refusal or resize, never raw action count', () => {
 });
 
 test('ST-01 passes disciplined stop process even though the fixed drill loses', () => {
-  const result = evaluate('ST-01');
+  const result = evaluate('ST-01', {}, stopState());
   assert.equal(result.receipt.verdict, 'PASS');
   assert.equal(result.facts.stopWidened, false);
   assert.equal(BigInt(result.facts.realizedPnlWei) < 0n, true);
-  assert.equal(evaluate('ST-01', { allowedWidening: 'WIDEN_IF_LOSING' }).receipt.verdict, 'FAIL');
-  assert.equal(evaluate('ST-01', { acknowledgement: 'STOP_GUARANTEES_FILL' }).receipt.verdict, 'FAIL');
+  assert.equal(evaluate('ST-01', { allowedWidening: 'WIDEN_IF_LOSING' }, stopState()).receipt.verdict, 'FAIL');
+  assert.equal(evaluate('ST-01', { acknowledgement: 'STOP_GUARANTEES_FILL' }, stopState()).receipt.verdict, 'FAIL');
   assert.notEqual(result.facts.triggerPriceX18, result.facts.actualFillPriceX18);
+});
+
+test('ST-01 requires accepted entry, stop, trigger, and exit in that order', () => {
+  const stopBeforeEntry = evaluate('ST-01', {}, stopState({ stopFirst: true, trigger: false, placeAfterEntry: false }));
+  assert.equal(stopBeforeEntry.receipt.verdict, 'FAIL');
+  assert.equal(stopBeforeEntry.receipt.simulatorEvidence.modelVersion, 'SPOT_FILL_V0');
+  assert.equal(stopBeforeEntry.receipt.simulatorEvidence.stopPlacementAccepted, false);
+  assert.equal(stopBeforeEntry.receipt.simulatorEvidence.rejectedActionReasons.some((reason) => reason.includes('NO_OPEN_POSITION')), true);
+  const noTrigger = evaluate('ST-01', {}, stopState({ trigger: false }));
+  assert.equal(noTrigger.receipt.verdict, 'FAIL');
+  assert.equal(noTrigger.receipt.relevantFacts.stopTriggered, false);
+  assert.equal(noTrigger.receipt.relevantFacts.exitCompleted, false);
 });
 
 test('RS-01 uses the production risk calculator and sizes down for a wider stop', () => {
@@ -95,7 +147,7 @@ test('same inputs produce the same receipt and a mission version/time change cha
   const first = evaluate('MD-01').receipt;
   const second = evaluate('MD-01').receipt;
   assert.deepEqual(first, second);
-  assert.notEqual(first.receiptId, evaluate('MD-01', {}, AT + 1).receipt.receiptId);
+  assert.notEqual(first.receiptId, evaluate('MD-01', {}, undefined, AT + 1).receipt.receiptId);
 });
 
 test('receipt identity includes mission version and episode cursors withhold future samples', () => {
@@ -122,13 +174,69 @@ test('failed attempts do not complete, corrected retries do, and old receipts re
   assert.deepEqual(state.completed, []);
   const passed = evaluate('MD-01').receipt;
   state = reduceLearningState(state, { type: 'MISSION_ATTEMPT_RECORDED', receipt: passed });
+  assert.equal(state.currentMissionId, 'MD-01');
+  assert.equal(state.pendingDebriefReceiptId, passed.receiptId);
+  assert.throws(() => reduceLearningState(state, { type: 'MISSION_STARTED', missionId: 'EX-01' }));
+  state = reduceLearningState(state, { type: 'MISSION_DEBRIEF_ACKNOWLEDGED', receiptId: passed.receiptId });
   assert.equal(nextMissionId(state), 'EX-01');
-  const exFailed = evaluate('EX-01', { closed: false }).receipt;
+  assert.equal(state.currentMissionId, 'EX-01');
+  const exFailed = evaluate('EX-01', {}, executionState({ close: false })).receipt;
   state = reduceLearningState(state, { type: 'MISSION_ATTEMPT_RECORDED', receipt: exFailed });
   assert.equal(state.completed.length, 1);
   assert.equal(state.attempts[0].receiptId, failed.receiptId);
   assert.equal(state.attempts[2].receiptId, exFailed.receiptId);
   assert.equal(parseLearningState(JSON.parse(JSON.stringify(state))).attempts.length, 3);
+});
+
+test('successful debrief acknowledgement advances exactly once, including the final mission', () => {
+  let state = createInitialLearningState();
+  for (const id of ['MD-01', 'EX-01', 'LQ-01', 'ST-01', 'RS-01']) {
+    state = reduceLearningState(state, { type: 'MISSION_STARTED', missionId: id });
+    const receipt = evaluate(id, {}, id === 'EX-01' ? executionState() : id === 'ST-01' ? stopState() : undefined).receipt;
+    state = reduceLearningState(state, { type: 'MISSION_ATTEMPT_RECORDED', receipt });
+    assert.equal(state.currentMissionId, id);
+    assert.equal(state.pendingDebriefReceiptId, receipt.receiptId);
+    if (id === 'RS-01') {
+      const restoredFinal = parseLearningState(JSON.parse(JSON.stringify(state)));
+      assert.equal(restoredFinal.currentMissionId, 'RS-01');
+      assert.equal(restoredFinal.pendingDebriefReceiptId, receipt.receiptId);
+    }
+    state = reduceLearningState(state, { type: 'MISSION_DEBRIEF_ACKNOWLEDGED', receiptId: receipt.receiptId });
+    assert.equal(state.pendingDebriefReceiptId, null);
+  }
+  assert.equal(state.currentMissionId, null);
+  assert.equal(nextMissionId(state), null);
+  assert.throws(() => reduceLearningState(state, { type: 'MISSION_DEBRIEF_ACKNOWLEDGED', receiptId: state.attempts.at(-1).receiptId }));
+});
+
+test('pending successful debrief survives parse/restore and static scenario facts cannot pass mechanically', () => {
+  let state = createInitialLearningState();
+  state = reduceLearningState(state, { type: 'MISSION_STARTED', missionId: 'MD-01' });
+  const md = evaluate('MD-01').receipt;
+  state = reduceLearningState(state, { type: 'MISSION_ATTEMPT_RECORDED', receipt: md });
+  state = reduceLearningState(state, { type: 'MISSION_DEBRIEF_ACKNOWLEDGED', receiptId: md.receiptId });
+  state = reduceLearningState(state, { type: 'MISSION_STARTED', missionId: 'EX-01' });
+  const receipt = evaluate('EX-01', {}, executionState()).receipt;
+  state = reduceLearningState(state, { type: 'MISSION_ATTEMPT_RECORDED', receipt });
+  const restored = parseLearningState(JSON.parse(JSON.stringify(state)));
+  assert.equal(restored.pendingDebriefReceiptId, receipt.receiptId);
+  assert.equal(restored.currentMissionId, 'EX-01');
+  assert.equal(evaluate('EX-01').receipt.verdict, 'FAIL');
+  assert.equal(createMissionFacts('EX-01').entryAccepted, false);
+});
+
+test('mechanical receipts reject facts that do not exactly match their simulator evidence', () => {
+  const receipt = evaluate('EX-01', {}, executionState()).receipt;
+  const { receiptId: _receiptId, ...tamperedMaterial } = receipt;
+  const tampered = {
+    ...tamperedMaterial,
+    relevantFacts: { ...receipt.relevantFacts, entryAccepted: false },
+  };
+  const tamperedReceipt = { ...tampered, receiptId: missionReceiptId(tampered) };
+  assert.throws(
+    () => reduceLearningState(createInitialLearningState(), { type: 'MISSION_ATTEMPT_RECORDED', receipt: tamperedReceipt }),
+    /do not match simulator evidence/,
+  );
 });
 
 test('future or malformed learning saves fail closed without accepting a synthetic replay label', () => {
@@ -140,7 +248,7 @@ test('future or malformed learning saves fail closed without accepting a synthet
 });
 
 test('debrief is deterministic and separates scenario, learner process, and verdict', () => {
-  const sections = debriefForReceipt(evaluate('EX-01').receipt);
+  const sections = debriefForReceipt(evaluate('EX-01', {}, executionState()).receipt);
   assert.deepEqual(sections.map((section) => section.title), ['WHAT THE SCENARIO DID', 'WHAT YOU DID', 'WHY THIS MISSION PASSED']);
   assert.equal(sections[0].facts.some((fact) => fact.label === 'MARK'), true);
 });

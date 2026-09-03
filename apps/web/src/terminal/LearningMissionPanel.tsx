@@ -13,7 +13,7 @@ import {
 
 type TrainingAction = 'EX_ENTRY' | 'EX_EXIT' | 'ST_ENTRY' | 'ST_PLACE_STOP' | 'ST_ALLOW_EXIT';
 
-export function LearningMissionPanel({ missionId, learning, onSubmit, onTrainingAction }: { missionId: MissionId; learning: LearningStateV0; onSubmit: (input: MissionLearnerInput) => void; onTrainingAction?: (action: TrainingAction) => void }) {
+export function LearningMissionPanel({ missionId, learning, onSubmit, onTrainingAction, onAcknowledgeDebrief }: { missionId: MissionId; learning: LearningStateV0; onSubmit: (input: MissionLearnerInput) => void; onTrainingAction?: (action: TrainingAction) => void; onAcknowledgeDebrief?: () => void }) {
   const definition = MISSION_DEFINITIONS[missionId];
   const [showGuide, setShowGuide] = useState(true);
   const [showTask, setShowTask] = useState(false);
@@ -56,14 +56,15 @@ export function LearningMissionPanel({ missionId, learning, onSubmit, onTraining
   }, [missionId]);
 
   const latest = useMemo(() => [...learning.attempts].reverse().find((attempt) => attempt.missionId === missionId) ?? null, [learning.attempts, missionId]);
+  const pendingDebrief = latest?.verdict === 'PASS' && learning.pendingDebriefReceiptId === latest.receiptId;
   const submit = () => {
     if (missionId === 'MD-01') onSubmit({ kind: 'MD-01', classifications: mdAnswers, freshnessAnswer: freshness });
-    if (missionId === 'EX-01') onSubmit({ kind: 'EX-01', entered, markAnswer, feeAnswer, closed });
+    if (missionId === 'EX-01') onSubmit({ kind: 'EX-01', markAnswer, feeAnswer });
     if (missionId === 'LQ-01' && deepDecision !== '' && thinDecision !== '' && modelAnswer !== '') {
       const input: MissionLearnerInput = { kind: 'LQ-01', deepDecision, thinDecision, modelAnswer };
       onSubmit(thinDecision === 'RESIZE' ? { ...input, resizedQuoteWei } : input);
     }
-    if (missionId === 'ST-01' && allowedExit !== '') onSubmit({ kind: 'ST-01', entered, stopPlaced, acknowledgement, allowedWidening, allowedExit });
+    if (missionId === 'ST-01' && allowedExit !== '') onSubmit({ kind: 'ST-01', acknowledgement, allowedWidening, allowedExit });
     if (missionId === 'RS-01' && selectedSize !== '' && riskWidthAnswer !== '' && modelAnswer !== '') onSubmit({ kind: 'RS-01', selectedPositionSizeAtoms: selectedSize, widthAnswer: riskWidthAnswer, modelAnswer: modelAnswer === 'SPOT_FILL_V0_MODEL' ? 'RISK_PLAN_V0' : 'SIMPLE_UNCHECKED_FORMULA' });
   };
 
@@ -83,11 +84,10 @@ export function LearningMissionPanel({ missionId, learning, onSubmit, onTraining
       {showGuide && <p className="mission-guide">{guideFor(missionId)}</p>}
 
       <div className="mission-actions">
-        <button type="button" className="mission-task-toggle" aria-expanded={showTask} onClick={() => setShowTask((value) => !value)}>{showTask ? 'HIDE MISSION TASK' : 'OPEN MISSION TASK →'}</button>
-        {showTask && <button type="button" className="mission-submit" onClick={submit}>COMMIT ANSWERS / ACTIONS</button>}
-        <span className="mission-note">PASS is decided by the learning domain. No Career unlock, XP, or PnL grade.</span>
+        {pendingDebrief ? <button type="button" className="mission-submit" onClick={() => onAcknowledgeDebrief?.()}>CONTINUE →</button> : <><button type="button" className="mission-task-toggle" aria-expanded={showTask} onClick={() => setShowTask((value) => !value)}>{showTask ? 'HIDE MISSION TASK' : 'OPEN MISSION TASK →'}</button>{showTask && <button type="button" className="mission-submit" onClick={submit}>COMMIT ANSWERS / ACTIONS</button>}</>}
+        <span className="mission-note">PASS is decided by the learning domain. No Career unlock, XP, or PnL grade.{pendingDebrief ? ' Review the debrief before continuing.' : ''}</span>
       </div>
-      {showTask && <div className="mission-interaction">{renderInteraction(missionId, { mdAnswers, setMdAnswers, freshness, setFreshness, entered, setEntered, closed, setClosed, markAnswer, setMarkAnswer, feeAnswer, setFeeAnswer, deepDecision, setDeepDecision, thinDecision, setThinDecision, resizedQuoteWei, setResizedQuoteWei, modelAnswer, setModelAnswer, stopPlaced, setStopPlaced, acknowledgement, setAcknowledgement, allowedWidening, setAllowedWidening, allowedExit, setAllowedExit, riskWidthAnswer, setRiskWidthAnswer, selectedSize, setSelectedSize, onTrainingAction })}</div>}
+      {showTask && !pendingDebrief && <div className="mission-interaction">{renderInteraction(missionId, { mdAnswers, setMdAnswers, freshness, setFreshness, entered, setEntered, closed, setClosed, markAnswer, setMarkAnswer, feeAnswer, setFeeAnswer, deepDecision, setDeepDecision, thinDecision, setThinDecision, resizedQuoteWei, setResizedQuoteWei, modelAnswer, setModelAnswer, stopPlaced, setStopPlaced, acknowledgement, setAcknowledgement, allowedWidening, setAllowedWidening, allowedExit, setAllowedExit, riskWidthAnswer, setRiskWidthAnswer, selectedSize, setSelectedSize, onTrainingAction })}</div>}
       {latest && <MissionDebrief receipt={latest} />}
     </section>
   );

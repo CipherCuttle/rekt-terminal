@@ -160,8 +160,9 @@ export class PracticeSessionStore {
   startMission(missionId: MissionId): boolean {
     try {
       const learning = reduceLearningState(this.getLearningState(), { type: 'MISSION_STARTED', missionId });
-      this.learningTrainingSim = null;
-      this.commit({ learning }, false);
+      const initial = createInitialSimState({ sessionId: `learning-${missionId}`, startedAtMs: 1_800_000_000_000, evidencePolicy: 'DEMO_ALLOW_SYNTHETIC' });
+      this.learningTrainingSim = replayEvents([createSessionOpenedEvent(initial, 1_800_000_000_000)], initial);
+      this.commit({ learning });
       return true;
     } catch {
       return false;
@@ -181,21 +182,33 @@ export class PracticeSessionStore {
       this.learningTrainingSim = replayEvents([createSessionOpenedEvent(initial, start)], initial);
     }
     const current = this.learningTrainingSim;
-    const synthetic = (id: string, at: number, reference: bigint, liquidity = 10_000_000_000_000_000_000n) => makeFixtureObservation({ observationId: `${missionId}-${id}`, referencePriceX18: priceX18(reference), usableQuoteLiquidityWei: liquidity as never, observedAtMs: at, sourceId: 'REKT_LEARNING_SYNTHETIC_FIXTURE_V0', provenance: 'SYNTHETIC' });
-    const run = (result: SpotActionResult) => { if (result.accepted) this.learningTrainingSim = result.state; };
-    if ((action === 'EX_ENTRY' || action === 'ST_ENTRY') && !current.position) {
-      run(executeSpotAction(current, { type: 'BUY', intentId: `${missionId}:entry`, fillId: `${missionId}:entry-fill`, eventTimeMs: start, observation: synthetic('entry', start, 25_000_000_000_000_000n), quoteNotionalWei: DEFAULT_FIRST_TICKET_WEI, config: DEFAULT_SPOT_FILL_CONFIG }));
+    const actionTime = Math.max(start, current.events.at(-1)?.eventTimeMs ?? start) + 1_000;
+    const synthetic = (id: string, at: number, reference: bigint, liquidity = 10_000_000_000_000_000_000n) => makeFixtureObservation({ observationId: `${missionId}-${id}-${at}`, referencePriceX18: priceX18(reference), usableQuoteLiquidityWei: liquidity as never, observedAtMs: at, sourceId: 'REKT_LEARNING_SYNTHETIC_FIXTURE_V0', provenance: 'SYNTHETIC' });
+    // Rejected actions are part of the immutable attempt history too. Keep
+    // their simulator events so a later valid action cannot launder them into
+    // positive evidence.
+    const run = (result: SpotActionResult) => { this.learningTrainingSim = result.state; };
+    if (action === 'EX_ENTRY' || action === 'ST_ENTRY') {
+      run(executeSpotAction(current, { type: 'BUY', intentId: `${missionId}:entry`, fillId: `${missionId}:entry-fill`, eventTimeMs: actionTime, observation: synthetic('entry', actionTime, 25_000_000_000_000_000n), quoteNotionalWei: DEFAULT_FIRST_TICKET_WEI, config: DEFAULT_SPOT_FILL_CONFIG }));
     }
-    if (action === 'EX_EXIT' && current.position) {
-      run(executeSpotAction(current, { type: 'FULL_CLOSE', intentId: `${missionId}:exit`, fillId: `${missionId}:exit-fill`, eventTimeMs: start + 2_000, observation: synthetic('exit', start + 2_000, 24_000_000_000_000_000n, 5_000_000_000_000_000_000n), config: DEFAULT_SPOT_FILL_CONFIG }));
+    if (action === 'EX_EXIT') {
+      if (current.position) {
+        const markTime = actionTime;
+        const exitTime = markTime + 1_000;
+        const marked = markSpot(current, synthetic('mark', markTime, 26_000_000_000_000_000n), markTime, DEFAULT_SPOT_FILL_CONFIG);
+        this.learningTrainingSim = marked.state;
+        run(executeSpotAction(marked.state, { type: 'FULL_CLOSE', intentId: `${missionId}:exit`, fillId: `${missionId}:exit-fill`, eventTimeMs: exitTime, observation: synthetic('exit', exitTime, 24_000_000_000_000_000n, 5_000_000_000_000_000_000n), config: DEFAULT_SPOT_FILL_CONFIG }));
+      } else {
+        run(executeSpotAction(current, { type: 'FULL_CLOSE', intentId: `${missionId}:exit`, fillId: `${missionId}:exit-fill`, eventTimeMs: actionTime, observation: synthetic('exit-before-entry', actionTime, 24_000_000_000_000_000n), config: DEFAULT_SPOT_FILL_CONFIG }));
+      }
     }
-    if (action === 'ST_PLACE_STOP' && current.position && !current.activeStop) {
-      const result = placeSpotStop(current, { stopId: `${missionId}:stop`, stopPriceX18: priceX18(24_500_000_000_000_000n), observation: synthetic('stop', start + 1_000, 25_000_000_000_000_000n), eventTimeMs: start + 1_000 }, DEFAULT_SPOT_FILL_CONFIG);
-      if (result.accepted) this.learningTrainingSim = result.state;
+    if (action === 'ST_PLACE_STOP' && !current.activeStop) {
+      const result = placeSpotStop(current, { stopId: `${missionId}:stop`, stopPriceX18: priceX18(24_500_000_000_000_000n), observation: synthetic('stop', actionTime, 25_000_000_000_000_000n), eventTimeMs: actionTime }, DEFAULT_SPOT_FILL_CONFIG);
+      this.learningTrainingSim = result.state;
     }
-    if (action === 'ST_ALLOW_EXIT' && current.position && current.activeStop) {
-      const result = markSpot(current, synthetic('trigger', start + 2_000, 24_000_000_000_000_000n, 2_000_000_000_000_000_000n), start + 2_000, DEFAULT_SPOT_FILL_CONFIG);
-      if (result.accepted) this.learningTrainingSim = result.state;
+    if (action === 'ST_ALLOW_EXIT') {
+      const result = markSpot(current, synthetic('trigger', actionTime, 24_000_000_000_000_000n, 2_000_000_000_000_000_000n), actionTime, DEFAULT_SPOT_FILL_CONFIG);
+      this.learningTrainingSim = result.state;
     }
   }
 
@@ -205,11 +218,24 @@ export class PracticeSessionStore {
     const learning = this.getLearningState();
     if (learning.currentMissionId !== missionId || !canStartMission(learning, missionId)) return null;
     try {
-      const receipt = evaluateMissionAttempt({ missionId, missionVersion: getMissionDefinition(missionId).version, learnerInput, completedAtSimMs: this.learningEventTime() }).receipt;
+      const receipt = evaluateMissionAttempt({ missionId, missionVersion: getMissionDefinition(missionId).version, learnerInput, completedAtSimMs: this.learningEventTime(), simulatorState: this.learningTrainingSim ?? undefined }).receipt;
       this.commit({ learning: reduceLearningState(learning, { type: 'MISSION_ATTEMPT_RECORDED', receipt }) });
       return receipt;
     } catch {
       return null;
+    }
+  }
+
+  acknowledgeMissionDebrief(): boolean {
+    const pendingReceiptId = this.getLearningState().pendingDebriefReceiptId;
+    if (!pendingReceiptId) return false;
+    try {
+      const learning = reduceLearningState(this.getLearningState(), { type: 'MISSION_DEBRIEF_ACKNOWLEDGED', receiptId: pendingReceiptId });
+      this.learningTrainingSim = null;
+      this.commit({ learning });
+      return true;
+    } catch {
+      return false;
     }
   }
 

@@ -24,7 +24,7 @@ export function debriefForReceipt(receipt: MissionReceiptV0): readonly DebriefSe
     const facts = receipt.relevantFacts as Extract<typeof receipt.relevantFacts, { kind: 'EX-01' }>;
     return [
       { title: 'WHAT THE SCENARIO DID', facts: [{ label: 'MARK', value: facts.markPriceX18 }, { label: 'ENTRY FILL', value: facts.entryFillPriceX18 }, { label: 'EXIT FILL', value: facts.exitFillPriceX18 }, { label: 'IMPACT', value: `IN ${facts.entryImpactBps} BPS · OUT ${facts.exitImpactBps} BPS` }, { label: 'FEES', value: `IN ${facts.entryFeeWei} · OUT ${facts.exitFeeWei}` }, { label: 'REALIZED RESULT', value: facts.realizedPnlWei }] },
-      { title: 'WHAT YOU DID', facts: [{ label: 'ENTRY', value: receipt.learnerInput.kind === 'EX-01' && receipt.learnerInput.entered ? 'RECORDED' : 'NOT RECORDED' }, { label: 'EXIT', value: receipt.learnerInput.kind === 'EX-01' && receipt.learnerInput.closed ? 'RECORDED' : 'NOT RECORDED' }] },
+      { title: 'WHAT YOU DID', facts: [{ label: 'ENTRY', value: facts.entryAccepted ? 'ACCEPTED BY SIMULATOR' : 'NOT ACCEPTED' }, { label: 'EXIT', value: facts.exitAccepted ? 'ACCEPTED BY SIMULATOR' : 'NOT ACCEPTED' }] },
       { title: why, facts: [{ label: 'REASON CODES', value: receipt.reasonCodes.join(' · ') }, { label: 'MODEL', value: 'SPOT_FILL_V0 · SYNTHETIC TRAINING SIMULATION' }] },
     ];
   }
@@ -40,7 +40,7 @@ export function debriefForReceipt(receipt: MissionReceiptV0): readonly DebriefSe
     const facts = receipt.relevantFacts as Extract<typeof receipt.relevantFacts, { kind: 'ST-01' }>;
     return [
       { title: 'WHAT THE SCENARIO DID', facts: [{ label: 'PLAN', value: facts.planPriceX18 }, { label: 'TRIGGER', value: facts.triggerPriceX18 }, { label: 'ACTUAL FILL', value: facts.actualFillPriceX18 }, { label: 'IMPACT / FEES', value: `${facts.impactBps} BPS / ${facts.feesWei}` }, { label: 'RESULT', value: facts.realizedPnlWei }] },
-      { title: 'WHAT YOU DID', facts: [{ label: 'PROCESS', value: receipt.learnerInput.kind === 'ST-01' ? `${receipt.learnerInput.allowedWidening} · ${receipt.learnerInput.allowedExit}` : '—' }] },
+      { title: 'WHAT YOU DID', facts: [{ label: 'PROCESS', value: receipt.learnerInput.kind === 'ST-01' ? `${facts.entryAccepted ? 'ENTRY ACCEPTED' : 'ENTRY NOT ACCEPTED'} · ${facts.stopPlacementAccepted ? 'STOP ACCEPTED' : 'STOP NOT ACCEPTED'} · ${facts.stopTriggered ? 'TRIGGERED' : 'NOT TRIGGERED'} · ${facts.exitCompleted ? 'EXIT COMPLETED' : 'EXIT NOT COMPLETED'} · ${facts.stopWidened ? 'WIDENED' : 'NOT WIDENED'} · ${receipt.learnerInput.allowedWidening} · ${receipt.learnerInput.allowedExit}` : '—' }] },
       { title: why, facts: [{ label: 'REASON CODES', value: receipt.reasonCodes.join(' · ') }, { label: 'LESSON', value: 'A stop is an instruction, not a guaranteed fill.' }] },
     ];
   }

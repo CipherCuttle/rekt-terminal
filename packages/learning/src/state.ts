@@ -20,7 +20,7 @@ function freeze<T>(value: T): T {
 }
 
 export function createInitialLearningState(): LearningStateV0 {
-  return freeze({ stateVersion: LEARNING_STATE_VERSION, completed: [], attempts: [], currentMissionId: null });
+  return freeze({ stateVersion: LEARNING_STATE_VERSION, completed: [], attempts: [], currentMissionId: null, pendingDebriefReceiptId: null });
 }
 
 export function nextMissionId(state: Pick<LearningStateV0, 'completed'>): MissionId | null {
@@ -29,8 +29,9 @@ export function nextMissionId(state: Pick<LearningStateV0, 'completed'>): Missio
 }
 
 export function canStartMission(state: LearningStateV0, id: MissionId): boolean {
+  if (state.pendingDebriefReceiptId !== null) return false;
   const next = nextMissionId(state);
-  return next === id || state.completed.some((entry) => entry.missionId === id);
+  return next === id;
 }
 
 function assertReceipt(receipt: MissionReceiptV0): void {
@@ -40,15 +41,60 @@ function assertReceipt(receipt: MissionReceiptV0): void {
   if (receipt.scenarioDigest.length === 0) throw new LearningStateValidationError('receipt has no scenario identity');
   if (!Number.isSafeInteger(receipt.completedAtSimMs) || receipt.completedAtSimMs < 0) throw new LearningStateValidationError('receipt has an invalid simulator time');
   if (receipt.learnerInput.kind !== receipt.missionId || receipt.relevantFacts.kind !== receipt.missionId) throw new LearningStateValidationError('receipt mission identity is inconsistent');
+  if ((receipt.missionId === 'EX-01' || receipt.missionId === 'ST-01') && (!receipt.simulatorEvidence || receipt.simulatorEvidence.kind !== receipt.missionId)) throw new LearningStateValidationError('mechanical receipt has no simulator-derived evidence');
+  if (receipt.missionId === 'EX-01') {
+    const facts = receipt.relevantFacts;
+    const evidence = receipt.simulatorEvidence;
+    if (facts.kind !== 'EX-01' || !evidence || evidence.kind !== 'EX-01') throw new LearningStateValidationError('execution receipt evidence is inconsistent');
+    const value = (candidate: string | undefined): string => candidate ?? 'UNAVAILABLE';
+    const matches = facts.entryAccepted === evidence.entryAccepted
+      && facts.exitAccepted === evidence.exitAccepted
+      && facts.modelVersion === evidence.modelVersion
+      && facts.referencePriceX18 === value(evidence.entryReferencePriceX18)
+      && facts.markPriceX18 === value(evidence.markPriceX18)
+      && facts.entryFillPriceX18 === value(evidence.entryFillPriceX18)
+      && facts.exitFillPriceX18 === value(evidence.exitFillPriceX18)
+      && facts.entryImpactBps === value(evidence.entryImpactBps)
+      && facts.exitImpactBps === value(evidence.exitImpactBps)
+      && facts.entryFeeWei === value(evidence.entryFeeWei)
+      && facts.exitFeeWei === value(evidence.exitFeeWei)
+      && facts.unrealizedPnlBeforeCloseWei === value(evidence.unrealizedPnlBeforeCloseWei)
+      && facts.realizedPnlWei === value(evidence.realizedPnlWei);
+    if (!matches) throw new LearningStateValidationError('execution receipt facts do not match simulator evidence');
+  }
+  if (receipt.missionId === 'ST-01') {
+    const facts = receipt.relevantFacts;
+    const evidence = receipt.simulatorEvidence;
+    if (facts.kind !== 'ST-01' || !evidence || evidence.kind !== 'ST-01') throw new LearningStateValidationError('stop receipt evidence is inconsistent');
+    const value = (candidate: string | undefined): string => candidate ?? 'UNAVAILABLE';
+    const matches = facts.entryAccepted === evidence.entryAccepted
+      && facts.stopPlacementAccepted === evidence.stopPlacementAccepted
+      && facts.stopTriggered === evidence.stopTriggered
+      && facts.stopWidened === evidence.stopWidened
+      && facts.exitCompleted === evidence.exitCompleted
+      && facts.modelVersion === evidence.modelVersion
+      && facts.planPriceX18 === value(evidence.planPriceX18)
+      && facts.triggerPriceX18 === value(evidence.triggerPriceX18)
+      && facts.actualFillPriceX18 === value(evidence.actualFillPriceX18)
+      && facts.impactBps === value(evidence.impactBps)
+      && facts.feesWei === value(evidence.feesWei)
+      && facts.realizedPnlWei === value(evidence.realizedPnlWei);
+    if (!matches) throw new LearningStateValidationError('stop receipt facts do not match simulator evidence');
+  }
   if (!verifyMissionReceipt(receipt)) throw new LearningStateValidationError('receipt identity or evaluator version is invalid');
 }
 
 export function reduceLearningState(state: LearningStateV0, action: LearningAction): LearningStateV0 {
   const base = parseLearningState(state);
+  if (action.type === 'MISSION_DEBRIEF_ACKNOWLEDGED') {
+    if (!base.pendingDebriefReceiptId || base.pendingDebriefReceiptId !== action.receiptId) throw new LearningStateValidationError('debrief acknowledgement does not match the pending receipt');
+    return freeze({ ...base, currentMissionId: nextMissionId(base), pendingDebriefReceiptId: null });
+  }
   if (action.type === 'MISSION_STARTED') {
     if (!canStartMission(base, action.missionId)) throw new LearningStateValidationError(`mission ${action.missionId} is not available yet`);
     return freeze({ ...base, currentMissionId: action.missionId });
   }
+  if (base.pendingDebriefReceiptId !== null) throw new LearningStateValidationError('acknowledge the pending mission debrief before submitting another attempt');
   assertReceipt(action.receipt);
   if (!base.completed.some((entry) => entry.missionId === action.receipt.missionId) && !canStartMission(base, action.receipt.missionId)) {
     throw new LearningStateValidationError(`mission ${action.receipt.missionId} is not available yet`);
@@ -59,7 +105,14 @@ export function reduceLearningState(state: LearningStateV0, action: LearningActi
     ? [...base.completed, { missionId: action.receipt.missionId, missionVersion: action.receipt.missionVersion, receiptId: action.receipt.receiptId }]
     : [...base.completed];
   if (completed.some((entry, index) => index > 0 && missionSequenceIndex(entry.missionId) < missionSequenceIndex(completed[index - 1].missionId))) throw new LearningStateValidationError('completed missions must remain sequential');
-  return freeze({ ...base, attempts, completed, currentMissionId: nextMissionId({ completed }) });
+  const passed = action.receipt.verdict === 'PASS';
+  return freeze({
+    ...base,
+    attempts,
+    completed,
+    currentMissionId: passed ? action.receipt.missionId : nextMissionId({ completed }),
+    pendingDebriefReceiptId: passed ? action.receipt.receiptId : null,
+  });
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -89,7 +142,11 @@ export function parseLearningState(input: unknown): LearningStateV0 {
   });
   const currentMissionId = value.currentMissionId === null ? null : value.currentMissionId;
   if (currentMissionId !== null && (typeof currentMissionId !== 'string' || !MISSION_IDS.includes(currentMissionId as MissionId))) throw new LearningStateValidationError('current learning mission is invalid');
+  const pendingDebriefReceiptId = value.pendingDebriefReceiptId === undefined || value.pendingDebriefReceiptId === null ? null : value.pendingDebriefReceiptId;
+  if (pendingDebriefReceiptId !== null && typeof pendingDebriefReceiptId !== 'string') throw new LearningStateValidationError('pending learning debrief is invalid');
+  const pendingReceipt = pendingDebriefReceiptId === null ? null : attempts.find((receipt) => receipt.receiptId === pendingDebriefReceiptId);
+  if (pendingDebriefReceiptId !== null && (!pendingReceipt || pendingReceipt.verdict !== 'PASS' || currentMissionId !== pendingReceipt.missionId || !completed.some((entry) => entry.receiptId === pendingReceipt.receiptId))) throw new LearningStateValidationError('pending learning debrief is inconsistent');
   const expected = nextMissionId({ completed });
-  if (currentMissionId !== null && currentMissionId !== expected && !completed.some((entry) => entry.missionId === currentMissionId)) throw new LearningStateValidationError('current learning mission is inconsistent');
-  return freeze({ stateVersion: LEARNING_STATE_VERSION, completed, attempts, currentMissionId: currentMissionId as MissionId | null });
+  if (pendingDebriefReceiptId === null && currentMissionId !== null && currentMissionId !== expected) throw new LearningStateValidationError('current learning mission is inconsistent');
+  return freeze({ stateVersion: LEARNING_STATE_VERSION, completed, attempts, currentMissionId: currentMissionId as MissionId | null, pendingDebriefReceiptId });
 }

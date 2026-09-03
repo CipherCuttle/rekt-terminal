@@ -80,7 +80,9 @@ function executionFacts(): ExecutionFactsV0 {
   const summary = state.tradeSummaries[0];
   if (!summary || fills.length !== 2) throw new Error('EX training scenario did not produce the expected production summary');
   return {
-    kind: 'EX-01', scenarioId: getMissionDefinition('EX-01').scenario.scenarioId, provenance: 'SYNTHETIC', modelVersion: 'SPOT_FILL_V0', entered: true, closed: true,
+    // These are immutable pedagogical reference facts only. Learner action
+    // success is derived separately from the attempt's simulator state.
+    kind: 'EX-01', scenarioId: getMissionDefinition('EX-01').scenario.scenarioId, provenance: 'SYNTHETIC', modelVersion: 'SPOT_FILL_V0', entryAccepted: false, exitAccepted: false,
     referencePriceX18: entry.referencePriceX18.toString(), markPriceX18: mark.referencePriceX18.toString(), entryFillPriceX18: fills[0].fillPriceX18.toString(), exitFillPriceX18: fills[1].fillPriceX18.toString(),
     entryImpactBps: fills[0].impactBps.toString(), exitImpactBps: fills[1].impactBps.toString(), entryFeeWei: fills[0].feeQuoteWei.toString(), exitFeeWei: fills[1].feeQuoteWei.toString(),
     unrealizedPnlBeforeCloseWei: marked.state.account.unrealizedPnlWei.toString(), realizedPnlWei: summary.realizedPnlWei.toString(),
@@ -118,7 +120,7 @@ function stopFacts(): StopFactsV0 {
   const summary = state.tradeSummaries[0];
   const fills = state.events.filter((event): event is Extract<typeof event, { type: 'FILL_APPLIED' }> => event.type === 'FILL_APPLIED').map((event) => event.fill);
   if (!summary || fills.length !== 2) throw new Error('ST training scenario did not produce the expected production summary');
-  return { kind: 'ST-01', scenarioId: getMissionDefinition('ST-01').scenario.scenarioId, provenance: 'SYNTHETIC', modelVersion: 'SPOT_FILL_V0', entered: true, stopPlaced: true, stopTriggered: true, stopWidened: summary.stopWidened, exitCompleted: true, planPriceX18: plan.toString(), triggerPriceX18: '24000000000000000', actualFillPriceX18: fills[1].fillPriceX18.toString(), impactBps: fills[1].impactBps.toString(), feesWei: (fills[0].feeQuoteWei + fills[1].feeQuoteWei).toString(), realizedPnlWei: summary.realizedPnlWei.toString() };
+  return { kind: 'ST-01', scenarioId: getMissionDefinition('ST-01').scenario.scenarioId, provenance: 'SYNTHETIC', modelVersion: 'SPOT_FILL_V0', entryAccepted: false, stopPlacementAccepted: false, stopTriggered: false, stopWidened: false, exitCompleted: false, planPriceX18: plan.toString(), triggerPriceX18: '24000000000000000', actualFillPriceX18: fills[1].fillPriceX18.toString(), impactBps: fills[1].impactBps.toString(), feesWei: (fills[0].feeQuoteWei + fills[1].feeQuoteWei).toString(), realizedPnlWei: summary.realizedPnlWei.toString() };
 }
 
 function riskPlan(stopPriceX18: bigint, planId: string): RiskPlanFactsV0 {

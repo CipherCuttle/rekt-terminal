@@ -285,6 +285,10 @@ function Shell() {
     if (currentLearningMission) session.recordLearningAction(currentLearningMission, action);
   }, [currentLearningMission, session]);
 
+  const acknowledgeMissionDebrief = useCallback(() => {
+    session.acknowledgeMissionDebrief();
+  }, [session]);
+
   /* ----------------------------------------------------------------- render */
 
   const { sim, career, tradeReview, lastRejection, restoreStatus, learning } = practice;
@@ -421,6 +425,7 @@ function Shell() {
               learning={learning}
               onSubmitMission={submitMission}
               onTrainingAction={recordTrainingAction}
+              onAcknowledgeDebrief={acknowledgeMissionDebrief}
             />
           ) : (
             <section className="screen">

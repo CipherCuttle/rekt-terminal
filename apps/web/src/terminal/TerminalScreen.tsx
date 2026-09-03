@@ -41,6 +41,7 @@ export interface TerminalScreenProps {
   learning?: LearningStateV0;
   onSubmitMission?: (input: MissionLearnerInput) => void;
   onTrainingAction?: (action: LearningTrainingAction) => void;
+  onAcknowledgeDebrief?: () => void;
 }
 
 /**
@@ -54,7 +55,7 @@ export interface TerminalScreenProps {
 const OVERLAY_CURRENCY = 'QUOTE_TOKEN' as const;
 
 export function TerminalScreen(props: TerminalScreenProps) {
-  const { asset, environment, sim, career, feed, tape, rejection, chartSink, onSubmit, onDismissRejection, showWalletTools, onWallet, learning, onSubmitMission, onTrainingAction } = props;
+  const { asset, environment, sim, career, feed, tape, rejection, chartSink, onSubmit, onDismissRejection, showWalletTools, onWallet, learning, onSubmitMission, onTrainingAction, onAcknowledgeDebrief } = props;
   const boxRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<MarketChart | null>(null);
   // Bars load asynchronously; the chart-creation effect must not paint overlays
@@ -149,7 +150,7 @@ export function TerminalScreen(props: TerminalScreenProps) {
         </div>
       </header>
 
-      {learning?.currentMissionId && onSubmitMission && <LearningMissionPanel missionId={learning.currentMissionId as MissionId} learning={learning} onSubmit={onSubmitMission} onTrainingAction={onTrainingAction} />}
+      {learning?.currentMissionId && onSubmitMission && <LearningMissionPanel missionId={learning.currentMissionId as MissionId} learning={learning} onSubmit={onSubmitMission} onTrainingAction={onTrainingAction} onAcknowledgeDebrief={onAcknowledgeDebrief} />}
 
       <div className="terminal-body">
         <div className="panel chart-panel">

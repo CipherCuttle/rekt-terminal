@@ -185,7 +185,7 @@ function LearningProgressPanel({ learning, onStartMission }: { learning?: Learni
           </li>
         ))}
       </ol>
-      {next && onStartMission ? <button type="button" className="learning-cta" onClick={() => onStartMission(next)}>OPEN {next} IN TERMINAL →</button> : <p className="learning-complete">ALL FIVE MISSIONS PASSED · TRANSFER EXAM NOT INCLUDED</p>}
+      {next && onStartMission ? <button type="button" className="learning-cta" onClick={() => onStartMission(next)}>OPEN {next} IN TERMINAL →</button> : <p className="learning-complete">VERTICAL_SLICE_COMPLETED · TRANSFER EXAM NOT INCLUDED</p>}
     </div>
   );
 }

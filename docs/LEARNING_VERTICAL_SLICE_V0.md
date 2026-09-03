@@ -1,6 +1,6 @@
 # LEARNING_VERTICAL_SLICE_V0 — Closure
 
-Status: `IMPLEMENTED / PASS`
+Status: `IMPLEMENTED / PASS · TARGETED REPAIR COMPLETE`
 
 This closure records the bounded learning slice. It implements mission
 competence and persistent learning progress only. It does not implement
@@ -20,7 +20,11 @@ Career, or analytics dependency.
 The web `PracticeSessionStore` is the integration seam. It submits typed
 learner input to the domain evaluator and persists the resulting learning
 receipt. Synthetic rehearsal actions use an ephemeral simulator state and
-never commit the practice ledger, Career state, or economic event log.
+never commit the practice ledger, Career state, or economic event log. For
+`EX-01` and `ST-01`, the evaluator derives action evidence from the simulator's
+accepted/rejected event stream and stores that evidence in the receipt. UI
+toggle state is learner intent only; it is not an authority for accepted
+entry, stop, trigger, or exit facts.
 
 ## Mission contract
 
@@ -53,6 +57,11 @@ test consumes the existing immutable perpetual artifact only to verify that
 future samples remain withheld until cursor advancement; it is not relabeled
 as a spot mission scenario.
 
+Static scenario facts for the mechanical drills never claim that an action was
+accepted. A missing simulator state therefore fails closed. Rejected actions
+remain in the ephemeral event history, and receipt validation requires the
+materialized mechanical facts to match the simulator evidence exactly.
+
 ## PnL and authority boundaries
 
 PnL can appear in the execution/stop debrief as an outcome, but no PnL field or
@@ -64,7 +73,10 @@ unlock state, thresholds, XP, or capability authorization.
 ## Persistence and debrief
 
 `LearningStateV0` stores completed mission IDs/versions, immutable attempt
-receipts, and the current mission. Failed attempts remain interpretable but do
+receipts, the current mission, and an optional pending PASS receipt ID. A PASS
+keeps the passed mission current until the exact receipt is acknowledged once;
+only then does the reducer advance. The pending debrief is persisted and
+restored with the learning save. Failed attempts remain interpretable but do
 not complete a mission. Unknown/future or malformed learning state resets only
 learning progress; the economic replay and Career save are preserved.
 
@@ -85,10 +97,10 @@ it does not calculate or authorize PASS.
 
 ## Verification
 
-Focused and repository gates passed during closure:
+Focused and repository gates passed during closure/targeted repair:
 
-- `npm test -w @rekt-ink/learning` — 12 passed.
-- `npm test -w @rekt-ink/web` — 9 files / 109 tests passed.
+- `npm test -w @rekt-ink/learning` — 17 passed.
+- `npm test -w @rekt-ink/web` — 9 files / 112 tests passed.
 - `npm run verify:source` — `VERIFY_SOURCE=PASS`.
 - `npm run verify:learning` — `VERIFY_LEARNING=PASS`.
 - `npm run typecheck -w @rekt-ink/web` — passed.
@@ -96,14 +108,29 @@ Focused and repository gates passed during closure:
 - `git diff --check` — passed.
 
 Browser verification with Playwright completed all five missions through the
-product UI. At 390×844 and 1440×900, the objective, synthetic boundary, chart,
-and ticket remained usable; fresh-page console checks reported zero errors.
-The only observed warning was the existing deprecated Apple mobile web-app
-meta tag. A prior deliberate bad LQ submit exposed an undefined optional field;
-the UI now omits that field when the learner declines, and the corrected flow
-passes.
+product UI, including invalid EX-01/ST-01 orderings and the final explicit
+debrief acknowledgement. PASS remained visible with `CONTINUE →`, and the
+final Career view showed `VERTICAL_SLICE_COMPLETED · TRANSFER EXAM NOT
+INCLUDED`. At 390×844 and 1440×900, the objective, synthetic boundary, chart,
+ticket, mission list, and completion marker remained usable. The local LIVE
+bootstrap returned an external 503/429 before switching to DEMO; after the
+explicit DEMO switch there were no application console errors. Screenshots
+were inspected from `.playwright-mcp/rekt-learning-career-mobile.png` and
+`.playwright-mcp/rekt-learning-career-desktop.png`.
 
-## Hostile review
+## Targeted repair after hostile review
+
+The independent review identified two authority defects. P1 was that EX-01 and
+ST-01 could grade UI booleans against static facts while a separate ephemeral
+simulator executed actions. P2 was that the reducer advanced immediately on
+PASS, hiding the success debrief. The one allowed repair now derives mechanical
+facts only from accepted production-simulator events, retains rejected events,
+cross-checks receipt facts against evidence, and keeps a persisted PASS
+debrief pending until exact one-time acknowledgement. Focused tests cover
+invalid ordering, absent simulator state, receipt/evidence mismatch, rejected
+history, pending-debrief restore, and final acknowledgement.
+
+## Earlier hostile review
 
 One independent hostile pass attacked pedagogy, trading truth, architecture,
 and game design. It found and repaired two High usability/integration defects:
@@ -124,8 +151,6 @@ through SHORT remains unchanged.
 
 ## Baseline note
 
-The requested canonical base `8a5e5d35c70e35a3f5fff8e03fb351026b516596` was
-not present in the local repository or visible refs when work began. The branch
-was created without rewriting history from the available local `HEAD`
-`25d4e350...` (the existing EPISODES_V0 closure). This discrepancy is preserved
-as evidence rather than silently claiming the unavailable base.
+The targeted repair branch is based on the requested canonical base
+`8a5e5d35c70e35a3f5fff8e03fb351026b516596`; the repair commit is appended to
+the existing learning-slice head and is published on the existing PR.
