@@ -1,90 +1,84 @@
 import {
+  assertEpisodeArtifact,
+  EPISODE_LOAD_POLICY_V0,
+  MARGIN_EPISODE_ARTIFACTS,
+  type EpisodeArtifactV0,
+  type EpisodeFundingSampleV0,
+  type EpisodeMarketMarkSampleV0,
+} from '@rekt-ink/episodes';
+import {
+  MARGIN_FX_MODEL_VERSION,
   MARGIN_INTRABAR_MODEL_VERSION,
+  PERP_FILL_MODEL_VERSION,
   SIM_MARGIN_MODEL_VERSION,
-  usdMicros,
   type MarginEpisode,
 } from './margin-v0.js';
 
-/**
- * First MARGIN//TRAINING episode.
- *
- * Market source observation:
- *   Binance ETHUSDT perpetual via TradeIdea, 2026-08-28 05:30 UTC
- *   O 2488.93 / H 2488.99 / L 2488.62 / C 2488.84
- *
- * The source exposes OHLC, not an authoritative tick ordering. SIM_MARGIN_V0
- * therefore freezes `OHLC_PATH_V0 = OPEN -> LOW -> HIGH -> CLOSE` and labels the
- * resulting ordered marks DERIVED. The 15-minute sub-times are deterministic
- * training anchors, not a claim that the venue printed the extrema then.
- *
- * Source URL frozen in docs/MARGIN_2X_V0.md. No funding timestamp lies inside
- * this short episode, so the immutable funding series is empty. Funding support
- * is still part of SIM_MARGIN_V0 and is covered by deterministic tests.
- */
-export const ETHUSDT_PERP_TRAINING_20260828_0530: MarginEpisode = {
-  episodeId: 'ETHUSDT_PERP_20260828_0530_OHLC_PATH_V0',
-  instrumentId: 'ETHUSDT-PERP',
-  sourceVenue: 'BINANCE',
-  sourceLabel: 'BINANCE ETHUSDT PERPETUAL / TRADEIDEA MIRROR',
-  startTimeMs: 1_787_895_000_000,
-  endTimeMs: 1_787_897_700_000,
-  startEthUsdPriceMicros: usdMicros('2488.93'),
-  marks: [
-    { markId: 'open', eventTimeMs: 1_787_895_000_000, priceUsdMicros: usdMicros('2488.93'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-28T05:30Z:OPEN', provenance: 'DERIVED' },
-    { markId: 'low', eventTimeMs: 1_787_895_900_000, priceUsdMicros: usdMicros('2488.62'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-28T05:30Z:LOW', provenance: 'DERIVED' },
-    { markId: 'high', eventTimeMs: 1_787_896_800_000, priceUsdMicros: usdMicros('2488.99'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-28T05:30Z:HIGH', provenance: 'DERIVED' },
-    { markId: 'close', eventTimeMs: 1_787_897_700_000, priceUsdMicros: usdMicros('2488.84'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-28T05:30Z:CLOSE', provenance: 'DERIVED' },
-  ],
-  funding: [],
-  maintenanceMarginBps: 50n,
-  takerFeeBps: 5n,
-  liquidationFeeBps: 50n,
-  fillSlippageBps: 5n,
-  liquidationSlippageBps: 25n,
-  marketProvenance: 'DERIVED',
-  intrabarRule: MARGIN_INTRABAR_MODEL_VERSION,
-  modelVersion: SIM_MARGIN_MODEL_VERSION,
-};
+function parameter(artifact: EpisodeArtifactV0, key: string): bigint {
+  const value = artifact.manifest.simulatorParameters[key];
+  if (value === undefined) throw new RangeError(`episode simulator parameter is missing: ${key}`);
+  return BigInt(value);
+}
+
+function marginEpisodeFromArtifact(artifact: EpisodeArtifactV0): MarginEpisode {
+  assertEpisodeArtifact(artifact, EPISODE_LOAD_POLICY_V0);
+  const marketSamples = artifact.samples.filter((sample): sample is EpisodeMarketMarkSampleV0 => sample.kind === 'MARKET' && sample.market.type === 'MARK');
+  if (marketSamples.length !== artifact.samples.filter((sample) => sample.kind === 'MARKET').length) {
+    throw new RangeError('SIM_MARGIN_V0 adapter only accepts ordered market mark samples');
+  }
+  const fundingSamples = artifact.samples.filter((sample): sample is EpisodeFundingSampleV0 => sample.kind === 'FUNDING');
+  const { manifest } = artifact;
+  const episode: MarginEpisode = {
+    episodeId: manifest.episodeId,
+    instrumentId: manifest.instrumentId,
+    sourceVenue: manifest.sourceVenue,
+    sourceLabel: manifest.sourceLabel,
+    startTimeMs: manifest.startTimeMs,
+    endTimeMs: manifest.endTimeMs,
+    startEthUsdPriceMicros: parameter(artifact, 'startEthUsdPriceMicros'),
+    marks: marketSamples.map((sample) => ({
+      markId: sample.sampleId,
+      eventTimeMs: sample.eventTimeMs,
+      priceUsdMicros: BigInt(sample.market.priceUsdMicros),
+      sourceId: sample.sourceId,
+      provenance: sample.provenance,
+    })),
+    funding: fundingSamples.map((sample) => ({
+      fundingId: sample.fundingId,
+      eventTimeMs: sample.eventTimeMs,
+      ratePpm: BigInt(sample.ratePpm),
+      markPriceUsdMicros: BigInt(sample.markPriceUsdMicros),
+      sourceId: sample.sourceId,
+      provenance: sample.provenance,
+    })),
+    maintenanceMarginBps: parameter(artifact, 'maintenanceMarginBps'),
+    takerFeeBps: parameter(artifact, 'takerFeeBps'),
+    liquidationFeeBps: parameter(artifact, 'liquidationFeeBps'),
+    fillSlippageBps: parameter(artifact, 'fillSlippageBps'),
+    liquidationSlippageBps: parameter(artifact, 'liquidationSlippageBps'),
+    marketProvenance: manifest.provenance.market,
+    intrabarRule: manifest.intrabarRule as typeof MARGIN_INTRABAR_MODEL_VERSION,
+    modelVersion: SIM_MARGIN_MODEL_VERSION,
+  };
+  return Object.freeze({
+    ...episode,
+    marks: Object.freeze(episode.marks.map((mark) => Object.freeze(mark))),
+    funding: Object.freeze(episode.funding.map((event) => Object.freeze(event))),
+  });
+}
+
+const [FIRST_MARGIN_EPISODE_ARTIFACT, SECOND_MARGIN_EPISODE_ARTIFACT] = MARGIN_EPISODE_ARTIFACTS;
 
 /**
- * Second distinct LONG qualification episode for SHORT_V0.
- *
- * Public historical source observation:
- *   Binance ETHUSDT perpetual via TradeIdea, 2026-08-05 20:55 UTC
- *   O 1919.99 / H 1919.99 / L 1916.82 / C 1917.00
- *
- * TradeIdea explicitly identifies the page as Binance ETHUSDT perpetual data
- * sourced from the Binance perpetual futures market. The public observation is
- * still OHLC rather than venue-authoritative tick order, so the deterministic
- * training path remains OPEN -> LOW -> HIGH -> CLOSE and each ordered mark is
- * DERIVED. The one-minute sub-times below are replay anchors only.
+ * Compatibility exports for the simulator and the existing margin desk.
+ * The source of truth is the verified immutable artifact in @rekt-ink/episodes;
+ * this adapter only translates fixed-point strings back to the simulator's
+ * established bigint execution structure.
  */
-export const ETHUSDT_PERP_TRAINING_20260805_2055: MarginEpisode = {
-  episodeId: 'ETHUSDT_PERP_20260805_2055_OHLC_PATH_V0',
-  instrumentId: 'ETHUSDT-PERP',
-  sourceVenue: 'BINANCE',
-  sourceLabel: 'BINANCE ETHUSDT PERPETUAL / TRADEIDEA MIRROR',
-  startTimeMs: 1_785_963_300_000,
-  endTimeMs: 1_785_963_480_000,
-  startEthUsdPriceMicros: usdMicros('1919.99'),
-  marks: [
-    { markId: 'open', eventTimeMs: 1_785_963_300_000, priceUsdMicros: usdMicros('1919.99'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-05T20:55Z:OPEN', provenance: 'DERIVED' },
-    { markId: 'low', eventTimeMs: 1_785_963_360_000, priceUsdMicros: usdMicros('1916.82'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-05T20:55Z:LOW', provenance: 'DERIVED' },
-    { markId: 'high', eventTimeMs: 1_785_963_420_000, priceUsdMicros: usdMicros('1919.99'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-05T20:55Z:HIGH', provenance: 'DERIVED' },
-    { markId: 'close', eventTimeMs: 1_785_963_480_000, priceUsdMicros: usdMicros('1917.00'), sourceId: 'TRADEIDEA:BINANCE:ETHUSDT:2026-08-05T20:55Z:CLOSE', provenance: 'DERIVED' },
-  ],
-  funding: [],
-  maintenanceMarginBps: 50n,
-  takerFeeBps: 5n,
-  liquidationFeeBps: 50n,
-  fillSlippageBps: 5n,
-  liquidationSlippageBps: 25n,
-  marketProvenance: 'DERIVED',
-  intrabarRule: MARGIN_INTRABAR_MODEL_VERSION,
-  modelVersion: SIM_MARGIN_MODEL_VERSION,
-};
+export const ETHUSDT_PERP_TRAINING_20260828_0530 = marginEpisodeFromArtifact(FIRST_MARGIN_EPISODE_ARTIFACT);
+export const ETHUSDT_PERP_TRAINING_20260805_2055 = marginEpisodeFromArtifact(SECOND_MARGIN_EPISODE_ARTIFACT);
 
-export const MARGIN_TRAINING_EPISODES = [
+export const MARGIN_TRAINING_EPISODES = Object.freeze([
   ETHUSDT_PERP_TRAINING_20260828_0530,
   ETHUSDT_PERP_TRAINING_20260805_2055,
-] as const;
+] as const);

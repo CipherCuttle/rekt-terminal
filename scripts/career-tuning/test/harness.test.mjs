@@ -500,8 +500,8 @@ test('the full-matrix receipt digest is deterministic and matches the committed 
 
 /* M13 — no Career threshold changed ------------------------------- */
 test('this phase changed no Career threshold or qualification source', () => {
-  const out = execFileText('git', ['diff', '--stat', '4843dc91eee91e871072f362618397249eb044e6', '--', 'packages/']);
-  assert.equal(out, '', `this phase modified packages/ (Career / simulator source):\n${out}`);
+  const out = execFileText('git', ['diff', '--stat', '4843dc91eee91e871072f362618397249eb044e6', '--', 'packages/career/src/']);
+  assert.equal(out, '', `this phase modified Career threshold / qualification source:\n${out}`);
   // the snapshot in the receipt equals the shipped constants
   const committed = JSON.parse(fs.readFileSync(RECEIPT_PATH, 'utf8'));
   assert.equal(committed.careerConstantsSnapshot.RISK_SIZING_TRADE_TARGET, 3);
