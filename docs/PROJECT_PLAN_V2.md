@@ -395,9 +395,18 @@ Still deferred with no near-term date:
 
 ## 7. Headless tuning status
 
-`scripts/sim-career-agents.mjs` (or equivalent) **has not been implemented**.
-The adversarial agents required by `CAREER_CONTRACT_V0.md` §19 have not been
-run.
+`scripts/sim-career-agents.mjs` **has been implemented** (phase
+`CAREER_TUNING_HARNESS_V0`, base `4843dc91eee91e871072f362618397249eb044e6`,
+report `docs/CAREER_TUNING_HARNESS_V0.md`, receipt
+`docs/CAREER_TUNING_HARNESS_V0_RECEIPT.json`). 128 seeds × 6 policy agents were
+run against the real simulator and the real `reduceCareer`.
+
+Result: **`CAREER_TUNING_HARNESS_V0 = FALSIFIED`.** Gates for action volume,
+random exploration, reckless variance and disciplined-losing runs (A, B, C, F,
+G) pass. Gates for **stop widening (D)** and **revenge / risk escalation after
+losses (E)** fail: a realistic stop-widener reaches `MARGIN_2X` in ~70 % of
+runs, and a trader who raises its account-risk budget after each loss reaches
+`MARGIN_2X`/`SHORT` in ~66 % with zero recorded risk-budget violations.
 
 Therefore:
 
@@ -408,10 +417,11 @@ CAREER_THRESHOLDS = PROVISIONAL
 All numeric gates in `packages/career/src/qualification.ts`
 (`SCALE_CONTROL_TRADE_TARGET`, `STOP_LOSS_TRADE_TARGET`,
 `MARGIN_2X_DRAWDOWN_LIMIT_BPS`, `SHORT_PLANNED_RISK_LIMIT_BPS`, etc.) and the
-`CAREER_CONTRACT_V0.md` `TUNABLE` values remain provisional. V2 does **not**
-change any of them. They are frozen only for *structure*, not for *release*.
-`CAREER_TUNING_HARNESS_V0` (§6.1) is the phase that can lift this to
-`CAREER_THRESHOLDS = FROZEN`.
+`CAREER_CONTRACT_V0.md` `TUNABLE` values remain provisional. Neither V2 nor
+`CAREER_TUNING_HARNESS_V0` changed any of them. They are frozen only for
+*structure*, not for *release*. A separate bounded **repair** phase must apply
+the smallest fixes named in the harness report (§10–11 there) before this can be
+lifted to `CAREER_THRESHOLDS = FROZEN`.
 
 ---
 

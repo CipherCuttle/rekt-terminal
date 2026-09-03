@@ -534,6 +534,17 @@ Career capabilities may be mirrored locally for UX but ranked authority lives se
 
 Implement before freezing numerical gates.
 
+> Status update (base `4843dc91eee91e871072f362618397249eb044e6`): the harness
+> exists — `scripts/sim-career-agents.mjs`, phase `CAREER_TUNING_HARNESS_V0`,
+> report `docs/CAREER_TUNING_HARNESS_V0.md`. It ran 128 seeds × 6 policy agents
+> against the real simulator and the real `reduceCareer` and returned
+> `CAREER_TUNING_HARNESS_V0 = FALSIFIED`: falsification gates for stop widening
+> and revenge-by-risk-escalation fail. This contract's status therefore remains
+> `FROZEN_STRUCTURE / PROVISIONAL_TUNING`; a separate bounded repair phase must
+> apply the smallest fixes named in the report before the numbers can be
+> declared release-frozen. No threshold in this contract or in
+> `packages/career/src/qualification.ts` was changed by that phase.
+
 Target script:
 
 ```text
