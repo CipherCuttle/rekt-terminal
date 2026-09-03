@@ -1,6 +1,12 @@
 # Project Plan V1 — Working Name TBD
 
-Status: `FROZEN_DIRECTION / MARKET_TRUTH_V1_CLOSED / RISK_SIZING_V0_IMPLEMENTED / NEXT: MARGIN_2X (unauthorized)`
+> **SUPERSEDED AS ACTIVE ROADMAP by [`docs/PROJECT_PLAN_V2.md`](PROJECT_PLAN_V2.md).**
+> V1 is retained as historical provenance for the original product thesis,
+> 10-stack architecture decisions, and Phase 0–6 plan. Its status line below is
+> stale: `MARGIN_2X_V0`, `SHORT_V0`, and `MOBILE_PWA_V0` have all since been
+> closed and merged to `main`. Use V2 for current state and forward roadmap.
+
+Status (historical, stale): `FROZEN_DIRECTION / CAPABILITY_LADDER_V0 CLOSED THROUGH SHORT / MOBILE_PWA_V0 CLOSED / SEE PROJECT_PLAN_V2 FOR FORWARD ROADMAP`
 
 ## 1. Product thesis
 
