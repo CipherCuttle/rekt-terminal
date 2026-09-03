@@ -496,15 +496,25 @@ The game layer stays. What it rewards is frozen.
 - mastery advancement
 - cosmetic terminal unlocks
 
-**Bad reward targets (never grant progress or score):**
+**Bad reward/progression targets when used alone:**
 
-- number of trades
+- raw number of trades
+- trading frequency / rapid turnover
 - daily login / session streak
 - time in app
 - rapid clicks
 - raw PnL
 - overtrading
 - amount of leverage used
+
+> Minimum trade/sample counts may remain necessary qualification conditions when
+> combined with substantive process criteria. They must never be sufficient by
+> themselves, and merely increasing trading frequency must not accelerate
+> progression.
+
+This does not disturb the grandfathered shipped ladder (§8): existing Career
+qualifications legitimately use a minimum completed-trade count as one necessary
+gate alongside process evidence.
 
 The intended pull for another run is:
 
@@ -533,9 +543,13 @@ folded into the sections above; the material ones:
    Correction: §6.3 missions are in-place, one objective at a time, deterministic
    prompts, deterministic debrief; no blocking wall; glossary/context cards
    instead of prose dumps.
-4. **Gambling-prone user** — Risk: variance/frequency sneaks back in as progress.
-   Correction: §10 freezes the bad-reward list; §3.3 keeps future dangerous
-   capability behind process + mastery; mastery is not buyable with volume.
+4. **Gambling-prone user** — Risk: trade frequency or volume alone sneaks back
+   in as progress. Correction: §10 freezes the bad-reward list — raw trade count
+   and trading frequency are never *sufficient by themselves* to grant
+   progression, score, or mastery, though a disciplined process gate may still
+   require a minimum sample alongside behavioral evidence; §3.3 keeps future
+   dangerous capability behind process + mastery; mastery is not buyable with
+   volume.
 5. **Market microstructure engineer** — Risk: OHLC-only episodes can't ground
    intrabar stop/liquidation grading. Correction: §6.2 makes an explicit
    intrabar path rule (`OHLC_PATH_V0` today) a mandatory manifest field and
