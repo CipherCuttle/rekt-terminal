@@ -534,6 +534,24 @@ Career capabilities may be mirrored locally for UX but ranked authority lives se
 
 Implement before freezing numerical gates.
 
+> Status update (base `4843dc91eee91e871072f362618397249eb044e6`): the harness
+> exists — `scripts/sim-career-agents.mjs`, phase `CAREER_TUNING_HARNESS_V0`,
+> report `docs/CAREER_TUNING_HARNESS_V0.md`. After a targeted repair of the
+> measuring instrument (synthetic paths now enter the sim honestly labelled
+> `SYNTHETIC` and are scored by a non-authoritative `TUNING_ANALYSIS_ONLY`
+> evaluator, not by weakening `isGradableEvidence`; the §6.1 "faster in
+> expectation" test is operationalised as `BOUNDED_EXPECTED_ACTIONS_TO_UNLOCK`
+> with no invented materiality threshold; Gate F now contains a pre-declared
+> reckless profitable comparator) it returned
+> `CAREER_TUNING_HARNESS_V0 = PASS`: every §6.1 falsification criterion was
+> exercised and none was falsified. The harness records real numeric-tuning
+> risks as `FUTURE DESIGN-TUNING RISK` observations, not falsifications. This
+> contract's status therefore remains `FROZEN_STRUCTURE / PROVISIONAL_TUNING`;
+> lifting the numbers to release-frozen is a separate governance decision that
+> must weigh those observations. No threshold in this contract or in
+> `packages/career/src/qualification.ts` was changed by that phase
+> (`git diff --stat <base> -- packages/` is empty).
+
 Target script:
 
 ```text

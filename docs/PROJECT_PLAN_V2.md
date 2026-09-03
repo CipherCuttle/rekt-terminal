@@ -395,9 +395,26 @@ Still deferred with no near-term date:
 
 ## 7. Headless tuning status
 
-`scripts/sim-career-agents.mjs` (or equivalent) **has not been implemented**.
-The adversarial agents required by `CAREER_CONTRACT_V0.md` §19 have not been
-run.
+`scripts/sim-career-agents.mjs` **has been implemented** (phase
+`CAREER_TUNING_HARNESS_V0`, base `4843dc91eee91e871072f362618397249eb044e6`,
+report `docs/CAREER_TUNING_HARNESS_V0.md`, receipt
+`docs/CAREER_TUNING_HARNESS_V0_RECEIPT.json`). 128 seeds × 6 policy agents were
+run against the real simulator, plus a pre-declared 24-seed × 5-policy Gate F
+comparator matrix.
+
+Result: **`CAREER_TUNING_HARNESS_V0 = PASS`** (after a targeted methodology
+repair of the measuring instrument — see the report §2a; the instrument, not the
+system, was changed). Every §6.1 falsification criterion was actually exercised
+and none was falsified: under `BOUNDED_EXPECTED_ACTIONS_TO_UNLOCK` no reckless /
+high-frequency / high-variance / stop-widening / revenge-escalating agent
+reaches `RISK_SIZING` / `MARGIN_2X` / `SHORT` faster in expectation than
+`DISCIPLINED`, and a real reckless lucky winner (`ALL_IN` on the pre-declared
+melt-up regime, +18–20 % equity) never progresses past `SCALE_CONTROL` while a
+disciplined losing run fully qualifies. The harness still records real
+numeric-tuning risks (`RISK_SIZING` has no recency window; `evaluateMargin2x`
+ignores `stopWidened`; up-front risk-budget escalation leaves no
+`RISK_BUDGET_VIOLATED` trace) as `FUTURE DESIGN-TUNING RISK` observations, not
+falsifications.
 
 Therefore:
 
@@ -408,10 +425,12 @@ CAREER_THRESHOLDS = PROVISIONAL
 All numeric gates in `packages/career/src/qualification.ts`
 (`SCALE_CONTROL_TRADE_TARGET`, `STOP_LOSS_TRADE_TARGET`,
 `MARGIN_2X_DRAWDOWN_LIMIT_BPS`, `SHORT_PLANNED_RISK_LIMIT_BPS`, etc.) and the
-`CAREER_CONTRACT_V0.md` `TUNABLE` values remain provisional. V2 does **not**
-change any of them. They are frozen only for *structure*, not for *release*.
-`CAREER_TUNING_HARNESS_V0` (§6.1) is the phase that can lift this to
-`CAREER_THRESHOLDS = FROZEN`.
+`CAREER_CONTRACT_V0.md` `TUNABLE` values remain provisional. `CAREER_TUNING_HARNESS_V0`
+changed none of them (`git diff --stat <base> -- packages/` is empty). The §6.1
+acceptance criterion now passes, but promoting this to
+`CAREER_THRESHOLDS = FROZEN` is a separate governance decision that must also
+weigh the `FUTURE DESIGN-TUNING RISK` observations in the harness report (§10);
+that decision is **not** taken by the harness phase.
 
 ---
 
