@@ -9,6 +9,7 @@ import {
   finalizeGitHubSetup,
   processGitHubWebhook,
   validateDeliveryId,
+  validateGitHubSetupState,
   verifyGitHubWebhookSignature,
   type GitHubRuntimeOptions,
   type GitHubUserVerifier,
@@ -177,6 +178,7 @@ export function buildApp(options: BuildAppOptions) {
         return error(reply, 400, 'github_setup_invalid');
       }
       try {
+        await validateGitHubSetupState(options.db, query.state, authenticated.actor.playerId);
         const verified = await options.github!.verifier.verifyInstallation(query.code, query.installation_id);
         await finalizeGitHubSetup(options.db, query.state, authenticated.actor.playerId, verified);
         reply.header('cache-control', 'no-store');

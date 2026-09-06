@@ -10,6 +10,7 @@ const SETUP_TTL_SECONDS = 10 * 60;
 const DELIVERY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const GIT_SHA_PATTERN = /^[0-9a-f]{40,64}$/i;
 const REF_PATTERN = /^refs\/[A-Za-z0-9._\/-]{1,240}$/;
+const ALLOWED_READ_PERMISSIONS = new Set(['contents', 'metadata']);
 
 export interface GitHubRuntimeOptions {
   appSlug: string;
@@ -77,6 +78,30 @@ export function validateDeliveryId(value: string | undefined): string {
   return value.toLowerCase();
 }
 
+export function validateGitHubInstallationPolicy(permissions: unknown, events: unknown): void {
+  if (!permissions || typeof permissions !== 'object' || Array.isArray(permissions)) {
+    throw new Error('github_installation_permissions_invalid');
+  }
+  const permissionEntries = Object.entries(permissions as Record<string, unknown>);
+  if ((permissions as Record<string, unknown>).contents !== 'read') {
+    throw new Error('github_contents_read_permission_required');
+  }
+  for (const [name, level] of permissionEntries) {
+    if (level === 'write' || level === 'admin') throw new Error('github_write_permission_forbidden');
+    if (level !== 'read' && level !== 'none') throw new Error('github_installation_permissions_invalid');
+    if (level === 'read' && !ALLOWED_READ_PERMISSIONS.has(name)) {
+      throw new Error(`github_read_permission_excessive:${name}`);
+    }
+  }
+
+  if (!Array.isArray(events) || events.some((event) => typeof event !== 'string')) {
+    throw new Error('github_installation_events_invalid');
+  }
+  if (!events.includes('push')) throw new Error('github_push_event_required');
+  const extraEvents = events.filter((event) => event !== 'push');
+  if (extraEvents.length > 0) throw new Error(`github_event_subscription_excessive:${extraEvents.join(',')}`);
+}
+
 export function buildGitHubInstallUrl(appSlug: string, state: string): string {
   if (!/^[A-Za-z0-9-]{1,100}$/.test(appSlug)) throw new Error('github_app_slug_invalid');
   const url = new URL(`https://github.com/apps/${appSlug}/installations/new`);
@@ -99,6 +124,37 @@ export async function createGitHubSetupState(
   return {state, expiresAt};
 }
 
+export async function validateGitHubSetupState(
+  db: Kysely<DatabaseSchema>,
+  state: string,
+  playerId: string,
+): Promise<void> {
+  const row = await db
+    .selectFrom('github_setup_states')
+    .select('state_hash')
+    .where('state_hash', '=', setupStateHash(state))
+    .where('player_id', '=', playerId)
+    .where('consumed_at', 'is', null)
+    .where('expires_at', '>', sql<Date>`clock_timestamp()`)
+    .executeTakeFirst();
+  if (!row) throw new Error('github_setup_state_invalid');
+}
+
+async function assertRepositoryBindingAvailable(
+  db: Kysely<DatabaseSchema>,
+  repositoryId: string,
+  installationId: string,
+): Promise<void> {
+  const existing = await db
+    .selectFrom('github_repositories')
+    .select('installation_id')
+    .where('repository_id', '=', repositoryId)
+    .executeTakeFirst();
+  if (existing && existing.installation_id !== installationId) {
+    throw new Error('github_repository_already_bound');
+  }
+}
+
 async function bindVerifiedInstallation(
   db: Kysely<DatabaseSchema>,
   playerId: string,
@@ -111,6 +167,10 @@ async function bindVerifiedInstallation(
     .executeTakeFirst();
 
   if (existing && existing.player_id !== playerId) throw new Error('github_installation_already_bound');
+
+  for (const repository of verified.repositories) {
+    await assertRepositoryBindingAvailable(db, repository.repositoryId, verified.installationId);
+  }
 
   await db
     .insertInto('github_installations')
@@ -152,7 +212,6 @@ async function bindVerifiedInstallation(
       })
       .onConflict((conflict) =>
         conflict.column('repository_id').doUpdateSet({
-          installation_id: verified.installationId,
           full_name: repository.fullName,
           private: repository.private,
           active: true,
@@ -218,9 +277,7 @@ export function createGitHubUserVerifier(options: GitHubRuntimeOptions): GitHubU
         const response = await fetch(`https://api.github.com/user/installations?per_page=100&page=${page}`, {
           headers: authHeaders(token),
         });
-        const body = (await readJson(response, 'github_installations_lookup_failed')) as {
-          installations?: unknown;
-        };
+        const body = (await readJson(response, 'github_installations_lookup_failed')) as {installations?: unknown};
         if (!Array.isArray(body.installations)) throw new Error('github_installations_response_invalid');
         installation = body.installations.find(
           (candidate) =>
@@ -231,6 +288,7 @@ export function createGitHubUserVerifier(options: GitHubRuntimeOptions): GitHubU
       }
       if (!installation) throw new Error('github_installation_not_accessible_to_user');
 
+      validateGitHubInstallationPolicy(installation.permissions, installation.events);
       const account = installation.account;
       if (!account || typeof account !== 'object') throw new Error('github_installation_account_invalid');
       const repositorySelection = installation.repository_selection;
@@ -292,13 +350,7 @@ async function recordDelivery(
 ): Promise<'inserted' | 'duplicate'> {
   const inserted = await db
     .insertInto('github_deliveries')
-    .values({
-      delivery_id: deliveryId,
-      event_name: eventName,
-      payload_hash: payloadHash,
-      installation_id: installationId,
-      repository_id: repositoryId,
-    })
+    .values({delivery_id: deliveryId, event_name: eventName, payload_hash: payloadHash, installation_id: installationId, repository_id: repositoryId})
     .onConflict((conflict) => conflict.column('delivery_id').doNothing())
     .returning('delivery_id')
     .executeTakeFirst();
@@ -311,9 +363,7 @@ async function recordDelivery(
   if (
     existing.event_name !== eventName || existing.payload_hash !== payloadHash ||
     existing.installation_id !== installationId || existing.repository_id !== repositoryId
-  ) {
-    throw new Error('github_delivery_conflict');
-  }
+  ) throw new Error('github_delivery_conflict');
   return 'duplicate';
 }
 
@@ -386,11 +436,11 @@ async function processRepositoryControl(
     const repository = candidate as {id?: unknown; full_name?: unknown; private?: unknown};
     if (typeof repository.private !== 'boolean' || typeof repository.full_name !== 'string') continue;
     const repositoryId = positiveIntegerId(repository.id, 'github_repository_id');
+    await assertRepositoryBindingAvailable(db, repositoryId, installationId);
     await db
       .insertInto('github_repositories')
       .values({repository_id: repositoryId, installation_id: installationId, full_name: repository.full_name, private: repository.private, active: true})
       .onConflict((conflict) => conflict.column('repository_id').doUpdateSet({
-        installation_id: installationId,
         full_name: repository.full_name as string,
         private: repository.private as boolean,
         active: true,
@@ -422,14 +472,7 @@ export async function processGitHubWebhook(
   const repositoryId = repositoryIdFromPayload(payload);
 
   return db.transaction().execute(async (transaction) => {
-    const receipt = await recordDelivery(
-      transaction,
-      deliveryId,
-      input.eventName,
-      payloadHash,
-      installationId,
-      repositoryId,
-    );
+    const receipt = await recordDelivery(transaction, deliveryId, input.eventName, payloadHash, installationId, repositoryId);
     if (receipt === 'duplicate') return {status: 'duplicate'};
 
     if (input.eventName === 'installation' && installationId) {
