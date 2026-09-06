@@ -2,30 +2,19 @@ import {useEffect, useState, type ReactNode} from 'react';
 import {DitherWave, GrainWave, GlitchText, SquircleShift} from './reactbits-pro';
 
 const loop = [
-  {number: '01', name: 'CONSTRAINT', body: 'Start with one rule sharp enough to kill indecision and make a stranger curious.'},
-  {number: '02', name: 'BUILD', body: 'Make the smallest version that proves the idea is real.'},
-  {number: '03', name: 'SHIP', body: 'Put a working URL in the room. A deck, thread, or mockup does not count.'},
-  {number: '04', name: 'AMPLIFY', body: 'Turn the shipped artifact into a clip, demo, or post that can travel.'},
-  {number: '05', name: 'REPEAT', body: 'Let the strongest artifacts pull the next builders into the culture.'},
+  {number: '01', name: 'CONSTRAINT', body: 'One rule. Less indecision.'},
+  {number: '02', name: 'BUILD', body: 'Make the smallest real version.'},
+  {number: '03', name: 'SHIP', body: 'Working URL. No deck.'},
+  {number: '04', name: 'AMPLIFY', body: 'Clip it. Post it. Let it travel.'},
+  {number: '05', name: 'REPEAT', body: 'Pull in the next builder.'},
 ];
 
 const builds = [
-  {code: 'TYPE / A001', title: 'PLAYABLE', body: 'A small game with one rule that survives the group chat.', mark: '✦'},
-  {code: 'TYPE / B002', title: 'USEFUL', body: 'A weird tool that earns a place in somebody’s actual workflow.', mark: '↗'},
-  {code: 'TYPE / C003', title: 'INTERACTIVE', body: 'A visual experiment that rewards touching the surface.', mark: '◌'},
-  {code: 'TYPE / D004', title: 'UNCLASSIFIED', body: 'The category is the point. Make it work before you name it.', mark: '??'},
+  {code: 'TYPE / A001', title: 'PLAYABLE', body: 'A small game people can actually play.', mark: '✦'},
+  {code: 'TYPE / B002', title: 'USEFUL', body: 'A tool somebody might use twice.', mark: '↗'},
+  {code: 'TYPE / C003', title: 'INTERACTIVE', body: 'Something better when you touch it.', mark: '◌'},
+  {code: 'TYPE / D004', title: 'UNCLASSIFIED', body: 'Weird is a valid category.', mark: '??'},
 ];
-
-const subjects = [
-  ['001', 'AI / VIBE CODER', 'GOOD FIT'],
-  ['002', 'INDIE GAME DEV', 'GOOD FIT'],
-  ['003', 'CREATIVE CODER', 'GOOD FIT'],
-  ['004', 'INK / ONCHAIN DEV', 'GOOD FIT'],
-  ['005', 'SHITPOSTER WHO CODES', 'GOOD FIT'],
-  ['006', 'ARTIST WHO PROTOTYPES', 'GOOD FIT'],
-  ['007', 'OPEN-SOURCE TINKERER', 'GOOD FIT'],
-  ['008', 'WILDCARD WEIRDO', 'GOOD FIT'],
-] as const;
 
 type NftItem = {
   id: string;
@@ -53,7 +42,7 @@ const nftCollections: Record<NftItem['collection'], NftItem[]> = {
   ],
 };
 
-const sectionIds = ['signal', 'why', 'builds', 'loop', 'weight', 'broadcast', 'collections', 'field', 'open'];
+const sectionIds = ['signal', 'builds', 'loop', 'deal', 'collections', 'open'];
 
 function SectionLabel({number, children}: {number: string; children: ReactNode}) {
   return <div className="d2-section-label"><span>{number}</span><b>{children}</b></div>;
@@ -108,9 +97,9 @@ function CollectionTransmission() {
       <SquircleShift className="d2-collection-effect" />
       <div className="d2-collection-wash" aria-hidden="true" />
       <div className="d2-collection-copy">
-        <SectionLabel number="06">CULTURE / SOURCE MATERIAL</SectionLabel>
-        <h2>THE CULTURE<br />HAS A FACE.</h2>
-        <p>REKT Ink and Chibi Hood give builders a recognizable world to build out from. The point is not to decorate software with NFTs. It is to extend the culture into things people can use, play, and share.</p>
+        <SectionLabel number="04">THE CULTURE</SectionLabel>
+        <h2>BUILD OUT<br />FROM REKT.</h2>
+        <p>Use the actual REKT / Chibi world as source material. Make something new.</p>
         <div className="d2-collection-switch" role="group" aria-label="Choose collection">
           {(Object.keys(nftCollections) as NftItem['collection'][]).map((name) => (
             <button key={name} type="button" className={collection === name ? 'is-active' : ''} onClick={() => setCollection(name)}>{name}</button>
@@ -147,7 +136,7 @@ function AppV2() {
   const selected = loop[loopStep];
 
   return (
-    <main className="dossier-v2" id="top">
+    <main className="dossier-v2 d2-compressed" id="top">
       <header className="d2-topbar">
         <a className="d2-brand" href="#top" aria-label="REKT Inkubator home"><span>REKT</span><b>INK(CUBATOR)</b></a>
         <div className="d2-transmission"><span>TRANSMISSION</span><strong>000</strong><i>BUILD MODE</i></div>
@@ -161,12 +150,12 @@ function AppV2() {
         <div className="d2-hero-wash" aria-hidden="true" />
         <div className="d2-frame d2-hero-grid">
           <div className="d2-hero-copy">
-            <div className="d2-status"><span /> REKT INK(CUBATOR) / RECURRING BUILD CHALLENGE</div>
-            <p className="d2-eyebrow">NOT ANOTHER COMMUNITY TO JOIN / A REASON TO BUILD</p>
+            <div className="d2-status"><span /> REKT INK(CUBATOR) / BUILD CHALLENGE</div>
+            <p className="d2-eyebrow">BUILD WEIRD SHIT / SHIP IT</p>
             <h1 id="hero-title"><GlitchText>BUILD SOMETHING WEIRD. PUT IT ON THE INTERNET.</GlitchText></h1>
-            <p className="d2-hero-lede">REKT INK(CUBATOR) turns REKT culture into games, tools, and interactive experiments people can actually use, play, and share. Short build rounds give creators a constraint, a deadline, a room of builders, and an audience. You bring something that works.</p>
-            <div className="d2-actions"><a className="d2-button" href="#loop">HOW A ROUND WORKS <span>↓</span></a><b>MAKE DEGENS SHIP.</b></div>
-            <div className="d2-metrics"><span>RECURRING ROUNDS</span><span>SMALL BUILDS</span><span>WORKING URL</span><span>PUBLIC OUTPUT</span></div>
+            <p className="d2-hero-lede">Short REKT build rounds for games, tools and weird internet experiments. You get a constraint and a deadline. You ship a working link.</p>
+            <div className="d2-actions"><a className="d2-button" href="#loop">SEE THE LOOP <span>↓</span></a><b>MAKE DEGENS SHIP.</b></div>
+            <div className="d2-metrics"><span>SHORT ROUNDS</span><span>WORKING LINK</span><span>REKT WORLD</span></div>
           </div>
 
           <div className="d2-artifact-bay" aria-label="REKT INK artifact identity">
@@ -179,25 +168,11 @@ function AppV2() {
         </div>
       </section>
 
-      <section className="d2-field-section d2-why-section" id="why" aria-labelledby="why-title">
-        <div className="d2-frame">
-          <div className="d2-section-head">
-            <div><SectionLabel number="01">WHY IT EXISTS</SectionLabel><h2 id="why-title">A COMMUNITY NEEDS<br /><em>SOMETHING TO DO.</em></h2></div>
-            <p>Owning, posting, and lurking do not compound culture. Building does. INK(CUBATOR) gives people a reason to turn the energy around REKT into something another person can click.</p>
-          </div>
-          <div className="d2-why-grid" aria-label="Inkubator thesis">
-            <article><span>01 / INPUT</span><strong>ATTENTION</strong><p>People already care about the culture.</p></article>
-            <article><span>02 / MECHANISM</span><strong>CONSTRAINT</strong><p>A short round converts interest into action.</p></article>
-            <article><span>03 / OUTPUT</span><strong>ARTIFACT</strong><p>The result is software, media, and a new reason to care.</p></article>
-          </div>
-        </div>
-      </section>
-
       <section className="d2-build-section" id="builds" aria-labelledby="builds-title">
         <div className="d2-frame">
-          <div className="d2-section-head"><div><SectionLabel number="02">WHAT YOU CAN MAKE</SectionLabel><h2 id="builds-title">SMALL IS FINE.<br /><em>REAL IS THE FILTER.</em></h2></div><p>Games, tools, interactive art, onchain experiments, and things that do not have a category yet. The only hard requirement is that somebody else can actually use or play the thing.</p></div>
+          <div className="d2-section-head"><div><SectionLabel number="01">MAKE SOMETHING</SectionLabel><h2 id="builds-title">PICK A FORM.<br /><em>SHIP IT.</em></h2></div><p>Game, tool, interactive thing, or something unclassifiable. If people can click it, it counts.</p></div>
           <div className="d2-build-grid">
-            {builds.map((build, index) => <article className="d2-build-card" key={build.code}><div className="d2-card-meta"><span>{build.code}</span><i>{String(index + 1).padStart(2, '0')}</i></div><div className="d2-card-mark" aria-hidden="true">{build.mark}</div><h3>{build.title}</h3><p>{build.body}</p><div className="d2-card-foot"><span>WORKING &gt; PERFECT</span><b>+</b></div></article>)}
+            {builds.map((build, index) => <article className="d2-build-card" key={build.code}><div className="d2-card-meta"><span>{build.code}</span><i>{String(index + 1).padStart(2, '0')}</i></div><div className="d2-card-mark" aria-hidden="true">{build.mark}</div><h3>{build.title}</h3><p>{build.body}</p><div className="d2-card-foot"><span>SHIP IT</span><b>+</b></div></article>)}
           </div>
         </div>
       </section>
@@ -205,15 +180,15 @@ function AppV2() {
       <section className="d2-signal-section" id="loop" aria-labelledby="loop-title">
         <div className="d2-frame d2-signal-grid">
           <div className="d2-signal-copy">
-            <SectionLabel number="03">HOW A ROUND WORKS</SectionLabel>
-            <h2 id="loop-title">CONSTRAINT IN.<br /><em>WORKING LINK OUT.</em></h2>
-            <p>The round is deliberately small. A constraint kills blank-page paralysis, the deadline kills endless polishing, and the public link makes the result real.</p>
+            <SectionLabel number="02">THE LOOP</SectionLabel>
+            <h2 id="loop-title">5 STEPS.<br /><em>NO DECK.</em></h2>
+            <p>Constraint → build → link → signal. That's the machine.</p>
           </div>
           <div className="d2-loop-instrument">
             <DitherWave />
             <div className="d2-loop-wash" aria-hidden="true" />
             <div className="d2-signal-statement">SHIP <span>&gt;</span> TALK</div>
-            <div className="d2-loop-readout"><span>NOW TRANSMITTING / {selected.number}</span><strong>{selected.name}</strong><p>{selected.body}</p></div>
+            <div className="d2-loop-readout"><span>NOW / {selected.number}</span><strong>{selected.name}</strong><p>{selected.body}</p></div>
             <div className="d2-loop-tabs" role="list" aria-label="Build loop steps">
               {loop.map((step, index) => <button key={step.number} type="button" className={loopStep === index ? 'is-active' : ''} onClick={() => setLoopStep(index)}><span>{step.number}</span><b>{step.name}</b></button>)}
             </div>
@@ -221,48 +196,37 @@ function AppV2() {
         </div>
       </section>
 
-      <section className="d2-weight-section" id="weight" aria-labelledby="weight-title">
+      <section className="d2-weight-section d2-deal-section" id="deal" aria-labelledby="deal-title">
         <div className="d2-frame">
-          <div className="d2-section-head"><div><SectionLabel number="04">THE DEAL</SectionLabel><h2 id="weight-title">YOU BRING THE BUILD.<br /><em>WE CREATE THE REASON TO FINISH.</em></h2></div><p>This is the value exchange. Builders do not need another feed to scroll. They need enough structure and attention to get a strange idea across the finish line.</p></div>
+          <div className="d2-section-head"><div><SectionLabel number="03">THE DEAL</SectionLabel><h2 id="deal-title">YOU BUILD IT.<br /><em>WE HELP IT TRAVEL.</em></h2></div><p>No pitch deck. Ship something people can click.</p></div>
           <div className="d2-weight-grid">
-            <article><span>YOU / BUILDER</span><h3>BRING<br />THE THING.</h3><ul><li>a weird idea small enough to finish</li><li>a working URL</li><li>a demo people can understand</li><li>willingness to ship in public</li></ul></article>
-            <article className="d2-weight-rekt"><span>INK(CUBATOR) / MACHINE</span><h3>CREATE<br />THE PULL.</h3><ul><li>a constraint</li><li>a short deadline</li><li>a room of other builders</li><li>a distribution loop around what ships</li></ul></article>
+            <article><span>YOU</span><h3>MAKE<br />THE THING.</h3><ul><li>weird idea</li><li>working link</li><li>ship in public</li></ul></article>
+            <article className="d2-weight-rekt"><span>INK(CUBATOR)</span><h3>CREATE<br />THE PULL.</h3><ul><li>constraint</li><li>deadline</li><li>eyes on what ships</li></ul></article>
           </div>
-        </div>
-      </section>
-
-      <section className="d2-broadcast-section" id="broadcast" aria-labelledby="broadcast-title">
-        <div className="d2-frame d2-broadcast-grid">
-          <div><SectionLabel number="05">WHAT HAPPENS AFTER SHIP</SectionLabel><h2 id="broadcast-title">THE BUILD<br /><em>IS THE AD.</em></h2><p>A shipped artifact becomes a demo. The demo becomes a clip. The clip gives somebody else a reason to notice the culture, try the thing, and build the next one.</p></div>
-          <div className="d2-broadcast-flow" aria-label="Build distribution loop"><span>BUILD</span><b>→</b><span>CLIP</span><b>→</b><span>SHARE</span><b>→</b><span>ATTENTION</span><b>→</b><span>NEW BUILDER</span></div>
+          <div className="d2-deal-flow"><span>AFTER SHIP</span><div className="d2-broadcast-flow" aria-label="Build distribution loop"><span>BUILD</span><b>→</b><span>CLIP</span><b>→</b><span>SHARE</span><b>→</b><span>NEXT BUILDER</span></div></div>
         </div>
         <div className="d2-marquee" aria-hidden="true"><div><span>MAKE DEGENS SHIP</span><i>✦</i><span>CULTURE → SOFTWARE</span><i>✦</i><span>WORKING URL OR GTFO</span><i>✦</i><span>MAKE DEGENS SHIP</span><i>✦</i><span>CULTURE → SOFTWARE</span><i>✦</i><span>WORKING URL OR GTFO</span><i>✦</i></div></div>
       </section>
 
-      <section className="d2-collection-section" id="collections" aria-labelledby="collections-title">
-        <div className="d2-frame">
-          <div className="d2-section-head d2-section-head-compact"><div><SectionLabel number="06">THE CULTURE</SectionLabel><h2 id="collections-title">BUILD WITH THE WORLD.<br /><em>NOT JUST THE LOGO.</em></h2></div><p>REKT Ink is the cultural starting material. Community-built software is how that world gets larger than the collection itself.</p></div>
-          <CollectionTransmission />
-        </div>
-      </section>
-
-      <section className="d2-field-section" id="field" aria-labelledby="field-title">
-        <div className="d2-frame">
-          <div className="d2-field-head"><div><SectionLabel number="07">WHO THIS IS FOR</SectionLabel><h2 id="field-title">PEOPLE WHO MAKE THINGS.<br /><em>NOT PEOPLE WHO WATCH.</em></h2><p>You do not need a title, a team, or a polished startup idea. If you can turn a weird thought into a working link, this is aimed at you.</p></div></div>
-          <div className="d2-subject-table" role="table" aria-label="Builder profiles">
-            <div className="d2-subject-row d2-subject-head" role="row"><span>PROFILE</span><span>BUILDER TYPE</span><span>FIT</span></div>
-            {subjects.map(([index, profile, fit]) => <div className="d2-subject-row" role="row" key={index}><span>{index}</span><strong>{profile}</strong><i>{fit}</i></div>)}
-          </div>
-        </div>
+      <section className="d2-collection-section" id="collections" aria-label="REKT and Chibi culture artifacts">
+        <div className="d2-frame"><CollectionTransmission /></div>
       </section>
 
       <section className="d2-open" id="open" aria-labelledby="open-title">
         <GrainWave className="d2-open-grain" />
         <div className="d2-open-wash" aria-hidden="true" />
-        <div className="d2-frame d2-open-inner"><div><SectionLabel number="08">NEXT ROUND</SectionLabel><h2 id="open-title">BRING A WEIRD IDEA.<br /><em>LEAVE WITH A WORKING LINK.</em></h2><p>The public application channel is not wired into this concept page yet. When Round 000 locks, this becomes the real entry point.</p></div><div className="d2-button d2-button-static">APPLICATION CHANNEL / SOON <span>↗</span></div></div>
+        <div className="d2-frame d2-open-inner">
+          <div>
+            <SectionLabel number="05">WHO / NEXT</SectionLabel>
+            <div className="d2-fit-strip" aria-label="Builder types"><span>CODERS</span><span>GAME DEVS</span><span>ARTISTS</span><span>WEIRDOS</span></div>
+            <h2 id="open-title">DUMB IDEA?<br /><em>MAKE IT REAL.</em></h2>
+            <p>Can you turn it into a working link? You're the target.</p>
+          </div>
+          <div className="d2-button d2-button-static">ROUND 000 / SOON <span>↗</span></div>
+        </div>
       </section>
 
-      <footer className="d2-footer d2-frame"><span>REKT INK(CUBATOR) / TRANSMISSION 000</span><span>NOT ANOTHER COMMUNITY. A REASON TO BUILD.</span><span>MAKE DEGENS SHIP.</span></footer>
+      <footer className="d2-footer d2-frame"><span>REKT INK(CUBATOR)</span><span>BAD IDEAS. WORKING SOFTWARE.</span><span>MAKE DEGENS SHIP.</span></footer>
     </main>
   );
 }
