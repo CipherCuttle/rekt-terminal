@@ -154,7 +154,7 @@ function DeferredEffect({
       }
     };
 
-    let observer = null;
+    let observer: IntersectionObserver | null = null;
     if ('IntersectionObserver' in window) {
       observer = new IntersectionObserver(([entry]) => {
         near = entry.isIntersecting;
