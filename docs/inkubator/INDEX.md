@@ -33,6 +33,12 @@ When documents disagree, use this order:
 
 Older repository documents remain historical evidence unless this index explicitly promotes them. In particular, `docs/INKUBATOR_REACT_BITS_REBUILD_PLAN.md` and `docs/REACT_BITS_PRO_SWAP.md` describe earlier visual/build phases and are not product-scope authority.
 
+## Latest continuation checkpoint
+
+`SESSION_HANDOFF_V3_2_2026-09-06.md` is the current **v3.2 orchestrator handoff checkpoint**. It is not higher authority than the eight documents above; it exists to preserve current Git/PR state, phase status, permissions, review budget, exact next action, risks and receiver-bootstrap instructions between sessions.
+
+A receiving orchestrator must read the handoff **and** hydrate from this authority set before proposing mutation. Volatile Git/PR facts in the handoff must be reconciled read-only against live state.
+
 ## Scope-change rule
 
 The locked MVP may change only through an explicit documentation change that states:
