@@ -1,6 +1,7 @@
 import {useEffect, useState, type ReactNode} from 'react';
 import {DitherWave, GrainWave, SquircleShift} from './reactbits-pro';
 import NftMedia from './components/NftMedia';
+import ProtocolPreview from './components/ProtocolPreview';
 import {showcaseByCollection, type ShowcaseCollection} from './data/showcase-tokens';
 
 const loop = [
@@ -163,6 +164,7 @@ function BuildMachine() {
           <div className="d3-flywheel">BUILD <i>→</i> CLIP <i>→</i> SHARE <i>→</i> NEXT BUILDER</div>
         </div>
       </div>
+      <ProtocolPreview />
     </section>
   );
 }

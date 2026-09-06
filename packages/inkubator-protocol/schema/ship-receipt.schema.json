@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rekt.ink/schemas/inkubator/ship-receipt/0.1",
+  "title": "INK(CUBATOR) Ship Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "receiptId", "roundId", "playerId", "artifact", "shippedAt", "evidence"],
+  "properties": {
+    "schemaVersion": {"const": "inkubator.ship-receipt/0.1"},
+    "receiptId": {"type": "string", "pattern": "^R[A-Z0-9-]+-S[0-9]{3,}$"},
+    "roundId": {"type": "string", "pattern": "^R[A-Z0-9-]{2,31}$"},
+    "playerId": {"type": "string", "pattern": "^P[A-Z0-9-]{2,31}$"},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "url"],
+      "properties": {
+        "title": {"type": "string", "minLength": 1, "maxLength": 120},
+        "url": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "demoUrl": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "sourceUrl": {"type": "string", "format": "uri", "pattern": "^https://"}
+      }
+    },
+    "shippedAt": {"type": "string", "format": "date-time"},
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "status", "observedAt", "claim"],
+        "properties": {
+          "type": {"enum": ["LIVE_URL", "DEMO", "SOURCE"]},
+          "status": {"enum": ["PASS", "SUPPLIED", "MISSING", "STALE"]},
+          "observedAt": {"type": "string", "format": "date-time"},
+          "claim": {"type": "string", "minLength": 1, "maxLength": 280}
+        }
+      }
+    }
+  }
+}

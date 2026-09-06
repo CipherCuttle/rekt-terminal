@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import AppV3 from './AppV3';
 import './base-v3.css';
 import './comeback-v3.css';
+import './protocol-v0.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
