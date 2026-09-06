@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - concept/inkubator-reactbits-v1
+      - concept/inkubator-dossier-polish-v2
     paths:
       - ".github/workflows/inkubator-reactbits-pro.yml"
       - "apps/inkubator-lab/**"
@@ -46,13 +47,16 @@ jobs:
 
       - name: Fetch licensed React Bits Pro components
         working-directory: apps/inkubator-lab
-        run: npx --yes shadcn@latest add @reactbits-starter/glitch-text-css @reactbits-starter/dither-wave-css @reactbits-starter/grain-wave-css --yes
+        run: npx --yes shadcn@latest add @reactbits-starter/glitch-text-css @reactbits-starter/dither-wave-css @reactbits-starter/grain-wave-css @reactbits-starter/squircle-shift-css --yes
 
       - name: Wire the installed components into Inkubator
         run: node scripts/install-inkubator-reactbits-pro.mjs
 
       - name: Install React Bits TypeScript declarations
         run: npm install --save-dev --workspace @rekt-ink/inkubator-lab @types/three --no-audit --no-fund
+
+      - name: Test Inkubator
+        run: npm test -w @rekt-ink/inkubator-lab
 
       - name: Build Inkubator
         run: npm run build -w @rekt-ink/inkubator-lab
