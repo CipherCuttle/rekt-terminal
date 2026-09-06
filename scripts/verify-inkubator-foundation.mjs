@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 
 function fail(message) {
@@ -35,6 +36,7 @@ for (const required of ['engine-strict=true', 'save-exact=true', 'audit=false', 
 
 const expectedBuildScripts = {
   build: 'npm run build:canonical',
+  'build:core': 'npm run build -w @rekt-ink/episodes && npm run build -w @rekt-ink/sim && npm run build -w @rekt-ink/career && npm run build -w @rekt-ink/learning && npm run build -w @rekt-ink/api && npm run build -w @rekt-ink/web',
   'build:inkubator': 'npm run build -w @rekt-ink/inkubator-lab',
   'build:canonical': 'npm run build:core && npm run build:inkubator',
 };
@@ -43,12 +45,125 @@ for (const [name, expected] of Object.entries(expectedBuildScripts)) {
     fail(`${name} must be the canonical repository build contract; got ${JSON.stringify(packageJson.scripts?.[name])}`);
   }
 }
-for (const name of ['build', 'build:core', 'build:inkubator', 'build:canonical']) {
-  const script = packageJson.scripts?.[name] ?? '';
-  if (/\bnpx\b|\bnpm\s+install\b|\bcurl\b|\bwget\b|\bgit\s+(?:clone|pull|fetch)\b/.test(script)) {
-    fail(`${name} must not fetch or mutate upstream build inputs at build time`);
+
+const forbiddenBuildInputPattern = /\bnpx\b|\bnpm\s+(?:install|exec)\b|\bcurl\b|\bwget\b|\bgit\s+(?:clone|pull|fetch)\b/;
+
+function loadWorkspacePackages(rootPackageJson) {
+  const records = new Map();
+  records.set('.', {path: '.', json: rootPackageJson});
+
+  for (const workspacePattern of rootPackageJson.workspaces ?? []) {
+    if (!workspacePattern.endsWith('/*')) {
+      fail(`unsupported workspace pattern in canonical build verifier: ${workspacePattern}`);
+    }
+
+    const baseDir = workspacePattern.slice(0, -2);
+    if (!fs.existsSync(baseDir)) continue;
+
+    for (const entry of fs.readdirSync(baseDir, {withFileTypes: true})) {
+      if (!entry.isDirectory()) continue;
+      const packageDir = path.posix.join(baseDir, entry.name);
+      const manifestPath = path.join(packageDir, 'package.json');
+      if (!fs.existsSync(manifestPath)) continue;
+      records.set(packageDir, {
+        path: packageDir,
+        json: JSON.parse(fs.readFileSync(manifestPath, 'utf8')),
+      });
+    }
+  }
+
+  return records;
+}
+
+function unquote(token) {
+  return token.replace(/^['"]|['"]$/g, '');
+}
+
+function splitShellSegments(script) {
+  return script.split(/\s*(?:&&|\|\||[;|])\s*/).filter(Boolean);
+}
+
+const packageRecords = loadWorkspacePackages(packageJson);
+const packagesByName = new Map();
+for (const record of packageRecords.values()) {
+  if (record.json.name) packagesByName.set(record.json.name, record);
+}
+
+function parseNpmRunDelegation(segment, currentRecord) {
+  const tokens = segment.trim().split(/\s+/).map(unquote);
+  const npmIndex = tokens.indexOf('npm');
+  if (npmIndex === -1) return null;
+
+  let cursor = npmIndex + 1;
+  let workspaceName = null;
+
+  const readWorkspaceFlag = () => {
+    const token = tokens[cursor];
+    if (token === '-w' || token === '--workspace') {
+      workspaceName = tokens[cursor + 1];
+      if (!workspaceName) fail(`missing workspace name in canonical build segment: ${segment}`);
+      cursor += 2;
+      return true;
+    }
+    if (token?.startsWith('--workspace=')) {
+      workspaceName = token.slice('--workspace='.length);
+      cursor += 1;
+      return true;
+    }
+    return false;
+  };
+
+  readWorkspaceFlag();
+  if (tokens[cursor] !== 'run' && tokens[cursor] !== 'run-script') return null;
+  cursor += 1;
+
+  const scriptName = tokens[cursor];
+  if (!scriptName || scriptName.startsWith('-')) {
+    fail(`unable to resolve delegated npm script in canonical build segment: ${segment}`);
+  }
+  cursor += 1;
+
+  while (cursor < tokens.length) {
+    if (readWorkspaceFlag()) continue;
+    cursor += 1;
+  }
+
+  const targetRecord = workspaceName ? packagesByName.get(workspaceName) : currentRecord;
+  if (!targetRecord) {
+    fail(`canonical build delegates to unknown workspace ${JSON.stringify(workspaceName)} in segment: ${segment}`);
+  }
+
+  return {targetRecord, scriptName};
+}
+
+const visitedBuildScripts = new Set();
+
+function inspectReachableBuildScript(record, scriptName, chain = []) {
+  const key = `${record.path}#${scriptName}`;
+  if (visitedBuildScripts.has(key)) return;
+  visitedBuildScripts.add(key);
+
+  for (const lifecycleName of [`pre${scriptName}`, scriptName, `post${scriptName}`]) {
+    const script = record.json.scripts?.[lifecycleName];
+    if (!script) continue;
+
+    const label = `${record.path}/package.json#scripts.${lifecycleName}`;
+    const nextChain = [...chain, label];
+
+    if (forbiddenBuildInputPattern.test(script)) {
+      fail(`canonical build path must not fetch or mutate upstream inputs: ${nextChain.join(' -> ')}`);
+    }
+
+    for (const segment of splitShellSegments(script)) {
+      if (!/\bnpm\b/.test(segment)) continue;
+      const delegation = parseNpmRunDelegation(segment, record);
+      if (!delegation) continue;
+      inspectReachableBuildScript(delegation.targetRecord, delegation.scriptName, nextChain);
+    }
   }
 }
+
+inspectReachableBuildScript(packageRecords.get('.'), 'build');
 
 const tracked = execFileSync('git', ['ls-files', '-z'], {encoding: 'utf8'})
   .split('\0')
