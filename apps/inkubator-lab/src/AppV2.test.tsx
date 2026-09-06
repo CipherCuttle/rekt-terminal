@@ -15,11 +15,11 @@ afterEach(() => cleanup());
 
 describe('Inkubator broadcast dossier synthesis', () => {
   it('keeps the current signal-board thesis while restoring the transmission grammar', () => {
-    render(<AppV2 />);
+    const {container} = render(<AppV2 />);
     expect(screen.getByRole('heading', {name: 'MAKE DEGENS SHIP.'})).toBeTruthy();
     expect(screen.getByText('TRANSMISSION')).toBeTruthy();
     expect(screen.getByText('WORKING URL OR GTFO', {selector: '.d2-actions b'})).toBeTruthy();
-    expect(screen.getByText('SHIP > TALK', {selector: '.d2-signal-statement'})).toBeTruthy();
+    expect(container.querySelector('.d2-signal-statement')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('SHIP > TALK');
   });
 
   it('keeps the loop interactive and legible', () => {
