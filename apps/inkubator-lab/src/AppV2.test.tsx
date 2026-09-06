@@ -13,33 +13,35 @@ import AppV2 from './AppV2';
 
 afterEach(() => cleanup());
 
-describe('Inkubator value proposition', () => {
-  it('explains what Inkubator is before asking the visitor to decode the culture', () => {
+describe('Inkubator compressed flow', () => {
+  it('explains the challenge in the first viewport with low reading load', () => {
     render(<AppV2 />);
     expect(screen.getByRole('heading', {name: 'BUILD SOMETHING WEIRD. PUT IT ON THE INTERNET.'})).toBeTruthy();
-    expect(screen.getByText('NOT ANOTHER COMMUNITY TO JOIN / A REASON TO BUILD')).toBeTruthy();
-    expect(screen.getByText(/turns REKT culture into games, tools, and interactive experiments/i)).toBeTruthy();
-    expect(screen.getByText('RECURRING ROUNDS')).toBeTruthy();
-    expect(screen.getByText('WORKING URL')).toBeTruthy();
+    expect(screen.getByText('BUILD WEIRD SHIT / SHIP IT')).toBeTruthy();
+    expect(screen.getByText(/Short REKT build rounds for games, tools and weird internet experiments/i)).toBeTruthy();
+    expect(screen.getByText('SHORT ROUNDS')).toBeTruthy();
+    expect(screen.getByText('WORKING LINK')).toBeTruthy();
+    expect(screen.getByText('MAKE DEGENS SHIP.')).toBeTruthy();
   });
 
-  it('makes the round mechanics explicit and interactive', () => {
+  it('keeps the five-step loop interactive and terse', () => {
     render(<AppV2 />);
     expect(screen.getByText('BUILD', {selector: '.d2-loop-readout strong'})).toBeTruthy();
     fireEvent.click(screen.getByRole('button', {name: /AMPLIFY/}));
     expect(screen.getByText('AMPLIFY', {selector: '.d2-loop-readout strong'})).toBeTruthy();
-    expect(screen.getByText('Turn the shipped artifact into a clip, demo, or post that can travel.')).toBeTruthy();
+    expect(screen.getByText('Clip it. Post it. Let it travel.')).toBeTruthy();
   });
 
-  it('states the builder exchange without inventing rewards or official commitments', () => {
+  it('merges value exchange and distribution without invented commitments', () => {
     const {container} = render(<AppV2 />);
-    expect(container.querySelector('.d2-weight-grid article:first-child h3')?.textContent?.replace(/\s+/g, '')).toBe('BRINGTHETHING.');
+    expect(container.querySelector('.d2-weight-grid article:first-child h3')?.textContent?.replace(/\s+/g, '')).toBe('MAKETHETHING.');
     expect(container.querySelector('.d2-weight-grid article:last-child h3')?.textContent?.replace(/\s+/g, '')).toBe('CREATETHEPULL.');
-    expect(screen.getByText('a distribution loop around what ships')).toBeTruthy();
+    expect(screen.getByText('eyes on what ships')).toBeTruthy();
+    expect(screen.getByText('NEXT BUILDER')).toBeTruthy();
     expect(screen.queryByText('250 USDT')).toBeNull();
     expect(screen.queryByText('OFFICIAL SIGNAL')).toBeNull();
-    expect(screen.queryByText('8 INVITED')).toBeNull();
-    expect(screen.queryByText('2 WILDCARDS')).toBeNull();
+    expect(screen.queryByText('WHY IT EXISTS')).toBeNull();
+    expect(screen.queryByText('WHO THIS IS FOR')).toBeNull();
   });
 
   it('shows real collection artifacts and switches collections without fake live claims', () => {
