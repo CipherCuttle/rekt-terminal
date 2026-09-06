@@ -1,0 +1,149 @@
+:root {
+  color-scheme: dark;
+  background: #08070e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+  background: #08070e;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: #08070e;
+  color: #f2eff8;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+a {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid #9aff67;
+  outline-offset: 3px;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.reactbits-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.reactbits-layer > * {
+  width: 100%;
+  height: 100%;
+}
+
+.reactbits-fallback {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #08070e;
+}
+
+.reactbits-fallback::before,
+.reactbits-fallback::after {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  pointer-events: none;
+}
+
+.reactbits-fallback-grain::before {
+  background:
+    radial-gradient(42% 30% at 18% 55%, rgba(122, 92, 255, .52), transparent 72%),
+    radial-gradient(40% 28% at 78% 38%, rgba(178, 154, 255, .42), transparent 74%),
+    linear-gradient(115deg, transparent 18%, rgba(122, 92, 255, .28) 43%, rgba(178, 154, 255, .18) 58%, transparent 79%);
+  filter: blur(24px);
+  transform: rotate(-5deg) scale(1.08);
+}
+
+.reactbits-fallback-grain::after {
+  background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.016) 0 1px, transparent 1px 4px);
+  opacity: .55;
+}
+
+.reactbits-fallback-dither::before {
+  background:
+    radial-gradient(circle at 22% 46%, rgba(178,154,255,.34), transparent 26%),
+    radial-gradient(circle at 64% 62%, rgba(122,92,255,.34), transparent 32%),
+    linear-gradient(125deg, rgba(8,7,14,.98), rgba(122,92,255,.24) 52%, rgba(8,7,14,.98));
+  filter: contrast(1.1) saturate(1.08);
+}
+
+.reactbits-fallback-dither::after {
+  background-image: radial-gradient(rgba(178,154,255,.22) .7px, transparent .7px);
+  background-size: 5px 5px;
+  opacity: .42;
+}
+
+.reactbits-fallback-squircle::before {
+  inset: -30%;
+  border-radius: 36%;
+  background:
+    conic-gradient(from 130deg at 55% 48%, transparent, rgba(122,92,255,.3), transparent 33%, rgba(178,154,255,.22), transparent 70%),
+    radial-gradient(circle at 50% 50%, rgba(122,92,255,.22), transparent 48%);
+  filter: blur(18px);
+  transform: rotate(9deg);
+}
+
+.d3 > section:not(.d3-hero) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 780px;
+}
+
+@media (max-width: 767px) {
+  .d3 > section:not(.d3-hero) {
+    contain-intrinsic-size: auto 980px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
