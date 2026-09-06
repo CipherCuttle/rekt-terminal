@@ -29,6 +29,12 @@ export interface SessionView {
   expires_at: string;
 }
 
+export interface GitHubInstallView {
+  schema_version: "github.install.v1";
+  install_url: string;
+  expires_at: string;
+}
+
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export class InkubatorApiError extends Error {
@@ -79,5 +85,9 @@ export class InkubatorApiClient {
 
   getPrivatePlayer(playerId: PlayerId): Promise<PrivatePlayer> {
     return this.request<PrivatePlayer>(`/v1/players/${encodeURIComponent(playerId)}/private`, {method: 'GET'});
+  }
+
+  createGitHubInstall(): Promise<GitHubInstallView> {
+    return this.request<GitHubInstallView>("/v1/github/install", {method: 'POST'});
   }
 }
