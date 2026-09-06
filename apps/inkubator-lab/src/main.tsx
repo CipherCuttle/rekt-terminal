@@ -5,6 +5,7 @@ import './styles.css';
 import './dossier-polish.css';
 import './visual-polish.css';
 import './messaging-pass.css';
+import './composition-polish.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
