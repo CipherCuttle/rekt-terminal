@@ -1,0 +1,75 @@
+name: Inkubator React Bits Pro Build
+
+on:
+  push:
+    branches:
+      - concept/inkubator-reactbits-v1
+    paths:
+      - ".github/workflows/inkubator-reactbits-pro.yml"
+      - "apps/inkubator-lab/**"
+      - "scripts/install-inkubator-reactbits-pro.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip ci]')
+    runs-on: ubuntu-latest
+    env:
+      REACTBITS_LICENSE_KEY: ${{ secrets.REACTBITS_LICENSE_KEY }}
+
+    steps:
+      - name: Check out isolated Inkubator branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Require React Bits license secret
+        shell: bash
+        run: |
+          if [ -z "$REACTBITS_LICENSE_KEY" ]; then
+            echo "::error::Missing repository secret REACTBITS_LICENSE_KEY"
+            exit 1
+          fi
+
+      - name: Install workspace dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Fetch licensed React Bits Pro components
+        working-directory: apps/inkubator-lab
+        run: npx --yes shadcn@latest add @reactbits-starter/glitch-text-css @reactbits-starter/dither-wave-css @reactbits-starter/grain-wave-css --yes
+
+      - name: Wire the installed components into Inkubator
+        run: node scripts/install-inkubator-reactbits-pro.mjs
+
+      - name: Build Inkubator
+        run: npm run build -w @rekt-ink/inkubator-lab
+
+      - name: Persist generated preview to the isolated branch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/inkubator-lab package-lock.json inkubator
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit."
+          else
+            git commit -m "build(inkubator): publish React Bits Pro preview [skip ci]"
+            git push origin "HEAD:${{ github.ref_name }}"
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: inkubator-reactbits-pro
+          path: inkubator
+          if-no-files-found: error
