@@ -33,8 +33,8 @@ describe('Inkubator value proposition', () => {
 
   it('states the builder exchange without inventing rewards or official commitments', () => {
     const {container} = render(<AppV2 />);
-    expect(container.querySelector('.d2-weight-grid article:first-child h3')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('BRING THE THING.');
-    expect(container.querySelector('.d2-weight-grid article:last-child h3')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('CREATE THE PULL.');
+    expect(container.querySelector('.d2-weight-grid article:first-child h3')?.textContent?.replace(/\s+/g, '')).toBe('BRINGTHETHING.');
+    expect(container.querySelector('.d2-weight-grid article:last-child h3')?.textContent?.replace(/\s+/g, '')).toBe('CREATETHEPULL.');
     expect(screen.getByText('a distribution loop around what ships')).toBeTruthy();
     expect(screen.queryByText('250 USDT')).toBeNull();
     expect(screen.queryByText('OFFICIAL SIGNAL')).toBeNull();
