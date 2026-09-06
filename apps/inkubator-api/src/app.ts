@@ -2,6 +2,8 @@ import Fastify, {type FastifyReply, type FastifyRequest} from 'fastify';
 import {authorize, type Actor} from './authorization.js';
 import {componentSchemas, openapiDocument} from './contract.js';
 import type {InkubatorDatabase} from './database.js';
+import {appendHistoryEvent} from './events.js';
+import {enqueueOutboxJob, SESSION_EXPIRY_JOB_TYPE} from './jobs.js';
 import {createPlayer, getPlayer, normalizeDisplayName} from './players.js';
 import {toPrivatePlayer, toPublicPlayer} from './projection.js';
 import {
@@ -111,6 +113,24 @@ export function buildApp(options: BuildAppOptions) {
         const result = await options.db.transaction().execute(async (transaction) => {
           const player = await createPlayer(transaction, displayName);
           const session = await createSession(transaction, player.player_id, options.sessionTtlSeconds);
+
+          await appendHistoryEvent(transaction, {
+            eventFamily: 'activity',
+            eventType: 'player.created',
+            dedupeKey: `activity:player.created:${player.player_id}`,
+            actorPlayerId: null,
+            subjectType: 'player',
+            subjectId: player.player_id,
+            payload: {display_name: player.display_name},
+          });
+
+          await enqueueOutboxJob(transaction, {
+            jobType: SESSION_EXPIRY_JOB_TYPE,
+            idempotencyKey: `session.expiry:${session.sessionId}`,
+            payload: {session_id: session.sessionId},
+            nextAttemptAt: session.expiresAt,
+          });
+
           return {player, session};
         });
 

@@ -1,7 +1,7 @@
 import {createHash, randomBytes, randomUUID} from 'node:crypto';
-import type {Kysely} from 'kysely';
+import {sql, type Kysely} from 'kysely';
 import type {Actor} from './authorization.js';
-import type {DatabaseSchema} from './database.js';
+import {readDatabaseNow, type DatabaseSchema} from './database.js';
 
 export const SESSION_COOKIE_NAME = '__Host-rekt_session';
 
@@ -34,20 +34,22 @@ export async function createSession(
   db: Kysely<DatabaseSchema>,
   playerId: string,
   ttlSeconds: number,
-): Promise<{token: string; expiresAt: Date}> {
+): Promise<{sessionId: string; token: string; expiresAt: Date}> {
+  const sessionId = randomUUID();
   const token = createOpaqueSessionToken();
-  const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
+  const databaseNow = await readDatabaseNow(db);
+  const expiresAt = new Date(databaseNow.getTime() + ttlSeconds * 1000);
   await db
     .insertInto('sessions')
     .values({
-      session_id: randomUUID(),
+      session_id: sessionId,
       player_id: playerId,
       token_hash: hashSessionToken(token),
       expires_at: expiresAt,
       revoked_at: null,
     })
     .executeTakeFirstOrThrow();
-  return {token, expiresAt};
+  return {sessionId, token, expiresAt};
 }
 
 export async function resolveSessionActor(db: Kysely<DatabaseSchema>, token: string): Promise<Actor | null> {
@@ -56,7 +58,7 @@ export async function resolveSessionActor(db: Kysely<DatabaseSchema>, token: str
     .select(['player_id'])
     .where('token_hash', '=', hashSessionToken(token))
     .where('revoked_at', 'is', null)
-    .where('expires_at', '>', new Date())
+    .where('expires_at', '>', sql<Date>`clock_timestamp()`)
     .executeTakeFirst();
   return session ? {playerId: session.player_id} : null;
 }
@@ -64,7 +66,7 @@ export async function resolveSessionActor(db: Kysely<DatabaseSchema>, token: str
 export async function revokeSession(db: Kysely<DatabaseSchema>, token: string): Promise<void> {
   await db
     .updateTable('sessions')
-    .set({revoked_at: new Date()})
+    .set({revoked_at: sql<Date>`clock_timestamp()`})
     .where('token_hash', '=', hashSessionToken(token))
     .where('revoked_at', 'is', null)
     .execute();
