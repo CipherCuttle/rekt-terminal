@@ -18,7 +18,7 @@ describe('Inkubator broadcast dossier synthesis', () => {
     render(<AppV2 />);
     expect(screen.getByRole('heading', {name: 'MAKE DEGENS SHIP.'})).toBeTruthy();
     expect(screen.getByText('TRANSMISSION')).toBeTruthy();
-    expect(screen.getByText('WORKING URL OR GTFO')).toBeTruthy();
+    expect(screen.getByText('WORKING URL OR GTFO', {selector: '.d2-actions b'})).toBeTruthy();
     expect(screen.getByText('SHIP > TALK', {selector: '.d2-signal-statement'})).toBeTruthy();
   });
 
