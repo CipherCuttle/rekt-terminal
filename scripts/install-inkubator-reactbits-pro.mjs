@@ -188,7 +188,7 @@ function DeferredEffect({
   }, [startupDelayMs]);
 
   return (
-    <div ref={hostRef} className={['reactbits-layer', `reactbits-${kind}-layer`, className].filter(Boolean).join(' ')} style={layerStyle} aria-hidden="true">
+    <div ref={hostRef} className={['reactbits-layer', 'reactbits-' + kind + '-layer', className].filter(Boolean).join(' ')} style={layerStyle} aria-hidden="true">
       {active ? (
         <Suspense fallback={<EffectFallback kind={kind} />}>
           <EffectBoundary fallback={<EffectFallback kind={kind} />}>
