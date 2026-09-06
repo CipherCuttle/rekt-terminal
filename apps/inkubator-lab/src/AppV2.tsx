@@ -97,19 +97,27 @@ function CollectionTransmission() {
       <SquircleShift className="d2-collection-effect" />
       <div className="d2-collection-wash" aria-hidden="true" />
       <div className="d2-collection-copy">
-        <SectionLabel number="04">THE CULTURE</SectionLabel>
-        <h2>BUILD OUT<br />FROM REKT.</h2>
-        <p>Use the actual REKT / Chibi world as source material. Make something new.</p>
+        <SectionLabel number="04">COMEBACK / CULTURE</SectionLabel>
+        <h2>TWO YEARS.<br />STILL HERE.</h2>
+        <p className="d2-culture-story">The future stayed uncertain. A small core stayed anyway. REKT Ink and Chibi Hood are part of the world that survived with them.</p>
+
+        <div className="d2-culture-arc" aria-label="REKT comeback arc">
+          <div className="d2-culture-beat"><span>01</span><div><strong>HELD THE LINE</strong><p>A few believers kept the signal alive.</p></div></div>
+          <div className="d2-culture-beat"><span>02</span><div><strong>KEPT THE WORLD MOVING</strong><p>REKT Ink + Chibi Hood became part of that continuity.</p></div></div>
+          <div className="d2-culture-beat"><span>03</span><div><strong>BUILD THE COMEBACK</strong><p>INK(CUBATOR) turns the culture into games, tools and new things.</p></div></div>
+        </div>
+
+        <span className="d2-switch-label">BROWSE THE WORLD</span>
         <div className="d2-collection-switch" role="group" aria-label="Choose collection">
           {(Object.keys(nftCollections) as NftItem['collection'][]).map((name) => (
             <button key={name} type="button" className={collection === name ? 'is-active' : ''} onClick={() => setCollection(name)}>{name}</button>
           ))}
         </div>
-        <span className="d2-source-note">CURATED MEDIA / OPENSEA</span>
+        <span className="d2-source-note">CLICK AN NFT TO OPEN IT ON OPENSEA</span>
       </div>
 
       <div className="d2-collection-stage">
-        <div className="d2-stage-meta"><span>ARTIFACT / {current.id}</span><span>{String(index + 1).padStart(2, '0')} / {String(items.length).padStart(2, '0')}</span></div>
+        <div className="d2-stage-meta"><span>COLLECTION ART / {current.id}</span><span>{String(index + 1).padStart(2, '0')} / {String(items.length).padStart(2, '0')}</span></div>
         <div className="d2-art-triad">
           <button className="d2-art-peek d2-art-peek-prev" type="button" onClick={() => move(-1)} aria-label="Previous NFT">
             <img src={previous.image} alt="" />
@@ -118,7 +126,7 @@ function CollectionTransmission() {
           <a className="d2-art-main" href={current.href} target="_blank" rel="noreferrer">
             <span className="d2-corner d2-corner-tl" /><span className="d2-corner d2-corner-tr" /><span className="d2-corner d2-corner-bl" /><span className="d2-corner d2-corner-br" />
             <img src={current.image} alt={`${current.collection} ${current.id}`} />
-            <div className="d2-art-glass"><strong>{current.collection}</strong><span>{current.id} / VIEW ARTIFACT ↗</span></div>
+            <div className="d2-art-glass"><strong>{current.collection}</strong><span>{current.id} / OPEN ON OPENSEA ↗</span></div>
           </a>
           <button className="d2-art-peek d2-art-peek-next" type="button" onClick={() => move(1)} aria-label="Next NFT">
             <img src={next.image} alt="" />
@@ -158,12 +166,12 @@ function AppV2() {
             <div className="d2-metrics"><span>SHORT ROUNDS</span><span>WORKING LINK</span><span>REKT WORLD</span></div>
           </div>
 
-          <div className="d2-artifact-bay" aria-label="REKT INK artifact identity">
+          <div className="d2-artifact-bay" aria-label="REKT comeback signal">
             <span className="d2-corner d2-corner-tl" /><span className="d2-corner d2-corner-tr" /><span className="d2-corner d2-corner-bl" /><span className="d2-corner d2-corner-br" />
-            <div className="d2-artifact-meta"><span>SPECIMEN / 000</span><span>REKT INK</span></div>
+            <div className="d2-artifact-meta"><span>SIGNAL / ORIGIN</span><span>REKT INK</span></div>
             <div className="d2-artifact-stack"><span className="d2-artifact-shadow" /><img src="./rekt-512.svg" alt="REKT mark" /><span className="d2-scan" /></div>
-            <div className="d2-glass-id"><div className="d2-glass-mark"><img src="./rekt-512.svg" alt="" /></div><div><strong>REKT INK</strong><span>CULTURE → SOFTWARE</span><small>BUILD CHALLENGE / ROUND 000</small></div><i>GLASS ID / 000</i></div>
-            <div className="d2-artifact-bottom"><strong>BAD IDEAS / WORKING SOFTWARE</strong><span>SHIP &gt; TALK</span></div>
+            <div className="d2-glass-id"><div className="d2-glass-mark"><img src="./rekt-512.svg" alt="" /></div><div><strong>REKT INK</strong><span>TWO YEARS / STILL HERE</span><small>NEXT PHASE / BUILD</small></div><i>SIGNAL / 000</i></div>
+            <div className="d2-artifact-bottom"><strong>SURVIVED THE QUIET / NOW SHIP</strong><span>SHIP &gt; TALK</span></div>
           </div>
         </div>
       </section>
@@ -208,21 +216,31 @@ function AppV2() {
         <div className="d2-marquee" aria-hidden="true"><div><span>MAKE DEGENS SHIP</span><i>✦</i><span>CULTURE → SOFTWARE</span><i>✦</i><span>WORKING URL OR GTFO</span><i>✦</i><span>MAKE DEGENS SHIP</span><i>✦</i><span>CULTURE → SOFTWARE</span><i>✦</i><span>WORKING URL OR GTFO</span><i>✦</i></div></div>
       </section>
 
-      <section className="d2-collection-section" id="collections" aria-label="REKT and Chibi culture artifacts">
+      <section className="d2-collection-section" id="collections" aria-label="REKT and Chibi comeback culture">
         <div className="d2-frame"><CollectionTransmission /></div>
       </section>
 
       <section className="d2-open" id="open" aria-labelledby="open-title">
         <GrainWave className="d2-open-grain" />
         <div className="d2-open-wash" aria-hidden="true" />
-        <div className="d2-frame d2-open-inner">
-          <div>
-            <SectionLabel number="05">WHO / NEXT</SectionLabel>
-            <div className="d2-fit-strip" aria-label="Builder types"><span>CODERS</span><span>GAME DEVS</span><span>ARTISTS</span><span>WEIRDOS</span></div>
-            <h2 id="open-title">DUMB IDEA?<br /><em>MAKE IT REAL.</em></h2>
-            <p>Can you turn it into a working link? You're the target.</p>
+        <div className="d2-frame d2-open-inner d2-open-roadmap">
+          <SectionLabel number="05">ROADMAP / NEXT</SectionLabel>
+          <div className="d2-roadmap" aria-label="Inkubator roadmap">
+            <div className="d2-roadmap-head"><span>COMEBACK PLAN</span><span>DIRECTION / NOT PROMISES</span></div>
+            <div className="d2-roadmap-grid">
+              <article><span>NOW / 00</span><strong>PROVE THE LOOP</strong><p>Round 000. Get the first weird builds shipped.</p></article>
+              <article><span>NEXT / 01</span><strong>TURN ON LIVE SIGNAL</strong><p>Latest REKT/Chibi buys, holder growth and community growth.</p></article>
+              <article><span>THEN / 02</span><strong>COMPOUND IT</strong><p>Recurring rounds, builder archive and more things born from the world.</p></article>
+            </div>
           </div>
-          <div className="d2-button d2-button-static">ROUND 000 / SOON <span>↗</span></div>
+          <div className="d2-open-cta">
+            <div>
+              <div className="d2-fit-strip" aria-label="Builder types"><span>CODERS</span><span>GAME DEVS</span><span>ARTISTS</span><span>WEIRDOS</span></div>
+              <h2 id="open-title">DUMB IDEA?<br /><em>MAKE IT REAL.</em></h2>
+              <p>Can you turn it into a working link? You're the target.</p>
+            </div>
+            <div className="d2-button d2-button-static">ROUND 000 / SOON <span>↗</span></div>
+          </div>
         </div>
       </section>
 
