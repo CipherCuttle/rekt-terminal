@@ -77,7 +77,7 @@ export default function NftMedia({src, alt, className = '', priority = false}: N
       };
     }
 
-    if (!('IntersectionObserver' in window)) {
+    if (typeof IntersectionObserver === 'undefined') {
       timer = window.setTimeout(start, 200);
       return () => window.clearTimeout(timer);
     }
