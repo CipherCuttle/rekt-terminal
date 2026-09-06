@@ -1,72 +1,41 @@
 import {createHash} from 'node:crypto';
-
-const ROUND_STATES = new Set(['DRAFT', 'OPEN', 'BUILDING', 'SHIP_WINDOW', 'CLOSED', 'ARCHIVED']);
-const EVIDENCE_TYPES = new Set(['LIVE_URL', 'DEMO', 'SOURCE']);
-const EVIDENCE_STATES = new Set(['PASS', 'SUPPLIED', 'MISSING', 'STALE']);
-const ROUND_ID = /^R[A-Z0-9-]{2,31}$/;
-const PLAYER_ID = /^P[A-Z0-9-]{2,31}$/;
-const RECEIPT_ID = /^R[A-Z0-9-]+-S[0-9]{3,}$/;
+import fs from 'node:fs';
+import Ajv2020 from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function assertHttps(value, label) {
-  invariant(typeof value === 'string', `${label} must be a string`);
-  const url = new URL(value);
-  invariant(url.protocol === 'https:', `${label} must use https`);
+function readSchema(name) {
+  return JSON.parse(fs.readFileSync(new URL(`../schema/${name}`, import.meta.url), 'utf8'));
 }
 
-function assertDateTime(value, label) {
-  invariant(typeof value === 'string' && Number.isFinite(Date.parse(value)), `${label} must be an ISO date-time`);
+const ajv = new Ajv2020({allErrors: true, strict: true});
+addFormats(ajv);
+
+const validateRound = ajv.compile(readSchema('round.schema.json'));
+const validatePlayer = ajv.compile(readSchema('player.schema.json'));
+const validateReceipt = ajv.compile(readSchema('ship-receipt.schema.json'));
+
+function assertSchema(validate, value, label) {
+  if (validate(value)) return value;
+  const detail = validate.errors
+    ?.map((error) => `${error.instancePath || '/'} ${error.message}`)
+    .join('; ') ?? 'unknown schema error';
+  throw new Error(`${label} schema invalid: ${detail}`);
 }
 
 export function assertRound(round) {
-  invariant(round && typeof round === 'object' && !Array.isArray(round), 'round must be an object');
-  invariant(round.schemaVersion === 'inkubator.round/0.1', 'unsupported round schemaVersion');
-  invariant(ROUND_ID.test(round.roundId), 'invalid roundId');
-  invariant(typeof round.title === 'string' && round.title.length > 0, 'round title is required');
-  invariant(ROUND_STATES.has(round.status), 'invalid round status');
-  invariant(typeof round.constraint === 'string' && round.constraint.length > 0, 'round constraint is required');
-  invariant(round.rules && typeof round.rules === 'object', 'round rules are required');
-  for (const key of ['workingUrlRequired', 'demoRequired', 'aiAllowed']) {
-    invariant(typeof round.rules[key] === 'boolean', `round.rules.${key} must be boolean`);
-  }
-  return round;
+  return assertSchema(validateRound, round, 'round');
 }
 
 export function assertPlayer(player) {
-  invariant(player && typeof player === 'object' && !Array.isArray(player), 'player must be an object');
-  invariant(player.schemaVersion === 'inkubator.player/0.1', 'unsupported player schemaVersion');
-  invariant(PLAYER_ID.test(player.playerId), 'invalid playerId');
-  invariant(typeof player.handle === 'string' && player.handle.length > 0, 'player handle is required');
-  invariant(typeof player.displayName === 'string' && player.displayName.length > 0, 'player displayName is required');
-  invariant(player.character && typeof player.character === 'object', 'player character is required');
-  invariant(typeof player.character.callSign === 'string' && player.character.callSign.length > 0, 'character callSign is required');
-  invariant(typeof player.character.archetype === 'string' && player.character.archetype.length > 0, 'character archetype is required');
-  return player;
+  return assertSchema(validatePlayer, player, 'player');
 }
 
 export function assertReceipt(receipt) {
-  invariant(receipt && typeof receipt === 'object' && !Array.isArray(receipt), 'receipt must be an object');
-  invariant(receipt.schemaVersion === 'inkubator.ship-receipt/0.1', 'unsupported receipt schemaVersion');
-  invariant(RECEIPT_ID.test(receipt.receiptId), 'invalid receiptId');
-  invariant(ROUND_ID.test(receipt.roundId), 'invalid receipt roundId');
-  invariant(PLAYER_ID.test(receipt.playerId), 'invalid receipt playerId');
-  invariant(receipt.artifact && typeof receipt.artifact === 'object', 'artifact is required');
-  invariant(typeof receipt.artifact.title === 'string' && receipt.artifact.title.length > 0, 'artifact title is required');
-  assertHttps(receipt.artifact.url, 'artifact.url');
-  if (receipt.artifact.demoUrl) assertHttps(receipt.artifact.demoUrl, 'artifact.demoUrl');
-  if (receipt.artifact.sourceUrl) assertHttps(receipt.artifact.sourceUrl, 'artifact.sourceUrl');
-  assertDateTime(receipt.shippedAt, 'shippedAt');
-  invariant(Array.isArray(receipt.evidence) && receipt.evidence.length > 0, 'receipt evidence is required');
-  for (const evidence of receipt.evidence) {
-    invariant(EVIDENCE_TYPES.has(evidence.type), 'invalid evidence type');
-    invariant(EVIDENCE_STATES.has(evidence.status), 'invalid evidence status');
-    assertDateTime(evidence.observedAt, 'evidence.observedAt');
-    invariant(typeof evidence.claim === 'string' && evidence.claim.length > 0, 'evidence claim is required');
-  }
-  return receipt;
+  return assertSchema(validateReceipt, receipt, 'receipt');
 }
 
 // Deterministic protocol canonicalization profile v0.1.
