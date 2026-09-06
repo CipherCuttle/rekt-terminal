@@ -80,7 +80,7 @@ export function GlitchText({children}: {children: ReactNode}) {
 
 export function GrainWave({className = ''}: {className?: string}) {
   return (
-    <div className={`reactbits-layer ${className}`} style={layerStyle} aria-hidden="true">
+    <div className={["reactbits-layer", className].filter(Boolean).join(" ")} style={layerStyle} aria-hidden="true">
       <ReactBitsGrainWave
         width="100%"
         height="100%"
