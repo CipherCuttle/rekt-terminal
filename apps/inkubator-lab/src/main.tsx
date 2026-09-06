@@ -7,6 +7,7 @@ import './visual-polish.css';
 import './messaging-pass.css';
 import './composition-polish.css';
 import './final-spacing-fixes.css';
+import './honeyslop-pass.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
