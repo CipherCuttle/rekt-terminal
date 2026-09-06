@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {sql, type Kysely} from 'kysely';
 import {canonicalizeJson} from './canonical-json.js';
-import type {DatabaseSchema, OutboxJobRow, OutboxJobState} from './database.js';
+import {readDatabaseNow, type DatabaseSchema, type OutboxJobRow, type OutboxJobState} from './database.js';
 
 export const OUTBOX_JOB_VERSION = 'job.v1';
 export const SESSION_EXPIRY_JOB_TYPE = 'session.expiry';
@@ -20,7 +20,6 @@ export interface EnqueueOutboxJobInput {
 }
 
 export interface RunOneJobOptions {
-  now?: () => Date;
   leaseMs?: number;
   retryBaseMs?: number;
 }
@@ -53,7 +52,7 @@ export async function enqueueOutboxJob(
 ): Promise<OutboxJobRow> {
   const normalized = canonicalizeJson(input.payload);
   const maxAttempts = validateMaxAttempts(input.maxAttempts ?? DEFAULT_MAX_ATTEMPTS);
-  const nextAttemptAt = input.nextAttemptAt ?? new Date();
+  const nextAttemptAt = input.nextAttemptAt ?? (await readDatabaseNow(db));
 
   const inserted = await db
     .insertInto('outbox_jobs')
@@ -97,17 +96,17 @@ export async function enqueueOutboxJob(
 
 async function failExhaustedStaleJobs(
   db: Kysely<DatabaseSchema>,
-  now: Date,
+  databaseNow: Date,
   leaseMs: number,
 ): Promise<void> {
-  const staleBefore = new Date(now.getTime() - leaseMs);
+  const staleBefore = new Date(databaseNow.getTime() - leaseMs);
   await db
     .updateTable('outbox_jobs')
     .set({
       state: 'failed',
       locked_at: null,
       lock_token: null,
-      completed_at: now,
+      completed_at: databaseNow,
       last_error: 'worker_lease_expired_after_max_attempts',
     })
     .where('state', '=', 'running')
@@ -118,10 +117,10 @@ async function failExhaustedStaleJobs(
 
 async function claimDueJob(
   db: Kysely<DatabaseSchema>,
-  now: Date,
+  databaseNow: Date,
   leaseMs: number,
 ): Promise<OutboxJobRow | null> {
-  const staleBefore = new Date(now.getTime() - leaseMs);
+  const staleBefore = new Date(databaseNow.getTime() - leaseMs);
   const lockToken = randomUUID();
   const result = await sql<OutboxJobRow>`
     with candidate as (
@@ -129,7 +128,7 @@ async function claimDueJob(
       from outbox_jobs
       where attempts < max_attempts
         and (
-          (state = 'pending' and next_attempt_at <= ${now})
+          (state = 'pending' and next_attempt_at <= ${databaseNow})
           or
           (state = 'running' and locked_at is not null and locked_at <= ${staleBefore})
         )
@@ -140,7 +139,7 @@ async function claimDueJob(
     update outbox_jobs as job
     set state = 'running',
         attempts = job.attempts + 1,
-        locked_at = ${now},
+        locked_at = ${databaseNow},
         lock_token = ${lockToken},
         last_error = null,
         completed_at = null
@@ -151,11 +150,11 @@ async function claimDueJob(
   return result.rows[0] ?? null;
 }
 
-async function completeJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, now: Date): Promise<boolean> {
+async function completeJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date): Promise<boolean> {
   if (!job.lock_token) return false;
   const result = await db
     .updateTable('outbox_jobs')
-    .set({state: 'succeeded', locked_at: null, lock_token: null, completed_at: now, last_error: null})
+    .set({state: 'succeeded', locked_at: null, lock_token: null, completed_at: databaseNow, last_error: null})
     .where('job_id', '=', job.job_id)
     .where('state', '=', 'running')
     .where('lock_token', '=', job.lock_token)
@@ -166,7 +165,7 @@ async function completeJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, now: D
 async function recordFailure(
   db: Kysely<DatabaseSchema>,
   job: OutboxJobRow,
-  now: Date,
+  databaseNow: Date,
   retryBaseMs: number,
   error: unknown,
 ): Promise<{state: OutboxJobState; applied: boolean}> {
@@ -181,7 +180,7 @@ async function recordFailure(
             state: 'failed',
             locked_at: null,
             lock_token: null,
-            completed_at: now,
+            completed_at: databaseNow,
             last_error: truncateError(error),
           }
         : {
@@ -190,7 +189,7 @@ async function recordFailure(
             lock_token: null,
             completed_at: null,
             last_error: truncateError(error),
-            next_attempt_at: new Date(now.getTime() + retryDelayMs),
+            next_attempt_at: new Date(databaseNow.getTime() + retryDelayMs),
           },
     )
     .where('job_id', '=', job.job_id)
@@ -207,7 +206,7 @@ function sessionIdFromPayload(payload: unknown): string {
   return sessionId;
 }
 
-async function handleSessionExpiry(db: Kysely<DatabaseSchema>, job: OutboxJobRow, now: Date): Promise<void> {
+async function handleSessionExpiry(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date): Promise<void> {
   const sessionId = sessionIdFromPayload(job.payload);
   const session = await db
     .selectFrom('sessions')
@@ -216,22 +215,22 @@ async function handleSessionExpiry(db: Kysely<DatabaseSchema>, job: OutboxJobRow
     .executeTakeFirst();
 
   if (!session || session.revoked_at) return;
-  if (session.expires_at.getTime() > now.getTime()) throw new Error('session_not_expired');
+  if (session.expires_at.getTime() > databaseNow.getTime()) throw new Error('session_not_expired');
 
   await db
     .updateTable('sessions')
-    .set({revoked_at: now})
+    .set({revoked_at: databaseNow})
     .where('session_id', '=', sessionId)
     .where('revoked_at', 'is', null)
-    .where('expires_at', '<=', now)
+    .where('expires_at', '<=', databaseNow)
     .execute();
 }
 
-async function handleJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, now: Date): Promise<void> {
+async function handleJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date): Promise<void> {
   if (job.job_version !== OUTBOX_JOB_VERSION) throw new Error(`unsupported_job_version:${job.job_version}`);
   switch (job.job_type) {
     case SESSION_EXPIRY_JOB_TYPE:
-      await handleSessionExpiry(db, job, now);
+      await handleSessionExpiry(db, job, databaseNow);
       return;
     default:
       throw new Error(`unsupported_job_type:${job.job_type}`);
@@ -242,19 +241,18 @@ export async function runOneJob(
   db: Kysely<DatabaseSchema>,
   options: RunOneJobOptions = {},
 ): Promise<RunOneJobResult> {
-  const clock = options.now ?? (() => new Date());
   const leaseMs = validatePositiveMs(options.leaseMs ?? DEFAULT_LEASE_MS, 'leaseMs');
   const retryBaseMs = validatePositiveMs(options.retryBaseMs ?? DEFAULT_RETRY_BASE_MS, 'retryBaseMs');
-  const claimTime = clock();
+  const claimTime = await readDatabaseNow(db);
 
   await failExhaustedStaleJobs(db, claimTime, leaseMs);
   const job = await claimDueJob(db, claimTime, leaseMs);
   if (!job) return {status: 'idle'};
 
   try {
-    await handleJob(db, job, clock());
+    await handleJob(db, job, await readDatabaseNow(db));
   } catch (error) {
-    const failure = await recordFailure(db, job, clock(), retryBaseMs, error);
+    const failure = await recordFailure(db, job, await readDatabaseNow(db), retryBaseMs, error);
     if (!failure.applied) return {status: 'lost_lease', jobId: job.job_id, attempts: job.attempts};
     return {
       status: failure.state === 'failed' ? 'failed' : 'retry',
@@ -263,7 +261,7 @@ export async function runOneJob(
     };
   }
 
-  const completed = await completeJob(db, job, clock());
+  const completed = await completeJob(db, job, await readDatabaseNow(db));
   if (!completed) return {status: 'lost_lease', jobId: job.job_id, attempts: job.attempts};
   return {status: 'succeeded', jobId: job.job_id};
 }

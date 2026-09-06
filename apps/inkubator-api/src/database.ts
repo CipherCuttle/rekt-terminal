@@ -1,4 +1,4 @@
-import {Generated, Kysely, type Selectable} from 'kysely';
+import {Generated, Kysely, sql, type Selectable} from 'kysely';
 import {PostgresJSDialect} from 'kysely-postgres-js';
 import postgres from 'postgres';
 
@@ -71,4 +71,11 @@ export function createDatabase(databaseUrl: string): InkubatorDatabase {
   return new Kysely<DatabaseSchema>({
     dialect: new PostgresJSDialect({postgres: client}),
   });
+}
+
+export async function readDatabaseNow(db: Kysely<DatabaseSchema>): Promise<Date> {
+  const result = await sql<{now: Date}>`select clock_timestamp() as now`.execute(db);
+  const now = result.rows[0]?.now;
+  if (!(now instanceof Date)) throw new Error('database_clock_unavailable');
+  return now;
 }

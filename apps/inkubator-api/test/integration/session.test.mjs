@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildApp} from '../../dist/app.js';
-import {createDatabase} from '../../dist/database.js';
+import {createDatabase, readDatabaseNow} from '../../dist/database.js';
 import {enqueueOutboxJob, runOneJob, SESSION_EXPIRY_JOB_TYPE} from '../../dist/jobs.js';
 import {migrateToLatest} from '../../dist/migrations.js';
 import {hashSessionToken, SESSION_COOKIE_NAME} from '../../dist/session.js';
@@ -77,9 +77,12 @@ test('real Postgres session boundary preserves auth and projection invariants', 
     assert.equal(firstBody.player.display_name, 'First Builder');
     assert.equal(JSON.stringify(firstBody).includes(firstToken), false);
 
-    const stored = await db.selectFrom('sessions').select(['token_hash']).executeTakeFirstOrThrow();
+    const stored = await db.selectFrom('sessions').select(['token_hash', 'expires_at']).executeTakeFirstOrThrow();
     assert.equal(stored.token_hash, hashSessionToken(firstToken));
     assert.notEqual(stored.token_hash, firstToken);
+    const databaseNow = await readDatabaseNow(db);
+    assert.ok(stored.expires_at.getTime() > databaseNow.getTime());
+    assert.ok(stored.expires_at.getTime() <= databaseNow.getTime() + 3_605_000);
 
     const me = await app.inject({method: 'GET', url: '/v1/me', headers: {origin: appOrigin, cookie: firstCookie}});
     assert.equal(me.statusCode, 200);
@@ -152,7 +155,7 @@ test('development identity bootstrap is absent when disabled', async () => {
   }
 });
 
-test('event and outbox foundation is atomic, leased, idempotent, and bounded', async () => {
+test('event and outbox foundation is atomic, database-clocked, leased, idempotent, and bounded', async () => {
   const db = createDatabase(databaseUrl);
   await migrateToLatest(db);
   await resetDatabase(db);
@@ -209,56 +212,67 @@ test('event and outbox foundation is atomic, leased, idempotent, and bounded', a
       /outbox_job_idempotency_conflict/,
     );
 
-    const now = new Date();
-    const dueAt = new Date(now.getTime() - 1_000);
+    const dueClock = await readDatabaseNow(db);
+    const dueAt = new Date(dueClock.getTime() - 1_000);
     const sessionId = expiryJob.payload.session_id;
     await db.updateTable('sessions').set({expires_at: dueAt, revoked_at: null}).where('session_id', '=', sessionId).execute();
     await db.updateTable('outbox_jobs').set({next_attempt_at: dueAt}).where('job_id', '=', expiryJob.job_id).execute();
 
-    const processed = await runOneJob(db, {now: () => now, leaseMs: 30_000, retryBaseMs: 1});
+    const processed = await runOneJob(db, {leaseMs: 30_000, retryBaseMs: 1});
     assert.deepEqual(processed, {status: 'succeeded', jobId: expiryJob.job_id});
     const revoked = await db.selectFrom('sessions').select('revoked_at').where('session_id', '=', sessionId).executeTakeFirstOrThrow();
     assert.ok(revoked.revoked_at);
     const firstRevokedAt = revoked.revoked_at.getTime();
 
+    const staleClock = await readDatabaseNow(db);
     await db
       .updateTable('outbox_jobs')
       .set({
         state: 'running',
         attempts: 1,
-        locked_at: new Date(now.getTime() - 120_000),
+        locked_at: new Date(staleClock.getTime() - 120_000),
         lock_token: randomUUID(),
         completed_at: null,
       })
       .where('job_id', '=', expiryJob.job_id)
       .execute();
 
-    const recoveredAt = new Date(now.getTime() + 120_000);
-    const recovered = await runOneJob(db, {now: () => recoveredAt, leaseMs: 30_000, retryBaseMs: 1});
+    const recovered = await runOneJob(db, {leaseMs: 30_000, retryBaseMs: 1});
     assert.deepEqual(recovered, {status: 'succeeded', jobId: expiryJob.job_id});
     const afterRecovery = await db.selectFrom('sessions').select('revoked_at').where('session_id', '=', sessionId).executeTakeFirstOrThrow();
     assert.equal(afterRecovery.revoked_at.getTime(), firstRevokedAt);
 
-    const poisonAt = new Date(recoveredAt.getTime() + 1_000);
+    const poisonClock = await readDatabaseNow(db);
     const poison = await enqueueOutboxJob(db, {
       jobType: 'unsupported.test',
       idempotencyKey: `test:unsupported:${randomUUID()}`,
       payload: {reason: 'bounded retry proof'},
-      nextAttemptAt: poisonAt,
+      nextAttemptAt: new Date(poisonClock.getTime() - 1_000),
       maxAttempts: 2,
     });
 
-    const firstFailure = await runOneJob(db, {now: () => poisonAt, leaseMs: 30_000, retryBaseMs: 1});
+    const firstFailure = await runOneJob(db, {leaseMs: 30_000, retryBaseMs: 1});
     assert.deepEqual(firstFailure, {status: 'retry', jobId: poison.job_id, attempts: 1});
-    await db.updateTable('outbox_jobs').set({next_attempt_at: poisonAt}).where('job_id', '=', poison.job_id).execute();
-    const secondFailure = await runOneJob(db, {now: () => poisonAt, leaseMs: 30_000, retryBaseMs: 1});
+    const retryClock = await readDatabaseNow(db);
+    await db.updateTable('outbox_jobs').set({next_attempt_at: new Date(retryClock.getTime() - 1_000)}).where('job_id', '=', poison.job_id).execute();
+    const secondFailure = await runOneJob(db, {leaseMs: 30_000, retryBaseMs: 1});
     assert.deepEqual(secondFailure, {status: 'failed', jobId: poison.job_id, attempts: 2});
 
     const failed = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', poison.job_id).executeTakeFirstOrThrow();
     assert.equal(failed.state, 'failed');
     assert.equal(failed.attempts, 2);
     assert.match(failed.last_error ?? '', /unsupported_job_type/);
-    assert.deepEqual(await runOneJob(db, {now: () => poisonAt, leaseMs: 30_000, retryBaseMs: 1}), {status: 'idle'});
+    assert.deepEqual(await runOneJob(db, {leaseMs: 30_000, retryBaseMs: 1}), {status: 'idle'});
+
+    const futureClock = await readDatabaseNow(db);
+    await enqueueOutboxJob(db, {
+      jobType: 'unsupported.future',
+      idempotencyKey: `test:future:${randomUUID()}`,
+      payload: {reason: 'database clock due-time proof'},
+      nextAttemptAt: new Date(futureClock.getTime() + 60_000),
+      maxAttempts: 1,
+    });
+    assert.deepEqual(await runOneJob(db, {leaseMs: 30_000, retryBaseMs: 1}), {status: 'idle'});
   } finally {
     await app.close();
     await db.destroy();

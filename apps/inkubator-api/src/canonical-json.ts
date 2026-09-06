@@ -10,7 +10,7 @@ function normalizeJson(value: unknown): JsonValue {
   }
   if (Array.isArray(value)) return value.map((item) => normalizeJson(item));
   if (typeof value === 'object') {
-    const output: {[key: string]: JsonValue} = {};
+    const output = Object.create(null) as {[key: string]: JsonValue};
     for (const key of Object.keys(value as Record<string, unknown>).sort()) {
       const child = (value as Record<string, unknown>)[key];
       if (child === undefined) throw new Error(`JSON payload field ${key} must not be undefined`);
