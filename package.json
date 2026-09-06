@@ -2,25 +2,43 @@
   "name": "rekt-ink-terminal",
   "private": true,
   "version": "0.2.0",
+  "packageManager": "npm@11.19.0",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
     "dev": "npm run dev -w @rekt-ink/api & npm run dev -w @rekt-ink/web",
-    "build": "npm run build -w @rekt-ink/episodes && npm run build -w @rekt-ink/sim && npm run build -w @rekt-ink/career && npm run build -w @rekt-ink/learning && npm run build -w @rekt-ink/api && npm run build -w @rekt-ink/web",
+    "build:core": "npm run build -w @rekt-ink/episodes && npm run build -w @rekt-ink/sim && npm run build -w @rekt-ink/career && npm run build -w @rekt-ink/learning && npm run build -w @rekt-ink/api && npm run build -w @rekt-ink/web",
+    "build:inkubator": "npm run build -w @rekt-ink/inkubator-lab",
+    "build:canonical": "npm run build:core && npm run build:inkubator",
+    "build": "npm run build:canonical",
     "typecheck": "npm run build -w @rekt-ink/episodes && npm run build -w @rekt-ink/sim && npm run build -w @rekt-ink/career && npm run build -w @rekt-ink/learning && npm run typecheck -w @rekt-ink/episodes && npm run typecheck -w @rekt-ink/sim && npm run typecheck -w @rekt-ink/career && npm run typecheck -w @rekt-ink/learning && npm run typecheck -w @rekt-ink/api && npm run typecheck -w @rekt-ink/web",
     "verify:core": "node scripts/verify-core.mjs",
     "verify:source": "node scripts/verify-source.mjs",
+    "verify:inkubator-foundation": "node scripts/verify-inkubator-foundation.mjs",
     "verify:pwa": "node scripts/verify-pwa.mjs",
     "verify:career-tuning": "node scripts/verify-career-tuning.mjs",
     "verify:learning": "npm run test -w @rekt-ink/learning && node scripts/verify-learning.mjs",
     "verify:episodes": "node scripts/verify-episodes.mjs && npm run test -w @rekt-ink/episodes && npm run test -w @rekt-ink/sim",
     "test:career-tuning": "node --test scripts/career-tuning/test/*.test.mjs",
     "test": "npm run verify:core && npm run verify:source && npm run verify:pwa && npm run test -w @rekt-ink/episodes && npm run test -w @rekt-ink/sim && npm run test -w @rekt-ink/career && npm run test -w @rekt-ink/learning && npm run test -w @rekt-ink/api && npm run test -w @rekt-ink/web && npm run test:career-tuning",
-    "verify": "npm run verify:core && npm run verify:source && npm run verify:pwa && npm run verify:episodes && npm run verify:learning && npm run typecheck && npm test && npm run build"
+    "verify": "npm run verify:core && npm run verify:source && npm run verify:inkubator-foundation && npm run verify:pwa && npm run verify:episodes && npm run verify:learning && npm run typecheck && npm test && npm run build"
   },
   "engines": {
-    "node": ">=20"
+    "node": "24.20.x",
+    "npm": "11.19.x"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "24.20.0",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "npm",
+      "version": "11.19.0",
+      "onFail": "error"
+    }
   }
 }

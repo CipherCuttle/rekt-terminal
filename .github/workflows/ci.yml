@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master, 'agent/**']
+    branches: [main, master, 'agent/**', 'foundation/**']
   pull_request:
 
 permissions:
@@ -80,11 +80,19 @@ jobs:
           git log -p --all >/dev/null
           gitleaks detect --source . --config .gitleaks.toml --no-banner --redact --verbose --exit-code 1
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 24.20.0
           cache: npm
           cache-dependency-path: package-lock.json
+
+      - name: Verify canonical toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = 'v24.20.0'
+          test "$(npm -v)" = '11.19.0'
 
       - name: Install
         run: npm ci --no-audit --no-fund
@@ -95,11 +103,14 @@ jobs:
       - name: Source invariants
         run: npm run verify:source
 
+      - name: Inkubator foundation invariants
+        run: npm run verify:inkubator-foundation
+
       - name: Typecheck
         run: npm run typecheck
 
       - name: Unit tests
         run: npm test
 
-      - name: Production build
+      - name: Canonical production build
         run: npm run build
