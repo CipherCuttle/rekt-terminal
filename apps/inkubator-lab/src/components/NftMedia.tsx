@@ -40,10 +40,17 @@ function srcSetFor(src: string, staticFrame: boolean) {
   return RESPONSIVE_WIDTHS.map((width) => `${staticFrame ? poster(src, width) : sized(src, width)} ${width}w`).join(', ');
 }
 
+function isNarrowViewport() {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(max-width: 767px)').matches;
+}
+
 export default function NftMedia({src, alt, className = '', priority = false}: NftMediaProps) {
   const mediaRef = useRef<HTMLImageElement | HTMLVideoElement | null>(null);
   const [failed, setFailed] = useState(false);
   const [animate, setAnimate] = useState(() => !isGif(src));
+  const [deferRemoteOnMobile] = useState(() => priority && isGif(src) && isNarrowViewport());
 
   useEffect(() => {
     setFailed(false);
@@ -52,8 +59,6 @@ export default function NftMedia({src, alt, className = '', priority = false}: N
 
   useEffect(() => {
     if (!isGif(src)) return;
-    const node = mediaRef.current;
-    if (!node) return;
 
     let timer = 0;
     const start = () => setAnimate(true);
@@ -63,7 +68,11 @@ export default function NftMedia({src, alt, className = '', priority = false}: N
         window.clearTimeout(timer);
         start();
       };
-      timer = window.setTimeout(start, 2400);
+
+      // On narrow/mobile viewports keep the first paint completely local. The real
+      // animated collection media wakes on the user's first interaction instead of
+      // competing with the headline for bandwidth and LCP.
+      if (!deferRemoteOnMobile) timer = window.setTimeout(start, 2200);
       window.addEventListener('pointerdown', wake, {once: true, passive: true});
       window.addEventListener('touchstart', wake, {once: true, passive: true});
       window.addEventListener('keydown', wake, {once: true});
@@ -76,6 +85,9 @@ export default function NftMedia({src, alt, className = '', priority = false}: N
         window.removeEventListener('scroll', wake);
       };
     }
+
+    const node = mediaRef.current;
+    if (!node) return;
 
     if (typeof IntersectionObserver === 'undefined') {
       timer = window.setTimeout(start, 200);
@@ -93,10 +105,19 @@ export default function NftMedia({src, alt, className = '', priority = false}: N
       observer.disconnect();
       window.clearTimeout(timer);
     };
-  }, [priority, src]);
+  }, [deferRemoteOnMobile, priority, src]);
 
   if (failed) {
     return <div className={`d3-media-fallback ${className}`} role="img" aria-label={`${alt} unavailable`}><span>MEDIA SIGNAL LOST</span></div>;
+  }
+
+  if (deferRemoteOnMobile && isGif(src) && !animate) {
+    return (
+      <div className={`d3-media-fallback d3-media-fallback-poster ${className}`} role="img" aria-label={`${alt}. Animated media ready on interaction.`}>
+        <span>REKT WORLD</span>
+        <b>MEDIA / READY</b>
+      </div>
+    );
   }
 
   if (isVideo(src)) {
