@@ -52,7 +52,7 @@ function failedAudits(categoryId) {
     .sort((a, b) => a.score - b.score);
 }
 
-for (const categoryId of ['accessibility', 'best-practices']) {
+for (const categoryId of ['accessibility', 'best-practices', 'seo']) {
   const bad = failedAudits(categoryId);
   if (!bad.length) continue;
   console.log(`\nFailed ${categoryId} audits:`);
