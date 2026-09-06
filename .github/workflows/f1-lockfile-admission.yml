@@ -1,0 +1,44 @@
+name: F1 Lockfile Admission
+
+on:
+  push:
+    branches:
+      - foundation/inkubator-platform-f1-auth
+    paths:
+      - '.github/workflows/f1-lockfile-admission.yml'
+      - 'apps/inkubator-api/package.json'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out dependency proposal
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+
+      - name: Verify canonical toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = 'v24.20.0'
+          test "$(npm -v)" = '11.19.0'
+
+      - name: Generate dependency-lock proposal only
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Upload lockfile proposal
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: f1-package-lock-proposal
+          path: package-lock.json
+          if-no-files-found: error
