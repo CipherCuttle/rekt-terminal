@@ -82,9 +82,9 @@ export function GrainWave({className = ''}: {className?: string}) {
   );
 }
 
-export function DitherWave() {
+export function DitherWave({className = ''}: {className?: string}) {
   return (
-    <div className="reactbits-layer reactbits-dither-layer" style={layerStyle} aria-hidden="true">
+    <div className={["reactbits-layer", "reactbits-dither-layer", className].filter(Boolean).join(" ")} style={layerStyle} aria-hidden="true">
       {supportsWebGL() ? (
         <EffectBoundary fallback={<EffectFallback kind="dither" />}>
           <ReactBitsDitherWave
