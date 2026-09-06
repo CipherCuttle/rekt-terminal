@@ -47,11 +47,13 @@ function importFor(slug, binding) {
 const glitch = importFor('glitch-text', 'ReactBitsGlitchText');
 const dither = importFor('dither-wave', 'ReactBitsDitherWave');
 const grain = importFor('grain-wave', 'ReactBitsGrainWave');
+const squircle = importFor('squircle-shift', 'ReactBitsSquircleShift');
 
 const adapter = `import {Component, type CSSProperties, type ErrorInfo, type ReactNode} from 'react';
 ${glitch.line}
 ${dither.line}
 ${grain.line}
+${squircle.line}
 
 class EffectBoundary extends Component<{children: ReactNode; fallback: ReactNode}, {failed: boolean}> {
   state = {failed: false};
@@ -69,7 +71,7 @@ class EffectBoundary extends Component<{children: ReactNode; fallback: ReactNode
   }
 }
 
-function EffectFallback({kind}: {kind: 'grain' | 'dither'}) {
+function EffectFallback({kind}: {kind: 'grain' | 'dither' | 'squircle'}) {
   return <div className={'reactbits-fallback reactbits-fallback-' + kind} aria-hidden="true" />;
 }
 
@@ -114,14 +116,14 @@ export function GrainWave({className = ''}: {className?: string}) {
       {supportsWebGL() ? (
         <EffectBoundary fallback={<EffectFallback kind="grain" />}>
           <ReactBitsGrainWave
-        width="100%"
-        height="100%"
-        speed={0.5}
-        waveCount={25}
-        startColor="#7a5cff"
-        endColor="#b29aff"
-        darkBackground="#08070e"
-          className="reactbits-layer-fill"
+            width="100%"
+            height="100%"
+            speed={0.5}
+            waveCount={25}
+            startColor="#7a5cff"
+            endColor="#b29aff"
+            darkBackground="#08070e"
+            className="reactbits-layer-fill"
           />
         </EffectBoundary>
       ) : (
@@ -137,24 +139,58 @@ export function DitherWave() {
       {supportsWebGL() ? (
         <EffectBoundary fallback={<EffectFallback kind="dither" />}>
           <ReactBitsDitherWave
-        width="100%"
-        height="100%"
-        speed={0.75}
-        intensity={1.4}
-        scale={5}
-        downScale={0.6}
-        primaryColor="#b29aff"
-        secondaryColor="#7a5cff"
-        tertiaryColor="#08070e"
-        opacity={0.9}
-        quality="high"
-        maxFPS={45}
-        pauseWhenOffscreen
-          className="reactbits-layer-fill"
+            width="100%"
+            height="100%"
+            speed={0.75}
+            intensity={1.4}
+            scale={5}
+            downScale={0.6}
+            primaryColor="#b29aff"
+            secondaryColor="#7a5cff"
+            tertiaryColor="#08070e"
+            opacity={0.9}
+            quality="high"
+            maxFPS={45}
+            pauseWhenOffscreen
+            className="reactbits-layer-fill"
           />
         </EffectBoundary>
       ) : (
         <EffectFallback kind="dither" />
+      )}
+    </div>
+  );
+}
+
+export function SquircleShift({className = ''}: {className?: string}) {
+  return (
+    <div className={["reactbits-layer", "reactbits-squircle-layer", className].filter(Boolean).join(" ")} style={layerStyle} aria-hidden="true">
+      {supportsWebGL() ? (
+        <EffectBoundary fallback={<EffectFallback kind="squircle" />}>
+          <ReactBitsSquircleShift
+            width="100%"
+            height="100%"
+            speed={0.28}
+            colorLayers={3}
+            gridFrequency={20}
+            gridIntensity={0.75}
+            waveSpeed={0.18}
+            waveIntensity={0.13}
+            spiralIntensity={0.8}
+            lineThickness={0.055}
+            falloff={1.1}
+            centerX={1}
+            centerY={1}
+            colorTint="#b29aff"
+            lightBackground="#08070e"
+            darkBackground="#08070e"
+            brightness={1.3}
+            phaseOffset={10}
+            className="reactbits-layer-fill"
+          />
+        </EffectBoundary>
+      ) : (
+        <EffectFallback kind="squircle" />
       )}
     </div>
   );
@@ -187,6 +223,6 @@ ${marker}
 }
 
 console.log(JSON.stringify({
-  installed: {glitch: glitch.file, dither: dither.file, grain: grain.file},
+  installed: {glitch: glitch.file, dither: dither.file, grain: grain.file, squircle: squircle.file},
   adapter: path.relative(process.cwd(), adapterPath),
 }));
