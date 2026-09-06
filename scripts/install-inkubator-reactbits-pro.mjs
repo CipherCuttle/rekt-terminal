@@ -11,7 +11,7 @@ function walk(directory) {
   return fs.readdirSync(directory, {withFileTypes: true}).flatMap((entry) => {
     const fullPath = path.join(directory, entry.name);
     if (entry.isDirectory()) return walk(fullPath);
-    return /\\.(tsx|ts|jsx|js)$/.test(entry.name) ? [fullPath] : [];
+    return /\.(tsx|ts|jsx|js)$/.test(entry.name) ? [fullPath] : [];
   });
 }
 
@@ -21,7 +21,7 @@ function pascalCase(value) {
 
 function findComponent(slug) {
   const files = walk(srcRoot).filter((file) => !file.endsWith('reactbits-pro.tsx'));
-  const exact = files.filter((file) => path.basename(file).replace(/\\.(tsx|ts|jsx|js)$/, '').toLowerCase() === slug);
+  const exact = files.filter((file) => path.basename(file).replace(/\.(tsx|ts|jsx|js)$/, '').toLowerCase() === slug);
   const loose = files.filter((file) => path.basename(file).toLowerCase().includes(slug));
   const ranked = [...new Set([...exact, ...loose])].sort((a, b) => {
     const score = (file) => (file.includes(path.join('components', 'ui')) ? 0 : 1) + file.length / 10000;
@@ -34,12 +34,12 @@ function findComponent(slug) {
 function importFor(slug, binding) {
   const file = findComponent(slug);
   const source = fs.readFileSync(file, 'utf8');
-  const relative = path.relative(path.dirname(adapterPath), file).replaceAll(path.sep, '/').replace(/\\.(tsx|ts|jsx|js)$/, '');
+  const relative = path.relative(path.dirname(adapterPath), file).replaceAll(path.sep, '/').replace(/\.(tsx|ts|jsx|js)$/, '');
   const importPath = relative.startsWith('.') ? relative : `./${relative}`;
-  if (/export\\s+default\\b/.test(source)) {
+  if (/export\s+default\b/.test(source)) {
     return {line: `import ${binding} from '${importPath}';`, file};
   }
-  const named = source.match(/export\\s+(?:function|const|class)\\s+([A-Za-z0-9_]+)/);
+  const named = source.match(/export\s+(?:function|const|class)\s+([A-Za-z0-9_]+)/);
   if (!named) throw new Error(`Could not determine export for ${file}`);
   return {line: `import { ${named[1]} as ${binding} } from '${importPath}';`, file};
 }
@@ -124,9 +124,9 @@ fs.writeFileSync(adapterPath, adapter);
 let app = fs.readFileSync(appPath, 'utf8');
 app = app.replace(
   "import {useEffect, useRef, useState, type ReactNode} from 'react';",
-  "import {useEffect, useState, type ReactNode} from 'react';\\nimport {DitherWave, GrainWave, GlitchText} from './reactbits-pro';",
+  "import {useEffect, useState, type ReactNode} from 'react';\nimport {DitherWave, GrainWave, GlitchText} from './reactbits-pro';",
 );
-app = app.replace(/type DrawFrame = [\\s\\S]*?function SectionLabel/, 'function SectionLabel');
+app = app.replace(/type DrawFrame = [\s\S]*?function SectionLabel/, 'function SectionLabel');
 fs.writeFileSync(appPath, app);
 
 const marker = '/* React Bits Pro layer sizing */';
