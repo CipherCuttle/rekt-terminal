@@ -33,15 +33,15 @@ const receipt = {
   evidence: [
     {
       type: 'LIVE_URL',
-      status: 'PASS',
+      status: 'SUPPLIED',
       observedAt: '2026-09-06T18:00:00Z',
-      claim: 'Fixture URL was reachable when this development record was authored.',
+      claim: 'Fixture URL supplied; no automated live verification has run.',
     },
     {
       type: 'DEMO',
       status: 'SUPPLIED',
       observedAt: '2026-09-06T18:00:00Z',
-      claim: 'Fixture demo URL supplied.',
+      claim: 'Fixture demo URL supplied; no automated demo verification has run.',
     },
   ],
 };
@@ -51,7 +51,7 @@ test('canonicalization is key-order invariant', () => {
 });
 
 test('fixture receipt digest is deterministic', () => {
-  assert.equal(digestRecord(receipt), 'c582a73099e7264b7f7989e72f7cff86110aa91fd5baf4a718cb715ad9cf4495');
+  assert.equal(digestRecord(receipt), '5afddb330bb6b64e62c48ebf368f853f4c7c39a66e7f97261d96bb68febe84f8');
 });
 
 test('public state derives player shipping facts from receipts', () => {
