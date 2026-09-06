@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/server.js",
+    "worker": "node dist/worker.js",
     "migrate": "node dist/migrate-cli.js",
     "generate:client": "npm run build && node dist/generate-client.js",
     "verify:client": "npm run build && node dist/generate-client.js --check",

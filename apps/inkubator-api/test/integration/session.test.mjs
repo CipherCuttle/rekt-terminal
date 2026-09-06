@@ -1,7 +1,9 @@
+import {randomUUID} from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildApp} from '../../dist/app.js';
 import {createDatabase} from '../../dist/database.js';
+import {enqueueOutboxJob, runOneJob, SESSION_EXPIRY_JOB_TYPE} from '../../dist/jobs.js';
 import {migrateToLatest} from '../../dist/migrations.js';
 import {hashSessionToken, SESSION_COOKIE_NAME} from '../../dist/session.js';
 
@@ -22,11 +24,17 @@ function tokenFromCookie(cookie) {
   return cookie.slice(prefix.length);
 }
 
+async function resetDatabase(db) {
+  await db.deleteFrom('outbox_jobs').execute();
+  await db.deleteFrom('history_events').execute();
+  await db.deleteFrom('sessions').execute();
+  await db.deleteFrom('players').execute();
+}
+
 test('real Postgres session boundary preserves auth and projection invariants', async () => {
   const db = createDatabase(databaseUrl);
   await migrateToLatest(db);
-  await db.deleteFrom('sessions').execute();
-  await db.deleteFrom('players').execute();
+  await resetDatabase(db);
 
   const app = buildApp({db, appOrigin, allowDevAuth: true, sessionTtlSeconds: 3600});
   try {
@@ -138,6 +146,119 @@ test('development identity bootstrap is absent when disabled', async () => {
       method: 'POST', url: '/v1/dev/session', headers: {origin: appOrigin}, payload: {display_name: 'Builder'},
     });
     assert.equal(response.statusCode, 404);
+  } finally {
+    await app.close();
+    await db.destroy();
+  }
+});
+
+test('event and outbox foundation is atomic, leased, idempotent, and bounded', async () => {
+  const db = createDatabase(databaseUrl);
+  await migrateToLatest(db);
+  await resetDatabase(db);
+  const app = buildApp({db, appOrigin, allowDevAuth: true, sessionTtlSeconds: 3600});
+
+  try {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/dev/session',
+      headers: {origin: appOrigin},
+      payload: {display_name: 'Worker Builder'},
+    });
+    assert.equal(created.statusCode, 201);
+    const player = created.json().player;
+
+    const history = await db
+      .selectFrom('history_events')
+      .selectAll()
+      .where('subject_type', '=', 'player')
+      .where('subject_id', '=', player.player_id)
+      .executeTakeFirstOrThrow();
+    assert.equal(history.event_family, 'activity');
+    assert.equal(history.event_version, 'history.v1');
+    assert.equal(history.event_type, 'player.created');
+    assert.deepEqual(history.payload, {display_name: 'Worker Builder'});
+
+    const expiryJob = await db
+      .selectFrom('outbox_jobs')
+      .selectAll()
+      .where('job_type', '=', SESSION_EXPIRY_JOB_TYPE)
+      .executeTakeFirstOrThrow();
+    assert.equal(expiryJob.job_version, 'job.v1');
+    assert.equal(expiryJob.state, 'pending');
+    assert.equal(expiryJob.attempts, 0);
+    assert.equal(typeof expiryJob.payload.session_id, 'string');
+
+    const duplicate = await enqueueOutboxJob(db, {
+      jobType: SESSION_EXPIRY_JOB_TYPE,
+      idempotencyKey: expiryJob.idempotency_key,
+      payload: expiryJob.payload,
+      nextAttemptAt: new Date(expiryJob.next_attempt_at.getTime() + 60_000),
+      maxAttempts: expiryJob.max_attempts,
+    });
+    assert.equal(duplicate.job_id, expiryJob.job_id);
+    assert.equal(await db.selectFrom('outbox_jobs').select(({fn}) => fn.countAll().as('count')).executeTakeFirstOrThrow().then((row) => Number(row.count)), 1);
+
+    await assert.rejects(
+      enqueueOutboxJob(db, {
+        jobType: SESSION_EXPIRY_JOB_TYPE,
+        idempotencyKey: expiryJob.idempotency_key,
+        payload: {session_id: randomUUID()},
+        maxAttempts: expiryJob.max_attempts,
+      }),
+      /outbox_job_idempotency_conflict/,
+    );
+
+    const now = new Date();
+    const dueAt = new Date(now.getTime() - 1_000);
+    const sessionId = expiryJob.payload.session_id;
+    await db.updateTable('sessions').set({expires_at: dueAt, revoked_at: null}).where('session_id', '=', sessionId).execute();
+    await db.updateTable('outbox_jobs').set({next_attempt_at: dueAt}).where('job_id', '=', expiryJob.job_id).execute();
+
+    const processed = await runOneJob(db, {now: () => now, leaseMs: 30_000, retryBaseMs: 1});
+    assert.deepEqual(processed, {status: 'succeeded', jobId: expiryJob.job_id});
+    const revoked = await db.selectFrom('sessions').select('revoked_at').where('session_id', '=', sessionId).executeTakeFirstOrThrow();
+    assert.ok(revoked.revoked_at);
+    const firstRevokedAt = revoked.revoked_at.getTime();
+
+    await db
+      .updateTable('outbox_jobs')
+      .set({
+        state: 'running',
+        attempts: 1,
+        locked_at: new Date(now.getTime() - 120_000),
+        lock_token: randomUUID(),
+        completed_at: null,
+      })
+      .where('job_id', '=', expiryJob.job_id)
+      .execute();
+
+    const recoveredAt = new Date(now.getTime() + 120_000);
+    const recovered = await runOneJob(db, {now: () => recoveredAt, leaseMs: 30_000, retryBaseMs: 1});
+    assert.deepEqual(recovered, {status: 'succeeded', jobId: expiryJob.job_id});
+    const afterRecovery = await db.selectFrom('sessions').select('revoked_at').where('session_id', '=', sessionId).executeTakeFirstOrThrow();
+    assert.equal(afterRecovery.revoked_at.getTime(), firstRevokedAt);
+
+    const poisonAt = new Date(recoveredAt.getTime() + 1_000);
+    const poison = await enqueueOutboxJob(db, {
+      jobType: 'unsupported.test',
+      idempotencyKey: `test:unsupported:${randomUUID()}`,
+      payload: {reason: 'bounded retry proof'},
+      nextAttemptAt: poisonAt,
+      maxAttempts: 2,
+    });
+
+    const firstFailure = await runOneJob(db, {now: () => poisonAt, leaseMs: 30_000, retryBaseMs: 1});
+    assert.deepEqual(firstFailure, {status: 'retry', jobId: poison.job_id, attempts: 1});
+    await db.updateTable('outbox_jobs').set({next_attempt_at: poisonAt}).where('job_id', '=', poison.job_id).execute();
+    const secondFailure = await runOneJob(db, {now: () => poisonAt, leaseMs: 30_000, retryBaseMs: 1});
+    assert.deepEqual(secondFailure, {status: 'failed', jobId: poison.job_id, attempts: 2});
+
+    const failed = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', poison.job_id).executeTakeFirstOrThrow();
+    assert.equal(failed.state, 'failed');
+    assert.equal(failed.attempts, 2);
+    assert.match(failed.last_error ?? '', /unsupported_job_type/);
+    assert.deepEqual(await runOneJob(db, {now: () => poisonAt, leaseMs: 30_000, retryBaseMs: 1}), {status: 'idle'});
   } finally {
     await app.close();
     await db.destroy();

@@ -34,20 +34,21 @@ export async function createSession(
   db: Kysely<DatabaseSchema>,
   playerId: string,
   ttlSeconds: number,
-): Promise<{token: string; expiresAt: Date}> {
+): Promise<{sessionId: string; token: string; expiresAt: Date}> {
+  const sessionId = randomUUID();
   const token = createOpaqueSessionToken();
   const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
   await db
     .insertInto('sessions')
     .values({
-      session_id: randomUUID(),
+      session_id: sessionId,
       player_id: playerId,
       token_hash: hashSessionToken(token),
       expires_at: expiresAt,
       revoked_at: null,
     })
     .executeTakeFirstOrThrow();
-  return {token, expiresAt};
+  return {sessionId, token, expiresAt};
 }
 
 export async function resolveSessionActor(db: Kysely<DatabaseSchema>, token: string): Promise<Actor | null> {
