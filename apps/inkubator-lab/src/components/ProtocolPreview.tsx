@@ -1,5 +1,7 @@
 import {inkubatorState} from '../generated/inkubator-state';
 
+const isVerifiedPass = (status: string) => status === 'PASS';
+
 export default function ProtocolPreview() {
   const receipt = inkubatorState.receipts[0];
   const round = inkubatorState.rounds.find((item) => item.roundId === receipt.roundId)!;
@@ -45,7 +47,7 @@ export default function ProtocolPreview() {
             <summary>VIEW TECHNICAL EVIDENCE</summary>
             <div className="d3-evidence-list">
               {receipt.evidence.map((item) => (
-                <div key={`${item.type}-${item.observedAt}`}><span>{item.type}</span><b className={item.status === 'PASS' ? 'is-pass' : ''}>{item.status}</b><p>{item.claim}</p><time dateTime={item.observedAt}>{item.observedAt}</time></div>
+                <div key={`${item.type}-${item.observedAt}`}><span>{item.type}</span><b className={isVerifiedPass(item.status) ? 'is-pass' : ''}>{item.status}</b><p>{item.claim}</p><time dateTime={item.observedAt}>{item.observedAt}</time></div>
               ))}
             </div>
             <div className="d3-digest"><span>CONTENT DIGEST / {receipt.digestAlgorithm.toUpperCase()}</span><code>{receipt.digest}</code><small>{receipt.digestProfile}</small></div>
