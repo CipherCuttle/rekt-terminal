@@ -4,7 +4,7 @@
   "title": "INK(CUBATOR) Player",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "playerId", "handle", "displayName", "character"],
+  "required": ["schemaVersion", "playerId", "handle", "displayName"],
   "properties": {
     "schemaVersion": {"const": "inkubator.player/0.1"},
     "playerId": {"type": "string", "pattern": "^P[A-Z0-9-]{2,31}$"},
