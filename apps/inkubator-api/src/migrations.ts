@@ -1,4 +1,5 @@
-import {Migrator, sql, type Kysely, type Migration, type MigrationProvider} from 'kysely';
+import {sql, type Kysely} from 'kysely';
+import {Migrator, type Migration, type MigrationProvider} from 'kysely/migration';
 import type {DatabaseSchema} from './database.js';
 
 const initialMigration: Migration = {
