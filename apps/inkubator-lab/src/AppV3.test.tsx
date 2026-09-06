@@ -1,8 +1,8 @@
-import {cleanup, fireEvent, render, screen, within} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, screen, within} from '@testing-library/react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
 vi.mock('./reactbits-pro', () => ({
-  GrainWave: ({className = ''}: {className?: string}) => <div data-testid="grain-wave" className={className} />,
+  GrainWave: ({className = ''}: {className?: string; startupDelayMs?: number}) => <div data-testid="grain-wave" className={className} />,
   DitherWave: ({className = ''}: {className?: string}) => <div data-testid="dither-wave" className={className} />,
   SquircleShift: ({className = ''}: {className?: string}) => <div data-testid="squircle-shift" className={className} />,
 }));
@@ -12,16 +12,23 @@ import {showcase15} from './data/showcase-tokens';
 
 const compact = (value: string | null | undefined) => value?.replace(/\s+/g, '') ?? '';
 
-afterEach(() => cleanup());
+afterEach(() => {
+  vi.useRealTimers();
+  cleanup();
+});
 
 describe('Inkubator comeback v3', () => {
-  it('lands the challenge, operating principle and real-media signal in the hero', () => {
+  it('lands the challenge and progressively wakes animated hero media', () => {
+    vi.useFakeTimers();
     const {container} = render(<AppV3 />);
     expect(screen.getByRole('heading', {name: /BUILD SOMETHING WEIRD.*PUT IT ON THE INTERNET/i})).toBeTruthy();
     expect(screen.getByText('MAKE DEGENS SHIP.')).toBeTruthy();
     expect(screen.getByText('CURATED ART')).toBeTruthy();
     expect(screen.getByText('LIVE SALES')).toBeTruthy();
     const heroMedia = container.querySelector('.d3-signal-media img') as HTMLImageElement | null;
+    expect(heroMedia?.src).toContain('frame-time=1');
+    expect(heroMedia?.getAttribute('fetchpriority') ?? heroMedia?.getAttribute('fetchPriority')).toBe('high');
+    act(() => vi.advanceTimersByTime(2500));
     expect(heroMedia?.src).not.toContain('frame-time=1');
   });
 
