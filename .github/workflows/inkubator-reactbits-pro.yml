@@ -51,6 +51,9 @@ jobs:
       - name: Wire the installed components into Inkubator
         run: node scripts/install-inkubator-reactbits-pro.mjs
 
+      - name: Install React Bits TypeScript declarations
+        run: npm install --save-dev --workspace @rekt-ink/inkubator-lab @types/three --no-audit --no-fund
+
       - name: Build Inkubator
         run: npm run build -w @rekt-ink/inkubator-lab
 
