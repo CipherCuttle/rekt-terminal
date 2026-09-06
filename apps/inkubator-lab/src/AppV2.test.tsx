@@ -13,21 +13,33 @@ import AppV2 from './AppV2';
 
 afterEach(() => cleanup());
 
-describe('Inkubator broadcast dossier synthesis', () => {
-  it('keeps the current signal-board thesis while restoring the transmission grammar', () => {
-    const {container} = render(<AppV2 />);
-    expect(screen.getByRole('heading', {name: 'MAKE DEGENS SHIP.'})).toBeTruthy();
-    expect(screen.getByText('TRANSMISSION')).toBeTruthy();
-    expect(screen.getByText('WORKING URL OR GTFO', {selector: '.d2-actions b'})).toBeTruthy();
-    expect(container.querySelector('.d2-signal-statement')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('SHIP > TALK');
+describe('Inkubator value proposition', () => {
+  it('explains what Inkubator is before asking the visitor to decode the culture', () => {
+    render(<AppV2 />);
+    expect(screen.getByRole('heading', {name: 'BUILD SOMETHING WEIRD. PUT IT ON THE INTERNET.'})).toBeTruthy();
+    expect(screen.getByText('NOT ANOTHER COMMUNITY TO JOIN / A REASON TO BUILD')).toBeTruthy();
+    expect(screen.getByText(/turns REKT culture into games, tools, and interactive experiments/i)).toBeTruthy();
+    expect(screen.getByText('RECURRING ROUNDS')).toBeTruthy();
+    expect(screen.getByText('WORKING URL')).toBeTruthy();
   });
 
-  it('keeps the loop interactive and legible', () => {
+  it('makes the round mechanics explicit and interactive', () => {
     render(<AppV2 />);
-    expect(screen.getByText('SHIP', {selector: '.d2-loop-readout strong'})).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', {name: /REWARD/}));
-    expect(screen.getByText('REWARD', {selector: '.d2-loop-readout strong'})).toBeTruthy();
-    expect(screen.getByText('Turn the strongest artifact into signal, status, and a reason to return.')).toBeTruthy();
+    expect(screen.getByText('BUILD', {selector: '.d2-loop-readout strong'})).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', {name: /AMPLIFY/}));
+    expect(screen.getByText('AMPLIFY', {selector: '.d2-loop-readout strong'})).toBeTruthy();
+    expect(screen.getByText('Turn the shipped artifact into a clip, demo, or post that can travel.')).toBeTruthy();
+  });
+
+  it('states the builder exchange without inventing rewards or official commitments', () => {
+    render(<AppV2 />);
+    expect(screen.getByText('BRING THE THING.')).toBeTruthy();
+    expect(screen.getByText('CREATE THE PULL.')).toBeTruthy();
+    expect(screen.getByText('a distribution loop around what ships')).toBeTruthy();
+    expect(screen.queryByText('250 USDT')).toBeNull();
+    expect(screen.queryByText('OFFICIAL SIGNAL')).toBeNull();
+    expect(screen.queryByText('8 INVITED')).toBeNull();
+    expect(screen.queryByText('2 WILDCARDS')).toBeNull();
   });
 
   it('shows real collection artifacts and switches collections without fake live claims', () => {
@@ -39,12 +51,5 @@ describe('Inkubator broadcast dossier synthesis', () => {
     expect(screen.getByText(/#7267 \/ VIEW ARTIFACT/)).toBeTruthy();
     expect(screen.getByText('CURATED MEDIA / OPENSEA')).toBeTruthy();
     expect(screen.queryByText('LIVE MEDIA / OPENSEA')).toBeNull();
-  });
-
-  it('keeps unconfirmed reward commitments out of the public concept surface', () => {
-    render(<AppV2 />);
-    expect(screen.queryByText('250 USDT')).toBeNull();
-    expect(screen.queryByText('OFFICIAL SIGNAL')).toBeNull();
-    expect(screen.getByText('reward structure when locked')).toBeTruthy();
   });
 });

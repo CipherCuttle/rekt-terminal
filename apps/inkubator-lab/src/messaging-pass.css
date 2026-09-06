@@ -1,0 +1,137 @@
+/* Messaging / information-architecture pass.
+   Keeps the existing visual system; only supports the clearer value proposition. */
+
+.d2-hero-copy h1 {
+  max-width: 100%;
+  min-height: 196px;
+}
+
+.d2-hero-copy h1::after {
+  content: 'BUILD SOMETHING WEIRD.\A PUT IT ON THE INTERNET.';
+  align-items: flex-start;
+  font-size: clamp(2.85rem, 3.55vw, 3.35rem);
+  line-height: .9;
+  white-space: pre-line;
+}
+
+.d2-hero-copy .reactbits-glitch.glitch-text-container {
+  opacity: .22;
+}
+
+.d2-hero-lede {
+  max-width: 56ch;
+}
+
+.d2-why-section {
+  background: var(--d2-void);
+}
+
+.d2-why-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  border: 1px solid var(--d2-edge);
+  background: var(--d2-edge);
+}
+
+.d2-why-grid article {
+  min-height: 220px;
+  padding: clamp(22px, 3vw, 36px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--d2-panel);
+}
+
+.d2-why-grid article:nth-child(2) {
+  background: linear-gradient(145deg, rgba(122,92,255,.28), var(--d2-panel));
+}
+
+.d2-why-grid article:nth-child(3) {
+  background: linear-gradient(145deg, rgba(154,255,103,.06), var(--d2-panel));
+}
+
+.d2-why-grid span {
+  color: var(--d2-mute);
+  font: 800 10px/1 var(--d2-mono);
+  letter-spacing: .11em;
+}
+
+.d2-why-grid strong {
+  margin-top: auto;
+  padding-top: 40px;
+  color: var(--d2-paper);
+  font: 900 clamp(2.2rem, 4vw, 4.5rem)/.86 var(--d2-display);
+  letter-spacing: -.055em;
+}
+
+.d2-why-grid article:nth-child(2) strong { color: var(--d2-lilac); }
+.d2-why-grid article:nth-child(3) strong { color: var(--d2-acid); }
+
+.d2-why-grid p {
+  max-width: 28ch;
+  margin-top: 16px !important;
+  color: var(--d2-copy);
+  font-size: .98rem;
+  line-height: 1.5;
+}
+
+.d2-button-static {
+  cursor: default;
+  border-color: var(--d2-edge);
+  background: rgba(13,11,24,.72);
+  color: var(--d2-lilac);
+  transform: none !important;
+}
+
+#field .d2-field-head {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 1000px) {
+  .d2-why-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .d2-why-grid article {
+    min-height: 160px;
+  }
+
+  .d2-why-grid strong {
+    padding-top: 26px;
+  }
+}
+
+@media (max-width: 720px) {
+  .d2-hero-copy h1 {
+    min-height: 178px;
+  }
+
+  .d2-hero-copy h1::after {
+    content: 'BUILD SOMETHING\A WEIRD.\A PUT IT ON\A THE INTERNET.';
+    font-size: clamp(2.45rem, 11.8vw, 3rem);
+    line-height: .86;
+  }
+
+  .d2-hero-copy .reactbits-glitch.glitch-text-container {
+    opacity: .16;
+  }
+
+  .d2-hero-lede {
+    font-size: .98rem;
+    line-height: 1.52;
+  }
+
+  .d2-why-grid article {
+    min-height: 148px;
+    padding: 20px;
+  }
+
+  .d2-why-grid strong {
+    font-size: clamp(2.4rem, 12vw, 3.3rem);
+  }
+
+  .d2-why-grid p {
+    font-size: .92rem;
+  }
+}
