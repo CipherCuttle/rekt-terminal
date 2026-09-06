@@ -1,4 +1,4 @@
-import {cleanup, fireEvent, render, screen} from '@testing-library/react';
+import {cleanup, fireEvent, render, screen, within} from '@testing-library/react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
 vi.mock('./reactbits-pro', () => ({
@@ -9,6 +9,8 @@ vi.mock('./reactbits-pro', () => ({
 
 import AppV3 from './AppV3';
 import {showcase15} from './data/showcase-tokens';
+
+const compact = (value: string | null | undefined) => value?.replace(/\s+/g, '') ?? '';
 
 afterEach(() => cleanup());
 
@@ -26,7 +28,7 @@ describe('Inkubator comeback v3', () => {
   it('keeps the page to six clear beats and merges the machine with the value exchange', () => {
     const {container} = render(<AppV3 />);
     expect(container.querySelectorAll('main.d3 > section').length).toBe(6);
-    expect(screen.getByText('5 STEPS. NO DECK.', {exact: false})).toBeTruthy();
+    expect(compact(container.querySelector('.d3-machine-copy h2')?.textContent)).toBe('5STEPS.NODECK.');
     expect(screen.getByText('MAKE THE THING.')).toBeTruthy();
     expect(screen.getByText('CREATE THE PULL.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', {name: /AMPLIFY/}));
@@ -44,20 +46,22 @@ describe('Inkubator comeback v3', () => {
   });
 
   it('encodes the curated rarity and market Showcase 15', () => {
-    render(<AppV3 />);
+    const {container} = render(<AppV3 />);
     expect(showcase15).toHaveLength(15);
     expect(showcase15.find((token) => token.tokenId === '249')?.rarityRank).toBe(98);
     expect(showcase15.find((token) => token.tokenId === '4712')?.rarityRank).toBe(347);
     expect(screen.getByText('#249')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', {name: 'CHIBI HOOD'}));
+    const gallery = container.querySelector('.d3-comeback-stage');
+    expect(gallery).toBeTruthy();
+    fireEvent.click(within(gallery as HTMLElement).getByRole('button', {name: 'CHIBI HOOD'}));
+    expect(within(gallery as HTMLElement).getByText('#4712')).toBeTruthy();
   });
 
   it('shows the bounded roadmap as direction rather than promises', () => {
-    render(<AppV3 />);
+    const {container} = render(<AppV3 />);
     expect(screen.getByText(/DIRECTION, NOT PROMISES/i)).toBeTruthy();
-    expect(screen.getByText('PROVE THE LOOP', {exact: false})).toBeTruthy();
-    expect(screen.getByText('TURN ON LIVE SIGNAL', {exact: false})).toBeTruthy();
-    expect(screen.getByText('COMPOUND THE WORLD', {exact: false})).toBeTruthy();
-    expect(screen.getByRole('heading', {name: /DUMB IDEA.*MAKE IT REAL/i})).toBeTruthy();
+    const roadmapTitles = Array.from(container.querySelectorAll('.d3-roadmap-rail h3')).map((node) => compact(node.textContent));
+    expect(roadmapTitles).toEqual(['PROVETHELOOP', 'TURNONLIVESIGNAL', 'COMPOUNDTHEWORLD']);
+    expect(compact(container.querySelector('.d3-open h2')?.textContent)).toBe('DUMBIDEA?MAKEITREAL.');
   });
 });
