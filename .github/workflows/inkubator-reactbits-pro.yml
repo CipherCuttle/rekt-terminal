@@ -70,7 +70,7 @@ jobs:
       - name: Lighthouse mobile regression gate
         shell: bash
         run: |
-          mkdir -p .lighthouse
+          mkdir -p lighthouse-reports
           node scripts/serve-inkubator.mjs >/tmp/inkubator-http.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
@@ -93,22 +93,22 @@ jobs:
             npx --yes lighthouse@latest http://127.0.0.1:4175/ \
               --quiet \
               --output=json \
-              --output-path=".lighthouse/run-$run.json" \
+              --output-path="lighthouse-reports/run-$run.json" \
               --only-categories=performance,accessibility,best-practices,seo \
               --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage"
           done
 
           node scripts/check-inkubator-lighthouse.mjs \
-            .lighthouse/run-1.json \
-            .lighthouse/run-2.json \
-            .lighthouse/run-3.json
+            lighthouse-reports/run-1.json \
+            lighthouse-reports/run-2.json \
+            lighthouse-reports/run-3.json
 
       - name: Upload Lighthouse reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: inkubator-lighthouse
-          path: .lighthouse
+          path: lighthouse-reports
           if-no-files-found: ignore
 
       - name: Persist generated preview to the isolated branch
