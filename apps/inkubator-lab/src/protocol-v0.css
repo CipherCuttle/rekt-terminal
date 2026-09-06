@@ -250,6 +250,10 @@
 }
 
 .d3-evidence-list b {
+  color: #b29aff;
+}
+
+.d3-evidence-list b.is-pass {
   color: var(--instrument-active);
 }
 
@@ -304,7 +308,7 @@
 
 @media (max-width: 560px) {
   .d3-protocol-preview {
-    width: min(100% - 24px, 1180px);
+    width: min(calc(100% - 24px), 1180px);
   }
 
   .d3-protocol-preview-head,
