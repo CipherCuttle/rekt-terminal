@@ -30,7 +30,7 @@ export function GlitchText({children}: {children: ReactNode}) {
 
 export function GrainWave({className = ''}: {className?: string}) {
   return (
-    <div className={["reactbits-layer", className].filter(Boolean).join(" ")} style={layerStyle} aria-hidden="true">
+    <div className={["reactbits-layer", "reactbits-grain-layer", className].filter(Boolean).join(" ")} style={layerStyle} aria-hidden="true">
       <ReactBitsGrainWave
         width="100%"
         height="100%"
@@ -47,7 +47,7 @@ export function GrainWave({className = ''}: {className?: string}) {
 
 export function DitherWave() {
   return (
-    <div className="reactbits-layer" style={layerStyle} aria-hidden="true">
+    <div className="reactbits-layer reactbits-dither-layer" style={layerStyle} aria-hidden="true">
       <ReactBitsDitherWave
         width="100%"
         height="100%"
