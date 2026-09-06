@@ -48,12 +48,12 @@ const glitch = importFor('glitch-text', 'ReactBitsGlitchText');
 const dither = importFor('dither-wave', 'ReactBitsDitherWave');
 const grain = importFor('grain-wave', 'ReactBitsGrainWave');
 
-const adapter = `import type {ReactNode} from 'react';
+const adapter = `import type {CSSProperties, ReactNode} from 'react';
 ${glitch.line}
 ${dither.line}
 ${grain.line}
 
-const layerStyle = {
+const layerStyle: CSSProperties = {
   position: 'absolute',
   inset: 0,
   width: '100%',
