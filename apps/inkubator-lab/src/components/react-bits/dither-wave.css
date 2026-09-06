@@ -1,0 +1,14 @@
+.dither-wave-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.dither-wave-children {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
