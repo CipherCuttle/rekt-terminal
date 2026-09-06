@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rekt.ink/schemas/inkubator/player/0.1",
+  "title": "INK(CUBATOR) Player",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "playerId", "handle", "displayName", "character"],
+  "properties": {
+    "schemaVersion": {"const": "inkubator.player/0.1"},
+    "playerId": {"type": "string", "pattern": "^P[A-Z0-9-]{2,31}$"},
+    "handle": {"type": "string", "minLength": 1, "maxLength": 64},
+    "displayName": {"type": "string", "minLength": 1, "maxLength": 80},
+    "character": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["callSign", "archetype"],
+      "properties": {
+        "callSign": {"type": "string", "minLength": 1, "maxLength": 48},
+        "archetype": {"type": "string", "minLength": 1, "maxLength": 48}
+      }
+    }
+  }
+}
