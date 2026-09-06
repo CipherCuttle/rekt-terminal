@@ -1,5 +1,14 @@
 import {cleanup, fireEvent, render, screen} from '@testing-library/react';
-import {afterEach, describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
+import type {ReactNode} from 'react';
+
+vi.mock('./reactbits-pro', () => ({
+  GrainWave: ({className = ''}: {className?: string}) => <div data-testid="grain-wave" className={className} />,
+  DitherWave: () => <div data-testid="dither-wave" />,
+  SquircleShift: ({className = ''}: {className?: string}) => <div data-testid="squircle-shift" className={className} />,
+  GlitchText: ({children}: {children: ReactNode}) => <>{children}</>,
+}));
+
 import App from './App';
 
 afterEach(() => cleanup());
