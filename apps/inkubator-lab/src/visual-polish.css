@@ -1,0 +1,139 @@
+/* Final visual polish: legibility, density, and layout corrections only. */
+.dossier-v2 {
+  --d2-copy: #c0b9cd;
+}
+
+/* Keep the Pro glitch as signal texture, not as the only readable headline. */
+.d2-hero-copy h1 {
+  position: relative;
+  min-height: 118px;
+  margin-bottom: 30px !important;
+  isolation: isolate;
+}
+.d2-hero-copy h1::after {
+  content: 'MAKE DEGENS SHIP.';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  color: var(--d2-paper);
+  font: 900 clamp(3.3rem, 4.65vw, 4.75rem)/.88 var(--d2-display);
+  letter-spacing: -.055em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.d2-hero-copy .reactbits-glitch.glitch-text-container {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  opacity: .32;
+  mix-blend-mode: screen;
+  filter: saturate(1.15) contrast(1.05);
+  pointer-events: none;
+}
+
+/* Reduce over-tight display tracking without losing the corrupted poster grammar. */
+.d2-signal-copy h2,
+.d2-section-head h2,
+.d2-field-head h2,
+.d2-broadcast-grid h2,
+.d2-open h2,
+.d2-collection-copy h2,
+.d2-weight-grid h3,
+.d2-signal-statement {
+  letter-spacing: -.055em;
+}
+
+/* Make the metadata actually readable instead of decorative dust. */
+.d2-section-label { font-size: 11px; letter-spacing: .115em; }
+.d2-status,
+.d2-eyebrow { font-size: 11px; }
+.d2-actions b,
+.d2-metrics,
+.d2-artifact-meta,
+.d2-artifact-bottom,
+.d2-stage-meta { font-size: 10px; }
+.d2-glass-id span,
+.d2-glass-id small,
+.d2-glass-id i { font-size: 9px; }
+.d2-source-note { font-size: 9px; }
+.d2-card-meta,
+.d2-card-foot { font-size: 10px; }
+.d2-subject-row > span,
+.d2-subject-row i { font-size: 10px; }
+.d2-subject-row strong { font-size: 13px; }
+.d2-weight-grid ul { font-size: 11px; }
+.d2-footer { font-size: 10px; }
+.d2-signal-copy p,
+.d2-section-head > p,
+.d2-field-head p,
+.d2-broadcast-grid p,
+.d2-open p,
+.d2-hero-lede,
+.d2-collection-copy p { color: var(--d2-copy); }
+
+/* Fix the 08 / 02 count labels wrapping under the wrong number. */
+.d2-field-count {
+  grid-template-columns: auto 28px auto;
+  grid-template-rows: auto auto;
+  column-gap: 12px;
+  row-gap: 7px;
+  align-items: center;
+}
+.d2-field-count strong:first-of-type { grid-column: 1; grid-row: 1; }
+.d2-field-count span:first-of-type { grid-column: 1; grid-row: 2; }
+.d2-field-count i { grid-column: 2; grid-row: 1 / 3; align-self: center; justify-self: center; }
+.d2-field-count strong:nth-of-type(2) { grid-column: 3; grid-row: 1; }
+.d2-field-count span:nth-of-type(2) { grid-column: 3; grid-row: 2; }
+
+section[id] { scroll-margin-top: 74px; }
+
+/* Tighten the long-form rhythm; density should come from composition, not empty black bands. */
+@media (min-width: 721px) {
+  .d2-signal-section { padding-block: clamp(78px, 8vw, 118px); }
+  .d2-build-section,
+  .d2-collection-section,
+  .d2-field-section,
+  .d2-weight-section { padding-block: clamp(76px, 8vw, 116px); }
+  .d2-section-head { margin-bottom: 46px; }
+  .d2-section-head-compact { margin-bottom: 38px; }
+  .d2-field-head { margin-bottom: 44px; }
+}
+
+@media (max-width: 720px) {
+  .d2-hero-copy h1 {
+    min-height: 104px;
+    margin-bottom: 24px !important;
+  }
+  .d2-hero-copy h1::after {
+    content: 'MAKE DEGENS\A SHIP.';
+    align-items: flex-start;
+    font-size: clamp(2.8rem, 13.4vw, 3.35rem);
+    line-height: .84;
+    white-space: pre-line;
+  }
+  .d2-hero-copy .reactbits-glitch.glitch-text-container {
+    opacity: .24;
+  }
+  .d2-section-label { font-size: 9px; }
+  .d2-status,
+  .d2-eyebrow { font-size: 9px; }
+  .d2-actions b,
+  .d2-metrics,
+  .d2-stage-meta { font-size: 9px; }
+  .d2-build-card { min-height: 238px; }
+  .d2-card-mark { min-height: 86px; }
+  .d2-build-card p { font-size: .92rem; line-height: 1.42; }
+  .d2-subject-row strong { font-size: 11px; }
+  .d2-subject-row > span,
+  .d2-subject-row i { font-size: 9px; }
+  .d2-field-count { grid-template-columns: auto 20px auto; min-width: 0; }
+  .d2-field-count strong { font-size: clamp(2.4rem, 13vw, 3.2rem); }
+  .d2-field-count span { font-size: 8px; }
+  .d2-weight-grid article { min-height: 300px; }
+  .d2-weight-grid h3 { margin-top: 44px !important; }
+  .d2-weight-grid ul { margin-top: 30px; font-size: 9px; }
+}
