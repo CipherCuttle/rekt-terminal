@@ -66,3 +66,17 @@ test('receipt cannot reference an unknown player', () => {
     /unknown playerId PDEV-001/,
   );
 });
+
+test('JSON Schema rejects undeclared player properties', () => {
+  const invalidPlayer = {...player, xp: 9001};
+  assert.throws(
+    () => compilePublicState({rounds: [round], players: [invalidPlayer], receipts: [receipt]}),
+    /additional properties/i,
+  );
+});
+
+test('character identity is optional at the protocol boundary', () => {
+  const {character: _character, ...playerWithoutCharacter} = player;
+  const state = compilePublicState({rounds: [round], players: [playerWithoutCharacter], receipts: [receipt]});
+  assert.equal(state.players[0].playerId, player.playerId);
+});
