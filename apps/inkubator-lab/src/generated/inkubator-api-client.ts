@@ -7,15 +7,17 @@ export interface DevSessionRequest {
   display_name: string;
 }
 
+export type PlayerId = string;
+
 export interface PublicPlayer {
   schema_version: "player.public.v1";
-  player_id: string;
+  player_id: PlayerId;
   display_name: string;
 }
 
 export interface PrivatePlayer {
   schema_version: "player.private.v1";
-  player_id: string;
+  player_id: PlayerId;
   display_name: string;
   created_at: string;
   updated_at: string;
@@ -60,22 +62,22 @@ export class InkubatorApiClient {
   }
 
   createDevSession(body: DevSessionRequest): Promise<SessionView> {
-    return this.request<SessionView>('/v1/dev/session', {method: 'POST', body: JSON.stringify(body)});
+    return this.request<SessionView>("/v1/dev/session", {method: 'POST', body: JSON.stringify(body)});
   }
 
   deleteSession(): Promise<void> {
-    return this.request<void>('/v1/session', {method: 'DELETE'});
+    return this.request<void>("/v1/session", {method: 'DELETE'});
   }
 
   getMe(): Promise<PrivatePlayer> {
-    return this.request<PrivatePlayer>('/v1/me', {method: 'GET'});
+    return this.request<PrivatePlayer>("/v1/me", {method: 'GET'});
   }
 
-  getPublicPlayer(playerId: string): Promise<PublicPlayer> {
+  getPublicPlayer(playerId: PlayerId): Promise<PublicPlayer> {
     return this.request<PublicPlayer>(`/v1/players/${encodeURIComponent(playerId)}`, {method: 'GET'});
   }
 
-  getPrivatePlayer(playerId: string): Promise<PrivatePlayer> {
+  getPrivatePlayer(playerId: PlayerId): Promise<PrivatePlayer> {
     return this.request<PrivatePlayer>(`/v1/players/${encodeURIComponent(playerId)}/private`, {method: 'GET'});
   }
 }

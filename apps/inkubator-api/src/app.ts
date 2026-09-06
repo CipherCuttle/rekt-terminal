@@ -20,8 +20,31 @@ export interface BuildAppOptions {
   sessionTtlSeconds: number;
 }
 
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const CORS_METHODS = new Set(['GET', 'POST', 'DELETE']);
+const CORS_HEADERS = new Set(['content-type']);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function error(reply: FastifyReply, statusCode: number, message: string) {
   return reply.code(statusCode).send({error: message});
+}
+
+function setCorsHeaders(reply: FastifyReply, appOrigin: string): void {
+  reply.header('access-control-allow-origin', appOrigin);
+  reply.header('access-control-allow-credentials', 'true');
+  reply.header('vary', 'Origin');
+}
+
+function requestedCorsHeaders(value: string | string[] | undefined): string[] {
+  const raw = Array.isArray(value) ? value.join(',') : value ?? '';
+  return raw
+    .split(',')
+    .map((header) => header.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isUuid(value: string): boolean {
+  return UUID_PATTERN.test(value);
 }
 
 async function authenticate(request: FastifyRequest, db: InkubatorDatabase): Promise<{actor: Actor; token: string} | null> {
@@ -34,8 +57,36 @@ async function authenticate(request: FastifyRequest, db: InkubatorDatabase): Pro
 export function buildApp(options: BuildAppOptions) {
   const app = Fastify({logger: false});
 
+  app.addHook('onRequest', async (request, reply) => {
+    if (request.headers.origin === options.appOrigin) {
+      setCorsHeaders(reply, options.appOrigin);
+    }
+  });
+
+  app.options('/*', async (request, reply) => {
+    if (request.headers.origin !== options.appOrigin) {
+      return error(reply, 403, 'origin_not_allowed');
+    }
+
+    const requestedMethod = request.headers['access-control-request-method']?.toUpperCase();
+    if (!requestedMethod || !CORS_METHODS.has(requestedMethod)) {
+      return error(reply, 403, 'cors_method_not_allowed');
+    }
+
+    const requestedHeaders = requestedCorsHeaders(request.headers['access-control-request-headers']);
+    if (requestedHeaders.some((header) => !CORS_HEADERS.has(header))) {
+      return error(reply, 403, 'cors_header_not_allowed');
+    }
+
+    setCorsHeaders(reply, options.appOrigin);
+    reply.header('access-control-allow-methods', [...CORS_METHODS].join(', '));
+    reply.header('access-control-allow-headers', [...CORS_HEADERS].join(', '));
+    reply.header('access-control-max-age', '600');
+    return reply.code(204).send();
+  });
+
   app.addHook('preHandler', async (request, reply) => {
-    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return;
+    if (!MUTATING_METHODS.has(request.method)) return;
     if (request.headers.origin !== options.appOrigin) {
       return error(reply, 403, 'origin_not_allowed');
     }
@@ -91,6 +142,7 @@ export function buildApp(options: BuildAppOptions) {
 
   app.get('/v1/players/:playerId', async (request, reply) => {
     const {playerId} = request.params as {playerId: string};
+    if (!isUuid(playerId)) return error(reply, 400, 'invalid_player_id');
     const player = await getPlayer(options.db, playerId);
     if (!player) return error(reply, 404, 'player_not_found');
     return toPublicPlayer(player);
@@ -100,6 +152,7 @@ export function buildApp(options: BuildAppOptions) {
     const {playerId} = request.params as {playerId: string};
     const authenticated = await authenticate(request, options.db);
     if (!authenticated) return error(reply, 401, 'authentication_required');
+    if (!isUuid(playerId)) return error(reply, 400, 'invalid_player_id');
     if (!authorize(authenticated.actor, 'player.read_private', {kind: 'player', playerId})) {
       return error(reply, 403, 'authorization_denied');
     }

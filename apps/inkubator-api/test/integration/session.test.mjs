@@ -30,6 +30,28 @@ test('real Postgres session boundary preserves auth and projection invariants', 
 
   const app = buildApp({db, appOrigin, allowDevAuth: true, sessionTtlSeconds: 3600});
   try {
+    const deniedPreflight = await app.inject({
+      method: 'OPTIONS',
+      url: '/v1/dev/session',
+      headers: {origin: 'https://evil.example', 'access-control-request-method': 'POST'},
+    });
+    assert.equal(deniedPreflight.statusCode, 403);
+
+    const preflight = await app.inject({
+      method: 'OPTIONS',
+      url: '/v1/dev/session',
+      headers: {
+        origin: appOrigin,
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type',
+      },
+    });
+    assert.equal(preflight.statusCode, 204);
+    assert.equal(preflight.headers['access-control-allow-origin'], appOrigin);
+    assert.equal(preflight.headers['access-control-allow-credentials'], 'true');
+    assert.match(preflight.headers['access-control-allow-methods'] ?? '', /\bPOST\b/);
+    assert.match(preflight.headers['access-control-allow-headers'] ?? '', /\bcontent-type\b/);
+
     const deniedOrigin = await app.inject({
       method: 'POST', url: '/v1/dev/session', headers: {origin: 'https://evil.example'}, payload: {display_name: 'Nope'},
     });
@@ -39,6 +61,8 @@ test('real Postgres session boundary preserves auth and projection invariants', 
       method: 'POST', url: '/v1/dev/session', headers: {origin: appOrigin}, payload: {display_name: ' First Builder '},
     });
     assert.equal(first.statusCode, 201);
+    assert.equal(first.headers['access-control-allow-origin'], appOrigin);
+    assert.equal(first.headers['access-control-allow-credentials'], 'true');
     const firstBody = first.json();
     const firstCookie = cookieFrom(first);
     const firstToken = tokenFromCookie(firstCookie);
@@ -49,12 +73,23 @@ test('real Postgres session boundary preserves auth and projection invariants', 
     assert.equal(stored.token_hash, hashSessionToken(firstToken));
     assert.notEqual(stored.token_hash, firstToken);
 
-    const me = await app.inject({method: 'GET', url: '/v1/me', headers: {cookie: firstCookie}});
+    const me = await app.inject({method: 'GET', url: '/v1/me', headers: {origin: appOrigin, cookie: firstCookie}});
     assert.equal(me.statusCode, 200);
     assert.equal(me.headers['cache-control'], 'no-store');
+    assert.equal(me.headers['access-control-allow-origin'], appOrigin);
+    assert.equal(me.headers['access-control-allow-credentials'], 'true');
 
-    const publicView = await app.inject({method: 'GET', url: `/v1/players/${firstBody.player.player_id}`});
+    const malformedPublic = await app.inject({method: 'GET', url: '/v1/players/not-a-uuid'});
+    assert.equal(malformedPublic.statusCode, 400);
+    assert.equal(malformedPublic.json().error, 'invalid_player_id');
+
+    const publicView = await app.inject({
+      method: 'GET',
+      url: `/v1/players/${firstBody.player.player_id}`,
+      headers: {origin: appOrigin},
+    });
     assert.equal(publicView.statusCode, 200);
+    assert.equal(publicView.headers['access-control-allow-origin'], appOrigin);
     assert.deepEqual(Object.keys(publicView.json()).sort(), ['display_name', 'player_id', 'schema_version']);
 
     const second = await app.inject({
@@ -62,6 +97,12 @@ test('real Postgres session boundary preserves auth and projection invariants', 
     });
     assert.equal(second.statusCode, 201);
     const secondCookie = cookieFrom(second);
+
+    const malformedPrivate = await app.inject({
+      method: 'GET', url: '/v1/players/not-a-uuid/private', headers: {cookie: firstCookie},
+    });
+    assert.equal(malformedPrivate.statusCode, 400);
+    assert.equal(malformedPrivate.json().error, 'invalid_player_id');
 
     const crossPlayer = await app.inject({
       method: 'GET', url: `/v1/players/${firstBody.player.player_id}/private`, headers: {cookie: secondCookie},
@@ -77,6 +118,7 @@ test('real Postgres session boundary preserves auth and projection invariants', 
     const contract = await app.inject({method: 'GET', url: '/openapi.json'});
     assert.equal(contract.statusCode, 200);
     assert.equal(contract.json().openapi, '3.1.0');
+    assert.equal(contract.json().paths['/v1/players/{playerId}'].get.responses['400'].content['application/json'].schema.$ref, '#/components/schemas/Error');
 
     const logout = await app.inject({method: 'DELETE', url: '/v1/session', headers: {origin: appOrigin, cookie: firstCookie}});
     assert.equal(logout.statusCode, 204);

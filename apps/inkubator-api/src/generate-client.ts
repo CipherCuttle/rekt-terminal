@@ -8,28 +8,41 @@ type Schema = {
   $ref?: string;
   properties?: Record<string, Schema>;
   required?: string[];
+  items?: Schema;
 };
 
-type Operation = {operationId?: string};
-type Contract = {paths: Record<string, Record<string, Operation>>};
+type Parameter = {
+  name: string;
+  in: string;
+  required?: boolean;
+  schema?: Schema;
+};
+
+type MediaType = {schema?: Schema};
+type Response = {content?: Record<string, MediaType>};
+type RequestBody = {content?: Record<string, MediaType>};
+
+type Operation = {
+  operationId?: string;
+  parameters?: Parameter[];
+  requestBody?: RequestBody;
+  responses?: Record<string, Response>;
+};
+
+type Contract = {
+  paths: Record<string, Record<string, Operation>>;
+};
 
 const schemas = componentSchemas as unknown as Record<string, Schema>;
 const contract = openapiDocument as unknown as Contract;
-const dtoNames = ['Error', 'DevSessionRequest', 'PublicPlayer', 'PrivatePlayer', 'SessionView'];
 
-const operations = [
-  ['/v1/dev/session', 'post', 'createDevSession'],
-  ['/v1/session', 'delete', 'deleteSession'],
-  ['/v1/me', 'get', 'getMe'],
-  ['/v1/players/{playerId}', 'get', 'getPublicPlayer'],
-  ['/v1/players/{playerId}/private', 'get', 'getPrivatePlayer'],
+const clientOperations = [
+  ['/v1/dev/session', 'post'],
+  ['/v1/session', 'delete'],
+  ['/v1/me', 'get'],
+  ['/v1/players/{playerId}', 'get'],
+  ['/v1/players/{playerId}/private', 'get'],
 ] as const;
-
-for (const [route, method, operationId] of operations) {
-  if (contract.paths[route]?.[method]?.operationId !== operationId) {
-    throw new Error(`OpenAPI operation drift: ${method.toUpperCase()} ${route} must be ${operationId}`);
-  }
-}
 
 function schemaType(schema: Schema): string {
   if (schema.$ref) return schema.$ref.split('/').at(-1) ?? 'unknown';
@@ -37,12 +50,16 @@ function schemaType(schema: Schema): string {
   if (schema.type === 'string') return 'string';
   if (schema.type === 'number' || schema.type === 'integer') return 'number';
   if (schema.type === 'boolean') return 'boolean';
+  if (schema.type === 'array') return `${schema.items ? schemaType(schema.items) : 'unknown'}[]`;
   if (schema.type === 'object') return 'Record<string, unknown>';
   return 'unknown';
 }
 
-function renderInterface(name: string, schema: Schema): string {
-  if (schema.type !== 'object' || !schema.properties) throw new Error(`${name} must be an object schema`);
+function renderDeclaration(name: string, schema: Schema): string {
+  if (schema.type !== 'object' || !schema.properties) {
+    return `export type ${name} = ${schemaType(schema)};`;
+  }
+
   const required = new Set(schema.required ?? []);
   const lines = [`export interface ${name} {`];
   for (const [property, propertySchema] of Object.entries(schema.properties)) {
@@ -52,8 +69,128 @@ function renderInterface(name: string, schema: Schema): string {
   return lines.join('\n');
 }
 
-const interfaces = dtoNames.map((name) => renderInterface(name, schemas[name])).join('\n\n');
-const generated = `/* GENERATED FROM apps/inkubator-api/src/contract.ts. DO NOT EDIT. */\n${interfaces}\n\nexport type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;\n\nexport class InkubatorApiError extends Error {\n  constructor(public readonly status: number, message: string) {\n    super(message);\n    this.name = 'InkubatorApiError';\n  }\n}\n\nexport class InkubatorApiClient {\n  constructor(\n    private readonly baseUrl = '',\n    private readonly fetchImpl: FetchLike = fetch,\n  ) {}\n\n  private async request<T>(path: string, init: RequestInit): Promise<T> {\n    const headers = new Headers(init.headers);\n    if (init.body !== undefined) headers.set('content-type', 'application/json');\n    const response = await this.fetchImpl(\`${'${this.baseUrl.replace(/\\\/$/, \'\')}'}${'${path}'}\`, {\n      ...init,\n      headers,\n      credentials: 'include',\n    });\n    if (!response.ok) {\n      const body = await response.json().catch(() => null) as {error?: unknown} | null;\n      const message = typeof body?.error === 'string' ? body.error : \`request_failed_${'${response.status}'}\`;\n      throw new InkubatorApiError(response.status, message);\n    }\n    if (response.status === 204) return undefined as T;\n    return await response.json() as T;\n  }\n\n  createDevSession(body: DevSessionRequest): Promise<SessionView> {\n    return this.request<SessionView>('/v1/dev/session', {method: 'POST', body: JSON.stringify(body)});\n  }\n\n  deleteSession(): Promise<void> {\n    return this.request<void>('/v1/session', {method: 'DELETE'});\n  }\n\n  getMe(): Promise<PrivatePlayer> {\n    return this.request<PrivatePlayer>('/v1/me', {method: 'GET'});\n  }\n\n  getPublicPlayer(playerId: string): Promise<PublicPlayer> {\n    return this.request<PublicPlayer>(\`/v1/players/${'${encodeURIComponent(playerId)}'}\`, {method: 'GET'});\n  }\n\n  getPrivatePlayer(playerId: string): Promise<PrivatePlayer> {\n    return this.request<PrivatePlayer>(\`/v1/players/${'${encodeURIComponent(playerId)}'}/private\`, {method: 'GET'});\n  }\n}\n`;
+function jsonSchema(content: Record<string, MediaType> | undefined): Schema | undefined {
+  return content?.['application/json']?.schema;
+}
+
+function successResponseType(operation: Operation): string {
+  const responses = Object.entries(operation.responses ?? {})
+    .filter(([status]) => /^2\d\d$/.test(status))
+    .sort(([left], [right]) => Number(left) - Number(right));
+
+  if (responses.length === 0) {
+    throw new Error(`operation ${operation.operationId ?? '<unknown>'} has no 2xx response`);
+  }
+
+  for (const [, response] of responses) {
+    const schema = jsonSchema(response.content);
+    if (schema) return schemaType(schema);
+  }
+  return 'void';
+}
+
+function pathExpression(route: string, parameters: Parameter[]): string {
+  const pathParameters = new Map(
+    parameters.filter((parameter) => parameter.in === 'path').map((parameter) => [parameter.name, parameter]),
+  );
+
+  const placeholders = [...route.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]);
+  for (const placeholder of placeholders) {
+    const parameter = pathParameters.get(placeholder);
+    if (!parameter?.required || !parameter.schema) {
+      throw new Error(`path parameter ${placeholder} for ${route} must be required and typed`);
+    }
+  }
+  for (const parameter of pathParameters.values()) {
+    if (!placeholders.includes(parameter.name)) {
+      throw new Error(`OpenAPI path parameter ${parameter.name} is not present in ${route}`);
+    }
+  }
+
+  if (placeholders.length === 0) return JSON.stringify(route);
+  const rendered = route.replace(/\{([^}]+)\}/g, (_match, name: string) => `\${encodeURIComponent(${name})}`);
+  return `\`${rendered}\``;
+}
+
+function renderOperation(route: string, method: string): string {
+  const operation = contract.paths[route]?.[method];
+  if (!operation?.operationId) {
+    throw new Error(`client operation missing operationId: ${method.toUpperCase()} ${route}`);
+  }
+  if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(operation.operationId)) {
+    throw new Error(`operationId is not a valid TypeScript method name: ${operation.operationId}`);
+  }
+
+  const parameters = operation.parameters ?? [];
+  const pathParameters = parameters.filter((parameter) => parameter.in === 'path');
+  const args = pathParameters.map((parameter) => {
+    if (!parameter.required || !parameter.schema) {
+      throw new Error(`path parameter ${parameter.name} on ${operation.operationId} must be required and typed`);
+    }
+    return `${parameter.name}: ${schemaType(parameter.schema)}`;
+  });
+
+  const bodySchema = jsonSchema(operation.requestBody?.content);
+  if (operation.requestBody && !bodySchema) {
+    throw new Error(`request body on ${operation.operationId} must declare application/json schema`);
+  }
+  if (bodySchema) args.push(`body: ${schemaType(bodySchema)}`);
+
+  const responseType = successResponseType(operation);
+  const init = [`method: '${method.toUpperCase()}'`];
+  if (bodySchema) init.push('body: JSON.stringify(body)');
+
+  return [
+    `  ${operation.operationId}(${args.join(', ')}): Promise<${responseType}> {`,
+    `    return this.request<${responseType}>(${pathExpression(route, parameters)}, {${init.join(', ')}});`,
+    '  }',
+  ].join('\n');
+}
+
+const declarations = Object.entries(schemas)
+  .map(([name, schema]) => renderDeclaration(name, schema))
+  .join('\n\n');
+
+const methods = clientOperations.map(([route, method]) => renderOperation(route, method)).join('\n\n');
+
+const generated = `/* GENERATED FROM apps/inkubator-api/src/contract.ts. DO NOT EDIT. */
+${declarations}
+
+export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+export class InkubatorApiError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = 'InkubatorApiError';
+  }
+}
+
+export class InkubatorApiClient {
+  constructor(
+    private readonly baseUrl = '',
+    private readonly fetchImpl: FetchLike = fetch,
+  ) {}
+
+  private async request<T>(path: string, init: RequestInit): Promise<T> {
+    const headers = new Headers(init.headers);
+    if (init.body !== undefined) headers.set('content-type', 'application/json');
+    const response = await this.fetchImpl(\`${'${this.baseUrl.replace(/\\/$/, \'\')}'}${'${path}'}\`, {
+      ...init,
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as {error?: unknown} | null;
+      const message = typeof body?.error === 'string' ? body.error : \`request_failed_${'${response.status}'}\`;
+      throw new InkubatorApiError(response.status, message);
+    }
+    if (response.status === 204) return undefined as T;
+    return await response.json() as T;
+  }
+
+${methods}
+}
+`;
 
 const target = fileURLToPath(new URL('../../inkubator-lab/src/generated/inkubator-api-client.ts', import.meta.url));
 if (process.argv.includes('--check')) {

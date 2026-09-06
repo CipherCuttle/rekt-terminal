@@ -11,13 +11,17 @@ export const componentSchemas = {
     required: ['display_name'],
     properties: {display_name: {type: 'string', minLength: 1, maxLength: 80}},
   },
+  PlayerId: {
+    type: 'string',
+    format: 'uuid',
+  },
   PublicPlayer: {
     type: 'object',
     additionalProperties: false,
     required: ['schema_version', 'player_id', 'display_name'],
     properties: {
       schema_version: {type: 'string', const: 'player.public.v1'},
-      player_id: {type: 'string', format: 'uuid'},
+      player_id: {$ref: '#/components/schemas/PlayerId'},
       display_name: {type: 'string'},
     },
   },
@@ -27,7 +31,7 @@ export const componentSchemas = {
     required: ['schema_version', 'player_id', 'display_name', 'created_at', 'updated_at'],
     properties: {
       schema_version: {type: 'string', const: 'player.private.v1'},
-      player_id: {type: 'string', format: 'uuid'},
+      player_id: {$ref: '#/components/schemas/PlayerId'},
       display_name: {type: 'string'},
       created_at: {type: 'string', format: 'date-time'},
       updated_at: {type: 'string', format: 'date-time'},
@@ -46,6 +50,10 @@ export const componentSchemas = {
 };
 
 const ref = (name: keyof typeof componentSchemas) => ({$ref: `#/components/schemas/${name}`});
+const errorResponse = (description: string) => ({
+  description,
+  content: {'application/json': {schema: ref('Error')}},
+});
 
 export const openapiDocument = {
   openapi: '3.1.0',
@@ -76,7 +84,7 @@ export const openapiDocument = {
         requestBody: {required: true, content: {'application/json': {schema: ref('DevSessionRequest')}}},
         responses: {
           '201': {description: 'Development session created', content: {'application/json': {schema: ref('SessionView')}}},
-          '403': {description: 'Origin denied', content: {'application/json': {schema: ref('Error')}}},
+          '403': errorResponse('Origin denied'),
         },
       },
     },
@@ -84,7 +92,10 @@ export const openapiDocument = {
       delete: {
         operationId: 'deleteSession',
         security: [{sessionCookie: []}],
-        responses: {'204': {description: 'Session revoked'}},
+        responses: {
+          '204': {description: 'Session revoked'},
+          '403': errorResponse('Origin denied'),
+        },
       },
     },
     '/v1/me': {
@@ -93,17 +104,18 @@ export const openapiDocument = {
         security: [{sessionCookie: []}],
         responses: {
           '200': {description: 'Authenticated Player', content: {'application/json': {schema: ref('PrivatePlayer')}}},
-          '401': {description: 'Authentication required', content: {'application/json': {schema: ref('Error')}}},
+          '401': errorResponse('Authentication required'),
         },
       },
     },
     '/v1/players/{playerId}': {
       get: {
         operationId: 'getPublicPlayer',
-        parameters: [{name: 'playerId', in: 'path', required: true, schema: {type: 'string', format: 'uuid'}}],
+        parameters: [{name: 'playerId', in: 'path', required: true, schema: ref('PlayerId')}],
         responses: {
           '200': {description: 'Explicit public projection', content: {'application/json': {schema: ref('PublicPlayer')}}},
-          '404': {description: 'Player not found', content: {'application/json': {schema: ref('Error')}}},
+          '400': errorResponse('Invalid Player ID'),
+          '404': errorResponse('Player not found'),
         },
       },
     },
@@ -111,11 +123,13 @@ export const openapiDocument = {
       get: {
         operationId: 'getPrivatePlayer',
         security: [{sessionCookie: []}],
-        parameters: [{name: 'playerId', in: 'path', required: true, schema: {type: 'string', format: 'uuid'}}],
+        parameters: [{name: 'playerId', in: 'path', required: true, schema: ref('PlayerId')}],
         responses: {
           '200': {description: 'Owner-only private projection', content: {'application/json': {schema: ref('PrivatePlayer')}}},
-          '401': {description: 'Authentication required', content: {'application/json': {schema: ref('Error')}}},
-          '403': {description: 'Authorization denied', content: {'application/json': {schema: ref('Error')}}},
+          '400': errorResponse('Invalid Player ID'),
+          '401': errorResponse('Authentication required'),
+          '403': errorResponse('Authorization denied'),
+          '404': errorResponse('Player not found'),
         },
       },
     },
