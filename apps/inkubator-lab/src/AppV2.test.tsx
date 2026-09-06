@@ -44,14 +44,28 @@ describe('Inkubator compressed flow', () => {
     expect(screen.queryByText('WHO THIS IS FOR')).toBeNull();
   });
 
-  it('shows real collection artifacts and switches collections without fake live claims', () => {
+  it('explains why REKT and Chibi are present and keeps collection browsing explicit', () => {
     render(<AppV2 />);
+    expect(screen.getByText('TWO YEARS. STILL HERE.')).toBeTruthy();
+    expect(screen.getByText('HELD THE LINE')).toBeTruthy();
+    expect(screen.getByText('BUILD THE COMEBACK')).toBeTruthy();
+    expect(screen.getByText('BROWSE THE WORLD')).toBeTruthy();
     expect(screen.getByText('REKT INK', {selector: '.d2-art-glass strong'})).toBeTruthy();
-    expect(screen.getByText(/#4229 \/ VIEW ARTIFACT/)).toBeTruthy();
+    expect(screen.getByText(/#4229 \/ OPEN ON OPENSEA/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', {name: 'CHIBI HOOD'}));
     expect(screen.getByText('CHIBI HOOD', {selector: '.d2-art-glass strong'})).toBeTruthy();
-    expect(screen.getByText(/#7267 \/ VIEW ARTIFACT/)).toBeTruthy();
-    expect(screen.getByText('CURATED MEDIA / OPENSEA')).toBeTruthy();
+    expect(screen.getByText(/#7267 \/ OPEN ON OPENSEA/)).toBeTruthy();
+    expect(screen.getByText('CLICK AN NFT TO OPEN IT ON OPENSEA')).toBeTruthy();
     expect(screen.queryByText('LIVE MEDIA / OPENSEA')).toBeNull();
+  });
+
+  it('shows a compact roadmap without presenting it as a promise', () => {
+    render(<AppV2 />);
+    expect(screen.getByText('COMEBACK PLAN')).toBeTruthy();
+    expect(screen.getByText('DIRECTION / NOT PROMISES')).toBeTruthy();
+    expect(screen.getByText('PROVE THE LOOP')).toBeTruthy();
+    expect(screen.getByText('TURN ON LIVE SIGNAL')).toBeTruthy();
+    expect(screen.getByText(/Latest REKT\/Chibi buys, holder growth and community growth/i)).toBeTruthy();
+    expect(screen.getByText('COMPOUND IT')).toBeTruthy();
   });
 });
