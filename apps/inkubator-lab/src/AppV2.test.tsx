@@ -19,7 +19,7 @@ describe('Inkubator broadcast dossier synthesis', () => {
     expect(screen.getByRole('heading', {name: 'MAKE DEGENS SHIP.'})).toBeTruthy();
     expect(screen.getByText('TRANSMISSION')).toBeTruthy();
     expect(screen.getByText('WORKING URL OR GTFO')).toBeTruthy();
-    expect(screen.getByText('SHIP > TALK')).toBeTruthy();
+    expect(screen.getByText('SHIP > TALK', {selector: '.d2-signal-statement'})).toBeTruthy();
   });
 
   it('keeps the loop interactive and legible', () => {
@@ -32,9 +32,11 @@ describe('Inkubator broadcast dossier synthesis', () => {
 
   it('shows real collection artifacts and switches collections without fake live claims', () => {
     render(<AppV2 />);
-    expect(screen.getByText('REKT INK #4229')).toBeTruthy();
+    expect(screen.getByText('REKT INK', {selector: '.d2-art-glass strong'})).toBeTruthy();
+    expect(screen.getByText(/#4229 \/ VIEW ARTIFACT/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', {name: 'CHIBI HOOD'}));
-    expect(screen.getByText('CHIBI HOOD #7267')).toBeTruthy();
+    expect(screen.getByText('CHIBI HOOD', {selector: '.d2-art-glass strong'})).toBeTruthy();
+    expect(screen.getByText(/#7267 \/ VIEW ARTIFACT/)).toBeTruthy();
     expect(screen.getByText('CURATED MEDIA / OPENSEA')).toBeTruthy();
     expect(screen.queryByText('LIVE MEDIA / OPENSEA')).toBeNull();
   });
