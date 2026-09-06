@@ -1,6 +1,6 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
-import AppV2 from './AppV2';
+import AppV3 from './AppV3';
 import './styles.css';
 import './dossier-polish.css';
 import './visual-polish.css';
@@ -9,9 +9,10 @@ import './composition-polish.css';
 import './final-spacing-fixes.css';
 import './honeyslop-pass.css';
 import './culture-arc.css';
+import './comeback-v3.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AppV2 />
+    <AppV3 />
   </StrictMode>
 );
