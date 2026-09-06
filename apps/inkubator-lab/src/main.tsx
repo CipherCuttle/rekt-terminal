@@ -8,6 +8,7 @@ import './messaging-pass.css';
 import './composition-polish.css';
 import './final-spacing-fixes.css';
 import './honeyslop-pass.css';
+import './culture-arc.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
