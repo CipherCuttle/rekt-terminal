@@ -8,6 +8,7 @@ on:
     paths:
       - '.github/workflows/inkubator.yml'
       - '.gitignore'
+      - '.npmrc'
       - '.nvmrc'
       - 'package.json'
       - 'package-lock.json'
@@ -23,6 +24,7 @@ on:
     paths:
       - '.github/workflows/inkubator.yml'
       - '.gitignore'
+      - '.npmrc'
       - '.nvmrc'
       - 'package.json'
       - 'package-lock.json'
@@ -52,12 +54,19 @@ jobs:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up Node 24
+      - name: Set up canonical Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version: 24.20.0
           cache: npm
           cache-dependency-path: package-lock.json
+
+      - name: Verify canonical toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = 'v24.20.0'
+          test "$(npm -v)" = '11.19.0'
 
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
@@ -78,8 +87,8 @@ jobs:
       - name: Test Inkubator
         run: npm test -w @rekt-ink/inkubator-lab
 
-      - name: Build Inkubator
-        run: npm run build -w @rekt-ink/inkubator-lab
+      - name: Build Inkubator through repository contract
+        run: npm run build:inkubator
 
       - name: Enforce critical-path asset budgets
         run: node scripts/check-inkubator-budgets.mjs
@@ -129,10 +138,10 @@ jobs:
           path: lighthouse-reports
           if-no-files-found: ignore
 
-      - name: Upload Inkubator build artifact
+      - name: Upload Inkubator verification artifact
         if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: inkubator-build
+          name: inkubator-verification-build
           path: inkubator
           if-no-files-found: error
