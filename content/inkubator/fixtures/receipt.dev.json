@@ -12,15 +12,15 @@
   "evidence": [
     {
       "type": "LIVE_URL",
-      "status": "PASS",
+      "status": "SUPPLIED",
       "observedAt": "2026-09-06T18:00:00Z",
-      "claim": "Fixture URL was reachable when this development record was authored."
+      "claim": "Fixture URL supplied; no automated live verification has run."
     },
     {
       "type": "DEMO",
       "status": "SUPPLIED",
       "observedAt": "2026-09-06T18:00:00Z",
-      "claim": "Fixture demo URL supplied."
+      "claim": "Fixture demo URL supplied; no automated demo verification has run."
     }
   ]
 }
