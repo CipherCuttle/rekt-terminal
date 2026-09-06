@@ -81,12 +81,25 @@ function successResponseType(operation: Operation): string {
   if (responses.length === 0) {
     throw new Error(`operation ${operation.operationId ?? '<unknown>'} has no 2xx response`);
   }
-
-  for (const [, response] of responses) {
-    const schema = jsonSchema(response.content);
-    if (schema) return schemaType(schema);
+  if (responses.length !== 1) {
+    throw new Error(
+      `operation ${operation.operationId ?? '<unknown>'} declares ${responses.length} successful responses; ` +
+        'the generated client requires exactly one 2xx response until success unions are implemented',
+    );
   }
-  return 'void';
+
+  const [, response] = responses[0];
+  const responseContent = response.content;
+  if (!responseContent || Object.keys(responseContent).length === 0) return 'void';
+
+  const schema = jsonSchema(responseContent);
+  if (!schema) {
+    throw new Error(
+      `successful response on ${operation.operationId ?? '<unknown>'} must use application/json ` +
+        'or declare no response content',
+    );
+  }
+  return schemaType(schema);
 }
 
 function pathExpression(route: string, parameters: Parameter[]): string {
@@ -122,6 +135,15 @@ function renderOperation(route: string, method: string): string {
   }
 
   const parameters = operation.parameters ?? [];
+  const unsupportedParameters = parameters.filter((parameter) => parameter.in !== 'path');
+  if (unsupportedParameters.length > 0) {
+    const locations = unsupportedParameters.map((parameter) => `${parameter.name}:${parameter.in}`).join(', ');
+    throw new Error(
+      `operation ${operation.operationId} declares unsupported generated-client parameters (${locations}); ` +
+        'implement that parameter location before changing the OpenAPI contract',
+    );
+  }
+
   const pathParameters = parameters.filter((parameter) => parameter.in === 'path');
   const args = pathParameters.map((parameter) => {
     if (!parameter.required || !parameter.schema) {
