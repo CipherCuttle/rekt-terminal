@@ -58,7 +58,7 @@ const layerStyle = {
   inset: 0,
   width: '100%',
   height: '100%',
-  pointerEvents: 'none',
+  pointerEvents: 'none' as const,
 };
 
 export function GlitchText({children}: {children: ReactNode}) {
@@ -126,7 +126,8 @@ app = app.replace(
   "import {useEffect, useRef, useState, type ReactNode} from 'react';",
   "import {useEffect, useState, type ReactNode} from 'react';\nimport {DitherWave, GrainWave, GlitchText} from './reactbits-pro';",
 );
-app = app.replace(/type DrawFrame = [\s\S]*?function SectionLabel/, 'function SectionLabel');
+app = app.replace(/type DrawFrame = [\s\S]*?(?=const loop)/, '');
+app = app.replace(/function useCanvasEffect[\s\S]*?function SectionLabel/, 'function SectionLabel');
 fs.writeFileSync(appPath, app);
 
 const marker = '/* React Bits Pro layer sizing */';
