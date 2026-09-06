@@ -1,0 +1,169 @@
+/* Culture/comeback pass: explain why REKT + Chibi are here, fix collection controls, keep roadmap compact. */
+
+.d2-culture-story {
+  max-width: 34ch !important;
+  margin-bottom: 20px !important;
+}
+
+.d2-culture-arc {
+  display: grid;
+  gap: 8px;
+  margin: 20px 0 22px;
+}
+
+.d2-culture-beat {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 11px 0;
+  border-top: 1px solid var(--d2-seam);
+}
+
+.d2-culture-beat:last-child {
+  border-bottom: 1px solid var(--d2-seam);
+}
+
+.d2-culture-beat span {
+  color: var(--d2-acid);
+  font: 800 9px/1.2 var(--d2-mono);
+  letter-spacing: .08em;
+}
+
+.d2-culture-beat strong {
+  display: block;
+  color: var(--d2-paper);
+  font: 800 11px/1.25 var(--d2-mono);
+  letter-spacing: .035em;
+}
+
+.d2-culture-beat p {
+  margin: 5px 0 0 !important;
+  color: var(--d2-copy);
+  font-size: .88rem !important;
+  line-height: 1.42 !important;
+}
+
+.d2-switch-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--d2-lilac);
+  font: 800 9px/1 var(--d2-mono);
+  letter-spacing: .1em;
+}
+
+/* Fix the REKT INK / CHIBI HOOD collision visible in the creator review screenshot. */
+.d2-compressed .d2-collection-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin-top: 0;
+}
+
+.d2-compressed .d2-collection-switch button {
+  min-width: 0;
+  width: 100%;
+  padding: 11px 10px;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.d2-compressed .d2-source-note {
+  display: block;
+  margin-top: 12px;
+  color: var(--d2-copy);
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.d2-roadmap {
+  width: 100%;
+  margin-top: 28px;
+}
+
+.d2-roadmap-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+  color: var(--d2-lilac);
+  font: 800 9px/1.2 var(--d2-mono);
+  letter-spacing: .1em;
+}
+
+.d2-roadmap-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--d2-seam);
+}
+
+.d2-roadmap-grid article {
+  min-height: 124px;
+  padding: 18px;
+  border-right: 1px solid var(--d2-seam);
+  background: rgba(13, 11, 24, .48);
+}
+
+.d2-roadmap-grid article:last-child { border-right: 0; }
+
+.d2-roadmap-grid span {
+  color: var(--d2-acid);
+  font: 800 9px/1 var(--d2-mono);
+  letter-spacing: .08em;
+}
+
+.d2-roadmap-grid strong {
+  display: block;
+  margin-top: 14px;
+  color: var(--d2-paper);
+  font: 900 1.05rem/1.05 var(--d2-display);
+  letter-spacing: -.025em;
+}
+
+.d2-roadmap-grid p {
+  margin: 8px 0 0 !important;
+  color: var(--d2-copy);
+  font-size: .88rem !important;
+  line-height: 1.42 !important;
+}
+
+.d2-open-inner.d2-open-roadmap {
+  display: block;
+}
+
+.d2-open-roadmap .d2-open-cta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 28px;
+  align-items: end;
+  margin-top: 34px;
+}
+
+@media (max-width: 720px) {
+  .d2-compressed .d2-collection-switch {
+    grid-template-columns: 1fr;
+  }
+
+  .d2-culture-beat {
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  .d2-roadmap-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .d2-roadmap-grid article {
+    min-height: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--d2-seam);
+  }
+
+  .d2-roadmap-grid article:last-child { border-bottom: 0; }
+
+  .d2-open-roadmap .d2-open-cta {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+}
