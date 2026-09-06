@@ -43,12 +43,13 @@ describe('Inkubator comeback v3', () => {
     expect(screen.getByText('Clip it. Post it. Let it travel.')).toBeTruthy();
   });
 
-  it('renders protocol-backed player and receipt state without pretending the fixture is a real ship', () => {
-    render(<AppV3 />);
+  it('renders protocol-backed player and receipt state without pretending the fixture is a real ship or real reputation', () => {
+    const {container} = render(<AppV3 />);
     expect(screen.getByText(/DEVELOPMENT FIXTURE · NOT A REAL SHIP/i)).toBeTruthy();
     expect(screen.getAllByText('NULL GHOST').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/SHIP RECEIPT \/\/ RDEV-S001/i)).toBeTruthy();
-    expect(screen.getByText(/Rankings activate only when real rounds/i)).toBeTruthy();
+    expect(screen.getByText(/fixture data never enters rankings/i)).toBeTruthy();
+    expect(compact(container.querySelector('.d3-player-facts')?.textContent)).toBe('SHIPS—ROUNDS—RANK—');
     expect(inkubatorState.receipts[0].digest).toMatch(/^[a-f0-9]{64}$/);
     fireEvent.click(screen.getByText(/VIEW TECHNICAL EVIDENCE/i));
     expect(screen.getByText(inkubatorState.receipts[0].digest)).toBeTruthy();
