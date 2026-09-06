@@ -21,7 +21,7 @@ describe('Inkubator compressed flow', () => {
     expect(screen.getByText(/Short REKT build rounds for games, tools and weird internet experiments/i)).toBeTruthy();
     expect(screen.getByText('SHORT ROUNDS')).toBeTruthy();
     expect(screen.getByText('WORKING LINK')).toBeTruthy();
-    expect(screen.getByText('MAKE DEGENS SHIP.')).toBeTruthy();
+    expect(screen.getByText('MAKE DEGENS SHIP.', {selector: '.d2-actions b'})).toBeTruthy();
   });
 
   it('keeps the five-step loop interactive and terse', () => {
