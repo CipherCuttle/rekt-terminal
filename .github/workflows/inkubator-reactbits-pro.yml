@@ -11,6 +11,7 @@ on:
       - "scripts/install-inkubator-reactbits-pro.mjs"
       - "scripts/check-inkubator-budgets.mjs"
       - "scripts/check-inkubator-lighthouse.mjs"
+      - "scripts/serve-inkubator.mjs"
   workflow_dispatch:
 
 permissions:
@@ -70,13 +71,13 @@ jobs:
         shell: bash
         run: |
           mkdir -p .lighthouse
-          python3 -m http.server 4175 --directory inkubator >/tmp/inkubator-http.log 2>&1 &
+          node scripts/serve-inkubator.mjs >/tmp/inkubator-http.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 
           ready=0
           for attempt in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:4175/ >/dev/null; then
+            if curl -fsS --compressed http://127.0.0.1:4175/ >/dev/null; then
               ready=1
               break
             fi
@@ -102,7 +103,16 @@ jobs:
             .lighthouse/run-2.json \
             .lighthouse/run-3.json
 
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inkubator-lighthouse
+          path: .lighthouse
+          if-no-files-found: ignore
+
       - name: Persist generated preview to the isolated branch
+        if: success()
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -116,6 +126,7 @@ jobs:
           fi
 
       - name: Upload build artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: inkubator-reactbits-pro
