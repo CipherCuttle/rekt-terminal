@@ -33,6 +33,55 @@ console.log(`- LCP: ${Math.round(scores.lcp)} ms`);
 console.log(`- CLS: ${scores.cls.toFixed(3)}`);
 console.log(`- TBT: ${Math.round(scores.tbt)} ms`);
 
+function failedAudits(categoryId) {
+  const refs = loaded[0]?.categories?.[categoryId]?.auditRefs ?? [];
+  return refs
+    .filter((ref) => (ref.weight ?? 0) > 0)
+    .map((ref) => {
+      const audits = loaded.map((report) => report.audits?.[ref.id]).filter(Boolean);
+      const score = median(audits.map((item) => typeof item.score === 'number' ? item.score : 1));
+      const representative = audits[Math.floor(audits.length / 2)] ?? audits[0];
+      return {
+        id: ref.id,
+        score,
+        title: representative?.title ?? ref.id,
+        displayValue: representative?.displayValue ?? '',
+      };
+    })
+    .filter((item) => item.score < 1)
+    .sort((a, b) => a.score - b.score);
+}
+
+for (const categoryId of ['accessibility', 'best-practices']) {
+  const bad = failedAudits(categoryId);
+  if (!bad.length) continue;
+  console.log(`\nFailed ${categoryId} audits:`);
+  bad.forEach((item) => console.log(`- ${item.id}: ${Math.round(item.score * 100)} — ${item.title}${item.displayValue ? ` (${item.displayValue})` : ''}`));
+}
+
+const perfWatch = [
+  'first-contentful-paint',
+  'largest-contentful-paint',
+  'speed-index',
+  'total-blocking-time',
+  'cumulative-layout-shift',
+  'interactive',
+  'render-blocking-resources',
+  'unused-javascript',
+  'unused-css-rules',
+  'image-delivery-insight',
+  'network-dependency-tree-insight',
+];
+console.log('\nPerformance audit watch:');
+for (const id of perfWatch) {
+  const audits = loaded.map((report) => report.audits?.[id]).filter(Boolean);
+  if (!audits.length) continue;
+  const score = median(audits.map((item) => typeof item.score === 'number' ? item.score : 1));
+  const numeric = median(audits.map((item) => typeof item.numericValue === 'number' ? item.numericValue : 0));
+  const representative = audits[Math.floor(audits.length / 2)] ?? audits[0];
+  console.log(`- ${id}: score ${Math.round(score * 100)}${numeric ? ` / ${Math.round(numeric)}ms` : ''}${representative?.displayValue ? ` / ${representative.displayValue}` : ''}`);
+}
+
 const failures = [];
 if (scores.performance < 0.90) failures.push(`Performance ${pct(scores.performance)} < 90`);
 if (scores.accessibility < 0.98) failures.push(`Accessibility ${pct(scores.accessibility)} < 98`);
