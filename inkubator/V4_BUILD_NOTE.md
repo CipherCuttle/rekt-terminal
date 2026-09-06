@@ -1,0 +1,1 @@
+REKT INK(CUBATOR) v4 production pass: controlled-chaos redesign with vertical ASCII hero, cursor-revealed REKT mark, founding cohort signal flow, responsive/mobile accessibility, reduced-motion and canvas lifecycle controls. Built and browser-audited in ChatGPT before publish.
