@@ -46,7 +46,7 @@ describe('Inkubator comeback v3', () => {
   it('renders protocol-backed player and receipt state without pretending the fixture is a real ship', () => {
     render(<AppV3 />);
     expect(screen.getByText(/DEVELOPMENT FIXTURE · NOT A REAL SHIP/i)).toBeTruthy();
-    expect(screen.getByText('NULL GHOST')).toBeTruthy();
+    expect(screen.getAllByText('NULL GHOST').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/SHIP RECEIPT \/\/ RDEV-S001/i)).toBeTruthy();
     expect(screen.getByText(/Rankings activate only when real rounds/i)).toBeTruthy();
     expect(inkubatorState.receipts[0].digest).toMatch(/^[a-f0-9]{64}$/);
