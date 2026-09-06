@@ -9,30 +9,15 @@ function fail(message) {
 
 const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 
-if (packageJson.packageManager !== 'npm@11.19.0') {
-  fail(`package.json packageManager must be "npm@11.19.0"; got ${JSON.stringify(packageJson.packageManager)}`);
-}
-if (packageJson.engines?.node !== '24.20.x') {
-  fail(`package.json engines.node must be "24.20.x"; got ${JSON.stringify(packageJson.engines?.node)}`);
-}
-if (packageJson.engines?.npm !== '11.19.x') {
-  fail(`package.json engines.npm must be "11.19.x"; got ${JSON.stringify(packageJson.engines?.npm)}`);
-}
-if (packageJson.devEngines?.runtime?.name !== 'node' || packageJson.devEngines?.runtime?.version !== '24.20.0' || packageJson.devEngines?.runtime?.onFail !== 'error') {
-  fail('package.json devEngines.runtime must fail closed on Node 24.20.0');
-}
-if (packageJson.devEngines?.packageManager?.name !== 'npm' || packageJson.devEngines?.packageManager?.version !== '11.19.0' || packageJson.devEngines?.packageManager?.onFail !== 'error') {
-  fail('package.json devEngines.packageManager must fail closed on npm 11.19.0');
-}
-
-if (!fs.existsSync('.nvmrc') || fs.readFileSync('.nvmrc', 'utf8').trim() !== '24.20.0') {
-  fail('.nvmrc must pin Node 24.20.0 exactly');
-}
+if (packageJson.packageManager !== 'npm@11.19.0') fail(`package.json packageManager must be "npm@11.19.0"; got ${JSON.stringify(packageJson.packageManager)}`);
+if (packageJson.engines?.node !== '24.20.x') fail(`package.json engines.node must be "24.20.x"; got ${JSON.stringify(packageJson.engines?.node)}`);
+if (packageJson.engines?.npm !== '11.19.x') fail(`package.json engines.npm must be "11.19.x"; got ${JSON.stringify(packageJson.engines?.npm)}`);
+if (packageJson.devEngines?.runtime?.name !== 'node' || packageJson.devEngines?.runtime?.version !== '24.20.0' || packageJson.devEngines?.runtime?.onFail !== 'error') fail('package.json devEngines.runtime must fail closed on Node 24.20.0');
+if (packageJson.devEngines?.packageManager?.name !== 'npm' || packageJson.devEngines?.packageManager?.version !== '11.19.0' || packageJson.devEngines?.packageManager?.onFail !== 'error') fail('package.json devEngines.packageManager must fail closed on npm 11.19.0');
+if (!fs.existsSync('.nvmrc') || fs.readFileSync('.nvmrc', 'utf8').trim() !== '24.20.0') fail('.nvmrc must pin Node 24.20.0 exactly');
 
 const npmrc = fs.readFileSync('.npmrc', 'utf8');
-for (const required of ['engine-strict=true', 'save-exact=true', 'audit=false', 'fund=false']) {
-  if (!npmrc.split(/\r?\n/).includes(required)) fail(`.npmrc must contain ${required}`);
-}
+for (const required of ['engine-strict=true', 'save-exact=true', 'audit=false', 'fund=false']) if (!npmrc.split(/\r?\n/).includes(required)) fail(`.npmrc must contain ${required}`);
 
 const expectedBuildScripts = {
   build: 'npm run build:canonical',
@@ -40,18 +25,12 @@ const expectedBuildScripts = {
   'build:inkubator': 'npm run build -w @rekt-ink/inkubator-lab',
   'build:canonical': 'npm run build:core && npm run build:inkubator',
 };
-for (const [name, expected] of Object.entries(expectedBuildScripts)) {
-  if (packageJson.scripts?.[name] !== expected) {
-    fail(`${name} must be the canonical repository build contract; got ${JSON.stringify(packageJson.scripts?.[name])}`);
-  }
-}
+for (const [name, expected] of Object.entries(expectedBuildScripts)) if (packageJson.scripts?.[name] !== expected) fail(`${name} must be the canonical repository build contract; got ${JSON.stringify(packageJson.scripts?.[name])}`);
 
 const forbiddenBuildInputPattern = /\bnpx\b|\bnpm\s+(?:install|exec)\b|\bcurl\b|\bwget\b|\bgit\s+(?:clone|pull|fetch)\b/;
-
 function loadWorkspacePackages(rootPackageJson) {
   const records = new Map();
   records.set('.', {path: '.', json: rootPackageJson});
-
   for (const workspacePattern of rootPackageJson.workspaces ?? []) {
     if (!workspacePattern.endsWith('/*')) fail(`unsupported workspace pattern in canonical build verifier: ${workspacePattern}`);
     const baseDir = workspacePattern.slice(0, -2);
@@ -60,25 +39,16 @@ function loadWorkspacePackages(rootPackageJson) {
       if (!entry.isDirectory()) continue;
       const packageDir = path.posix.join(baseDir, entry.name);
       const manifestPath = path.join(packageDir, 'package.json');
-      if (!fs.existsSync(manifestPath)) continue;
-      records.set(packageDir, {path: packageDir, json: JSON.parse(fs.readFileSync(manifestPath, 'utf8'))});
+      if (fs.existsSync(manifestPath)) records.set(packageDir, {path: packageDir, json: JSON.parse(fs.readFileSync(manifestPath, 'utf8'))});
     }
   }
   return records;
 }
-
-function unquote(token) {
-  return token.replace(/^['"]|['"]$/g, '');
-}
-
-function splitShellSegments(script) {
-  return script.split(/\s*(?:&&|\|\||[;|])\s*/).filter(Boolean);
-}
-
+function unquote(token) { return token.replace(/^['"]|['"]$/g, ''); }
+function splitShellSegments(script) { return script.split(/\s*(?:&&|\|\||[;|])\s*/).filter(Boolean); }
 const packageRecords = loadWorkspacePackages(packageJson);
 const packagesByName = new Map();
 for (const record of packageRecords.values()) if (record.json.name) packagesByName.set(record.json.name, record);
-
 function parseNpmRunDelegation(segment, currentRecord) {
   const tokens = segment.trim().split(/\s+/).map(unquote);
   const npmIndex = tokens.indexOf('npm');
@@ -106,15 +76,11 @@ function parseNpmRunDelegation(segment, currentRecord) {
   const scriptName = tokens[cursor];
   if (!scriptName || scriptName.startsWith('-')) fail(`unable to resolve delegated npm script in canonical build segment: ${segment}`);
   cursor += 1;
-  while (cursor < tokens.length) {
-    if (readWorkspaceFlag()) continue;
-    cursor += 1;
-  }
+  while (cursor < tokens.length) { if (readWorkspaceFlag()) continue; cursor += 1; }
   const targetRecord = workspaceName ? packagesByName.get(workspaceName) : currentRecord;
   if (!targetRecord) fail(`canonical build delegates to unknown workspace ${JSON.stringify(workspaceName)} in segment: ${segment}`);
   return {targetRecord, scriptName};
 }
-
 const visitedBuildScripts = new Set();
 function inspectReachableBuildScript(record, scriptName, chain = []) {
   const key = `${record.path}#${scriptName}`;
@@ -140,9 +106,7 @@ for (const prefix of ['apps/inkubator-lab/src/components/react-bits/', 'inkubato
   const match = tracked.find((file) => file.startsWith(prefix));
   if (match) fail(`licensed/generated public source must not be tracked: ${match}`);
 }
-for (const forbiddenPath of ['.github/workflows/inkubator-reactbits-pro.yml', 'scripts/install-inkubator-reactbits-pro.mjs', '.github/workflows/f1-lockfile-admission.yml']) {
-  if (tracked.includes(forbiddenPath)) fail(`legacy/temporary mutable build path must not be tracked: ${forbiddenPath}`);
-}
+for (const forbiddenPath of ['.github/workflows/inkubator-reactbits-pro.yml', 'scripts/install-inkubator-reactbits-pro.mjs', '.github/workflows/f1-lockfile-admission.yml']) if (tracked.includes(forbiddenPath)) fail(`legacy/temporary mutable build path must not be tracked: ${forbiddenPath}`);
 
 const adapter = fs.readFileSync('apps/inkubator-lab/src/reactbits-pro.tsx', 'utf8');
 if (/components\/react-bits|@reactbits-(?:starter|pro)/.test(adapter)) fail('public effect adapter must not import licensed React Bits source');
@@ -159,10 +123,14 @@ for (const workflowPath of workflows) {
   for (const match of workflow.matchAll(/^\s*uses:\s*([^\s#]+)/gm)) {
     const action = match[1];
     if (action.startsWith('./')) continue;
-    const at = action.lastIndexOf('@');
-    const ref = at === -1 ? '' : action.slice(at + 1);
+    const ref = action.includes('@') ? action.slice(action.lastIndexOf('@') + 1) : '';
     if (!/^[0-9a-f]{40}$/i.test(ref)) fail(`${workflowPath} action must be pinned to a full commit SHA: ${action}`);
   }
+}
+
+const authWorkflow = fs.readFileSync('.github/workflows/inkubator-auth.yml', 'utf8');
+if (!/image:\s*postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2/.test(authWorkflow)) {
+  fail('Inkubator auth integration Postgres image must be pinned to the reviewed 18.6 image digest');
 }
 
 console.log('Inkubator foundation invariants: PASS');

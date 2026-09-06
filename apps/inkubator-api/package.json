@@ -9,6 +9,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/server.js",
     "migrate": "node dist/migrate-cli.js",
+    "generate:client": "npm run build && node dist/generate-client.js",
+    "verify:client": "npm run build && node dist/generate-client.js --check",
     "test": "node --test test/unit/*.test.mjs",
     "pretest": "npm run build",
     "test:integration": "node --test test/integration/*.test.mjs",
