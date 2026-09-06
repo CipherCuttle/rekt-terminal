@@ -31,12 +31,12 @@ export default function ProtocolPreview() {
         </article>
 
         <article className="d3-receipt-card">
-          <div className="d3-instrument-kicker"><span>SHIP RECEIPT // {receipt.receiptId}</span><b className="is-pass">OBSERVED PASS</b></div>
+          <div className="d3-instrument-kicker"><span>SHIP RECEIPT // {receipt.receiptId}</span><b>EVIDENCE FIXTURE</b></div>
           <div className="d3-receipt-title"><div><small>ARTIFACT / FIXTURE</small><h3>{receipt.artifact.title}</h3></div><span>{round.roundId}</span></div>
-          <p className="d3-receipt-explainer">Receipts record evidence, not taste or safety. Human curation decides what slaps; the machine only records what it actually observed.</p>
+          <p className="d3-receipt-explainer">Receipts record evidence, not taste or safety. Human curation decides what slaps; machine checks only become claims after they actually run.</p>
 
           <div className="d3-receipt-facts">
-            <div><small>LIVE CHECK</small><strong>{liveEvidence?.status ?? 'UNKNOWN'}</strong><span>{liveEvidence ? <time dateTime={liveEvidence.observedAt}>{liveEvidence.observedAt.slice(0, 10)}</time> : 'NO EVIDENCE'}</span></div>
+            <div><small>LIVE EVIDENCE</small><strong>{liveEvidence?.status ?? 'UNKNOWN'}</strong><span>{liveEvidence ? <time dateTime={liveEvidence.observedAt}>{liveEvidence.observedAt.slice(0, 10)}</time> : 'NO EVIDENCE'}</span></div>
             <div><small>ROUND STATE</small><strong>{round.status}</strong><span>{round.title}</span></div>
             <div><small>PLAYER</small><strong>{player.character.callSign}</strong><span>{player.playerId}</span></div>
           </div>
@@ -45,7 +45,7 @@ export default function ProtocolPreview() {
             <summary>VIEW TECHNICAL EVIDENCE</summary>
             <div className="d3-evidence-list">
               {receipt.evidence.map((item) => (
-                <div key={`${item.type}-${item.observedAt}`}><span>{item.type}</span><b>{item.status}</b><p>{item.claim}</p><time dateTime={item.observedAt}>{item.observedAt}</time></div>
+                <div key={`${item.type}-${item.observedAt}`}><span>{item.type}</span><b className={item.status === 'PASS' ? 'is-pass' : ''}>{item.status}</b><p>{item.claim}</p><time dateTime={item.observedAt}>{item.observedAt}</time></div>
               ))}
             </div>
             <div className="d3-digest"><span>CONTENT DIGEST / {receipt.digestAlgorithm.toUpperCase()}</span><code>{receipt.digest}</code><small>{receipt.digestProfile}</small></div>
