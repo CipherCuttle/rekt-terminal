@@ -8,7 +8,9 @@ export default function ProtocolPreview() {
   const player = inkubatorState.players.find((item) => item.playerId === receipt.playerId)!;
   const stats = inkubatorState.playerStats.find((item) => item.playerId === player.playerId)!;
   const liveEvidence = receipt.evidence.find((item) => item.type === 'LIVE_URL');
-  const initials = player.character.callSign.split(/\s+/).map((part) => part[0]).join('').slice(0, 2);
+  const isFixture = inkubatorState.mode === 'development-fixture';
+  const character = player.character ?? {callSign: player.displayName, archetype: 'BUILDER'};
+  const initials = character.callSign.split(/\s+/).map((part) => part[0]).join('').slice(0, 2);
 
   return (
     <div className="d3-protocol-preview" aria-label="INK(CUBATOR) protocol development preview">
@@ -19,17 +21,17 @@ export default function ProtocolPreview() {
 
       <div className="d3-protocol-grid">
         <article className="d3-player-card">
-          <div className="d3-instrument-kicker"><span>PLAYER // {player.playerId}</span><b>{player.character.archetype}</b></div>
+          <div className="d3-instrument-kicker"><span>PLAYER // {player.playerId}</span><b>{character.archetype}</b></div>
           <div className="d3-player-identity">
             <div className="d3-player-avatar" aria-hidden="true">{initials}</div>
-            <div><small>CALL SIGN</small><h3>{player.character.callSign}</h3><p>{player.handle}</p></div>
+            <div><small>CALL SIGN / PREVIEW</small><h3>{character.callSign}</h3><p>{player.handle}</p></div>
           </div>
-          <div className="d3-player-facts" aria-label="Derived fixture player facts">
-            <span><small>SHIPS</small>{String(stats.ships).padStart(2, '0')}</span>
-            <span><small>ROUNDS</small>{String(stats.rounds).padStart(2, '0')}</span>
+          <div className="d3-player-facts" aria-label="Player reputation facts">
+            <span><small>SHIPS</small>{isFixture ? '—' : String(stats.ships).padStart(2, '0')}</span>
+            <span><small>ROUNDS</small>{isFixture ? '—' : String(stats.rounds).padStart(2, '0')}</span>
             <span><small>RANK</small>—</span>
           </div>
-          <p className="d3-player-note">Character identity persists. Rankings activate only when real rounds create real ship history.</p>
+          <p className="d3-player-note">Character identity can persist across rounds. Reputation is derived from real ship history; fixture data never enters rankings.</p>
         </article>
 
         <article className="d3-receipt-card">
@@ -40,7 +42,7 @@ export default function ProtocolPreview() {
           <div className="d3-receipt-facts">
             <div><small>LIVE EVIDENCE</small><strong>{liveEvidence?.status ?? 'UNKNOWN'}</strong><span>{liveEvidence ? <time dateTime={liveEvidence.observedAt}>{liveEvidence.observedAt.slice(0, 10)}</time> : 'NO EVIDENCE'}</span></div>
             <div><small>ROUND STATE</small><strong>{round.status}</strong><span>{round.title}</span></div>
-            <div><small>PLAYER</small><strong>{player.character.callSign}</strong><span>{player.playerId}</span></div>
+            <div><small>PLAYER</small><strong>{character.callSign}</strong><span>{player.playerId}</span></div>
           </div>
 
           <details className="d3-receipt-details">
