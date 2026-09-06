@@ -55,6 +55,11 @@ svg {
   min-height: 100vh;
 }
 
+/* V3 accessibility floor: archival/meta text must remain readable on every panel. */
+.d3 {
+  --muted2: #9186a3 !important;
+}
+
 .reactbits-layer {
   position: absolute;
   inset: 0;
@@ -120,6 +125,45 @@ svg {
     radial-gradient(circle at 50% 50%, rgba(122,92,255,.22), transparent 48%);
   filter: blur(18px);
   transform: rotate(9deg);
+}
+
+.d3-media-fallback-poster {
+  position: relative;
+  isolation: isolate;
+  align-content: center;
+  gap: 8px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(122,92,255,.38), transparent 32%),
+    radial-gradient(circle at 50% 50%, rgba(178,154,255,.12), transparent 58%),
+    #090710 !important;
+  color: #c9bfd6 !important;
+  text-align: center;
+}
+
+.d3-media-fallback-poster::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 12%;
+  border: 1px solid rgba(178,154,255,.25);
+  transform: rotate(-8deg);
+}
+
+.d3-media-fallback-poster span,
+.d3-media-fallback-poster b {
+  display: block;
+}
+
+.d3-media-fallback-poster span {
+  font-size: 10px;
+  letter-spacing: .14em;
+}
+
+.d3-media-fallback-poster b {
+  color: #9aff67;
+  font-size: 9px;
+  letter-spacing: .1em;
 }
 
 .d3 > section:not(.d3-hero) {
