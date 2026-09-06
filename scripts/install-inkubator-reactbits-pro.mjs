@@ -48,10 +48,40 @@ const glitch = importFor('glitch-text', 'ReactBitsGlitchText');
 const dither = importFor('dither-wave', 'ReactBitsDitherWave');
 const grain = importFor('grain-wave', 'ReactBitsGrainWave');
 
-const adapter = `import type {CSSProperties, ReactNode} from 'react';
+const adapter = `import {Component, type CSSProperties, type ErrorInfo, type ReactNode} from 'react';
 ${glitch.line}
 ${dither.line}
 ${grain.line}
+
+class EffectBoundary extends Component<{children: ReactNode; fallback: ReactNode}, {failed: boolean}> {
+  state = {failed: false};
+
+  static getDerivedStateFromError() {
+    return {failed: true};
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.warn('React Bits effect disabled; using CSS fallback.', error, info);
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+function EffectFallback({kind}: {kind: 'grain' | 'dither'}) {
+  return <div className={'reactbits-fallback reactbits-fallback-' + kind} aria-hidden="true" />;
+}
+
+function supportsWebGL() {
+  if (typeof document === 'undefined') return true;
+  try {
+    const canvas = document.createElement('canvas');
+    return Boolean(canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
+  } catch {
+    return false;
+  }
+}
 
 const layerStyle: CSSProperties = {
   position: 'absolute',
@@ -80,8 +110,10 @@ export function GlitchText({children}: {children: ReactNode}) {
 
 export function GrainWave({className = ''}: {className?: string}) {
   return (
-    <div className={["reactbits-layer", className].filter(Boolean).join(" ")} style={layerStyle} aria-hidden="true">
-      <ReactBitsGrainWave
+    <div className={["reactbits-layer", "reactbits-grain-layer", className].filter(Boolean).join(" ")} style={layerStyle} aria-hidden="true">
+      {supportsWebGL() ? (
+        <EffectBoundary fallback={<EffectFallback kind="grain" />}>
+          <ReactBitsGrainWave
         width="100%"
         height="100%"
         speed={0.5}
@@ -89,16 +121,22 @@ export function GrainWave({className = ''}: {className?: string}) {
         startColor="#7a5cff"
         endColor="#b29aff"
         darkBackground="#08070e"
-        className="reactbits-layer-fill"
-      />
+          className="reactbits-layer-fill"
+          />
+        </EffectBoundary>
+      ) : (
+        <EffectFallback kind="grain" />
+      )}
     </div>
   );
 }
 
 export function DitherWave() {
   return (
-    <div className="reactbits-layer" style={layerStyle} aria-hidden="true">
-      <ReactBitsDitherWave
+    <div className="reactbits-layer reactbits-dither-layer" style={layerStyle} aria-hidden="true">
+      {supportsWebGL() ? (
+        <EffectBoundary fallback={<EffectFallback kind="dither" />}>
+          <ReactBitsDitherWave
         width="100%"
         height="100%"
         speed={0.75}
@@ -112,8 +150,12 @@ export function DitherWave() {
         quality="high"
         maxFPS={45}
         pauseWhenOffscreen
-        className="reactbits-layer-fill"
-      />
+          className="reactbits-layer-fill"
+          />
+        </EffectBoundary>
+      ) : (
+        <EffectFallback kind="dither" />
+      )}
     </div>
   );
 }
