@@ -1,5 +1,11 @@
 # REKT INK(CUBATOR) — React Bits Rebuild Plan
 
+> **STATUS: HISTORICAL IMPLEMENTATION REFERENCE — NOT CANONICAL PRODUCT AUTHORITY.**
+>
+> The canonical MVP authority now lives under [`docs/inkubator/INDEX.md`](./inkubator/INDEX.md). This document records the earlier V3/React Bits visual rebuild intent and remains useful as Broadcast/design ancestry.
+>
+> **Important current-state correction (2026-09-06):** the feature branch now contains generated/installed `apps/inkubator-lab/src/components/react-bits/*.tsx` source. The earlier licensing statement at the bottom of this plan described the intended boundary at the time, not the current repository state. React Bits Pro licensing/public-source/build handling is now an explicit Platform Foundation F0 cleanup item in the canonical Inkubator docs. Do not treat this historical file as evidence that the current branch is license-clean.
+
 ## Decision
 
 Rebuild the Inkubator as a clean purple signal board: a sequence of sharp, flush compartments that make the build loop legible before the effects become interesting. The site should feel like a premium component gallery that happens to be a live community pitch — never like a generic SaaS landing page, shader sampler, or admin dashboard.
@@ -69,9 +75,16 @@ Kill and revise when:
 - the user notices the shader before the product;
 - more than one effect competes in a zone;
 - cards look like a dashboard or component demo;
-- body copy drops below readable sizes or seams disappear on small screens;
-- the page needs a private React Bits source or registry key to build.
+- body copy drops below readable sizes or seams disappear on small screens.
 
-## Licensing boundary
+## Licensing boundary — historical intent, superseded by canonical Foundation work
 
-The repository does not contain the private React Bits Pro source or registry credentials. The implementation uses local adapter components shaped around the documented contracts. A licensed local Pro implementation can replace those adapters later without changing the page composition or content model. No credentials or proprietary source are committed.
+The original intent was that private/proprietary React Bits Pro source and registry credentials would not be committed and that public adapter semantics would allow a licensed implementation to be injected without changing page composition.
+
+The current feature branch must now be audited against that intent because generated/installed React Bits source exists in the public tree. The canonical requirements and cleanup sequence are defined in:
+
+- `docs/inkubator/ARCHITECTURE_CONSTITUTION_V0.md`;
+- `docs/inkubator/CURRENT_STATE_AND_GAP_V0.md`;
+- `docs/inkubator/IMPLEMENTATION_ROADMAP_MVP_V0.md`.
+
+Do not add new licensed source or credentials based on this historical plan.
