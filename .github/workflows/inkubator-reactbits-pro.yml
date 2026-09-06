@@ -18,6 +18,10 @@ on:
       - "scripts/serve-inkubator.mjs"
   workflow_dispatch:
 
+concurrency:
+  group: inkubator-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
