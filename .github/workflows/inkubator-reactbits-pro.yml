@@ -5,9 +5,13 @@ on:
     branches:
       - concept/inkubator-reactbits-v1
       - concept/inkubator-dossier-polish-v2
+      - feature/inkubator-protocol-v0
     paths:
       - ".github/workflows/inkubator-reactbits-pro.yml"
       - "apps/inkubator-lab/**"
+      - "packages/inkubator-protocol/**"
+      - "content/inkubator/**"
+      - "scripts/inkubator/**"
       - "scripts/install-inkubator-reactbits-pro.mjs"
       - "scripts/check-inkubator-budgets.mjs"
       - "scripts/check-inkubator-lighthouse.mjs"
@@ -57,6 +61,12 @@ jobs:
 
       - name: Install React Bits TypeScript declarations
         run: npm install --save-dev --workspace @rekt-ink/inkubator-lab @types/three --no-audit --no-fund
+
+      - name: Test Inkubator protocol
+        run: npm test -w @rekt-ink/inkubator-protocol
+
+      - name: Compile Inkubator public state
+        run: node scripts/inkubator/compile-state.mjs
 
       - name: Test Inkubator
         run: npm test -w @rekt-ink/inkubator-lab
@@ -121,7 +131,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No generated changes to commit."
           else
-            git commit -m "build(inkubator): publish React Bits Pro preview [skip ci]"
+            git commit -m "build(inkubator): publish protocol preview [skip ci]"
             git push origin "HEAD:${{ github.ref_name }}"
           fi
 
