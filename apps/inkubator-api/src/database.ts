@@ -54,16 +54,61 @@ export interface OutboxJobTable {
   completed_at: Date | null;
 }
 
+export interface GitHubSetupStateTable {
+  state_hash: string;
+  player_id: string;
+  created_at: Generated<Date>;
+  expires_at: Date;
+  consumed_at: Date | null;
+}
+
+export type GitHubRepositorySelection = 'all' | 'selected';
+
+export interface GitHubInstallationTable {
+  installation_id: string;
+  player_id: string;
+  github_user_id: string;
+  account_id: string;
+  account_type: string;
+  repository_selection: GitHubRepositorySelection;
+  installed_at: Generated<Date>;
+  revoked_at: Date | null;
+}
+
+export interface GitHubRepositoryTable {
+  repository_id: string;
+  installation_id: string;
+  full_name: string;
+  private: boolean;
+  active: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface GitHubDeliveryTable {
+  delivery_id: string;
+  event_name: string;
+  payload_hash: string;
+  installation_id: string | null;
+  repository_id: string | null;
+  received_at: Generated<Date>;
+}
+
 export interface DatabaseSchema {
   players: PlayerTable;
   sessions: SessionTable;
   history_events: HistoryEventTable;
   outbox_jobs: OutboxJobTable;
+  github_setup_states: GitHubSetupStateTable;
+  github_installations: GitHubInstallationTable;
+  github_repositories: GitHubRepositoryTable;
+  github_deliveries: GitHubDeliveryTable;
 }
 
 export type PlayerRow = Selectable<PlayerTable>;
 export type HistoryEventRow = Selectable<HistoryEventTable>;
 export type OutboxJobRow = Selectable<OutboxJobTable>;
+export type GitHubRepositoryRow = Selectable<GitHubRepositoryTable>;
 export type InkubatorDatabase = Kysely<DatabaseSchema>;
 
 export function createDatabase(databaseUrl: string): InkubatorDatabase {

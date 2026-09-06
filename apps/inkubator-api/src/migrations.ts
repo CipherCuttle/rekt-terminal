@@ -100,11 +100,86 @@ const eventJobFoundationMigration: Migration = {
   },
 };
 
+const githubIngressFoundationMigration: Migration = {
+  async up(db) {
+    await db.schema
+      .createTable('github_setup_states')
+      .addColumn('state_hash', 'varchar(64)', (column) => column.primaryKey())
+      .addColumn('player_id', 'uuid', (column) =>
+        column.notNull().references('players.player_id').onDelete('cascade'),
+      )
+      .addColumn('created_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`now()`))
+      .addColumn('expires_at', 'timestamptz', (column) => column.notNull())
+      .addColumn('consumed_at', 'timestamptz')
+      .execute();
+
+    await db.schema
+      .createTable('github_installations')
+      .addColumn('installation_id', 'bigint', (column) => column.primaryKey())
+      .addColumn('player_id', 'uuid', (column) =>
+        column.notNull().references('players.player_id').onDelete('cascade'),
+      )
+      .addColumn('github_user_id', 'bigint', (column) => column.notNull())
+      .addColumn('account_id', 'bigint', (column) => column.notNull())
+      .addColumn('account_type', 'text', (column) => column.notNull())
+      .addColumn('repository_selection', 'text', (column) => column.notNull())
+      .addColumn('installed_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`now()`))
+      .addColumn('revoked_at', 'timestamptz')
+      .addCheckConstraint('github_installations_repository_selection', sql`repository_selection in ('all', 'selected')`)
+      .addCheckConstraint('github_installations_account_type_nonempty', sql`char_length(account_type) > 0`)
+      .execute();
+
+    await db.schema
+      .createIndex('github_installations_player_idx')
+      .on('github_installations')
+      .column('player_id')
+      .execute();
+
+    await db.schema
+      .createTable('github_repositories')
+      .addColumn('repository_id', 'bigint', (column) => column.primaryKey())
+      .addColumn('installation_id', 'bigint', (column) =>
+        column.notNull().references('github_installations.installation_id').onDelete('cascade'),
+      )
+      .addColumn('full_name', 'text', (column) => column.notNull())
+      .addColumn('private', 'boolean', (column) => column.notNull())
+      .addColumn('active', 'boolean', (column) => column.notNull().defaultTo(true))
+      .addColumn('created_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`now()`))
+      .addColumn('updated_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`now()`))
+      .addCheckConstraint('github_repositories_full_name_nonempty', sql`char_length(full_name) > 0`)
+      .execute();
+
+    await db.schema
+      .createIndex('github_repositories_installation_idx')
+      .on('github_repositories')
+      .columns(['installation_id', 'active'])
+      .execute();
+
+    await db.schema
+      .createTable('github_deliveries')
+      .addColumn('delivery_id', 'text', (column) => column.primaryKey())
+      .addColumn('event_name', 'text', (column) => column.notNull())
+      .addColumn('payload_hash', 'varchar(64)', (column) => column.notNull())
+      .addColumn('installation_id', 'bigint')
+      .addColumn('repository_id', 'bigint')
+      .addColumn('received_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`now()`))
+      .addCheckConstraint('github_deliveries_event_nonempty', sql`char_length(event_name) > 0`)
+      .execute();
+  },
+  async down(db) {
+    await db.schema.dropTable('github_deliveries').execute();
+    await db.schema.dropTable('github_repositories').execute();
+    await db.schema.dropTable('github_installations').execute();
+    await db.schema.dropTable('github_setup_states').execute();
+  },
+};
+
 class StaticMigrationProvider implements MigrationProvider {
   async getMigrations(): Promise<Record<string, Migration>> {
     return {
       '001_initial_player_sessions': initialMigration,
       '002_event_job_foundation': eventJobFoundationMigration,
+      '003_github_ingress_foundation': githubIngressFoundationMigration,
     };
   }
 }
@@ -112,7 +187,5 @@ class StaticMigrationProvider implements MigrationProvider {
 export async function migrateToLatest(db: Kysely<DatabaseSchema>): Promise<void> {
   const migrator = new Migrator({db, provider: new StaticMigrationProvider()});
   const result = await migrator.migrateToLatest();
-  if (result.error) {
-    throw result.error;
-  }
+  if (result.error) throw result.error;
 }
