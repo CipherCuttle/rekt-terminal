@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState, type ReactNode} from 'react';
+import {useEffect, useState, type ReactNode} from 'react';
 import {DitherWave, GrainWave, SquircleShift} from './reactbits-pro';
 import NftMedia from './components/NftMedia';
 import {showcaseByCollection, type ShowcaseCollection} from './data/showcase-tokens';
@@ -43,6 +43,14 @@ const fallbackMedia: Record<ShowcaseCollection, MediaItem[]> = {
 };
 
 const sectionIds = ['signal', 'builds', 'machine', 'comeback', 'roadmap', 'open'];
+const sectionLabels: Record<string, string> = {
+  signal: 'Hero',
+  builds: 'What counts',
+  machine: 'The machine',
+  comeback: 'The comeback',
+  roadmap: 'Roadmap',
+  open: 'Open channel',
+};
 
 function SectionLabel({number, children}: {number: string; children: ReactNode}) {
   return <div className="d3-section-label"><span>{number}</span><b>{children}</b></div>;
@@ -72,7 +80,15 @@ function CollectionTabs({value, onChange}: {value: ShowcaseCollection; onChange:
   return (
     <div className="d3-collection-tabs" role="group" aria-label="Choose collection">
       {(['REKT INK', 'CHIBI HOOD'] as ShowcaseCollection[]).map((name) => (
-        <button key={name} type="button" className={value === name ? 'is-active' : ''} onClick={() => onChange(name)}>{name}</button>
+        <button
+          key={name}
+          type="button"
+          className={value === name ? 'is-active' : ''}
+          aria-pressed={value === name}
+          onClick={() => onChange(name)}
+        >
+          {name}
+        </button>
       ))}
     </div>
   );
@@ -94,18 +110,18 @@ function LiveSignal() {
     <aside className="d3-live-signal" aria-label="REKT world signal">
       <div className="d3-signal-head"><span><i /> SIGNAL / REKT WORLD</span><b>CURATED ART</b></div>
       <a className="d3-signal-media" href={current.href} target="_blank" rel="noreferrer">
-        <NftMedia src={current.media} alt={`${current.collection} #${current.id}`} />
+        <NftMedia src={current.media} alt={`${current.collection} #${current.id}`} priority />
         <span className="d3-media-scan" aria-hidden="true" />
       </a>
       <div className="d3-signal-body">
         <CollectionTabs value={collection} onChange={setCollection} />
-        <div className="d3-signal-title"><span>{current.collection}</span><strong>#{current.id}</strong></div>
+        <div className="d3-signal-title" aria-live="polite"><span>{current.collection}</span><strong>#{current.id}</strong></div>
         <div className="d3-signal-facts">
           <span><small>MEDIA</small>ANIMATED</span>
           <span><small>CURATION</small>RARITY + MARKET</span>
           <span><small>LIVE SALES</small>COLLECTOR NEXT</span>
         </div>
-        <div className="d3-signal-foot"><a href={current.href} target="_blank" rel="noreferrer">OPEN ON OPENSEA ↗</a><button type="button" onClick={move}>NEXT ART →</button></div>
+        <div className="d3-signal-foot"><a href={current.href} target="_blank" rel="noreferrer">OPEN ON OPENSEA ↗</a><button type="button" aria-label={`Show next ${collection} artwork`} onClick={move}>NEXT ART →</button></div>
       </div>
     </aside>
   );
@@ -124,12 +140,18 @@ function BuildMachine() {
           <SectionLabel number="02">THE MACHINE</SectionLabel>
           <h2>5 STEPS.<br />NO DECK.</h2>
           <p>Give people a reason to move, then make the shipped thing recruit the next builder.</p>
-          <div className="d3-loop-readout"><span>{current.number}</span><div><strong>{current.name}</strong><p>{current.body}</p></div></div>
+          <div className="d3-loop-readout" aria-live="polite"><span>{current.number}</span><div><strong>{current.name}</strong><p>{current.body}</p></div></div>
         </div>
         <div className="d3-loop-panel">
-          <div className="d3-loop-strip">
+          <div className="d3-loop-strip" role="group" aria-label="Build loop steps">
             {loop.map((item, itemIndex) => (
-              <button key={item.name} type="button" className={step === itemIndex ? 'is-active' : ''} onClick={() => setStep(itemIndex)}>
+              <button
+                key={item.name}
+                type="button"
+                className={step === itemIndex ? 'is-active' : ''}
+                aria-pressed={step === itemIndex}
+                onClick={() => setStep(itemIndex)}
+              >
                 <span>{item.number}</span><b>{item.name}</b>
               </button>
             ))}
@@ -147,9 +169,9 @@ function BuildMachine() {
 
 function SignalChart() {
   return (
-    <div className="d3-chart" aria-label="Holder and community growth placeholder">
+    <div className="d3-chart" aria-label="Growth chart placeholder. Historical data starts when the collector is connected.">
       <div className="d3-chart-head"><span>GROWTH SIGNAL</span><b>DATA STARTS WITH COLLECTOR</b></div>
-      <svg viewBox="0 0 640 180" role="img" aria-label="Signal history waiting for live data">
+      <svg viewBox="0 0 640 180" aria-hidden="true" focusable="false">
         <path className="d3-chart-grid" d="M0 45H640M0 90H640M0 135H640" />
         <path className="d3-chart-line" d="M0 145 C80 142 105 130 155 132 S235 113 285 119 S365 88 410 93 S500 63 545 70 S605 45 640 49" />
         <circle className="d3-chart-dot" cx="640" cy="49" r="5" />
@@ -177,7 +199,7 @@ function ComebackGallery() {
         <NftMedia src={current.media} alt={`${current.collection} #${current.id}`} />
         <div className="d3-gallery-glass"><strong>{current.collection} #{current.id}</strong><span>OPEN ART ↗</span></div>
       </a>
-      <div className="d3-gallery-controls"><button type="button" onClick={() => setIndex((value) => (value - 1 + items.length) % items.length)}>← PREV</button><span>{String(index + 1).padStart(2, '0')} / {String(items.length).padStart(2, '0')}</span><button type="button" onClick={() => setIndex((value) => (value + 1) % items.length)}>NEXT →</button></div>
+      <div className="d3-gallery-controls"><button type="button" aria-label={`Show previous ${collection} artwork`} onClick={() => setIndex((value) => (value - 1 + items.length) % items.length)}>← PREV</button><span aria-live="polite">{String(index + 1).padStart(2, '0')} / {String(items.length).padStart(2, '0')}</span><button type="button" aria-label={`Show next ${collection} artwork`} onClick={() => setIndex((value) => (value + 1) % items.length)}>NEXT →</button></div>
       <div className="d3-curation-head"><span>SHOWCASE 15 / {collection}</span><b>RARITY + MARKET + VISUAL</b></div>
       <div className="d3-curation-rail">
         {curated.map((token) => (
@@ -192,18 +214,17 @@ function ComebackGallery() {
 
 function AppV3() {
   const active = useActiveSection(sectionIds);
-  const nav = useMemo(() => sectionIds, []);
 
   return (
     <main className="d3" id="top">
       <header className="d3-topbar">
         <a className="d3-brand" href="#top" aria-label="REKT Inkubator home"><span>REKT</span><b>INK(CUBATOR)</b></a>
         <div className="d3-transmission"><span>TRANSMISSION 000</span><i>BUILD MODE</i></div>
-        <nav aria-label="Page sections">{nav.map((id, index) => <a key={id} className={active === id ? 'is-active' : ''} href={`#${id}`}>{String(index).padStart(2, '0')}</a>)}</nav>
+        <nav aria-label="Page sections">{sectionIds.map((id, index) => <a key={id} className={active === id ? 'is-active' : ''} aria-current={active === id ? 'location' : undefined} aria-label={`${String(index).padStart(2, '0')} ${sectionLabels[id]}`} href={`#${id}`}>{String(index).padStart(2, '0')}</a>)}</nav>
       </header>
 
       <section className="d3-hero" id="signal" aria-labelledby="d3-hero-title">
-        <GrainWave className="d3-hero-grain" />
+        <GrainWave className="d3-hero-grain" startupDelayMs={2600} />
         <div className="d3-hero-wash" aria-hidden="true" />
         <div className="d3-frame d3-hero-grid">
           <div className="d3-hero-copy">
