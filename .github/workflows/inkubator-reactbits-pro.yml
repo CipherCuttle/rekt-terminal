@@ -9,6 +9,8 @@ on:
       - ".github/workflows/inkubator-reactbits-pro.yml"
       - "apps/inkubator-lab/**"
       - "scripts/install-inkubator-reactbits-pro.mjs"
+      - "scripts/check-inkubator-budgets.mjs"
+      - "scripts/check-inkubator-lighthouse.mjs"
   workflow_dispatch:
 
 permissions:
@@ -31,7 +33,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Require React Bits license secret
@@ -60,6 +62,45 @@ jobs:
 
       - name: Build Inkubator
         run: npm run build -w @rekt-ink/inkubator-lab
+
+      - name: Enforce critical-path asset budgets
+        run: node scripts/check-inkubator-budgets.mjs
+
+      - name: Lighthouse mobile regression gate
+        shell: bash
+        run: |
+          mkdir -p .lighthouse
+          python3 -m http.server 4175 --directory inkubator >/tmp/inkubator-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4175/ >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/inkubator-http.log
+            echo "::error::Local Inkubator preview did not start"
+            exit 1
+          fi
+
+          for run in 1 2 3; do
+            npx --yes lighthouse@latest http://127.0.0.1:4175/ \
+              --quiet \
+              --output=json \
+              --output-path=".lighthouse/run-$run.json" \
+              --only-categories=performance,accessibility,best-practices,seo \
+              --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage"
+          done
+
+          node scripts/check-inkubator-lighthouse.mjs \
+            .lighthouse/run-1.json \
+            .lighthouse/run-2.json \
+            .lighthouse/run-3.json
 
       - name: Persist generated preview to the isolated branch
         shell: bash
