@@ -18,11 +18,18 @@ npm-debug.log*
 playwright-report/
 test-results/
 .playwright-mcp/
+lighthouse-reports/
 
 # Tool/build caches
 .vite/
 .cache/
 *.tsbuildinfo
+
+# Generated Inkubator preview is a CI artifact, not repository source.
+/inkubator/
+
+# React Bits Pro source is licensed local/private input and must never be committed.
+/apps/inkubator-lab/src/components/react-bits/
 
 # OS metadata
 .DS_Store
