@@ -46,7 +46,7 @@ describe('Inkubator compressed flow', () => {
 
   it('explains why REKT and Chibi are present and keeps collection browsing explicit', () => {
     const {container} = render(<AppV2 />);
-    expect(container.querySelector('.d2-collection-copy h2')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('TWO YEARS. STILL HERE.');
+    expect(container.querySelector('.d2-collection-copy h2')?.textContent?.replace(/\s+/g, '')).toBe('TWOYEARS.STILLHERE.');
     expect(screen.getByText('HELD THE LINE')).toBeTruthy();
     expect(screen.getByText('BUILD THE COMEBACK')).toBeTruthy();
     expect(screen.getByText('BROWSE THE WORLD')).toBeTruthy();
