@@ -5,12 +5,12 @@
   display: none;
 }
 
-/* Keep the distribution flywheel intentional at wide widths instead of wrapping into arbitrary fragments. */
+/* Keep the distribution flywheel intentional at wide widths and inside its actual column. */
 @media (min-width: 1101px) {
   .d2-broadcast-flow {
     flex-wrap: nowrap;
-    gap: 8px 12px;
-    font-size: clamp(1.8rem, 2.6vw, 3.15rem);
+    gap: 6px 10px;
+    font-size: clamp(1.65rem, 2.1vw, 2.55rem);
     white-space: nowrap;
   }
   .d2-broadcast-flow b {
