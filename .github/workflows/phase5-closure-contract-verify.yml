@@ -1,0 +1,77 @@
+name: Phase 5 closure contract verify
+
+on:
+  push:
+    branches: [feature/inkubator-multiplayer-help-loop-v0]
+    paths:
+      - .github/workflows/phase5-closure-contract-verify.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: inkubator
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/inkubator
+      INKUBATOR_APP_ORIGIN: http://127.0.0.1:4175
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+          cache: npm
+      - run: npm install --global npm@11.19.0
+      - name: Verify lineage and toolchain
+        run: |
+          git merge-base --is-ancestor 2a7f1380c9b4125e213a30f0e87d66fffda86bc0 HEAD
+          test "$(node --version)" = "v24.20.0"
+          test "$(npm --version)" = "11.19.0"
+      - run: npm ci
+      - name: Apply bounded closure repair
+        run: python3 .github/scripts/phase5-closure-contract-repair.py
+      - run: npm run generate:client -w @rekt-ink/inkubator-api
+      - run: npm run typecheck -w @rekt-ink/inkubator-api
+      - name: Focused contract regression
+        run: node --test --test-concurrency=1 apps/inkubator-api/test/unit/phase5-contract-closure.test.mjs
+      - name: Focused authorization regression
+        run: node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase5-tester-moderation.test.mjs
+      - name: Phase 5 review-repair regression
+        run: node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase5-review-repair.test.mjs
+      - name: Phase 5A regression
+        run: node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase5-multiplayer-help-loop.test.mjs
+      - name: Phase 5B1 regression
+        run: node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase5-project-discussion-world.test.mjs
+      - run: npm run test -w @rekt-ink/inkubator-api
+      - run: npm run test:integration -w @rekt-ink/inkubator-api
+      - run: npm run verify:client -w @rekt-ink/inkubator-api
+      - name: Package verified product files
+        run: |
+          tar -czf phase5-closure-product.tgz \
+            apps/inkubator-api/src/social.ts \
+            apps/inkubator-api/src/contract.ts \
+            apps/inkubator-api/src/generate-client.ts \
+            apps/inkubator-api/test/integration/phase5-tester-moderation.test.mjs \
+            apps/inkubator-api/test/unit/phase5-contract-closure.test.mjs \
+            apps/inkubator-lab/src/generated/inkubator-api-client.ts
+      - name: Upload verified product files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase5-closure-product
+          path: phase5-closure-product.tgz
+          if-no-files-found: error
