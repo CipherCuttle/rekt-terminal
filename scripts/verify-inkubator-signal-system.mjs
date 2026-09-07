@@ -41,9 +41,6 @@ if ((tokens.match(/#9aff67/gi) ?? []).length !== 1) throw new Error('acid proof 
 
 const golden = fs.readFileSync(path.join(signalRoot, 'GoldenScreens.tsx'), 'utf8');
 for (const screen of ['world', 'command', 'project', 'player', 'ship']) {
-  if (!golden.includes(`screen=\"${screen}\"`) && !golden.includes(`screen=\"${screen}`)) {
-    // Route links and explicit screen components are checked separately below.
-  }
   if (!golden.includes(`id: '${screen}'`)) throw new Error(`golden screen navigation missing ${screen}`);
 }
 for (const term of ['MISSION', 'NEXT MOVE', 'THE THREAD', 'BLOCKER', 'SHIP ACCEPTED']) {
@@ -56,8 +53,8 @@ if (!main.includes("lazy(() => import('./AppV3'))") || !main.includes("lazy(() =
 }
 
 if (process.argv.includes('--dist')) {
-  const assetsDir = path.join(root, 'apps/inkubator-lab/dist/assets');
-  if (!fs.existsSync(assetsDir)) throw new Error('Inkubator dist assets are missing');
+  const assetsDir = path.join(root, 'inkubator/assets');
+  if (!fs.existsSync(assetsDir)) throw new Error('Inkubator build assets are missing');
   const assets = fs.readdirSync(assetsDir);
   const signalChunk = assets.find((name) => /^GoldenScreens-.*\.js$/.test(name));
   const v3Chunk = assets.find((name) => /^AppV3-.*\.js$/.test(name));
