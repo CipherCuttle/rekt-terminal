@@ -12,7 +12,7 @@ export const phase6ShipAcceptanceReceiptMigration = {
 
     await db.schema.createTable('ship_acceptance_reviews')
       .addColumn('review_id', 'uuid', (c) => c.primaryKey())
-      .addColumn('submission_id', 'uuid', (c) => c.notNull().unique().references('ship_submissions.submission_id'))
+      .addColumn('submission_id', 'uuid', (c) => c.notNull().unique().references('ship_submissions.submission_id').onDelete('cascade'))
       .addColumn('creation_request_id', 'uuid', (c) => c.notNull().unique())
       .addColumn('decision', 'text', (c) => c.notNull())
       .addColumn('reason', 'text', (c) => c.notNull())
@@ -25,7 +25,7 @@ export const phase6ShipAcceptanceReceiptMigration = {
 
     await db.schema.createTable('ship_receipts')
       .addColumn('receipt_id', 'uuid', (c) => c.primaryKey())
-      .addColumn('submission_id', 'uuid', (c) => c.notNull().unique().references('ship_submissions.submission_id'))
+      .addColumn('submission_id', 'uuid', (c) => c.notNull().unique().references('ship_submissions.submission_id').onDelete('cascade'))
       .addColumn('mission_id', 'uuid', (c) => c.notNull().unique().references('missions.mission_id'))
       .addColumn('project_id', 'uuid', (c) => c.notNull().references('projects.project_id'))
       .addColumn('owner_player_id', 'uuid', (c) => c.notNull().references('players.player_id'))
