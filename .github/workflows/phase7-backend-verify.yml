@@ -7,7 +7,7 @@ on:
       - '.github/workflows/phase7-backend-verify.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
@@ -45,10 +45,22 @@ jobs:
         run: |
           npm run typecheck -w @rekt-ink/inkubator-api
           npm run build -w @rekt-ink/inkubator-api
-      - name: Generate Phase 7 client candidate
-        run: npm run generate:client -w @rekt-ink/inkubator-api
-      - name: Show generated client delta
-        run: git diff -- apps/inkubator-lab/src/generated/inkubator-api-client.ts || true
+      - name: Generate and persist Phase 7 client
+        run: |
+          set -euo pipefail
+          npm run generate:client -w @rekt-ink/inkubator-api
+          if git diff --quiet -- apps/inkubator-lab/src/generated/inkubator-api-client.ts; then
+            echo 'Generated Phase 7 client already current.'
+          else
+            git diff -- apps/inkubator-lab/src/generated/inkubator-api-client.ts
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add apps/inkubator-lab/src/generated/inkubator-api-client.ts
+            git commit -m 'chore(inkubator): refresh Phase 7 generated client'
+            git push origin HEAD:feature/inkubator-cheevo-reputation-boards-v0
+          fi
+      - name: Verify generated client freshness
+        run: npm run verify:client -w @rekt-ink/inkubator-api
       - name: Apply all migrations
         run: npm run migrate -w @rekt-ink/inkubator-api
       - name: API unit suite
