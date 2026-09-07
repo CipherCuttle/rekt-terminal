@@ -100,11 +100,196 @@ const eventJobFoundationMigration: Migration = {
   },
 };
 
+const githubIngressFoundationMigration: Migration = {
+  async up(db) {
+    await db.schema
+      .createTable('github_setup_states')
+      .addColumn('state_hash', 'varchar(64)', (column) => column.primaryKey())
+      .addColumn('player_id', 'uuid', (column) =>
+        column.notNull().references('players.player_id').onDelete('cascade'),
+      )
+      .addColumn('created_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`now()`))
+      .addColumn('expires_at', 'timestamptz', (column) => column.notNull())
+      .addColumn('consumed_at', 'timestamptz')
+      .execute();
+
+    await db.schema
+      .createTable('github_installations')
+      .addColumn('installation_id', 'bigint', (column) => column.primaryKey())
+      .addColumn('player_id', 'uuid', (column) =>
+        column.notNull().references('players.player_id').onDelete('cascade'),
+      )
+      .addColumn('github_user_id', 'bigint', (column) => column.notNull())
+      .addColumn('account_id', 'bigint', (column) => column.notNull())
+      .addColumn('account_type', 'text', (column) => column.notNull())
+      .addColumn('repository_selection', 'text', (column) => column.notNull())
+      .addColumn('installed_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`now()`))
+      .addColumn('revoked_at', 'timestamptz')
+      .addCheckConstraint('github_installations_repository_selection', sql`repository_selection in ('all', 'selected')`)
+      .addCheckConstraint('github_installations_account_type_nonempty', sql`char_length(account_type) > 0`)
+      .execute();
+
+    await db.schema
+      .createIndex('github_installations_player_idx')
+      .on('github_installations')
+      .column('player_id')
+      .execute();
+
+    await db.schema
+      .createTable('github_repositories')
+      .addColumn('repository_id', 'bigint', (column) => column.primaryKey())
+      .addColumn('installation_id', 'bigint', (column) =>
+        column.notNull().references('github_installations.installation_id').onDelete('cascade'),
+      )
+      .addColumn('full_name', 'text', (column) => column.notNull())
+      .addColumn('private', 'boolean', (column) => column.notNull())
+      .addColumn('active', 'boolean', (column) => column.notNull().defaultTo(true))
+      .addColumn('created_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`now()`))
+      .addColumn('updated_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`now()`))
+      .addCheckConstraint('github_repositories_full_name_nonempty', sql`char_length(full_name) > 0`)
+      .execute();
+
+    await db.schema
+      .createIndex('github_repositories_installation_idx')
+      .on('github_repositories')
+      .columns(['installation_id', 'active'])
+      .execute();
+
+    await db.schema
+      .createTable('github_deliveries')
+      .addColumn('delivery_id', 'text', (column) => column.primaryKey())
+      .addColumn('event_name', 'text', (column) => column.notNull())
+      .addColumn('payload_hash', 'varchar(64)', (column) => column.notNull())
+      .addColumn('installation_id', 'bigint')
+      .addColumn('repository_id', 'bigint')
+      .addColumn('received_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`now()`))
+      .addCheckConstraint('github_deliveries_event_nonempty', sql`char_length(event_name) > 0`)
+      .execute();
+  },
+  async down(db) {
+    await db.schema.dropTable('github_deliveries').execute();
+    await db.schema.dropTable('github_repositories').execute();
+    await db.schema.dropTable('github_installations').execute();
+    await db.schema.dropTable('github_setup_states').execute();
+  },
+};
+
+const githubConcurrencyHardeningMigration: Migration = {
+  async up(db) {
+    await db.schema
+      .createTable('github_installation_tombstones')
+      .addColumn('installation_id', 'bigint', (column) => column.primaryKey())
+      .addColumn('revoked_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`clock_timestamp()`))
+      .addColumn('source_key', 'text', (column) => column.notNull())
+      .addCheckConstraint('github_installation_tombstones_source_nonempty', sql`char_length(source_key) > 0`)
+      .execute();
+
+    await db.schema
+      .createTable('github_repository_tombstones')
+      .addColumn('repository_id', 'bigint', (column) => column.primaryKey())
+      .addColumn('installation_id', 'bigint', (column) => column.notNull())
+      .addColumn('removed_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`clock_timestamp()`))
+      .addColumn('source_key', 'text', (column) => column.notNull())
+      .addCheckConstraint('github_repository_tombstones_source_nonempty', sql`char_length(source_key) > 0`)
+      .execute();
+
+    await db.schema
+      .createIndex('github_repository_tombstones_installation_idx')
+      .on('github_repository_tombstones')
+      .column('installation_id')
+      .execute();
+  },
+  async down(db) {
+    await db.schema.dropTable('github_repository_tombstones').execute();
+    await db.schema.dropTable('github_installation_tombstones').execute();
+  },
+};
+
+const githubRepositoryAuthorityMigration: Migration = {
+  async up(db) {
+    await db.schema
+      .createTable('github_repository_authority')
+      .addColumn('repository_id', 'bigint', (column) => column.primaryKey())
+      .addColumn('installation_id', 'bigint', (column) => column.notNull())
+      .addColumn('claimed_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`clock_timestamp()`))
+      .execute();
+
+    await sql`
+      insert into github_repository_authority (repository_id, installation_id)
+      select repository_id, installation_id from github_repositories
+      on conflict (repository_id) do nothing
+    `.execute(db);
+
+    const conflicts = await sql<{count: string}>`
+      select count(*)::text as count
+      from github_repository_tombstones tombstone
+      join github_repository_authority authority using (repository_id)
+      where tombstone.installation_id <> authority.installation_id
+    `.execute(db);
+    if (Number(conflicts.rows[0]?.count ?? '0') !== 0) {
+      throw new Error('github_repository_authority_backfill_conflict');
+    }
+
+    await sql`
+      insert into github_repository_authority (repository_id, installation_id)
+      select repository_id, installation_id from github_repository_tombstones
+      on conflict (repository_id) do nothing
+    `.execute(db);
+
+    await sql`
+      create function enforce_github_repository_authority()
+      returns trigger
+      language plpgsql
+      as $$
+      begin
+        insert into github_repository_authority (repository_id, installation_id)
+        values (new.repository_id, new.installation_id)
+        on conflict (repository_id) do nothing;
+
+        if not exists (
+          select 1
+          from github_repository_authority
+          where repository_id = new.repository_id
+            and installation_id = new.installation_id
+        ) then
+          raise exception 'github_repository_already_bound' using errcode = '23514';
+        end if;
+
+        return new;
+      end;
+      $$
+    `.execute(db);
+
+    await sql`
+      create trigger github_repositories_authority_guard
+      before insert or update of repository_id, installation_id
+      on github_repositories
+      for each row execute function enforce_github_repository_authority()
+    `.execute(db);
+
+    await sql`
+      create trigger github_repository_tombstones_authority_guard
+      before insert or update of repository_id, installation_id
+      on github_repository_tombstones
+      for each row execute function enforce_github_repository_authority()
+    `.execute(db);
+  },
+  async down(db) {
+    await sql`drop trigger if exists github_repository_tombstones_authority_guard on github_repository_tombstones`.execute(db);
+    await sql`drop trigger if exists github_repositories_authority_guard on github_repositories`.execute(db);
+    await sql`drop function if exists enforce_github_repository_authority()`.execute(db);
+    await db.schema.dropTable('github_repository_authority').execute();
+  },
+};
+
 class StaticMigrationProvider implements MigrationProvider {
   async getMigrations(): Promise<Record<string, Migration>> {
     return {
       '001_initial_player_sessions': initialMigration,
       '002_event_job_foundation': eventJobFoundationMigration,
+      '003_github_ingress_foundation': githubIngressFoundationMigration,
+      '004_github_concurrency_hardening': githubConcurrencyHardeningMigration,
+      '005_github_repository_authority': githubRepositoryAuthorityMigration,
     };
   }
 }
@@ -112,7 +297,5 @@ class StaticMigrationProvider implements MigrationProvider {
 export async function migrateToLatest(db: Kysely<DatabaseSchema>): Promise<void> {
   const migrator = new Migrator({db, provider: new StaticMigrationProvider()});
   const result = await migrator.migrateToLatest();
-  if (result.error) {
-    throw result.error;
-  }
+  if (result.error) throw result.error;
 }

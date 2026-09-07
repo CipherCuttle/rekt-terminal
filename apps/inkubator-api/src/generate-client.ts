@@ -42,6 +42,7 @@ const clientOperations = [
   ['/v1/me', 'get'],
   ['/v1/players/{playerId}', 'get'],
   ['/v1/players/{playerId}/private', 'get'],
+  ['/v1/github/install', 'post'],
 ] as const;
 
 function schemaType(schema: Schema): string {

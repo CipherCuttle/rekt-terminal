@@ -47,6 +47,16 @@ export const componentSchemas = {
       expires_at: {type: 'string', format: 'date-time'},
     },
   },
+  GitHubInstallView: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['schema_version', 'install_url', 'expires_at'],
+    properties: {
+      schema_version: {type: 'string', const: 'github.install.v1'},
+      install_url: {type: 'string', format: 'uri'},
+      expires_at: {type: 'string', format: 'date-time'},
+    },
+  },
 };
 
 const ref = (name: keyof typeof componentSchemas) => ({$ref: `#/components/schemas/${name}`});
@@ -130,6 +140,18 @@ export const openapiDocument = {
           '401': errorResponse('Authentication required'),
           '403': errorResponse('Authorization denied'),
           '404': errorResponse('Player not found'),
+        },
+      },
+    },
+    '/v1/github/install': {
+      post: {
+        operationId: 'createGitHubInstall',
+        'x-requires-github-config': true,
+        security: [{sessionCookie: []}],
+        responses: {
+          '201': {description: 'One-time GitHub App installation URL', content: {'application/json': {schema: ref('GitHubInstallView')}}},
+          '401': errorResponse('Authentication required'),
+          '403': errorResponse('Origin denied'),
         },
       },
     },

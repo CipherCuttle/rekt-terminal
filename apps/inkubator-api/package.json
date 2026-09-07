@@ -14,7 +14,7 @@
     "verify:client": "npm run build && node dist/generate-client.js --check",
     "test": "node --test test/unit/*.test.mjs",
     "pretest": "npm run build",
-    "test:integration": "node --test test/integration/*.test.mjs",
+    "test:integration": "node --test --test-concurrency=1 test/integration/*.test.mjs",
     "pretest:integration": "npm run build"
   },
   "dependencies": {
