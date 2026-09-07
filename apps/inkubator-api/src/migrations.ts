@@ -4,6 +4,7 @@ import type {DatabaseSchema} from './database.js';
 import {playerMissionCommandMigration} from './migrations/006-player-mission-command.js';
 import {phase4ProjectEvidenceProjectionMigration} from './migrations/007-phase4-project-evidence-projection.js';
 import {phase4ManifestTruthMigration} from './migrations/008-phase4-manifest-truth.js';
+import {phase4ManifestRefScopeMigration} from './migrations/009-phase4-manifest-ref-scope.js';
 
 const initialMigration: Migration = {
   async up(db) {
@@ -296,6 +297,7 @@ class StaticMigrationProvider implements MigrationProvider {
       '006_player_mission_command': playerMissionCommandMigration,
       '007_phase4_project_evidence_projection': phase4ProjectEvidenceProjectionMigration,
       '008_phase4_manifest_truth': phase4ManifestTruthMigration,
+      '009_phase4_manifest_ref_scope': phase4ManifestRefScopeMigration,
     };
   }
 }

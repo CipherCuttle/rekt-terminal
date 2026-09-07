@@ -451,15 +451,37 @@ type ManifestChange = {
   state: 'PRESENT' | 'REMOVED';
 };
 
+function canonicalManifestProjectionRef(repository: Record<string, unknown>, pushRef: string): string | null {
+  const defaultBranch = repository.default_branch;
+  if (typeof defaultBranch !== 'string' || defaultBranch.length < 1 || defaultBranch.length > 200) return null;
+  const canonicalRef = `refs/heads/${defaultBranch}`;
+  if (!REF_PATTERN.test(canonicalRef)) return null;
+  return canonicalRef === pushRef ? canonicalRef : null;
+}
+
 function boundedManifestChanges(payload: Record<string, unknown>): {changes: ManifestChange[]; complete: boolean} {
-  const commits = Array.isArray(payload.commits) ? payload.commits.slice(0, 64) : [];
+  const commitsRaw = Array.isArray(payload.commits) ? payload.commits : [];
+  const commits = commitsRaw.slice(0, 64);
   const changes = new Map<string, ManifestChange>();
-  let complete = true;
+  let complete = Array.isArray(payload.commits) && commitsRaw.length <= 64;
+  if (
+    typeof payload.size === 'number' && Number.isInteger(payload.size) && payload.size >= 0 &&
+    payload.size > commitsRaw.length
+  ) complete = false;
   for (const candidate of commits) {
-    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue;
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      complete = false;
+      continue;
+    }
     const commit = candidate as Record<string, unknown>;
     for (const key of ['added', 'modified', 'removed'] as const) {
-      const values = Array.isArray(commit[key]) ? commit[key].slice(0, 128) : [];
+      const rawValues = commit[key];
+      if (!Array.isArray(rawValues)) {
+        complete = false;
+        continue;
+      }
+      if (rawValues.length > 128) complete = false;
+      const values = rawValues.slice(0, 128);
       for (const value of values) {
         if (typeof value !== 'string' || value.length < 1 || value.length > 300) continue;
         const detection = detectStackFromManifestPaths([value]);
@@ -665,7 +687,8 @@ export async function processGitHubWebhook(
       },
     });
 
-    const manifestChanges = boundedManifestChanges(payload);
+    const manifestProjectionRef = canonicalManifestProjectionRef(repository, ref);
+    const manifestChanges = manifestProjectionRef ? boundedManifestChanges(payload) : {changes: [], complete: true};
     const projectId = await findLinkedProjectIdForRepository(transaction, repositoryId);
     if (projectId) {
       await enqueueOutboxJob(transaction, {
@@ -680,6 +703,7 @@ export async function processGitHubWebhook(
           before,
           after,
           repository_private: repository.private,
+          manifest_projection_ref: manifestProjectionRef,
           manifest_changes: manifestChanges.changes,
           manifest_changes_complete: manifestChanges.complete,
         },
