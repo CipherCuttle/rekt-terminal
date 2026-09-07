@@ -395,9 +395,11 @@
 .worldHero h1 { margin: var(--ink-space-4) 0; font-size: var(--ink-size-display-xl); line-height: var(--ink-leading-tight); letter-spacing: -0.055em; max-width: 8.5ch; }
 .worldHero p { max-width: 54ch; color: var(--ink-text-secondary); font-size: 1rem; line-height: 1.6; }
 .worldSignalRail { display: grid; gap: var(--ink-space-3); align-self: end; }
-.worldPulse { padding: var(--ink-space-4); border-top: 1px solid var(--ink-border-standard); display: grid; grid-template-columns: auto 1fr; gap: var(--ink-space-3); }
-.worldPulse strong { font-size: 0.9rem; }
-.worldPulse span { color: var(--ink-text-meta); font-size: 0.78rem; }
+.worldPulse { padding: var(--ink-space-4); border-top: 1px solid var(--ink-border-standard); display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--ink-space-3); align-items: start; }
+.worldPulse > div { min-width: 0; }
+.worldPulse > div strong, .worldPulse > div span { display: block; }
+.worldPulse > div strong { font-size: 0.9rem; line-height: 1.2; overflow-wrap: anywhere; }
+.worldPulse > div span { margin-top: var(--ink-space-1); color: var(--ink-text-meta); font-size: 0.78rem; line-height: 1.35; }
 
 .worldGrid { position: relative; z-index: 1; display: grid; grid-template-columns: 1.15fr .85fr 1fr; }
 .worldGrid > * { border-inline-end: 0; border-top: 0; }

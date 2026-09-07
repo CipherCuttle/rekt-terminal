@@ -57,6 +57,27 @@ test('keyboard navigation reaches the screen switcher and primary Command action
   await expect(page.getByRole('button', {name: 'EDIT FOCUS'})).toBeFocused();
 });
 
+test('World live signal columns never overlap', async ({page}) => {
+  await page.goto('/?lab=signals&screen=world');
+  await waitForGoldenScreen(page, 'world');
+  const pulses = page.getByLabel('World signals').locator(':scope > div');
+  await expect(pulses).toHaveCount(4);
+  for (let index = 0; index < 4; index += 1) {
+    const pulse = pulses.nth(index);
+    const signalBox = await pulse.locator(':scope > span').first().boundingBox();
+    const copy = pulse.locator(':scope > div');
+    const copyBox = await copy.boundingBox();
+    const nameBox = await copy.locator('strong').boundingBox();
+    const detailBox = await copy.locator('span').boundingBox();
+    expect(signalBox).not.toBeNull();
+    expect(copyBox).not.toBeNull();
+    expect(nameBox).not.toBeNull();
+    expect(detailBox).not.toBeNull();
+    expect(signalBox!.x + signalBox!.width).toBeLessThanOrEqual(copyBox!.x);
+    expect(nameBox!.y + nameBox!.height).toBeLessThanOrEqual(detailBox!.y + 1);
+  }
+});
+
 test('reduced motion disables ambient World orbit', async ({page}) => {
   await page.emulateMedia({reducedMotion: 'reduce'});
   await page.goto('/?lab=signals&screen=world');
