@@ -64,7 +64,7 @@ function WorldScreen() {
     <Shell screen="world" mode="broadcast">
       <section className={styles.worldHero}>
         <div>
-          <span className={styles.kicker}>ROUND 01 / THE WORLD IS LIVE</span>
+          <span className={styles.kicker}>ROUND 01 / DEVELOPMENT FIXTURE</span>
           <h1>BUILD SOMETHING WEIRD. SHIP IT.</h1>
           <p>This is not a feed of clicks. It is a broadcast of meaningful builder state: what is moving, what needs help, and what actually crossed a proof boundary.</p>
           <div className={styles.missionActions}>
@@ -73,7 +73,7 @@ function WorldScreen() {
           </div>
         </div>
         <div className={styles.worldSignalRail} aria-label="World signals">
-          <span className={styles.kicker}>LIVE SIGNALS / NOT SURVEILLANCE</span>
+          <span className={styles.kicker}>FIXTURE SIGNALS / NOT LIVE DATA</span>
           {worldSignals.map((signal) => (
             <div className={styles.worldPulse} key={signal.name}>
               <InkSignal state={signal.state} />

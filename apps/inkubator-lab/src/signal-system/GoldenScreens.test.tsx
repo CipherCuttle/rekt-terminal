@@ -22,6 +22,15 @@ describe('REKT Signal System golden screens', () => {
     expect(screen.getByRole('navigation', {name: /golden screen navigation/i})).toBeTruthy();
   });
 
+  it('marks fixture World as development data and never claims it is live', () => {
+    const {container} = render(<GoldenScreens screen="world" />);
+    const text = container.textContent ?? '';
+    expect(text).toContain('DEVELOPMENT FIXTURE');
+    expect(text).toContain('FIXTURE SIGNALS / NOT LIVE DATA');
+    expect(text).not.toContain('THE WORLD IS LIVE');
+    expect(text).not.toContain('LIVE SIGNALS');
+  });
+
   it('keeps Command hierarchy mission → next move → thread → blocker', () => {
     const {container} = render(<GoldenScreens screen="command" />);
     const text = container.textContent ?? '';
