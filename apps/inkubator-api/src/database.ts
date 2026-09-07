@@ -9,6 +9,15 @@ export interface PlayerTable {
   updated_at: Generated<Date>;
 }
 
+export interface PlayerProfileTable {
+  player_id: string;
+  bio: string | null;
+  character_name: string | null;
+  character_archetype: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface SessionTable {
   session_id: string;
   player_id: string;
@@ -16,6 +25,86 @@ export interface SessionTable {
   created_at: Generated<Date>;
   expires_at: Date;
   revoked_at: Date | null;
+}
+
+export type RoundState = 'OPEN' | 'CLOSED' | 'ARCHIVED';
+
+export interface RoundTable {
+  round_id: string;
+  schema_version: string;
+  code: string;
+  title: string;
+  constraint_text: string;
+  state: RoundState;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface RoundMembershipTable {
+  round_id: string;
+  player_id: string;
+  joined_at: Generated<Date>;
+  selected_at: Generated<Date>;
+}
+
+export interface ProjectTable {
+  project_id: string;
+  schema_version: string;
+  owner_player_id: string;
+  name: string;
+  repository_id: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export type MissionState =
+  | 'DRAFT'
+  | 'DECLARED'
+  | 'BUILDING'
+  | 'BLOCKED'
+  | 'SHIP_READY'
+  | 'SUBMITTED'
+  | 'SHIPPED'
+  | 'CLOSED_NOT_SHIPPED'
+  | 'ARCHIVED';
+
+export type MissionGateState =
+  | 'UNKNOWN'
+  | 'CLAIMED'
+  | 'ACTIVE'
+  | 'OBSERVED'
+  | 'PROVEN'
+  | 'ATTENTION'
+  | 'BLOCKED'
+  | 'STALE'
+  | 'FAILED';
+
+export interface MissionTable {
+  mission_id: string;
+  schema_version: string;
+  project_id: string;
+  owner_player_id: string;
+  round_id: string | null;
+  goal: string;
+  ship_condition: string;
+  state: MissionState;
+  current_focus: string;
+  next_move: string;
+  blocker: string | null;
+  progress_model_version: string;
+  stack_labels: unknown;
+  stack_source: 'UNKNOWN' | 'PLAYER_CONFIRMED';
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface MissionGateTable {
+  mission_id: string;
+  gate_key: 'FOUNDATION' | 'CORE_EXPERIENCE' | 'QUALITY_TESTING' | 'SHIPABILITY';
+  label: string;
+  signal_state: MissionGateState;
+  position: number;
+  updated_at: Generated<Date>;
 }
 
 export type HistoryEventFamily = 'activity' | 'evidence';
@@ -115,7 +204,13 @@ export interface GitHubRepositoryAuthorityTable {
 
 export interface DatabaseSchema {
   players: PlayerTable;
+  player_profiles: PlayerProfileTable;
   sessions: SessionTable;
+  rounds: RoundTable;
+  round_memberships: RoundMembershipTable;
+  projects: ProjectTable;
+  missions: MissionTable;
+  mission_gates: MissionGateTable;
   history_events: HistoryEventTable;
   outbox_jobs: OutboxJobTable;
   github_setup_states: GitHubSetupStateTable;
@@ -128,6 +223,11 @@ export interface DatabaseSchema {
 }
 
 export type PlayerRow = Selectable<PlayerTable>;
+export type PlayerProfileRow = Selectable<PlayerProfileTable>;
+export type RoundRow = Selectable<RoundTable>;
+export type ProjectRow = Selectable<ProjectTable>;
+export type MissionRow = Selectable<MissionTable>;
+export type MissionGateRow = Selectable<MissionGateTable>;
 export type HistoryEventRow = Selectable<HistoryEventTable>;
 export type OutboxJobRow = Selectable<OutboxJobTable>;
 export type GitHubRepositoryRow = Selectable<GitHubRepositoryTable>;
