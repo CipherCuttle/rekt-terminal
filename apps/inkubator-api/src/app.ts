@@ -1,7 +1,7 @@
 import Fastify, {type FastifyReply, type FastifyRequest} from 'fastify';
 import {authorize, type Actor} from './authorization.js';
 import {componentSchemas, openapiDocument} from './contract.js';
-import type {InkubatorDatabase} from './database.js';
+import type {InkubatorDatabase, MissionGateRow} from './database.js';
 import {appendHistoryEvent} from './events.js';
 import {
   buildGitHubInstallUrl,
@@ -15,6 +15,17 @@ import {
   type GitHubUserVerifier,
 } from './github.js';
 import {enqueueOutboxJob, SESSION_EXPIRY_JOB_TYPE} from './jobs.js';
+import {
+  commandToPrivateView,
+  createMission,
+  getCurrentCommand,
+  getPlayerProfile,
+  joinRound,
+  listRounds,
+  updateMission,
+  updateMissionGate,
+  updatePlayerProfile,
+} from './mission-command.js';
 import {createPlayer, getPlayer, normalizeDisplayName} from './players.js';
 import {
   createDevelopmentProject,
@@ -42,9 +53,10 @@ export interface BuildAppOptions {
 }
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-const CORS_METHODS = new Set(['GET', 'POST', 'DELETE']);
+const CORS_METHODS = new Set(['GET', 'POST', 'PATCH', 'DELETE']);
 const CORS_HEADERS = new Set(['content-type']);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const GATE_KEYS = new Set<MissionGateRow['gate_key']>(['FOUNDATION', 'CORE_EXPERIENCE', 'QUALITY_TESTING', 'SHIPABILITY']);
 
 function error(reply: FastifyReply, statusCode: number, message: string) {
   return reply.code(statusCode).send({error: message});
@@ -74,6 +86,39 @@ async function authenticate(request: FastifyRequest, db: InkubatorDatabase): Pro
   if (!token) return null;
   const actor = await resolveSessionActor(db, token);
   return actor ? {actor, token} : null;
+}
+
+function profileView(playerId: string, profile: Awaited<ReturnType<typeof getPlayerProfile>>) {
+  return {
+    schema_version: 'player.profile.v1' as const,
+    player_id: playerId,
+    ...(profile?.bio ? {bio: profile.bio} : {}),
+    ...(profile?.character_name ? {character_name: profile.character_name} : {}),
+    ...(profile?.character_archetype ? {character_archetype: profile.character_archetype} : {}),
+  };
+}
+
+function roundView(round: Awaited<ReturnType<typeof joinRound>>, joined = true) {
+  return {
+    schema_version: 'round.private.v1' as const,
+    round_id: round.round_id,
+    code: round.code,
+    title: round.title,
+    constraint: round.constraint_text,
+    state: round.state,
+    joined,
+  };
+}
+
+function phase3Error(reply: FastifyReply, cause: unknown) {
+  const message = cause instanceof Error ? cause.message : 'phase3_mutation_failed';
+  if (message === 'authorization_denied' || message.endsWith('_not_participant_authorized')) return error(reply, 403, message);
+  if (message === 'round_not_found' || message === 'mission_not_found' || message === 'mission_gate_not_found') return error(reply, 404, message);
+  if (message.includes('idempotency_conflict') || message === 'mission_transition_invalid' || message === 'mission_terminal') return error(reply, 409, message);
+  if (message.startsWith('invalid_') || message === 'round_membership_required' || message === 'round_not_open' || message.endsWith('_required') || message.endsWith('_empty')) {
+    return error(reply, 400, message);
+  }
+  throw cause;
 }
 
 export function buildApp(options: BuildAppOptions) {
@@ -147,53 +192,6 @@ export function buildApp(options: BuildAppOptions) {
         throw cause;
       }
     });
-
-    app.get('/v1/projects/:projectId', async (request, reply) => {
-      const {projectId} = request.params as {projectId: string};
-      if (!isUuid(projectId)) return error(reply, 400, 'invalid_project_id');
-      const project = await getDevelopmentProject(options.db, projectId);
-      if (!project) return error(reply, 404, 'project_not_found');
-      return toPublicDevelopmentProject(project);
-    });
-
-    app.get('/v1/projects/:projectId/private', async (request, reply) => {
-      const {projectId} = request.params as {projectId: string};
-      const authenticated = await authenticate(request, options.db);
-      if (!authenticated) return error(reply, 401, 'authentication_required');
-      if (!isUuid(projectId)) return error(reply, 400, 'invalid_project_id');
-      const project = await getDevelopmentProject(options.db, projectId);
-      if (!project) return error(reply, 404, 'project_not_found');
-      if (!authorize(authenticated.actor, 'project.read_private', {kind: 'project', ownerPlayerId: project.ownerPlayerId})) {
-        return error(reply, 403, 'authorization_denied');
-      }
-      reply.header('cache-control', 'no-store');
-      return toPrivateDevelopmentProject(project);
-    });
-
-    app.post('/v1/projects/:projectId/github-repositories', {schema: {body: componentSchemas.ProjectGitHubRepositoryLinkRequest}}, async (request, reply) => {
-      const {projectId} = request.params as {projectId: string};
-      const authenticated = await authenticate(request, options.db);
-      if (!authenticated) return error(reply, 401, 'authentication_required');
-      if (!isUuid(projectId)) return error(reply, 400, 'invalid_project_id');
-      const project = await getDevelopmentProject(options.db, projectId);
-      if (!project) return error(reply, 404, 'project_not_found');
-      if (!authorize(authenticated.actor, 'project.link_repository', {kind: 'project', ownerPlayerId: project.ownerPlayerId})) {
-        return error(reply, 403, 'authorization_denied');
-      }
-      const body = request.body as {repository_id: string};
-      try {
-        const linked = await linkDevelopmentProjectRepository(options.db, projectId, authenticated.actor.playerId, body.repository_id);
-        reply.header('cache-control', 'no-store');
-        return toPrivateDevelopmentProject(linked);
-      } catch (cause) {
-        const message = cause instanceof Error ? cause.message : 'project_repository_link_failed';
-        if (message === 'project_not_found') return error(reply, 404, message);
-        if (message === 'authorization_denied' || message === 'github_repository_not_available') return error(reply, 403, message);
-        if (message === 'project_repository_already_linked' || message === 'github_repository_already_linked') return error(reply, 409, message);
-        if (message === 'invalid_repository_id') return error(reply, 400, message);
-        throw cause;
-      }
-    });
   }
 
   app.get('/v1/me', async (request, reply) => {
@@ -203,6 +201,152 @@ export function buildApp(options: BuildAppOptions) {
     if (!player) return error(reply, 401, 'authentication_required');
     reply.header('cache-control', 'no-store');
     return toPrivatePlayer(player);
+  });
+
+  app.get('/v1/me/profile', async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    reply.header('cache-control', 'no-store');
+    return profileView(authenticated.actor.playerId, await getPlayerProfile(options.db, authenticated.actor.playerId));
+  });
+
+  app.patch('/v1/me/profile', {schema: {body: componentSchemas.PlayerProfileUpdateRequest}}, async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const actor = authenticated.actor;
+    if (!authorize(actor, 'player.update', {kind: 'player', playerId: actor.playerId})) return error(reply, 403, 'authorization_denied');
+    const body = request.body as {request_id: string; bio?: string | null; character_name?: string | null; character_archetype?: string | null};
+    try {
+      const profile = await updatePlayerProfile(options.db, actor.playerId, {
+        requestId: body.request_id, bio: body.bio, characterName: body.character_name, characterArchetype: body.character_archetype,
+      });
+      reply.header('cache-control', 'no-store');
+      return profileView(actor.playerId, profile);
+    } catch (cause) { return phase3Error(reply, cause); }
+  });
+
+  app.get('/v1/rounds', async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    reply.header('cache-control', 'no-store');
+    const rounds = await listRounds(options.db, authenticated.actor.playerId);
+    return rounds.map((round) => roundView(round, round.joined));
+  });
+
+  app.post('/v1/rounds/:roundId/join', async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const {roundId} = request.params as {roundId: string};
+    try {
+      const round = await joinRound(options.db, authenticated.actor.playerId, roundId);
+      reply.header('cache-control', 'no-store');
+      return roundView(round, true);
+    } catch (cause) { return phase3Error(reply, cause); }
+  });
+
+  app.post('/v1/missions', {schema: {body: componentSchemas.MissionCreateRequest}}, async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const body = request.body as {
+      request_id: string; round_id: string; project_name: string; goal: string; ship_condition: string;
+      current_focus: string; next_move: string; stack_labels?: string[];
+    };
+    try {
+      const command = await createMission(options.db, authenticated.actor.playerId, {
+        requestId: body.request_id, roundId: body.round_id, projectName: body.project_name, goal: body.goal,
+        shipCondition: body.ship_condition, currentFocus: body.current_focus, nextMove: body.next_move, stackLabels: body.stack_labels,
+      });
+      reply.header('cache-control', 'no-store');
+      return reply.code(201).send(commandToPrivateView(command));
+    } catch (cause) { return phase3Error(reply, cause); }
+  });
+
+  app.get('/v1/me/command', async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const command = await getCurrentCommand(options.db, authenticated.actor.playerId);
+    if (!command) return error(reply, 404, 'active_mission_not_found');
+    reply.header('cache-control', 'no-store');
+    return commandToPrivateView(command);
+  });
+
+  app.patch('/v1/missions/:missionId', {schema: {body: componentSchemas.MissionUpdateRequest}}, async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const {missionId} = request.params as {missionId: string};
+    const body = request.body as {request_id: string; state?: any; current_focus?: string; next_move?: string; blocker?: string | null; stack_labels?: string[]};
+    try {
+      const command = await updateMission(options.db, authenticated.actor.playerId, missionId, {
+        requestId: body.request_id, state: body.state, currentFocus: body.current_focus, nextMove: body.next_move,
+        blocker: body.blocker, stackLabels: body.stack_labels,
+      });
+      if (!authorize(authenticated.actor, 'mission.update', {kind: 'mission', ownerPlayerId: command.mission.owner_player_id})) return error(reply, 403, 'authorization_denied');
+      reply.header('cache-control', 'no-store');
+      return commandToPrivateView(command);
+    } catch (cause) { return phase3Error(reply, cause); }
+  });
+
+  app.patch('/v1/missions/:missionId/gates/:gateKey', {schema: {body: componentSchemas.MissionGateUpdateRequest}}, async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const {missionId, gateKey} = request.params as {missionId: string; gateKey: string};
+    if (!GATE_KEYS.has(gateKey as MissionGateRow['gate_key'])) return error(reply, 400, 'invalid_gate_key');
+    const body = request.body as {request_id: string; state: any};
+    try {
+      const command = await updateMissionGate(options.db, authenticated.actor.playerId, missionId, gateKey as MissionGateRow['gate_key'], {
+        requestId: body.request_id, signalState: body.state,
+      });
+      if (!authorize(authenticated.actor, 'mission.update', {kind: 'mission', ownerPlayerId: command.mission.owner_player_id})) return error(reply, 403, 'authorization_denied');
+      reply.header('cache-control', 'no-store');
+      return commandToPrivateView(command);
+    } catch (cause) { return phase3Error(reply, cause); }
+  });
+
+  app.get('/v1/projects/:projectId', async (request, reply) => {
+    const {projectId} = request.params as {projectId: string};
+    if (!isUuid(projectId)) return error(reply, 400, 'invalid_project_id');
+    const project = await getDevelopmentProject(options.db, projectId);
+    if (!project) return error(reply, 404, 'project_not_found');
+    return toPublicDevelopmentProject(project);
+  });
+
+  app.get('/v1/projects/:projectId/private', async (request, reply) => {
+    const {projectId} = request.params as {projectId: string};
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    if (!isUuid(projectId)) return error(reply, 400, 'invalid_project_id');
+    const project = await getDevelopmentProject(options.db, projectId);
+    if (!project) return error(reply, 404, 'project_not_found');
+    if (!authorize(authenticated.actor, 'project.read_private', {kind: 'project', ownerPlayerId: project.ownerPlayerId})) {
+      return error(reply, 403, 'authorization_denied');
+    }
+    reply.header('cache-control', 'no-store');
+    return toPrivateDevelopmentProject(project);
+  });
+
+  app.post('/v1/projects/:projectId/github-repositories', {schema: {body: componentSchemas.ProjectGitHubRepositoryLinkRequest}}, async (request, reply) => {
+    const {projectId} = request.params as {projectId: string};
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    if (!isUuid(projectId)) return error(reply, 400, 'invalid_project_id');
+    const project = await getDevelopmentProject(options.db, projectId);
+    if (!project) return error(reply, 404, 'project_not_found');
+    if (!authorize(authenticated.actor, 'project.link_repository', {kind: 'project', ownerPlayerId: project.ownerPlayerId})) {
+      return error(reply, 403, 'authorization_denied');
+    }
+    const body = request.body as {repository_id: string};
+    try {
+      const linked = await linkDevelopmentProjectRepository(options.db, projectId, authenticated.actor.playerId, body.repository_id);
+      reply.header('cache-control', 'no-store');
+      return toPrivateDevelopmentProject(linked);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'project_repository_link_failed';
+      if (message === 'project_not_found') return error(reply, 404, message);
+      if (message === 'authorization_denied' || message === 'github_repository_not_available') return error(reply, 403, message);
+      if (message === 'project_repository_already_linked' || message === 'github_repository_already_linked') return error(reply, 409, message);
+      if (message === 'invalid_repository_id') return error(reply, 400, message);
+      throw cause;
+    }
   });
 
   app.delete('/v1/session', async (request, reply) => {
