@@ -1,0 +1,91 @@
+name: Phase 4 Codex review repair
+
+on:
+  push:
+    branches:
+      - 'feature/inkubator-github-evidence-daemon-v0'
+    paths:
+      - '.github/workflows/phase4-codex-review-repair.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_USER: rekt
+          POSTGRES_PASSWORD: rekt_test
+          POSTGRES_DB: rekt_inkubator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rekt -d rekt_inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://rekt:rekt_test@127.0.0.1:5432/rekt_inkubator
+      INKUBATOR_APP_ORIGIN: http://127.0.0.1:4175
+      INKUBATOR_DEV_AUTH: '1'
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify lineage and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = 'v24.20.0'
+          test "$(npm -v)" = '11.19.0'
+          git merge-base --is-ancestor 338b8671f13b8484811234f864a123ce9ae9ab08 HEAD
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Apply bounded Codex review repair
+        run: python3 .github/scripts/phase4_codex_review_repair.py
+
+      - name: Generate client
+        run: npm run generate:client -w @rekt-ink/inkubator-api
+
+      - name: Focused evidence and generator tests
+        run: node --test apps/inkubator-api/test/unit/evidence.test.mjs apps/inkubator-api/test/unit/generated-client-contract.test.mjs
+
+      - name: Focused Phase 4 Postgres falsification
+        run: node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase4-github-evidence-daemon.test.mjs
+
+      - name: API unit tests
+        run: npm run test -w @rekt-ink/inkubator-api
+
+      - name: Complete Postgres integration
+        run: npm run test:integration -w @rekt-ink/inkubator-api
+
+      - name: Generated client current
+        run: npm run verify:client -w @rekt-ink/inkubator-api
+
+      - name: Commit repair and self-delete harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f .github/workflows/phase4-codex-review-repair.yml .github/scripts/phase4_codex_review_repair.py
+          git add apps/inkubator-api apps/inkubator-lab/src/generated/inkubator-api-client.ts
+          git commit -m 'fix(inkubator): repair Phase 4 review findings'
+          git push origin HEAD:feature/inkubator-github-evidence-daemon-v0
