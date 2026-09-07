@@ -14,6 +14,8 @@ export interface PlayerProfileTable {
   bio: string | null;
   character_name: string | null;
   character_archetype: string | null;
+  skills_needed: Generated<unknown>;
+  can_help_with: Generated<unknown>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -147,6 +149,54 @@ export interface OutboxJobTable {
   completed_at: Date | null;
 }
 
+export interface PlayerFollowTable {
+  follower_player_id: string;
+  followed_player_id: string;
+  created_at: Generated<Date>;
+}
+
+export interface ProjectWatchTable {
+  player_id: string;
+  project_id: string;
+  created_at: Generated<Date>;
+}
+
+export type HelpBeaconState = 'OPEN' | 'CLOSED';
+export interface HelpBeaconTable {
+  beacon_id: string;
+  project_id: string;
+  owner_player_id: string;
+  creation_request_id: string;
+  summary: string;
+  skills_needed: unknown;
+  state: HelpBeaconState;
+  opened_at: Generated<Date>;
+  closed_at: Date | null;
+}
+
+export type AssistOfferState = 'OFFERED' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED';
+export interface AssistOfferTable {
+  assist_id: string;
+  beacon_id: string;
+  project_id: string;
+  offered_by_player_id: string;
+  creation_request_id: string;
+  message: string;
+  state: AssistOfferState;
+  acceptance_request_id: string | null;
+  offered_at: Generated<Date>;
+  accepted_at: Date | null;
+}
+
+export interface ProjectPartyMemberTable {
+  project_id: string;
+  player_id: string;
+  role: 'ASSIST';
+  source_type: 'ASSIST';
+  source_id: string;
+  joined_at: Generated<Date>;
+}
+
 export interface GitHubSetupStateTable {
   state_hash: string;
   player_id: string;
@@ -217,6 +267,11 @@ export interface DatabaseSchema {
   mission_gates: MissionGateTable;
   history_events: HistoryEventTable;
   outbox_jobs: OutboxJobTable;
+  player_follows: PlayerFollowTable;
+  project_watches: ProjectWatchTable;
+  help_beacons: HelpBeaconTable;
+  assist_offers: AssistOfferTable;
+  project_party_members: ProjectPartyMemberTable;
   github_setup_states: GitHubSetupStateTable;
   github_installations: GitHubInstallationTable;
   github_repositories: GitHubRepositoryTable;

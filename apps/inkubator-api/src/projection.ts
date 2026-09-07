@@ -1,14 +1,21 @@
-import type {PlayerRow} from './database.js';
+import type {PlayerProfileRow, PlayerRow} from './database.js';
 
 function toIso(value: Date): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
-export function toPublicPlayer(player: PlayerRow) {
+function publicLabels(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string').slice(0, 8);
+}
+
+export function toPublicPlayer(player: PlayerRow, profile: PlayerProfileRow | null = null) {
   return {
-    schema_version: 'player.public.v1' as const,
+    schema_version: 'player.public.v2' as const,
     player_id: player.player_id,
     display_name: player.display_name,
+    skills_needed: publicLabels(profile?.skills_needed),
+    can_help_with: publicLabels(profile?.can_help_with),
   };
 }
 

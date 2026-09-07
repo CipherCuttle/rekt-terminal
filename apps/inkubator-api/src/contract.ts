@@ -50,11 +50,13 @@ export const componentSchemas = {
   PublicPlayer: {
     type: 'object',
     additionalProperties: false,
-    required: ['schema_version', 'player_id', 'display_name'],
+    required: ['schema_version', 'player_id', 'display_name', 'skills_needed', 'can_help_with'],
     properties: {
-      schema_version: {type: 'string', const: 'player.public.v1'},
+      schema_version: {type: 'string', const: 'player.public.v2'},
       player_id: {$ref: '#/components/schemas/PlayerId'},
       display_name: {type: 'string'},
+      skills_needed: {type: 'array', maxItems: 8, items: {type: 'string', maxLength: 40}},
+      can_help_with: {type: 'array', maxItems: 8, items: {type: 'string', maxLength: 40}},
     },
   },
   PrivatePlayer: {
@@ -82,13 +84,15 @@ export const componentSchemas = {
   PlayerProfileView: {
     type: 'object',
     additionalProperties: false,
-    required: ['schema_version', 'player_id'],
+    required: ['schema_version', 'player_id', 'skills_needed', 'can_help_with'],
     properties: {
-      schema_version: {type: 'string', const: 'player.profile.v1'},
+      schema_version: {type: 'string', const: 'player.profile.v2'},
       player_id: {$ref: '#/components/schemas/PlayerId'},
       bio: {type: 'string'},
       character_name: {type: 'string'},
       character_archetype: {type: 'string'},
+      skills_needed: {type: 'array', maxItems: 8, items: {type: 'string', minLength: 1, maxLength: 40}},
+      can_help_with: {type: 'array', maxItems: 8, items: {type: 'string', minLength: 1, maxLength: 40}},
     },
   },
   PlayerProfileUpdateRequest: {
@@ -101,8 +105,52 @@ export const componentSchemas = {
       bio: {type: ['string', 'null'], maxLength: 280},
       character_name: {type: ['string', 'null'], maxLength: 80},
       character_archetype: {type: ['string', 'null'], maxLength: 80},
+      skills_needed: {type: 'array', maxItems: 8, items: {type: 'string', minLength: 1, maxLength: 40}},
+      can_help_with: {type: 'array', maxItems: 8, items: {type: 'string', minLength: 1, maxLength: 40}},
     },
   },
+  SocialMutationRequest: {
+    type: 'object', additionalProperties: false, required: ['request_id'],
+    properties: {request_id: {$ref: '#/components/schemas/RequestId'}},
+  },
+  HelpBeaconCreateRequest: {
+    type: 'object', additionalProperties: false, required: ['request_id', 'summary'],
+    properties: {request_id: {$ref: '#/components/schemas/RequestId'}, summary: {type: 'string', minLength: 1, maxLength: 240}, skills_needed: {type: 'array', maxItems: 8, items: {type: 'string', minLength: 1, maxLength: 40}}},
+  },
+  AssistOfferCreateRequest: {
+    type: 'object', additionalProperties: false, required: ['request_id', 'message'],
+    properties: {request_id: {$ref: '#/components/schemas/RequestId'}, message: {type: 'string', minLength: 1, maxLength: 240}},
+  },
+  PlayerFollowView: {
+    type: 'object', additionalProperties: false, required: ['schema_version', 'follower_player_id', 'followed_player_id', 'active'],
+    properties: {schema_version: {type: 'string', const: 'player.follow.v1'}, follower_player_id: {$ref: '#/components/schemas/PlayerId'}, followed_player_id: {$ref: '#/components/schemas/PlayerId'}, active: {type: 'boolean'}},
+  },
+  ProjectWatchView: {
+    type: 'object', additionalProperties: false, required: ['schema_version', 'player_id', 'project_id', 'active'],
+    properties: {schema_version: {type: 'string', const: 'project.watch.v1'}, player_id: {$ref: '#/components/schemas/PlayerId'}, project_id: {$ref: '#/components/schemas/ProjectId'}, active: {type: 'boolean'}},
+  },
+  HelpBeaconView: {
+    type: 'object', additionalProperties: false, required: ['schema_version', 'beacon_id', 'project_id', 'summary', 'skills_needed', 'state'],
+    properties: {schema_version: {type: 'string', const: 'help_beacon.public.v1'}, beacon_id: {type: 'string', format: 'uuid'}, project_id: {$ref: '#/components/schemas/ProjectId'}, summary: {type: 'string'}, skills_needed: {type: 'array', items: {type: 'string'}}, state: {type: 'string', enum: ['OPEN', 'CLOSED']}},
+  },
+  AssistView: {
+    type: 'object', additionalProperties: false, required: ['schema_version', 'assist_id', 'beacon_id', 'project_id', 'offered_by_player_id', 'message', 'state'],
+    properties: {schema_version: {type: 'string', const: 'assist.private.v1'}, assist_id: {type: 'string', format: 'uuid'}, beacon_id: {type: 'string', format: 'uuid'}, project_id: {$ref: '#/components/schemas/ProjectId'}, offered_by_player_id: {$ref: '#/components/schemas/PlayerId'}, message: {type: 'string'}, state: {type: 'string', enum: ['OFFERED', 'ACCEPTED', 'DECLINED', 'CANCELLED']}},
+  },
+  PartyMemberView: {
+    type: 'object', additionalProperties: false, required: ['player_id', 'display_name', 'role'],
+    properties: {player_id: {$ref: '#/components/schemas/PlayerId'}, display_name: {type: 'string'}, role: {type: 'string', const: 'ASSIST'}},
+  },
+  ProjectHelpLoopView: {
+    type: 'object', additionalProperties: false, required: ['schema_version', 'project_id', 'owner', 'party_members'],
+    properties: {schema_version: {type: 'string', const: 'project.help_loop.public.v1'}, project_id: {$ref: '#/components/schemas/ProjectId'}, owner: {$ref: '#/components/schemas/PublicPlayer'}, open_help_beacon: {$ref: '#/components/schemas/HelpBeaconView'}, party_members: {type: 'array', items: {$ref: '#/components/schemas/PartyMemberView'}}},
+  },
+  ProjectDiscoveryView: {
+    type: 'object', additionalProperties: false, required: ['schema_version', 'project', 'owner'],
+    properties: {schema_version: {type: 'string', const: 'project.discovery.v1'}, project: {$ref: '#/components/schemas/PublicProject'}, owner: {$ref: '#/components/schemas/PublicPlayer'}, open_help_beacon: {$ref: '#/components/schemas/HelpBeaconView'}},
+  },
+  PublicPlayerList: {type: 'array', items: {$ref: '#/components/schemas/PublicPlayer'}},
+  ProjectDiscoveryList: {type: 'array', items: {$ref: '#/components/schemas/ProjectDiscoveryView'}},
   RoundView: {
     type: 'object',
     additionalProperties: false,
@@ -477,6 +525,14 @@ export const openapiDocument = {
         },
       },
     },
+    '/v1/discover/players': {get: {operationId: 'discoverPlayers', responses: {'200': {description: 'Public Player discovery', content: {'application/json': {schema: ref('PublicPlayerList')}}}}}},
+    '/v1/discover/projects': {get: {operationId: 'discoverProjects', responses: {'200': {description: 'Public Project discovery', content: {'application/json': {schema: ref('ProjectDiscoveryList')}}}}}},
+    '/v1/players/{playerId}/follow': {post: {operationId: 'followPlayer', security: [{sessionCookie: []}], parameters: [{name: 'playerId', in: 'path', required: true, schema: ref('PlayerId')}], requestBody: {required: true, content: {'application/json': {schema: ref('SocialMutationRequest')}}}, responses: {'200': {description: 'Player followed', content: {'application/json': {schema: ref('PlayerFollowView')}}}, '400': errorResponse('Invalid mutation'), '401': errorResponse('Authentication required'), '403': errorResponse('Forbidden'), '404': errorResponse('Player not found')}}},
+    '/v1/projects/{projectId}/watch': {post: {operationId: 'watchProject', security: [{sessionCookie: []}], parameters: [{name: 'projectId', in: 'path', required: true, schema: ref('ProjectId')}], requestBody: {required: true, content: {'application/json': {schema: ref('SocialMutationRequest')}}}, responses: {'200': {description: 'Project watched', content: {'application/json': {schema: ref('ProjectWatchView')}}}, '400': errorResponse('Invalid mutation'), '401': errorResponse('Authentication required'), '404': errorResponse('Project not found')}}},
+    '/v1/projects/{projectId}/help-beacons': {post: {operationId: 'createHelpBeacon', security: [{sessionCookie: []}], parameters: [{name: 'projectId', in: 'path', required: true, schema: ref('ProjectId')}], requestBody: {required: true, content: {'application/json': {schema: ref('HelpBeaconCreateRequest')}}}, responses: {'201': {description: 'Help Beacon opened', content: {'application/json': {schema: ref('HelpBeaconView')}}}, '400': errorResponse('Invalid Beacon'), '401': errorResponse('Authentication required'), '403': errorResponse('Owner required'), '404': errorResponse('Project not found'), '409': errorResponse('Beacon conflict')}}},
+    '/v1/help-beacons/{beaconId}/assists': {post: {operationId: 'offerAssist', security: [{sessionCookie: []}], parameters: [{name: 'beaconId', in: 'path', required: true, schema: {type: 'string', format: 'uuid'}}], requestBody: {required: true, content: {'application/json': {schema: ref('AssistOfferCreateRequest')}}}, responses: {'201': {description: 'Assist offered', content: {'application/json': {schema: ref('AssistView')}}}, '400': errorResponse('Invalid Assist'), '401': errorResponse('Authentication required'), '403': errorResponse('Self-assist forbidden'), '404': errorResponse('Beacon not found'), '409': errorResponse('Assist conflict')}}},
+    '/v1/assists/{assistId}/accept': {post: {operationId: 'acceptAssist', security: [{sessionCookie: []}], parameters: [{name: 'assistId', in: 'path', required: true, schema: {type: 'string', format: 'uuid'}}], requestBody: {required: true, content: {'application/json': {schema: ref('SocialMutationRequest')}}}, responses: {'200': {description: 'Assist accepted and Party membership recorded', content: {'application/json': {schema: ref('AssistView')}}}, '400': errorResponse('Invalid Assist'), '401': errorResponse('Authentication required'), '403': errorResponse('Project owner required'), '404': errorResponse('Assist not found'), '409': errorResponse('Assist state conflict')}}},
+    '/v1/projects/{projectId}/help-loop': {get: {operationId: 'getProjectHelpLoop', parameters: [{name: 'projectId', in: 'path', required: true, schema: ref('ProjectId')}], responses: {'200': {description: 'Public Help/Party context', content: {'application/json': {schema: ref('ProjectHelpLoopView')}}}, '400': errorResponse('Invalid Project ID'), '404': errorResponse('Project not found')}}},
     '/v1/rounds': {
       get: {
         operationId: 'listRounds',

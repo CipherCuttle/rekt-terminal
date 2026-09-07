@@ -35,7 +35,10 @@ test('public projection cannot expose private timestamps', () => {
     created_at: new Date('2026-09-06T00:00:00Z'),
     updated_at: new Date('2026-09-06T01:00:00Z'),
   };
-  assert.deepEqual(Object.keys(toPublicPlayer(row)).sort(), ['display_name', 'player_id', 'schema_version']);
+  const publicPlayer = toPublicPlayer(row);
+  assert.deepEqual(Object.keys(publicPlayer).sort(), ['can_help_with', 'display_name', 'player_id', 'schema_version', 'skills_needed']);
+  assert.equal('created_at' in publicPlayer, false);
+  assert.equal('updated_at' in publicPlayer, false);
   assert.equal(toPrivatePlayer(row).created_at, '2026-09-06T00:00:00.000Z');
 });
 

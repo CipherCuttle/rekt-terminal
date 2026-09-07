@@ -35,6 +35,7 @@ import {
   toPublicDevelopmentProject,
 } from './projects.js';
 import {toPrivatePlayer, toPublicPlayer} from './projection.js';
+import {acceptAssist, createHelpBeacon, followPlayer, getProjectHelpLoop, listDiscoverablePlayers, listDiscoverableProjects, offerAssist, watchProject} from './social.js';
 import {
   clearSessionCookie,
   createSession,
@@ -88,13 +89,19 @@ async function authenticate(request: FastifyRequest, db: InkubatorDatabase): Pro
   return actor ? {actor, token} : null;
 }
 
+function claimedLabels(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').slice(0, 8) : [];
+}
+
 function profileView(playerId: string, profile: Awaited<ReturnType<typeof getPlayerProfile>>) {
   return {
-    schema_version: 'player.profile.v1' as const,
+    schema_version: 'player.profile.v2' as const,
     player_id: playerId,
     ...(profile?.bio ? {bio: profile.bio} : {}),
     ...(profile?.character_name ? {character_name: profile.character_name} : {}),
     ...(profile?.character_archetype ? {character_archetype: profile.character_archetype} : {}),
+    skills_needed: claimedLabels(profile?.skills_needed),
+    can_help_with: claimedLabels(profile?.can_help_with),
   };
 }
 
@@ -108,6 +115,15 @@ function roundView(round: Awaited<ReturnType<typeof joinRound>>, joined = true) 
     state: round.state,
     joined,
   };
+}
+
+function phase5Error(reply: FastifyReply, cause: unknown) {
+  const message = cause instanceof Error ? cause.message : 'phase5_mutation_failed';
+  if (message === 'authorization_denied' || message.endsWith('_self_forbidden')) return error(reply, 403, message);
+  if (message.endsWith('_not_found') || message === 'project_not_found' || message === 'player_not_found') return error(reply, 404, message);
+  if (message.includes('idempotency_conflict') || message.endsWith('_already_open') || message.endsWith('_already_offered') || message === 'help_beacon_not_open' || message === 'assist_not_offerable') return error(reply, 409, message);
+  if (message.startsWith('invalid_')) return error(reply, 400, message);
+  throw cause;
 }
 
 function phase3Error(reply: FastifyReply, cause: unknown) {
@@ -236,14 +252,75 @@ export function buildApp(options: BuildAppOptions) {
     if (!authenticated) return error(reply, 401, 'authentication_required');
     const actor = authenticated.actor;
     if (!authorize(actor, 'player.update', {kind: 'player', playerId: actor.playerId})) return error(reply, 403, 'authorization_denied');
-    const body = request.body as {request_id: string; bio?: string | null; character_name?: string | null; character_archetype?: string | null};
+    const body = request.body as {request_id: string; bio?: string | null; character_name?: string | null; character_archetype?: string | null; skills_needed?: string[]; can_help_with?: string[]};
     try {
       const profile = await updatePlayerProfile(options.db, actor.playerId, {
-        requestId: body.request_id, bio: body.bio, characterName: body.character_name, characterArchetype: body.character_archetype,
+        requestId: body.request_id, bio: body.bio, characterName: body.character_name, characterArchetype: body.character_archetype, skillsNeeded: body.skills_needed, canHelpWith: body.can_help_with,
       });
       reply.header('cache-control', 'no-store');
       return profileView(actor.playerId, profile);
     } catch (cause) { return phase3Error(reply, cause); }
+  });
+
+  app.get('/v1/discover/players', async (_request, reply) => {
+    reply.header('cache-control', 'public, max-age=15');
+    return listDiscoverablePlayers(options.db);
+  });
+
+  app.get('/v1/discover/projects', async (_request, reply) => {
+    reply.header('cache-control', 'public, max-age=15');
+    return listDiscoverableProjects(options.db);
+  });
+
+  app.post('/v1/players/:playerId/follow', {schema: {body: fastifyBodySchema('SocialMutationRequest')}}, async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const {playerId} = request.params as {playerId: string};
+    const body = request.body as {request_id: string};
+    try { return await followPlayer(options.db, authenticated.actor.playerId, playerId, body.request_id); }
+    catch (cause) { return phase5Error(reply, cause); }
+  });
+
+  app.post('/v1/projects/:projectId/watch', {schema: {body: fastifyBodySchema('SocialMutationRequest')}}, async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const {projectId} = request.params as {projectId: string};
+    const body = request.body as {request_id: string};
+    try { return await watchProject(options.db, authenticated.actor.playerId, projectId, body.request_id); }
+    catch (cause) { return phase5Error(reply, cause); }
+  });
+
+  app.post('/v1/projects/:projectId/help-beacons', {schema: {body: fastifyBodySchema('HelpBeaconCreateRequest')}}, async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const {projectId} = request.params as {projectId: string};
+    const body = request.body as {request_id: string; summary: string; skills_needed?: string[]};
+    try { return reply.code(201).send(await createHelpBeacon(options.db, authenticated.actor.playerId, projectId, {requestId: body.request_id, summary: body.summary, skillsNeeded: body.skills_needed})); }
+    catch (cause) { return phase5Error(reply, cause); }
+  });
+
+  app.post('/v1/help-beacons/:beaconId/assists', {schema: {body: fastifyBodySchema('AssistOfferCreateRequest')}}, async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const {beaconId} = request.params as {beaconId: string};
+    const body = request.body as {request_id: string; message: string};
+    try { return reply.code(201).send(await offerAssist(options.db, authenticated.actor.playerId, beaconId, {requestId: body.request_id, message: body.message})); }
+    catch (cause) { return phase5Error(reply, cause); }
+  });
+
+  app.post('/v1/assists/:assistId/accept', {schema: {body: fastifyBodySchema('SocialMutationRequest')}}, async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const {assistId} = request.params as {assistId: string};
+    const body = request.body as {request_id: string};
+    try { return await acceptAssist(options.db, authenticated.actor.playerId, assistId, body.request_id); }
+    catch (cause) { return phase5Error(reply, cause); }
+  });
+
+  app.get('/v1/projects/:projectId/help-loop', async (request, reply) => {
+    const {projectId} = request.params as {projectId: string};
+    try { return await getProjectHelpLoop(options.db, projectId); }
+    catch (cause) { return phase5Error(reply, cause); }
   });
 
   app.get('/v1/rounds', async (request, reply) => {
@@ -382,7 +459,7 @@ export function buildApp(options: BuildAppOptions) {
     if (!isUuid(playerId)) return error(reply, 400, 'invalid_player_id');
     const player = await getPlayer(options.db, playerId);
     if (!player) return error(reply, 404, 'player_not_found');
-    return toPublicPlayer(player);
+    return toPublicPlayer(player, await getPlayerProfile(options.db, playerId));
   });
 
   app.get('/v1/players/:playerId/private', async (request, reply) => {

@@ -18,7 +18,7 @@ import {classifyGitHubPushEvidence, deriveDaemonAdvisory, isDetectedStack, type 
 
 const PROJECT_SCHEMA_VERSION = 'project.current.v1';
 const MISSION_SCHEMA_VERSION = 'mission.current.v1';
-const PROFILE_SCHEMA_VERSION = 'player.profile.v1';
+const PROFILE_SCHEMA_VERSION = 'player.profile.v2';
 const ROUND_MEMBERSHIP_SCHEMA_VERSION = 'round.membership.v1';
 const PROGRESS_MODEL_VERSION = 'mission.progress.v1';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -52,6 +52,8 @@ export interface PlayerProfileInput {
   bio?: string | null;
   characterName?: string | null;
   characterArchetype?: string | null;
+  skillsNeeded?: string[];
+  canHelpWith?: string[];
 }
 
 export interface MissionCreateInput {
@@ -136,6 +138,19 @@ function normalizeStackLabels(value: string[] | undefined): string[] | undefined
   return normalized;
 }
 
+function normalizeClaimedSkillLabels(value: string[] | undefined, name: string): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > 8) throw new Error(`invalid_${name}`);
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const raw of value) {
+    const label = normalizeText(raw, name.slice(0, -1), 40);
+    const key = label.toLocaleLowerCase('en-US');
+    if (!seen.has(key)) { seen.add(key); normalized.push(label); }
+  }
+  return normalized;
+}
+
 function parseStackLabels(value: unknown): string[] {
   if (!Array.isArray(value) || value.some((label) => typeof label !== 'string')) throw new Error('mission_stack_invalid');
   return value as string[];
@@ -214,13 +229,17 @@ export async function updatePlayerProfile(
   const bio = normalizeOptionalText(input.bio, 'bio', 280);
   const characterName = normalizeOptionalText(input.characterName, 'character_name', 80);
   const characterArchetype = normalizeOptionalText(input.characterArchetype, 'character_archetype', 80);
-  if (bio === undefined && characterName === undefined && characterArchetype === undefined) throw new Error('profile_update_empty');
+  const skillsNeeded = normalizeClaimedSkillLabels(input.skillsNeeded, 'skills_needed');
+  const canHelpWith = normalizeClaimedSkillLabels(input.canHelpWith, 'can_help_with');
+  if (bio === undefined && characterName === undefined && characterArchetype === undefined && skillsNeeded === undefined && canHelpWith === undefined) throw new Error('profile_update_empty');
   const payload = {
     schema_version: PROFILE_SCHEMA_VERSION,
     request_id: requestId,
     ...(bio !== undefined ? {bio} : {}),
     ...(characterName !== undefined ? {character_name: characterName} : {}),
     ...(characterArchetype !== undefined ? {character_archetype: characterArchetype} : {}),
+    ...(skillsNeeded !== undefined ? {skills_needed: skillsNeeded} : {}),
+    ...(canHelpWith !== undefined ? {can_help_with: canHelpWith} : {}),
   };
   const dedupeKey = `activity:player.profile.updated:${playerId}:${requestId}`;
 
@@ -235,6 +254,8 @@ export async function updatePlayerProfile(
         ...(bio !== undefined ? {bio} : {}),
         ...(characterName !== undefined ? {character_name: characterName} : {}),
         ...(characterArchetype !== undefined ? {character_archetype: characterArchetype} : {}),
+        ...(skillsNeeded !== undefined ? {skills_needed: skillsNeeded} : {}),
+        ...(canHelpWith !== undefined ? {can_help_with: canHelpWith} : {}),
         updated_at: sql`clock_timestamp()`,
       }).where('player_id', '=', playerId).execute();
     } else {
@@ -243,6 +264,8 @@ export async function updatePlayerProfile(
         bio: bio ?? null,
         character_name: characterName ?? null,
         character_archetype: characterArchetype ?? null,
+        skills_needed: skillsNeeded ?? [],
+        can_help_with: canHelpWith ?? [],
       }).execute();
     }
     await appendHistoryEvent(transaction, {

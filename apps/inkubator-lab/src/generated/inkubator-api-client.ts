@@ -26,9 +26,11 @@ export type MissionGateState = "UNKNOWN" | "CLAIMED" | "ACTIVE" | "OBSERVED" | "
 export type ParticipantMissionGateState = "UNKNOWN" | "CLAIMED" | "ACTIVE" | "ATTENTION" | "BLOCKED" | "STALE" | "FAILED";
 
 export interface PublicPlayer {
-  schema_version: "player.public.v1";
+  schema_version: "player.public.v2";
   player_id: PlayerId;
   display_name: string;
+  skills_needed: string[];
+  can_help_with: string[];
 }
 
 export interface PrivatePlayer {
@@ -46,11 +48,13 @@ export interface SessionView {
 }
 
 export interface PlayerProfileView {
-  schema_version: "player.profile.v1";
+  schema_version: "player.profile.v2";
   player_id: PlayerId;
   bio?: string;
   character_name?: string;
   character_archetype?: string;
+  skills_needed: string[];
+  can_help_with: string[];
 }
 
 export interface PlayerProfileUpdateRequest {
@@ -58,7 +62,82 @@ export interface PlayerProfileUpdateRequest {
   bio?: string | null;
   character_name?: string | null;
   character_archetype?: string | null;
+  skills_needed?: string[];
+  can_help_with?: string[];
 }
+
+export interface SocialMutationRequest {
+  request_id: RequestId;
+}
+
+export interface HelpBeaconCreateRequest {
+  request_id: RequestId;
+  summary: string;
+  skills_needed?: string[];
+}
+
+export interface AssistOfferCreateRequest {
+  request_id: RequestId;
+  message: string;
+}
+
+export interface PlayerFollowView {
+  schema_version: "player.follow.v1";
+  follower_player_id: PlayerId;
+  followed_player_id: PlayerId;
+  active: boolean;
+}
+
+export interface ProjectWatchView {
+  schema_version: "project.watch.v1";
+  player_id: PlayerId;
+  project_id: ProjectId;
+  active: boolean;
+}
+
+export interface HelpBeaconView {
+  schema_version: "help_beacon.public.v1";
+  beacon_id: string;
+  project_id: ProjectId;
+  summary: string;
+  skills_needed: string[];
+  state: "OPEN" | "CLOSED";
+}
+
+export interface AssistView {
+  schema_version: "assist.private.v1";
+  assist_id: string;
+  beacon_id: string;
+  project_id: ProjectId;
+  offered_by_player_id: PlayerId;
+  message: string;
+  state: "OFFERED" | "ACCEPTED" | "DECLINED" | "CANCELLED";
+}
+
+export interface PartyMemberView {
+  player_id: PlayerId;
+  display_name: string;
+  role: "ASSIST";
+}
+
+export interface ProjectHelpLoopView {
+  schema_version: "project.help_loop.public.v1";
+  project_id: ProjectId;
+  owner: PublicPlayer;
+  open_help_beacon?: HelpBeaconView;
+  party_members: PartyMemberView[];
+}
+
+export interface ProjectDiscoveryView {
+  schema_version: "project.discovery.v1";
+  project: PublicProject;
+  owner: PublicPlayer;
+  open_help_beacon?: HelpBeaconView;
+}
+
+export type PublicPlayerList = PublicPlayer[];
+
+export type ProjectDiscoveryList = ProjectDiscoveryView[];
 
 export interface RoundView {
   schema_version: "round.private.v1";

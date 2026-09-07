@@ -101,7 +101,13 @@ test('real Postgres session boundary preserves auth and projection invariants', 
     });
     assert.equal(publicView.statusCode, 200);
     assert.equal(publicView.headers['access-control-allow-origin'], appOrigin);
-    assert.deepEqual(Object.keys(publicView.json()).sort(), ['display_name', 'player_id', 'schema_version']);
+    const publicBody = publicView.json();
+    assert.deepEqual(Object.keys(publicBody).sort(), ['can_help_with', 'display_name', 'player_id', 'schema_version', 'skills_needed']);
+    assert.equal(publicBody.schema_version, 'player.public.v2');
+    assert.deepEqual(publicBody.skills_needed, []);
+    assert.deepEqual(publicBody.can_help_with, []);
+    assert.equal('created_at' in publicBody, false);
+    assert.equal('updated_at' in publicBody, false);
 
     const second = await app.inject({
       method: 'POST', url: '/v1/dev/session', headers: {origin: appOrigin}, payload: {display_name: 'Second Builder'},
