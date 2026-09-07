@@ -205,6 +205,83 @@ const githubConcurrencyHardeningMigration: Migration = {
   },
 };
 
+const githubRepositoryAuthorityMigration: Migration = {
+  async up(db) {
+    await db.schema
+      .createTable('github_repository_authority')
+      .addColumn('repository_id', 'bigint', (column) => column.primaryKey())
+      .addColumn('installation_id', 'bigint', (column) => column.notNull())
+      .addColumn('claimed_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`clock_timestamp()`))
+      .execute();
+
+    await sql`
+      insert into github_repository_authority (repository_id, installation_id)
+      select repository_id, installation_id from github_repositories
+      on conflict (repository_id) do nothing
+    `.execute(db);
+
+    const conflicts = await sql<{count: string}>`
+      select count(*)::text as count
+      from github_repository_tombstones tombstone
+      join github_repository_authority authority using (repository_id)
+      where tombstone.installation_id <> authority.installation_id
+    `.execute(db);
+    if (Number(conflicts.rows[0]?.count ?? '0') !== 0) {
+      throw new Error('github_repository_authority_backfill_conflict');
+    }
+
+    await sql`
+      insert into github_repository_authority (repository_id, installation_id)
+      select repository_id, installation_id from github_repository_tombstones
+      on conflict (repository_id) do nothing
+    `.execute(db);
+
+    await sql`
+      create function enforce_github_repository_authority()
+      returns trigger
+      language plpgsql
+      as $$
+      begin
+        insert into github_repository_authority (repository_id, installation_id)
+        values (new.repository_id, new.installation_id)
+        on conflict (repository_id) do nothing;
+
+        if not exists (
+          select 1
+          from github_repository_authority
+          where repository_id = new.repository_id
+            and installation_id = new.installation_id
+        ) then
+          raise exception 'github_repository_already_bound' using errcode = '23514';
+        end if;
+
+        return new;
+      end;
+      $$
+    `.execute(db);
+
+    await sql`
+      create trigger github_repositories_authority_guard
+      before insert or update of repository_id, installation_id
+      on github_repositories
+      for each row execute function enforce_github_repository_authority()
+    `.execute(db);
+
+    await sql`
+      create trigger github_repository_tombstones_authority_guard
+      before insert or update of repository_id, installation_id
+      on github_repository_tombstones
+      for each row execute function enforce_github_repository_authority()
+    `.execute(db);
+  },
+  async down(db) {
+    await sql`drop trigger if exists github_repository_tombstones_authority_guard on github_repository_tombstones`.execute(db);
+    await sql`drop trigger if exists github_repositories_authority_guard on github_repositories`.execute(db);
+    await sql`drop function if exists enforce_github_repository_authority()`.execute(db);
+    await db.schema.dropTable('github_repository_authority').execute();
+  },
+};
+
 class StaticMigrationProvider implements MigrationProvider {
   async getMigrations(): Promise<Record<string, Migration>> {
     return {
@@ -212,6 +289,7 @@ class StaticMigrationProvider implements MigrationProvider {
       '002_event_job_foundation': eventJobFoundationMigration,
       '003_github_ingress_foundation': githubIngressFoundationMigration,
       '004_github_concurrency_hardening': githubConcurrencyHardeningMigration,
+      '005_github_repository_authority': githubRepositoryAuthorityMigration,
     };
   }
 }
