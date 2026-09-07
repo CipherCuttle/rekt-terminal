@@ -530,4 +530,88 @@ export class InkubatorApiClient {
   createGitHubInstall(): Promise<GitHubInstallView> {
     return this.request<GitHubInstallView>("/v1/github/install", {method: 'POST'});
   }
+
+  discoverPlayers(): Promise<PublicPlayerList> {
+    return this.request<PublicPlayerList>("/v1/discover/players", {method: 'GET'});
+  }
+
+  discoverProjects(): Promise<ProjectDiscoveryList> {
+    return this.request<ProjectDiscoveryList>("/v1/discover/projects", {method: 'GET'});
+  }
+
+  followPlayer(playerId: PlayerId, body: SocialMutationRequest): Promise<PlayerFollowView> {
+    return this.request<PlayerFollowView>(`/v1/players/${encodeURIComponent(playerId)}/follow`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  watchProject(projectId: ProjectId, body: SocialMutationRequest): Promise<ProjectWatchView> {
+    return this.request<ProjectWatchView>(`/v1/projects/${encodeURIComponent(projectId)}/watch`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  createHelpBeacon(projectId: ProjectId, body: HelpBeaconCreateRequest): Promise<HelpBeaconView> {
+    return this.request<HelpBeaconView>(`/v1/projects/${encodeURIComponent(projectId)}/help-beacons`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  closeHelpBeacon(beaconId: string, body: SocialMutationRequest): Promise<HelpBeaconView> {
+    return this.request<HelpBeaconView>(`/v1/help-beacons/${encodeURIComponent(beaconId)}/close`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  offerAssist(beaconId: string, body: AssistOfferCreateRequest): Promise<AssistView> {
+    return this.request<AssistView>(`/v1/help-beacons/${encodeURIComponent(beaconId)}/assists`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  acceptAssist(assistId: string, body: SocialMutationRequest): Promise<AssistView> {
+    return this.request<AssistView>(`/v1/assists/${encodeURIComponent(assistId)}/accept`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  getProjectHelpLoop(projectId: ProjectId): Promise<ProjectHelpLoopView> {
+    return this.request<ProjectHelpLoopView>(`/v1/projects/${encodeURIComponent(projectId)}/help-loop`, {method: 'GET'});
+  }
+
+  listProjectComments(projectId: ProjectId): Promise<ProjectCommentsView> {
+    return this.request<ProjectCommentsView>(`/v1/projects/${encodeURIComponent(projectId)}/comments`, {method: 'GET'});
+  }
+
+  createProjectComment(projectId: ProjectId, body: ProjectCommentCreateRequest): Promise<ProjectCommentView> {
+    return this.request<ProjectCommentView>(`/v1/projects/${encodeURIComponent(projectId)}/comments`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  reactUsefulToComment(commentId: string, body: SocialMutationRequest): Promise<ProjectCommentReactionView> {
+    return this.request<ProjectCommentReactionView>(`/v1/comments/${encodeURIComponent(commentId)}/reactions/useful`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  deleteOwnProjectComment(commentId: string, body: SocialMutationRequest): Promise<ProjectCommentDeleteView> {
+    return this.request<ProjectCommentDeleteView>(`/v1/comments/${encodeURIComponent(commentId)}`, {method: 'DELETE', body: JSON.stringify(body)});
+  }
+
+  setProjectDiscussionLock(projectId: ProjectId, body: ProjectDiscussionSettingRequest): Promise<ProjectDiscussionSettingView> {
+    return this.request<ProjectDiscussionSettingView>(`/v1/projects/${encodeURIComponent(projectId)}/discussion`, {method: 'PATCH', body: JSON.stringify(body)});
+  }
+
+  listWorldSignals(): Promise<WorldSignalList> {
+    return this.request<WorldSignalList>("/v1/world/signals", {method: 'GET'});
+  }
+
+  blockPlayer(playerId: PlayerId, body: SocialMutationRequest): Promise<PlayerBlockView> {
+    return this.request<PlayerBlockView>(`/v1/players/${encodeURIComponent(playerId)}/block`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  unblockPlayer(playerId: PlayerId, body: SocialMutationRequest): Promise<PlayerBlockView> {
+    return this.request<PlayerBlockView>(`/v1/players/${encodeURIComponent(playerId)}/block`, {method: 'DELETE', body: JSON.stringify(body)});
+  }
+
+  reportProjectComment(commentId: string, body: ContentReportCreateRequest): Promise<ContentReportView> {
+    return this.request<ContentReportView>(`/v1/comments/${encodeURIComponent(commentId)}/report`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  createExternalTestRequest(projectId: ProjectId, body: ExternalTestRequestCreateRequest): Promise<ExternalTestRequestView> {
+    return this.request<ExternalTestRequestView>(`/v1/projects/${encodeURIComponent(projectId)}/tester-requests`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  recordExternalTestResult(testRequestId: string, body: ExternalTestResultCreateRequest): Promise<ExternalTestResultView> {
+    return this.request<ExternalTestResultView>(`/v1/tester-requests/${encodeURIComponent(testRequestId)}/results`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  getProjectExternalTests(projectId: ProjectId): Promise<ProjectExternalTestsView> {
+    return this.request<ProjectExternalTestsView>(`/v1/projects/${encodeURIComponent(projectId)}/external-tests`, {method: 'GET'});
+  }
 }
