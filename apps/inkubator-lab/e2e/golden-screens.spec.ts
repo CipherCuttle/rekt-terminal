@@ -1,12 +1,34 @@
 import AxeBuilder from '@axe-core/playwright';
-import {expect, test} from '@playwright/test';
+import {expect, test, type Page} from '@playwright/test';
 
 const screens = ['world', 'command', 'project', 'player', 'ship'] as const;
+type GoldenScreen = (typeof screens)[number];
+
+async function waitForGoldenScreen(page: Page, screen: GoldenScreen) {
+  await expect(page.getByRole('navigation', {name: 'Golden screen navigation'})).toBeVisible();
+  switch (screen) {
+    case 'world':
+      await expect(page.getByRole('heading', {name: 'BUILD SOMETHING WEIRD. SHIP IT.'})).toBeVisible();
+      break;
+    case 'command':
+      await expect(page.getByRole('heading', {name: 'SHIP THE WEIRD LITTLE THING'})).toBeVisible();
+      break;
+    case 'project':
+      await expect(page.getByRole('heading', {name: 'REKT MACHINE'})).toBeVisible();
+      break;
+    case 'player':
+      await expect(page.getByRole('heading', {name: 'CIPHERCUTTLE'})).toBeVisible();
+      break;
+    case 'ship':
+      await expect(page.getByLabelText(/SHIP ACCEPTED, source SHIP RULE V1/i)).toBeVisible();
+      break;
+  }
+}
 
 for (const screen of screens) {
   test(`${screen} has no automated accessibility violations`, async ({page}) => {
     await page.goto(`/?lab=signals&screen=${screen}`);
-    await expect(page.getByRole('navigation', {name: 'Golden screen navigation'})).toBeVisible();
+    await waitForGoldenScreen(page, screen);
     const results = await new AxeBuilder({page}).analyze();
     expect(results.violations).toEqual([]);
   });
@@ -14,12 +36,14 @@ for (const screen of screens) {
   test(`${screen} visual baseline`, async ({page}) => {
     await page.emulateMedia({reducedMotion: 'reduce'});
     await page.goto(`/?lab=signals&screen=${screen}`);
+    await waitForGoldenScreen(page, screen);
     await expect(page).toHaveScreenshot(`${screen}.png`, {fullPage: true, animations: 'disabled'});
   });
 }
 
 test('keyboard navigation reaches the screen switcher and primary Command action', async ({page}) => {
   await page.goto('/?lab=signals&screen=command');
+  await waitForGoldenScreen(page, 'command');
   const world = page.getByRole('link', {name: 'WORLD'});
   await world.focus();
   await expect(world).toBeFocused();
@@ -36,6 +60,7 @@ test('keyboard navigation reaches the screen switcher and primary Command action
 test('reduced motion disables ambient World orbit', async ({page}) => {
   await page.emulateMedia({reducedMotion: 'reduce'});
   await page.goto('/?lab=signals&screen=world');
+  await waitForGoldenScreen(page, 'world');
   const animation = await page.locator('main').evaluate((element) => getComputedStyle(element, '::before').animationName);
   expect(animation).toBe('none');
 });
@@ -43,6 +68,7 @@ test('reduced motion disables ambient World orbit', async ({page}) => {
 test('mobile Command keeps Mission, Next Move, Thread and blocker in readable order', async ({page}) => {
   await page.setViewportSize({width: 390, height: 844});
   await page.goto('/?lab=signals&screen=command');
+  await waitForGoldenScreen(page, 'command');
   const mission = page.getByText('CURRENT MISSION').first();
   const next = page.getByText('OPEN TEST REQUEST').first();
   const thread = page.getByText('THE THREAD').first();
@@ -59,6 +85,7 @@ test('Cockpit screens do not load React Bits or Three chunks', async ({page}) =>
   const loaded: string[] = [];
   page.on('response', (response) => loaded.push(response.url()));
   await page.goto('/?lab=signals&screen=command');
+  await waitForGoldenScreen(page, 'command');
   await page.waitForLoadState('networkidle');
   expect(loaded.some((url) => /reactbits|three|fiber/i.test(url))).toBe(false);
 });
