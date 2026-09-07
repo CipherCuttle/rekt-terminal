@@ -51,6 +51,14 @@ async function createBeacon(app, ownerCookie, projectId) {
   return response.json().beacon_id;
 }
 
+async function closeBeacon(app, ownerCookie, beaconId) {
+  const response = await app.inject({
+    method: 'POST', url: `/v1/help-beacons/${beaconId}/close`, headers: {origin: appOrigin, cookie: ownerCookie},
+    payload: {request_id: randomUUID()},
+  });
+  assert.equal(response.statusCode, 200);
+}
+
 async function offerAssist(app, helperCookie, beaconId, label) {
   const response = await app.inject({
     method: 'POST', url: `/v1/help-beacons/${beaconId}/assists`, headers: {origin: appOrigin, cookie: helperCookie},
@@ -110,11 +118,16 @@ test('Phase 6C snapshots accepted Party/Assist attribution and exposes a privacy
     const offeredHelper = await session(app, `Offered ${randomUUID().slice(0, 6)}`);
     const lateHelper = await session(app, `Late ${randomUUID().slice(0, 6)}`);
     const mission = await shipReadyMission(app, owner.cookie, randomUUID().slice(0, 6));
-    const beaconId = await createBeacon(app, owner.cookie, mission.projectId);
+    const firstBeaconId = await createBeacon(app, owner.cookie, mission.projectId);
 
-    const acceptedAssistId = await offerAssist(app, acceptedHelper.cookie, beaconId, 'accepted before Ship');
+    const acceptedAssistId = await offerAssist(app, acceptedHelper.cookie, firstBeaconId, 'accepted before Ship');
     await acceptAssist(app, owner.cookie, acceptedAssistId);
-    const offeredAssistId = await offerAssist(app, offeredHelper.cookie, beaconId, 'offered only');
+    await closeBeacon(app, owner.cookie, firstBeaconId);
+
+    const secondBeaconId = await createBeacon(app, owner.cookie, mission.projectId);
+    const secondAcceptedAssistId = await offerAssist(app, acceptedHelper.cookie, secondBeaconId, 'second accepted before Ship');
+    await acceptAssist(app, owner.cookie, secondAcceptedAssistId);
+    const offeredAssistId = await offerAssist(app, offeredHelper.cookie, secondBeaconId, 'offered only');
 
     const privateMarker = `PRIVATE_SOURCE_${randomUUID()}`;
     const secretSource = `https://example.com/${privateMarker}`;
@@ -149,10 +162,10 @@ test('Phase 6C snapshots accepted Party/Assist attribution and exposes a privacy
       [owner.playerId, 'OWNER'],
       [acceptedHelper.playerId, 'PARTY'],
     ]);
-    assert.equal(artifact.assists.length, 1);
-    assert.equal(artifact.assists[0].assist_id, acceptedAssistId);
-    assert.equal(artifact.assists[0].player_id, acceptedHelper.playerId);
-    assert.equal(artifact.assists[0].source_state, 'ACCEPTED');
+    assert.equal(artifact.assists.length, 2);
+    assert.deepEqual(new Set(artifact.assists.map((row) => row.assist_id)), new Set([acceptedAssistId, secondAcceptedAssistId]));
+    assert.equal(artifact.assists.every((row) => row.player_id === acceptedHelper.playerId), true);
+    assert.equal(artifact.assists.every((row) => row.source_state === 'ACCEPTED'), true);
     assert.equal(artifact.assists.some((row) => row.assist_id === offeredAssistId), false);
     assert.equal(artifact.builders.some((row) => row.player_id === offeredHelper.playerId), false);
 
@@ -163,18 +176,20 @@ test('Phase 6C snapshots accepted Party/Assist attribution and exposes a privacy
     assert.equal(publicJson.includes('"reason":'), false);
 
     const stableReceipt = await publicReceipt(app, artifact.receipt_id);
-  assert.equal(stableReceipt.statusCode, 200);
-  assert.equal(stableReceipt.headers['cache-control'], 'public, max-age=31536000, immutable');
-  assert.deepEqual(stableReceipt.json(), artifact);
-  assert.equal(JSON.stringify(stableReceipt.json()).includes(privateMarker), false);
-  assert.equal(JSON.stringify(stableReceipt.json()).includes(reviewMarker), false);
-  assert.equal((await publicReceipt(app, 'not-a-uuid')).statusCode, 400);
-  assert.equal((await publicReceipt(app, randomUUID())).statusCode, 404);
+    assert.equal(stableReceipt.statusCode, 200);
+    assert.equal(stableReceipt.headers['cache-control'], 'public, max-age=31536000, immutable');
+    assert.deepEqual(stableReceipt.json(), artifact);
+    assert.equal(JSON.stringify(stableReceipt.json()).includes(privateMarker), false);
+    assert.equal(JSON.stringify(stableReceipt.json()).includes(reviewMarker), false);
+    assert.equal((await publicReceipt(app, 'not-a-uuid')).statusCode, 400);
+    assert.equal((await publicReceipt(app, randomUUID())).statusCode, 404);
 
     const snapshotBeforeLate = await db.selectFrom('ship_receipt_attributions').selectAll().where('receipt_id', '=', artifact.receipt_id).orderBy('role', 'asc').orderBy('player_id', 'asc').execute();
     assert.equal(snapshotBeforeLate.length, 2);
+    const assistsBeforeLate = await db.selectFrom('ship_receipt_assists').selectAll().where('receipt_id', '=', artifact.receipt_id).orderBy('accepted_at', 'asc').orderBy('assist_id', 'asc').execute();
+    assert.equal(assistsBeforeLate.length, 2);
 
-    const lateAssistId = await offerAssist(app, lateHelper.cookie, beaconId, 'accepted after Ship');
+    const lateAssistId = await offerAssist(app, lateHelper.cookie, secondBeaconId, 'accepted after Ship');
     await acceptAssist(app, owner.cookie, lateAssistId);
     const afterLatePartyChange = await publicShip(app, mission.projectId);
     assert.deepEqual(afterLatePartyChange.latest_submission.accepted_ship, artifact);
@@ -182,13 +197,15 @@ test('Phase 6C snapshots accepted Party/Assist attribution and exposes a privacy
     assert.equal(afterLatePartyChange.latest_submission.accepted_ship.assists.some((row) => row.assist_id === lateAssistId), false);
 
     const stableAfterLatePartyChange = await publicReceipt(app, artifact.receipt_id);
-  assert.equal(stableAfterLatePartyChange.statusCode, 200);
-  assert.deepEqual(stableAfterLatePartyChange.json(), artifact);
+    assert.equal(stableAfterLatePartyChange.statusCode, 200);
+    assert.deepEqual(stableAfterLatePartyChange.json(), artifact);
 
     const replay = await operatorReviewShipAcceptance(db, submissionId, {requestId, decision: 'ACCEPT', reason: reviewMarker});
     assert.equal(replay.accepted_receipt.receipt_id, artifact.receipt_id);
     const snapshotAfterReplay = await db.selectFrom('ship_receipt_attributions').selectAll().where('receipt_id', '=', artifact.receipt_id).orderBy('role', 'asc').orderBy('player_id', 'asc').execute();
     assert.deepEqual(snapshotAfterReplay, snapshotBeforeLate);
+    const assistsAfterReplay = await db.selectFrom('ship_receipt_assists').selectAll().where('receipt_id', '=', artifact.receipt_id).orderBy('accepted_at', 'asc').orderBy('assist_id', 'asc').execute();
+    assert.deepEqual(assistsAfterReplay, assistsBeforeLate);
   } finally {
     await app.close();
     await db.destroy();
