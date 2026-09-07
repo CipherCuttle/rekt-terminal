@@ -1,0 +1,96 @@
+name: Phase 2 fixture truth one-shot repair
+
+on:
+  push:
+    branches:
+      - 'feature/inkubator-signal-system-v0'
+    paths:
+      - '.github/workflows/phase2-fixture-truth-repair.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/inkubator-signal-system-v0
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify canonical toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = 'v24.20.0'
+          test "$(npm -v)" = '11.19.0'
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Patch fixture truth labels and regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          screen_path = Path('apps/inkubator-lab/src/signal-system/GoldenScreens.tsx')
+          screen = screen_path.read_text()
+          replacements = {
+              'ROUND 01 / THE WORLD IS LIVE': 'ROUND 01 / DEVELOPMENT FIXTURE',
+              'LIVE SIGNALS / NOT SURVEILLANCE': 'FIXTURE SIGNALS / NOT LIVE DATA',
+          }
+          for old, new in replacements.items():
+              if screen.count(old) != 1:
+                  raise SystemExit(f'GoldenScreens anchor drifted for {old!r}; refusing broad rewrite')
+              screen = screen.replace(old, new)
+          screen_path.write_text(screen)
+
+          test_path = Path('apps/inkubator-lab/src/signal-system/GoldenScreens.test.tsx')
+          test = test_path.read_text()
+          anchor = "  it('keeps Command hierarchy mission → next move → thread → blocker', () => {"
+          addition = """  it('marks fixture World as development data and never claims it is live', () => {\n    const {container} = render(<GoldenScreens screen=\"world\" />);\n    const text = container.textContent ?? '';\n    expect(text).toContain('DEVELOPMENT FIXTURE');\n    expect(text).toContain('FIXTURE SIGNALS / NOT LIVE DATA');\n    expect(text).not.toContain('THE WORLD IS LIVE');\n    expect(text).not.toContain('LIVE SIGNALS');\n  });\n\n"""
+          if test.count(anchor) != 1:
+              raise SystemExit('GoldenScreens test anchor drifted; refusing broad rewrite')
+          if "marks fixture World as development data" in test:
+              raise SystemExit('fixture truth regression already exists; refusing duplicate insertion')
+          test_path.write_text(test.replace(anchor, addition + anchor))
+          PY
+
+      - name: Verify focused Signal System
+        run: |
+          npm run verify:inkubator-signal-system
+          npm run test -w @rekt-ink/inkubator-lab
+          npm run build -w @rekt-ink/inkubator-lab
+          npm run verify:inkubator-signal-system -- --dist
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Regenerate World golden baseline
+        run: npm run test:e2e -w @rekt-ink/inkubator-lab -- --grep "world visual baseline" --update-snapshots
+
+      - name: Run complete browser gate
+        run: npm run test:e2e -w @rekt-ink/inkubator-lab
+
+      - name: Remove one-shot workflow and commit bounded repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/phase2-fixture-truth-repair.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix(inkubator): mark Signal World fixtures non-live'
+          git push origin HEAD:feature/inkubator-signal-system-v0
