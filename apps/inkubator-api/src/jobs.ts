@@ -8,6 +8,7 @@ import {isDetectedStack, type DetectedStack} from './evidence.js';
 export const OUTBOX_JOB_VERSION = 'job.v1';
 export const SESSION_EXPIRY_JOB_TYPE = 'session.expiry';
 export const PROJECT_GITHUB_OBSERVATION_JOB_TYPE = 'project.github_observation';
+export const SHIP_VERIFICATION_JOB_TYPE = 'ship.verification';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DELIVERY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const GIT_SHA_PATTERN = /^[0-9a-f]{40,64}$/i;
@@ -25,9 +26,14 @@ export interface EnqueueOutboxJobInput {
   maxAttempts?: number;
 }
 
+export interface ShipVerifierClient {
+  verify(input: {submissionId: string; url: string}): Promise<unknown>;
+}
+
 export interface RunOneJobOptions {
   leaseMs?: number;
   retryBaseMs?: number;
+  shipVerifierClient?: ShipVerifierClient;
 }
 
 export type RunOneJobResult =
@@ -526,7 +532,42 @@ async function handleProjectGitHubObservation(db: Kysely<DatabaseSchema>, job: O
   });
 }
 
-async function handleJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date): Promise<void> {
+type ShipVerificationPayload = {submissionId:string; artifactUrl:string};
+function shipVerificationPayload(payload:unknown):ShipVerificationPayload{
+  if(!payload||typeof payload!=='object'||Array.isArray(payload))throw new Error('ship_verification_payload_invalid');
+  const value=payload as Record<string,unknown>;
+  if(value.schema_version!=='ship.verification.job.v1'||typeof value.submission_id!=='string'||!UUID_PATTERN.test(value.submission_id)||typeof value.artifact_url!=='string')throw new Error('ship_verification_payload_invalid');
+  let url:URL;try{url=new URL(value.artifact_url);}catch{throw new Error('ship_verification_payload_invalid');}
+  if(url.protocol!=='https:'||url.username||url.password)throw new Error('ship_verification_payload_invalid');
+  return{submissionId:value.submission_id.toLowerCase(),artifactUrl:url.href};
+}
+const SHIP_REASON_CODES=new Set(['PUBLIC_HTTPS_OK','URL_INVALID','TARGET_NOT_PUBLIC','DNS_FAILURE','NETWORK_ERROR','TIMEOUT','RESPONSE_TOO_LARGE','HTTP_STATUS','REDIRECT_LIMIT','REDIRECT_INVALID']);
+function verifierResult(raw:unknown,submissionId:string){
+  if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new Error('ship_verifier_result_invalid');const v=raw as Record<string,unknown>;
+  if(v.schema_version!=='ship-verifier.observation.v1'||v.submission_id!==submissionId||!['PASS','FAILED','UNAVAILABLE'].includes(String(v.outcome))||!SHIP_REASON_CODES.has(String(v.reason_code)))throw new Error('ship_verifier_result_invalid');
+  if(!Number.isInteger(v.duration_ms)||Number(v.duration_ms)<0||Number(v.duration_ms)>60000||!Number.isInteger(v.redirects)||Number(v.redirects)<0||Number(v.redirects)>3)throw new Error('ship_verifier_result_invalid');
+  const finalUrl=typeof v.final_url==='string'?v.final_url:null;if(finalUrl){let u:URL;try{u=new URL(finalUrl);}catch{throw new Error('ship_verifier_result_invalid');}if(u.protocol!=='https:'||u.username||u.password)throw new Error('ship_verifier_result_invalid');}
+  const httpStatus=v.http_status===undefined?null:Number(v.http_status);if(httpStatus!==null&&(!Number.isInteger(httpStatus)||httpStatus<100||httpStatus>599))throw new Error('ship_verifier_result_invalid');
+  return{outcome:v.outcome as 'PASS'|'FAILED'|'UNAVAILABLE',reasonCode:String(v.reason_code),finalUrl,httpStatus,durationMs:Number(v.duration_ms),redirects:Number(v.redirects)};
+}
+async function handleShipVerification(db:Kysely<DatabaseSchema>,job:OutboxJobRow,client:ShipVerifierClient|undefined):Promise<void>{
+  const input=shipVerificationPayload(job.payload);
+  const existing=await db.selectFrom('ship_verifier_observations').select('observation_id').where('submission_id','=',input.submissionId).executeTakeFirst();if(existing)return;
+  if(!client)throw new Error('ship_verifier_unavailable');
+  const result=verifierResult(await client.verify({submissionId:input.submissionId,url:input.artifactUrl}),input.submissionId);
+  await db.transaction().execute(async tx=>{
+    const submission=await tx.selectFrom('ship_submissions').selectAll().where('submission_id','=',input.submissionId).forUpdate().executeTakeFirst();
+    if(!submission||submission.artifact_url!==input.artifactUrl)throw new Error('ship_verification_submission_invalid');
+    const replay=await tx.selectFrom('ship_verifier_observations').select('observation_id').where('submission_id','=',input.submissionId).executeTakeFirst();if(replay)return;
+    const now=await readDatabaseNow(tx);
+    await tx.insertInto('ship_verifier_observations').values({observation_id:randomUUID(),submission_id:input.submissionId,outcome:result.outcome,reason_code:result.reasonCode,final_url:result.finalUrl,http_status:result.httpStatus,duration_ms:result.durationMs,redirects:result.redirects,observed_at:now}).execute();
+    await tx.updateTable('ship_submissions').set({state:result.outcome==='PASS'?'OBSERVED':'ATTENTION',updated_at:now}).where('submission_id','=',input.submissionId).execute();
+    await appendHistoryEvent(tx,{eventFamily:'evidence',eventType:'project.ship_verifier.observed',dedupeKey:`evidence:project.ship_verifier.observed:${input.submissionId}`,actorPlayerId:null,subjectType:'project',subjectId:submission.project_id,occurredAt:now,
+      payload:{schema_version:'project.ship_verifier.observed.v1',submission_id:input.submissionId,outcome:result.outcome,reason_code:result.reasonCode,...(result.finalUrl?{final_url:result.finalUrl}:{}),...(result.httpStatus!==null?{http_status:result.httpStatus}:{}),duration_ms:result.durationMs,redirects:result.redirects,truth_state:result.outcome==='UNAVAILABLE'?'UNKNOWN':'OBSERVED'}});
+  });
+}
+
+async function handleJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date, options: RunOneJobOptions): Promise<void> {
   if (job.job_version !== OUTBOX_JOB_VERSION) throw new Error(`unsupported_job_version:${job.job_version}`);
   switch (job.job_type) {
     case SESSION_EXPIRY_JOB_TYPE:
@@ -534,6 +575,9 @@ async function handleJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, database
       return;
     case PROJECT_GITHUB_OBSERVATION_JOB_TYPE:
       await handleProjectGitHubObservation(db, job);
+      return;
+    case SHIP_VERIFICATION_JOB_TYPE:
+      await handleShipVerification(db, job, options.shipVerifierClient);
       return;
     default:
       throw new Error(`unsupported_job_type:${job.job_type}`);
@@ -553,7 +597,7 @@ export async function runOneJob(
   if (!job) return {status: 'idle'};
 
   try {
-    await handleJob(db, job, await readDatabaseNow(db));
+    await handleJob(db, job, await readDatabaseNow(db), options);
   } catch (error) {
     const failure = await recordFailure(db, job, await readDatabaseNow(db), retryBaseMs, error);
     if (!failure.applied) return {status: 'lost_lease', jobId: job.job_id, attempts: job.attempts};

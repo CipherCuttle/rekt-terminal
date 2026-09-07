@@ -264,6 +264,49 @@ export interface ProjectExternalTestsView {
   results: ExternalTestResultView[];
 }
 
+export interface ShipSubmissionCreateRequest {
+  request_id: RequestId;
+  title: string;
+  url: string;
+  demo_url?: string;
+  source_url?: string;
+}
+
+export interface ShipArtifactView {
+  title: string;
+  url: string;
+  demo_url?: string;
+  source_url?: string;
+}
+
+export interface ShipVerifierObservationView {
+  schema_version: "ship.verifier_observation.public.v1";
+  outcome: "PASS" | "FAILED" | "UNAVAILABLE";
+  reason_code: string;
+  final_url?: string;
+  http_status?: number;
+  duration_ms: number;
+  redirects: number;
+  observed_at: string;
+}
+
+export interface ShipSubmissionView {
+  schema_version: "ship.submission.private.v1" | "ship.submission.public.v1";
+  submission_id: string;
+  mission_id: MissionId;
+  project_id: ProjectId;
+  artifact: ShipArtifactView;
+  state: "SUBMITTED" | "OBSERVED" | "ATTENTION";
+  submitted_at: string;
+  verifier_observation?: ShipVerifierObservationView;
+}
+
+export interface ProjectShipStateView {
+  schema_version: "project.ship.public.v1";
+  project_id: ProjectId;
+  latest_submission?: ShipSubmissionView;
+}
+
 export interface RoundView {
   schema_version: "round.private.v1";
   round_id: RoundId;
@@ -489,6 +532,14 @@ export class InkubatorApiClient {
 
   getPrivatePlayer(playerId: PlayerId): Promise<PrivatePlayer> {
     return this.request<PrivatePlayer>(`/v1/players/${encodeURIComponent(playerId)}/private`, {method: 'GET'});
+  }
+
+  submitShip(missionId: MissionId, body: ShipSubmissionCreateRequest): Promise<ShipSubmissionView> {
+    return this.request<ShipSubmissionView>(`/v1/missions/${encodeURIComponent(missionId)}/ship-submissions`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  getProjectShipState(projectId: ProjectId): Promise<ProjectShipStateView> {
+    return this.request<ProjectShipStateView>(`/v1/projects/${encodeURIComponent(projectId)}/ship`, {method: 'GET'});
   }
 
   listRounds(): Promise<RoundList> {

@@ -35,6 +35,7 @@ import {
   toPublicDevelopmentProject,
 } from './projects.js';
 import {toPrivatePlayer, toPublicPlayer} from './projection.js';
+import {getProjectShipState, submitShip} from './ship.js';
 import {acceptAssist, blockPlayer, closeHelpBeacon, createExternalTestRequest, createHelpBeacon, createProjectComment, deleteOwnProjectComment, followPlayer, getProjectExternalTests, getProjectHelpLoop, listDiscoverablePlayers, listDiscoverableProjects, listProjectComments, listWorldSignals, offerAssist, reactUsefulToComment, recordExternalTestResult, reportProjectComment, setProjectDiscussionLock, unblockPlayer, watchProject} from './social.js';
 import {
   clearSessionCookie,
@@ -122,6 +123,15 @@ function phase5Error(reply: FastifyReply, cause: unknown) {
   if (message === 'authorization_denied' || message.endsWith('_self_forbidden') || message === 'social_interaction_blocked') return error(reply, 403, message);
   if (message.endsWith('_not_found') || message === 'project_not_found' || message === 'player_not_found') return error(reply, 404, message);
   if (message.includes('idempotency_conflict') || message.endsWith('_already_open') || message.endsWith('_already_offered') || message === 'help_beacon_not_open' || message === 'assist_not_offerable' || message === 'project_discussion_locked' || message.endsWith('_not_active') || message === 'parent_comment_project_mismatch' || message === 'external_test_request_not_open') return error(reply, 409, message);
+  if (message.startsWith('invalid_')) return error(reply, 400, message);
+  throw cause;
+}
+
+function phase6Error(reply: FastifyReply, cause: unknown) {
+  const message = cause instanceof Error ? cause.message : 'phase6_mutation_failed';
+  if (message === 'authorization_denied') return error(reply, 403, message);
+  if (message === 'mission_not_found' || message === 'project_not_found') return error(reply, 404, message);
+  if (message.includes('idempotency_conflict') || message === 'mission_not_ship_ready' || message === 'ship_submission_active') return error(reply, 409, message);
   if (message.startsWith('invalid_')) return error(reply, 400, message);
   throw cause;
 }
@@ -508,6 +518,17 @@ export function buildApp(options: BuildAppOptions) {
       if (message === 'invalid_repository_id') return error(reply, 400, message);
       throw cause;
     }
+  });
+
+  app.post('/v1/missions/:missionId/ship-submissions', {schema:{body:fastifyBodySchema('ShipSubmissionCreateRequest')}}, async (request, reply) => {
+    const authenticated=await authenticate(request,options.db);if(!authenticated)return error(reply,401,'authentication_required');
+    const {missionId}=request.params as {missionId:string};const body=request.body as {request_id:string;title:string;url:string;demo_url?:string;source_url?:string};
+    try {const result=await submitShip(options.db,authenticated.actor.playerId,missionId,{requestId:body.request_id,title:body.title,url:body.url,...(body.demo_url?{demoUrl:body.demo_url}:{}),...(body.source_url?{sourceUrl:body.source_url}:{})});return reply.code(201).send(result);} catch(cause){return phase6Error(reply,cause);}
+  });
+
+  app.get('/v1/projects/:projectId/ship', async (request, reply) => {
+    const {projectId}=request.params as {projectId:string};
+    try{return await getProjectShipState(options.db,projectId);}catch(cause){return phase6Error(reply,cause);}
   });
 
   app.delete('/v1/session', async (request, reply) => {

@@ -267,6 +267,35 @@ export interface ExternalTestResultTable {
   observed_at: Generated<Date>;
 }
 
+export type ShipSubmissionState = 'SUBMITTED' | 'OBSERVED' | 'ATTENTION';
+export interface ShipSubmissionTable {
+  submission_id: string;
+  mission_id: string;
+  project_id: string;
+  owner_player_id: string;
+  creation_request_id: string;
+  artifact_title: string;
+  artifact_url: string;
+  demo_url: string | null;
+  source_url: string | null;
+  state: ShipSubmissionState;
+  submitted_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export type ShipVerifierOutcome = 'PASS' | 'FAILED' | 'UNAVAILABLE';
+export interface ShipVerifierObservationTable {
+  observation_id: string;
+  submission_id: string;
+  outcome: ShipVerifierOutcome;
+  reason_code: string;
+  final_url: string | null;
+  http_status: number | null;
+  duration_ms: number;
+  redirects: number;
+  observed_at: Generated<Date>;
+}
+
 export interface GitHubSetupStateTable {
   state_hash: string;
   player_id: string;
@@ -349,6 +378,8 @@ export interface DatabaseSchema {
   content_reports: ContentReportTable;
   external_test_requests: ExternalTestRequestTable;
   external_test_results: ExternalTestResultTable;
+  ship_submissions: ShipSubmissionTable;
+  ship_verifier_observations: ShipVerifierObservationTable;
   github_setup_states: GitHubSetupStateTable;
   github_installations: GitHubInstallationTable;
   github_repositories: GitHubRepositoryTable;
