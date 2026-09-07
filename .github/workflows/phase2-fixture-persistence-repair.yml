@@ -52,6 +52,14 @@ jobs:
               raise SystemExit('Shell navMeta anchor drifted; refusing broad rewrite')
           screen_path.write_text(screen.replace(old, new))
 
+          css_path = Path('apps/inkubator-lab/src/signal-system/SignalSystem.module.css')
+          css = css_path.read_text()
+          old_css = '  overflow-x: hidden;'
+          new_css = '  overflow-x: clip;'
+          if css.count(old_css) != 1:
+              raise SystemExit('root overflow anchor drifted; refusing broad rewrite')
+          css_path.write_text(css.replace(old_css, new_css))
+
           test_path = Path('apps/inkubator-lab/e2e/golden-screens.spec.ts')
           test = test_path.read_text()
           anchor = "test('reduced motion disables ambient World orbit', async ({page}) => {"
