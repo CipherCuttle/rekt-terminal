@@ -302,9 +302,9 @@ export interface ShipSubmissionView {
 }
 
 export interface ProjectShipStateView {
-  schema_version: "project.ship.public.v1";
+  schema_version: "project.ship.public.v2";
   project_id: ProjectId;
-  latest_submission?: ShipSubmissionView;
+  latest_submission?: ShipSubmissionPublicView;
 }
 
 export interface RoundView {
@@ -470,6 +470,79 @@ export interface CommandView {
   daemon: CommandDaemonAdvisory;
 }
 
+export interface ShipArtifactPrivateView {
+  title: string;
+  url: string;
+  demo_url?: string;
+  source_url?: string;
+}
+
+export interface ShipArtifactPublicView {
+  title: string;
+  url: string;
+  demo_url?: string;
+}
+
+export interface ShipArtifactBuilderView {
+  player_id: PlayerId;
+  display_name: string;
+  role: "OWNER" | "PARTY";
+}
+
+export interface ShipAssistAttributionView {
+  assist_id: string;
+  player_id: PlayerId;
+  display_name: string;
+  accepted_at: string;
+  source_state: "ACCEPTED";
+}
+
+export interface ShipArtifactEvidenceView {
+  verifier_observation_id: string;
+  acceptance_review_id: string;
+}
+
+export interface AcceptedShipArtifactView {
+  schema_version: "ship.artifact.public.v1";
+  receipt_id: string;
+  receipt_schema_version: "inkubator.ship-receipt/1.0";
+  submission_id: string;
+  mission_id: MissionId;
+  project_id: ProjectId;
+  owner_player_id: PlayerId;
+  round_id?: RoundId;
+  acceptance_rule_version: "ship.acceptance.v1";
+  artifact: ShipArtifactPublicView;
+  builders: ShipArtifactBuilderView[];
+  assists: ShipAssistAttributionView[];
+  evidence: ShipArtifactEvidenceView;
+  truth_state: "PROVEN";
+  shipped_at: string;
+}
+
+export interface ShipSubmissionPrivateView {
+  schema_version: "ship.submission.private.v1";
+  submission_id: string;
+  mission_id: MissionId;
+  project_id: ProjectId;
+  artifact: ShipArtifactPrivateView;
+  state: "SUBMITTED" | "OBSERVED" | "ATTENTION" | "ACCEPTED" | "REJECTED";
+  submitted_at: string;
+  verifier_observation?: ShipVerifierObservationView;
+}
+
+export interface ShipSubmissionPublicView {
+  schema_version: "ship.submission.public.v2";
+  submission_id: string;
+  mission_id: MissionId;
+  project_id: ProjectId;
+  artifact: ShipArtifactPublicView;
+  state: "SUBMITTED" | "OBSERVED" | "ATTENTION" | "PROVEN";
+  submitted_at: string;
+  verifier_observation?: ShipVerifierObservationView;
+  accepted_ship?: AcceptedShipArtifactView;
+}
+
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export class InkubatorApiError extends Error {
@@ -534,8 +607,8 @@ export class InkubatorApiClient {
     return this.request<PrivatePlayer>(`/v1/players/${encodeURIComponent(playerId)}/private`, {method: 'GET'});
   }
 
-  submitShip(missionId: MissionId, body: ShipSubmissionCreateRequest): Promise<ShipSubmissionView> {
-    return this.request<ShipSubmissionView>(`/v1/missions/${encodeURIComponent(missionId)}/ship-submissions`, {method: 'POST', body: JSON.stringify(body)});
+  submitShip(missionId: MissionId, body: ShipSubmissionCreateRequest): Promise<ShipSubmissionPrivateView> {
+    return this.request<ShipSubmissionPrivateView>(`/v1/missions/${encodeURIComponent(missionId)}/ship-submissions`, {method: 'POST', body: JSON.stringify(body)});
   }
 
   getProjectShipState(projectId: ProjectId): Promise<ProjectShipStateView> {
