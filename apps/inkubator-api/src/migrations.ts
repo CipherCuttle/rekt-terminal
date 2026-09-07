@@ -12,6 +12,7 @@ import {phase6ShipVerifierControlMigration} from './migrations/013-phase6-ship-v
 import {phase6ShipAcceptanceReceiptMigration} from './migrations/014-phase6-ship-acceptance-receipt.js';
 import {phase6ShipArtifactAttributionMigration} from './migrations/015-phase6-ship-artifact-attribution.js';
 import {phase6ReviewRepairMigration} from './migrations/016-phase6-review-repair.js';
+import {phase7CheevoReputationMigration} from './migrations/017-phase7-cheevo-reputation.js';
 
 const initialMigration: Migration = {
   async up(db) {
@@ -312,6 +313,7 @@ class StaticMigrationProvider implements MigrationProvider {
       '014_phase6_ship_acceptance_receipt': phase6ShipAcceptanceReceiptMigration,
       '015_phase6_ship_artifact_attribution': phase6ShipArtifactAttributionMigration,
       '016_phase6_review_repair': phase6ReviewRepairMigration,
+      '017_phase7_cheevo_reputation': phase7CheevoReputationMigration,
     };
   }
 }
