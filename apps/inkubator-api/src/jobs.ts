@@ -3,6 +3,7 @@ import {sql, type Kysely} from 'kysely';
 import {canonicalizeJson} from './canonical-json.js';
 import {readDatabaseNow, type DatabaseSchema, type OutboxJobRow, type OutboxJobState} from './database.js';
 import {appendHistoryEvent} from './events.js';
+import {isDetectedStack, type DetectedStack} from './evidence.js';
 
 export const OUTBOX_JOB_VERSION = 'job.v1';
 export const SESSION_EXPIRY_JOB_TYPE = 'session.expiry';
@@ -230,7 +231,22 @@ function projectObservationPayload(payload: unknown) {
   if (typeof before !== 'string' || !GIT_SHA_PATTERN.test(before)) throw new Error('project_github_observation_payload_invalid');
   if (typeof after !== 'string' || !GIT_SHA_PATTERN.test(after)) throw new Error('project_github_observation_payload_invalid');
   if (typeof repositoryPrivate !== 'boolean') throw new Error('project_github_observation_payload_invalid');
-  return {projectId, deliveryId, repositoryId, ref, before, after, repositoryPrivate};
+  const observedStacksRaw = value.observed_stacks ?? [];
+  if (!Array.isArray(observedStacksRaw) || observedStacksRaw.length > 9 || observedStacksRaw.some((stack) => !isDetectedStack(stack))) {
+    throw new Error('project_github_observation_payload_invalid');
+  }
+  const observedStacks = [...new Set(observedStacksRaw as DetectedStack[])].sort();
+  return {projectId, deliveryId, repositoryId, ref, before, after, repositoryPrivate, observedStacks};
+}
+
+function stackListFromEvidencePayload(payload: unknown): DetectedStack[] {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('project_github_stack_history_invalid');
+  const value = payload as Record<string, unknown>;
+  const stacks = value.current_observed_stacks;
+  if (!Array.isArray(stacks) || stacks.length > 9 || stacks.some((stack) => !isDetectedStack(stack))) {
+    throw new Error('project_github_stack_history_invalid');
+  }
+  return [...new Set(stacks as DetectedStack[])].sort();
 }
 
 async function handleSessionExpiry(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date): Promise<void> {
@@ -274,6 +290,39 @@ async function handleProjectGitHubObservation(db: Kysely<DatabaseSchema>, job: O
       truth_state: 'OBSERVED',
     },
   });
+
+  if (payload.observedStacks.length > 0) {
+    const stackDedupeKey = `evidence:project.github_repository_stack.observed:${payload.projectId}:${payload.deliveryId}`;
+    const previousEvent = await db
+      .selectFrom('history_events')
+      .select('payload')
+      .where('event_type', '=', 'project.github_repository_stack.observed')
+      .where('subject_type', '=', 'project')
+      .where('subject_id', '=', payload.projectId)
+      .where('dedupe_key', '!=', stackDedupeKey)
+      .orderBy('occurred_at', 'desc')
+      .orderBy('history_event_id', 'desc')
+      .executeTakeFirst();
+    const previousObservedStacks = previousEvent ? stackListFromEvidencePayload(previousEvent.payload) : [];
+    const currentObservedStacks = [...new Set([...previousObservedStacks, ...payload.observedStacks])].sort();
+    await appendHistoryEvent(db, {
+      eventFamily: 'evidence',
+      eventType: 'project.github_repository_stack.observed',
+      dedupeKey: stackDedupeKey,
+      actorPlayerId: null,
+      subjectType: 'project',
+      subjectId: payload.projectId,
+      payload: {
+        schema_version: 'project.github_repository_stack.observed.v1',
+        provider: 'github',
+        delivery_id: payload.deliveryId,
+        observed_stacks: payload.observedStacks,
+        previous_observed_stacks: previousObservedStacks,
+        current_observed_stacks: currentObservedStacks,
+        truth_state: 'OBSERVED',
+      },
+    });
+  }
 }
 
 async function handleJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date): Promise<void> {

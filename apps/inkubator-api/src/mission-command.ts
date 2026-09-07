@@ -14,7 +14,7 @@ import type {
   RoundRow,
 } from './database.js';
 import {appendHistoryEvent, HISTORY_EVENT_VERSION} from './events.js';
-import {classifyGitHubPushEvidence, deriveDaemonAdvisory, type DaemonAdvisory, type GitHubEvidenceSnapshot} from './evidence.js';
+import {classifyGitHubPushEvidence, deriveDaemonAdvisory, isDetectedStack, type DaemonAdvisory, type DetectedStack, type GitHubEvidenceSnapshot} from './evidence.js';
 
 const PROJECT_SCHEMA_VERSION = 'project.current.v1';
 const MISSION_SCHEMA_VERSION = 'mission.current.v1';
@@ -87,6 +87,14 @@ export interface CommandSnapshot {
   repository: GitHubRepositoryRow | null;
   githubEvidence: GitHubEvidenceSnapshot;
   daemonAdvisory: DaemonAdvisory;
+  observedStacks: DetectedStack[];
+}
+
+function stacksFromProjectEvidence(payload: unknown, key: 'previous_observed_stacks' | 'current_observed_stacks'): DetectedStack[] {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return [];
+  const stacks = (payload as Record<string, unknown>)[key];
+  if (!Array.isArray(stacks) || stacks.some((stack) => !isDetectedStack(stack))) return [];
+  return [...new Set(stacks as DetectedStack[])].sort();
 }
 
 function requireUuid(value: string, name: string): string {
@@ -259,13 +267,23 @@ async function commandByMissionId(db: Kysely<DatabaseSchema>, missionId: string)
     .orderBy('occurred_at', 'desc')
     .orderBy('history_event_id', 'desc')
     .executeTakeFirst();
+  const stackObservation = await db.selectFrom('history_events')
+    .select('payload')
+    .where('event_type', '=', 'project.github_repository_stack.observed')
+    .where('subject_type', '=', 'project')
+    .where('subject_id', '=', project.project_id)
+    .orderBy('occurred_at', 'desc')
+    .orderBy('history_event_id', 'desc')
+    .executeTakeFirst();
+  const observedStacks = stackObservation ? stacksFromProjectEvidence(stackObservation.payload, 'current_observed_stacks') : [];
+  const previousObservedStacks = stackObservation ? stacksFromProjectEvidence(stackObservation.payload, 'previous_observed_stacks') : [];
   const githubEvidence = classifyGitHubPushEvidence({
     ...(observation ? {observationId: observation.history_event_id, observedAt: observation.occurred_at} : {}),
     sourceAvailable: Boolean(repository?.active),
     now: await readDatabaseNow(db),
   });
-  const daemonAdvisory = deriveDaemonAdvisory({snapshot: githubEvidence, detectedStacks: []});
-  return {project, mission, round, gates, repository, githubEvidence, daemonAdvisory};
+  const daemonAdvisory = deriveDaemonAdvisory({snapshot: githubEvidence, detectedStacks: observedStacks, previousDetectedStacks: previousObservedStacks});
+  return {project, mission, round, gates, repository, githubEvidence, daemonAdvisory, observedStacks};
 }
 
 export async function getCurrentCommand(db: Kysely<DatabaseSchema>, playerId: string): Promise<CommandSnapshot | null> {
@@ -568,6 +586,7 @@ export function commandToPrivateView(snapshot: CommandSnapshot) {
       stale_after_ms: snapshot.githubEvidence.staleAfterMs,
       invalid_observation_count: snapshot.githubEvidence.invalidObservationCount,
       reason_code: snapshot.githubEvidence.reasonCode,
+      observed_stacks: snapshot.observedStacks,
       ...(snapshot.githubEvidence.latestObservation ? {latest_observation: {
         observation_id: snapshot.githubEvidence.latestObservation.observationId,
         kind: snapshot.githubEvidence.latestObservation.kind,

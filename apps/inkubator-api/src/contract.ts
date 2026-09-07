@@ -319,7 +319,7 @@ export const componentSchemas = {
   CommandGitHubEvidence: {
     type: 'object',
     additionalProperties: false,
-    required: ['rule_version', 'source_state', 'signal_state', 'stale_after_ms', 'invalid_observation_count', 'reason_code'],
+    required: ['rule_version', 'source_state', 'signal_state', 'stale_after_ms', 'invalid_observation_count', 'reason_code', 'observed_stacks'],
     properties: {
       rule_version: {type: 'string', const: 'github-evidence.v1'},
       source_state: {type: 'string', enum: ['AVAILABLE', 'UNAVAILABLE']},
@@ -327,6 +327,7 @@ export const componentSchemas = {
       stale_after_ms: {type: 'integer'},
       invalid_observation_count: {type: 'integer'},
       reason_code: {type: 'string', enum: ['source_unavailable_no_evidence', 'source_unavailable_cached_evidence_not_current', 'no_valid_observation', 'latest_observation_stale', 'latest_observation_current']},
+      observed_stacks: {type: 'array', maxItems: 9, items: {type: 'string', enum: ['JAVASCRIPT_TYPESCRIPT', 'PYTHON', 'RUST', 'GO', 'JVM', 'RUBY', 'PHP', 'DOTNET', 'CONTAINER']}},
       latest_observation: {$ref: '#/components/schemas/CommandEvidenceObservation'},
     },
   },

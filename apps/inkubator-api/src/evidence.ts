@@ -164,16 +164,22 @@ export function classifyGitHubPushEvidence(input: {
   });
 }
 
-export type DetectedStack =
-  | 'JAVASCRIPT_TYPESCRIPT'
-  | 'PYTHON'
-  | 'RUST'
-  | 'GO'
-  | 'JVM'
-  | 'RUBY'
-  | 'PHP'
-  | 'DOTNET'
-  | 'CONTAINER';
+export const DETECTED_STACK_VALUES = [
+  'JAVASCRIPT_TYPESCRIPT',
+  'PYTHON',
+  'RUST',
+  'GO',
+  'JVM',
+  'RUBY',
+  'PHP',
+  'DOTNET',
+  'CONTAINER',
+] as const;
+export type DetectedStack = (typeof DETECTED_STACK_VALUES)[number];
+const DETECTED_STACK_SET = new Set<string>(DETECTED_STACK_VALUES);
+export function isDetectedStack(value: unknown): value is DetectedStack {
+  return typeof value === 'string' && DETECTED_STACK_SET.has(value);
+}
 
 export interface StackDetection {
   stack: DetectedStack;

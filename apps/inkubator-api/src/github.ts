@@ -3,6 +3,7 @@ import type {Kysely} from 'kysely';
 import {sql} from 'kysely';
 import type {DatabaseSchema, GitHubRepositoryRow} from './database.js';
 import {appendHistoryEvent} from './events.js';
+import {detectStackFromManifestPaths} from './evidence.js';
 import {enqueueOutboxJob, PROJECT_GITHUB_OBSERVATION_JOB_TYPE} from './jobs.js';
 import {findLinkedProjectIdForRepository} from './projects.js';
 
@@ -444,6 +445,24 @@ function installationIdFromPayload(payload: Record<string, unknown>): string | n
   return positiveIntegerId((installation as {id?: unknown}).id, 'github_installation_id');
 }
 
+function boundedChangedManifestCandidatePaths(payload: Record<string, unknown>): string[] {
+  const commits = Array.isArray(payload.commits) ? payload.commits.slice(0, 64) : [];
+  const paths = new Set<string>();
+  for (const candidate of commits) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue;
+    const commit = candidate as Record<string, unknown>;
+    for (const key of ['added', 'modified'] as const) {
+      const values = Array.isArray(commit[key]) ? commit[key].slice(0, 128) : [];
+      for (const value of values) {
+        if (typeof value !== 'string' || value.length < 1 || value.length > 300) continue;
+        paths.add(value);
+        if (paths.size >= 128) return [...paths];
+      }
+    }
+  }
+  return [...paths];
+}
+
 function repositoryIdFromPayload(payload: Record<string, unknown>): string | null {
   const repository = payload.repository;
   if (!repository || typeof repository !== 'object') return null;
@@ -623,6 +642,8 @@ export async function processGitHubWebhook(
       },
     });
 
+    const stackDetection = detectStackFromManifestPaths(boundedChangedManifestCandidatePaths(payload));
+    const observedStacks = stackDetection.detections.map((detection) => detection.stack);
     const projectId = await findLinkedProjectIdForRepository(transaction, repositoryId);
     if (projectId) {
       await enqueueOutboxJob(transaction, {
@@ -637,6 +658,7 @@ export async function processGitHubWebhook(
           before,
           after,
           repository_private: repository.private,
+          observed_stacks: observedStacks,
         },
       });
     }
