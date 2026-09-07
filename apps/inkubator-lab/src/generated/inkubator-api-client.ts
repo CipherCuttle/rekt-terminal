@@ -200,7 +200,7 @@ export interface CommandGitHubEvidence {
   stale_after_ms: number;
   invalid_observation_count: number;
   reason_code: "source_unavailable_no_evidence" | "source_unavailable_cached_evidence_not_current" | "no_valid_observation" | "latest_observation_stale" | "latest_observation_current";
-  observed_stacks: "JAVASCRIPT_TYPESCRIPT" | "PYTHON" | "RUST" | "GO" | "JVM" | "RUBY" | "PHP" | "DOTNET" | "CONTAINER"[];
+  observed_stacks: ("JAVASCRIPT_TYPESCRIPT" | "PYTHON" | "RUST" | "GO" | "JVM" | "RUBY" | "PHP" | "DOTNET" | "CONTAINER")[];
   latest_observation?: CommandEvidenceObservation;
 }
 

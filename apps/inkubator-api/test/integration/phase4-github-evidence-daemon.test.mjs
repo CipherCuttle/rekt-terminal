@@ -198,6 +198,11 @@ test('Phase 4 projects trusted push evidence into freshness-aware advisory Comma
       commits: [{added: ['go.mod'], modified: [], removed: []}],
     }, goDeliveryId)).statusCode, 202);
 
+    const rustJobKey = `project.github_observation:${projectId}:${rustDeliveryId}`;
+    const goJobKey = `project.github_observation:${projectId}:${goDeliveryId}`;
+    await db.updateTable('outbox_jobs').set({next_attempt_at: new Date(Date.now() - 2000)}).where('idempotency_key', '=', goJobKey).execute();
+    await db.updateTable('outbox_jobs').set({next_attempt_at: new Date(Date.now() - 1000)}).where('idempotency_key', '=', rustJobKey).execute();
+
     const blockerDb = createDatabase(databaseUrl);
     let releaseProjectLock;
     let projectLockReady;
@@ -209,20 +214,34 @@ test('Phase 4 projects trusted push evidence into freshness-aware advisory Comma
       await releaseProjectLockPromise;
     });
     await projectLockReadyPromise;
-    const concurrentWorkers = [runOneJob(db, {leaseMs: 1000, retryBaseMs: 1}), runOneJob(db, {leaseMs: 1000, retryBaseMs: 1})];
+
+    const laterGoWorker = runOneJob(db, {leaseMs: 1000, retryBaseMs: 1});
     for (let attempt = 0; attempt < 100; attempt += 1) {
-      const running = await db.selectFrom('outbox_jobs').select('job_id')
-        .where('idempotency_key', 'in', [`project.github_observation:${projectId}:${rustDeliveryId}`, `project.github_observation:${projectId}:${goDeliveryId}`])
-        .where('state', '=', 'running').execute();
-      if (running.length === 2) break;
+      const go = await db.selectFrom('outbox_jobs').select('state').where('idempotency_key', '=', goJobKey).executeTakeFirstOrThrow();
+      if (go.state === 'running') break;
       await new Promise((resolve) => setTimeout(resolve, 5));
-      if (attempt === 99) throw new Error('phase4_concurrent_project_jobs_not_claimed');
+      if (attempt === 99) throw new Error('phase4_later_job_not_claimed_first');
+    }
+    const earlierRustWorker = runOneJob(db, {leaseMs: 1000, retryBaseMs: 1});
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const rust = await db.selectFrom('outbox_jobs').select('state').where('idempotency_key', '=', rustJobKey).executeTakeFirstOrThrow();
+      if (rust.state === 'running') break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      if (attempt === 99) throw new Error('phase4_earlier_job_not_claimed');
     }
     releaseProjectLock();
     await heldProjectLock;
-    const concurrentResults = await Promise.all(concurrentWorkers);
-    assert.equal(concurrentResults.every((result) => result.status === 'succeeded'), true);
+    const [laterResult, earlierResult] = await Promise.all([laterGoWorker, earlierRustWorker]);
+    assert.equal(laterResult.status, 'retry');
+    assert.equal(earlierResult.status, 'succeeded');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const goRetry = await runOneJob(db, {leaseMs: 1000, retryBaseMs: 1});
+    assert.equal(goRetry.status, 'succeeded');
     await blockerDb.destroy();
+
+    const goStackEvent = await db.selectFrom('history_events').select('payload')
+      .where('dedupe_key', '=', `evidence:project.github_repository_stack.observed:${projectId}:${goDeliveryId}`).executeTakeFirstOrThrow();
+    assert.deepEqual(goStackEvent.payload.previous_observed_stacks, ['JAVASCRIPT_TYPESCRIPT', 'PYTHON', 'RUST']);
 
     const concurrentCommand = await app.inject({method: 'GET', url: '/v1/me/command', headers: {cookie}});
     assert.deepEqual(concurrentCommand.json().github_evidence.observed_stacks, ['GO', 'JAVASCRIPT_TYPESCRIPT', 'PYTHON', 'RUST']);
@@ -241,6 +260,37 @@ test('Phase 4 projects trusted push evidence into freshness-aware advisory Comma
     assert.equal(stackEventsAfterLateRetry.length, 4);
     const projectionAfterLateRetry = await db.selectFrom('projects').select('observed_stack_labels').where('project_id', '=', projectId).executeTakeFirstOrThrow();
     assert.deepEqual(projectionAfterLateRetry.observed_stack_labels, ['GO', 'JAVASCRIPT_TYPESCRIPT', 'PYTHON', 'RUST']);
+
+    const secondJsManifest = await sendWebhook(app, 'push', {
+      ref: 'refs/heads/main', before: '5'.repeat(40), after: '6'.repeat(40),
+      installation: {id: Number(installationId)}, repository: {id: Number(repositoryId), private: true, full_name: fullName},
+      commits: [{added: ['apps/web/package.json'], modified: [], removed: []}],
+    });
+    assert.equal(secondJsManifest.statusCode, 202);
+    await drainOneProjectJob(db, projectId, 5);
+
+    const removeOneJsManifest = await sendWebhook(app, 'push', {
+      ref: 'refs/heads/main', before: '6'.repeat(40), after: '7'.repeat(40),
+      installation: {id: Number(installationId)}, repository: {id: Number(repositoryId), private: true, full_name: fullName},
+      commits: [{added: [], modified: [], removed: ['package.json']}],
+    });
+    assert.equal(removeOneJsManifest.statusCode, 202);
+    await drainOneProjectJob(db, projectId, 6);
+    const afterOneRemoval = await app.inject({method: 'GET', url: '/v1/me/command', headers: {cookie}});
+    assert.equal(afterOneRemoval.json().github_evidence.observed_stacks.includes('JAVASCRIPT_TYPESCRIPT'), true);
+
+    const removeLastJsManifest = await sendWebhook(app, 'push', {
+      ref: 'refs/heads/main', before: '7'.repeat(40), after: '8'.repeat(40),
+      installation: {id: Number(installationId)}, repository: {id: Number(repositoryId), private: true, full_name: fullName},
+      commits: [{added: [], modified: [], removed: ['apps/web/package.json']}],
+    });
+    assert.equal(removeLastJsManifest.statusCode, 202);
+    await drainOneProjectJob(db, projectId, 7);
+    const afterLastRemoval = await app.inject({method: 'GET', url: '/v1/me/command', headers: {cookie}});
+    assert.deepEqual(afterLastRemoval.json().github_evidence.observed_stacks, ['GO', 'PYTHON', 'RUST']);
+    assert.equal(JSON.stringify(afterLastRemoval.json()).includes('package.json'), false);
+    const manifestProjection = await db.selectFrom('projects').select('observed_manifest_fingerprints').where('project_id', '=', projectId).executeTakeFirstOrThrow();
+    assert.equal(JSON.stringify(manifestProjection).includes('package.json'), false);
 
     const suspend = await sendWebhook(app, 'installation', {action: 'suspend', installation: {id: Number(installationId)}});
     assert.equal(suspend.statusCode, 200);

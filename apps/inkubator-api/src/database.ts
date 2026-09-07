@@ -54,6 +54,7 @@ export interface ProjectTable {
   name: string;
   repository_id: string | null;
   observed_stack_labels: Generated<unknown>;
+  observed_manifest_fingerprints: Generated<unknown>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

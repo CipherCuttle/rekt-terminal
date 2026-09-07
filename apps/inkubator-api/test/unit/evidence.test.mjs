@@ -32,7 +32,7 @@ test('current trusted workflow observation can suggest OBSERVED quality but neve
   const suggestion = deriveProgressObservationSuggestion(snapshot);
   assert.deepEqual(suggestion, {
     ruleVersion: 'progress-evidence.v1',
-    gateKey: 'QUALITY',
+    gateKey: 'QUALITY_TESTING',
     suggestedSignalState: 'OBSERVED',
     observationId: 'obs-workflow-1',
     reasonCode: 'workflow_succeeded',

@@ -3,6 +3,7 @@ import {Migrator, type Migration, type MigrationProvider} from 'kysely/migration
 import type {DatabaseSchema} from './database.js';
 import {playerMissionCommandMigration} from './migrations/006-player-mission-command.js';
 import {phase4ProjectEvidenceProjectionMigration} from './migrations/007-phase4-project-evidence-projection.js';
+import {phase4ManifestTruthMigration} from './migrations/008-phase4-manifest-truth.js';
 
 const initialMigration: Migration = {
   async up(db) {
@@ -294,6 +295,7 @@ class StaticMigrationProvider implements MigrationProvider {
       '005_github_repository_authority': githubRepositoryAuthorityMigration,
       '006_player_mission_command': playerMissionCommandMigration,
       '007_phase4_project_evidence_projection': phase4ProjectEvidenceProjectionMigration,
+      '008_phase4_manifest_truth': phase4ManifestTruthMigration,
     };
   }
 }

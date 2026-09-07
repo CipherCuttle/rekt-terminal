@@ -3,7 +3,7 @@ import type {Kysely} from 'kysely';
 import {sql} from 'kysely';
 import type {DatabaseSchema, GitHubRepositoryRow} from './database.js';
 import {appendHistoryEvent} from './events.js';
-import {detectStackFromManifestPaths} from './evidence.js';
+import {detectStackFromManifestPaths, type DetectedStack} from './evidence.js';
 import {enqueueOutboxJob, PROJECT_GITHUB_OBSERVATION_JOB_TYPE} from './jobs.js';
 import {findLinkedProjectIdForRepository} from './projects.js';
 
@@ -445,22 +445,45 @@ function installationIdFromPayload(payload: Record<string, unknown>): string | n
   return positiveIntegerId((installation as {id?: unknown}).id, 'github_installation_id');
 }
 
-function boundedChangedManifestCandidatePaths(payload: Record<string, unknown>): string[] {
+type ManifestChange = {
+  path_hash: string;
+  stack: DetectedStack;
+  state: 'PRESENT' | 'REMOVED';
+};
+
+function boundedManifestChanges(payload: Record<string, unknown>): {changes: ManifestChange[]; complete: boolean} {
   const commits = Array.isArray(payload.commits) ? payload.commits.slice(0, 64) : [];
-  const paths = new Set<string>();
+  const changes = new Map<string, ManifestChange>();
+  let complete = true;
   for (const candidate of commits) {
     if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue;
     const commit = candidate as Record<string, unknown>;
-    for (const key of ['added', 'modified'] as const) {
+    for (const key of ['added', 'modified', 'removed'] as const) {
       const values = Array.isArray(commit[key]) ? commit[key].slice(0, 128) : [];
       for (const value of values) {
         if (typeof value !== 'string' || value.length < 1 || value.length > 300) continue;
-        paths.add(value);
-        if (paths.size >= 128) return [...paths];
+        const detection = detectStackFromManifestPaths([value]);
+        for (const detected of detection.detections) {
+          for (const evidencePath of detected.evidencePaths) {
+            const pathHash = createHash('sha256').update(evidencePath, 'utf8').digest('hex');
+            if (!changes.has(pathHash) && changes.size >= 128) {
+              complete = false;
+              continue;
+            }
+            changes.set(pathHash, {
+              path_hash: pathHash,
+              stack: detected.stack,
+              state: key === 'removed' ? 'REMOVED' : 'PRESENT',
+            });
+          }
+        }
       }
     }
   }
-  return [...paths];
+  return {
+    changes: [...changes.values()].sort((left, right) => left.path_hash.localeCompare(right.path_hash)),
+    complete,
+  };
 }
 
 function repositoryIdFromPayload(payload: Record<string, unknown>): string | null {
@@ -642,15 +665,14 @@ export async function processGitHubWebhook(
       },
     });
 
-    const stackDetection = detectStackFromManifestPaths(boundedChangedManifestCandidatePaths(payload));
-    const observedStacks = stackDetection.detections.map((detection) => detection.stack);
+    const manifestChanges = boundedManifestChanges(payload);
     const projectId = await findLinkedProjectIdForRepository(transaction, repositoryId);
     if (projectId) {
       await enqueueOutboxJob(transaction, {
         jobType: PROJECT_GITHUB_OBSERVATION_JOB_TYPE,
         idempotencyKey: `project.github_observation:${projectId}:${deliveryId}`,
         payload: {
-          schema_version: 'project.github_observation.job.v1',
+          schema_version: 'project.github_observation.job.v2',
           project_id: projectId,
           delivery_id: deliveryId,
           repository_id: repositoryId,
@@ -658,7 +680,8 @@ export async function processGitHubWebhook(
           before,
           after,
           repository_private: repository.private,
-          observed_stacks: observedStacks,
+          manifest_changes: manifestChanges.changes,
+          manifest_changes_complete: manifestChanges.complete,
         },
       });
     }

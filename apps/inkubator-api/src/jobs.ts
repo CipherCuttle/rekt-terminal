@@ -212,7 +212,27 @@ function sessionIdFromPayload(payload: unknown): string {
   return sessionId;
 }
 
-function projectObservationPayload(payload: unknown) {
+type ProjectManifestChange = {
+  pathHash: string;
+  stack: DetectedStack;
+  state: 'PRESENT' | 'REMOVED';
+};
+
+type ProjectObservationPayload = {
+  schemaVersion: 'project.github_observation.job.v1' | 'project.github_observation.job.v2';
+  projectId: string;
+  deliveryId: string;
+  repositoryId: string;
+  ref: string;
+  before: string;
+  after: string;
+  repositoryPrivate: boolean;
+  manifestChanges: ProjectManifestChange[];
+  manifestChangesComplete: boolean;
+  legacyObservedStacks: DetectedStack[];
+};
+
+function projectObservationPayload(payload: unknown): ProjectObservationPayload {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('project_github_observation_payload_invalid');
   const value = payload as Record<string, unknown>;
   const schemaVersion = value.schema_version;
@@ -223,7 +243,9 @@ function projectObservationPayload(payload: unknown) {
   const before = value.before;
   const after = value.after;
   const repositoryPrivate = value.repository_private;
-  if (schemaVersion !== 'project.github_observation.job.v1') throw new Error('project_github_observation_payload_invalid');
+  if (schemaVersion !== 'project.github_observation.job.v1' && schemaVersion !== 'project.github_observation.job.v2') {
+    throw new Error('project_github_observation_payload_invalid');
+  }
   if (typeof projectId !== 'string' || !UUID_PATTERN.test(projectId)) throw new Error('project_github_observation_payload_invalid');
   if (typeof deliveryId !== 'string' || !DELIVERY_PATTERN.test(deliveryId)) throw new Error('project_github_observation_payload_invalid');
   if (typeof repositoryId !== 'string' || !/^[1-9]\d*$/.test(repositoryId)) throw new Error('project_github_observation_payload_invalid');
@@ -231,22 +253,58 @@ function projectObservationPayload(payload: unknown) {
   if (typeof before !== 'string' || !GIT_SHA_PATTERN.test(before)) throw new Error('project_github_observation_payload_invalid');
   if (typeof after !== 'string' || !GIT_SHA_PATTERN.test(after)) throw new Error('project_github_observation_payload_invalid');
   if (typeof repositoryPrivate !== 'boolean') throw new Error('project_github_observation_payload_invalid');
-  const observedStacksRaw = value.observed_stacks ?? [];
-  if (!Array.isArray(observedStacksRaw) || observedStacksRaw.length > 9 || observedStacksRaw.some((stack) => !isDetectedStack(stack))) {
+
+  if (schemaVersion === 'project.github_observation.job.v1') {
+    const observedStacksRaw = value.observed_stacks ?? [];
+    if (!Array.isArray(observedStacksRaw) || observedStacksRaw.length > 9 || observedStacksRaw.some((stack) => !isDetectedStack(stack))) {
+      throw new Error('project_github_observation_payload_invalid');
+    }
+    return {
+      schemaVersion,
+      projectId,
+      deliveryId,
+      repositoryId,
+      ref,
+      before,
+      after,
+      repositoryPrivate,
+      manifestChanges: [],
+      manifestChangesComplete: false,
+      legacyObservedStacks: [...new Set(observedStacksRaw as DetectedStack[])].sort(),
+    };
+  }
+
+  const changesRaw = value.manifest_changes ?? [];
+  const complete = value.manifest_changes_complete;
+  if (!Array.isArray(changesRaw) || changesRaw.length > 128 || typeof complete !== 'boolean') {
     throw new Error('project_github_observation_payload_invalid');
   }
-  const observedStacks = [...new Set(observedStacksRaw as DetectedStack[])].sort();
-  return {projectId, deliveryId, repositoryId, ref, before, after, repositoryPrivate, observedStacks};
-}
-
-function sameStackReceiptMatches(payload: unknown, deliveryId: string, observedStacks: readonly DetectedStack[]): boolean {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false;
-  const value = payload as Record<string, unknown>;
-  if (value.schema_version !== 'project.github_repository_stack.observed.v1' || value.delivery_id !== deliveryId || value.truth_state !== 'OBSERVED') return false;
-  const stacks = value.observed_stacks;
-  if (!Array.isArray(stacks) || stacks.some((stack) => !isDetectedStack(stack))) return false;
-  const normalized = [...new Set(stacks as DetectedStack[])].sort();
-  return normalized.length === observedStacks.length && normalized.every((stack, index) => stack === observedStacks[index]);
+  const seen = new Set<string>();
+  const manifestChanges: ProjectManifestChange[] = [];
+  for (const raw of changesRaw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('project_github_observation_payload_invalid');
+    const change = raw as Record<string, unknown>;
+    if (typeof change.path_hash !== 'string' || !/^[0-9a-f]{64}$/.test(change.path_hash)) throw new Error('project_github_observation_payload_invalid');
+    if (!isDetectedStack(change.stack)) throw new Error('project_github_observation_payload_invalid');
+    if (change.state !== 'PRESENT' && change.state !== 'REMOVED') throw new Error('project_github_observation_payload_invalid');
+    if (seen.has(change.path_hash)) throw new Error('project_github_observation_payload_invalid');
+    seen.add(change.path_hash);
+    manifestChanges.push({pathHash: change.path_hash, stack: change.stack, state: change.state});
+  }
+  manifestChanges.sort((left, right) => left.pathHash.localeCompare(right.pathHash));
+  return {
+    schemaVersion,
+    projectId,
+    deliveryId,
+    repositoryId,
+    ref,
+    before,
+    after,
+    repositoryPrivate,
+    manifestChanges,
+    manifestChangesComplete: complete,
+    legacyObservedStacks: [],
+  };
 }
 
 function stackListFromProjection(value: unknown): DetectedStack[] {
@@ -256,14 +314,62 @@ function stackListFromProjection(value: unknown): DetectedStack[] {
   return [...new Set(value as DetectedStack[])].sort();
 }
 
-function stackListFromEvidencePayload(payload: unknown): DetectedStack[] {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('project_github_stack_history_invalid');
-  const value = payload as Record<string, unknown>;
-  const stacks = value.current_observed_stacks;
-  if (!Array.isArray(stacks) || stacks.length > 9 || stacks.some((stack) => !isDetectedStack(stack))) {
-    throw new Error('project_github_stack_history_invalid');
+function manifestMapFromProjection(value: unknown): Record<string, DetectedStack> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('project_github_manifest_projection_invalid');
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length > 4096) throw new Error('project_github_manifest_projection_invalid');
+  const result: Record<string, DetectedStack> = {};
+  for (const [pathHash, stack] of entries) {
+    if (!/^[0-9a-f]{64}$/.test(pathHash) || !isDetectedStack(stack)) throw new Error('project_github_manifest_projection_invalid');
+    result[pathHash] = stack;
   }
-  return [...new Set(stacks as DetectedStack[])].sort();
+  return result;
+}
+
+function receiptMatches(payload: unknown, input: ProjectObservationPayload): boolean {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false;
+  const value = payload as Record<string, unknown>;
+  if (value.delivery_id !== input.deliveryId) return false;
+  if (input.schemaVersion === 'project.github_observation.job.v1') {
+    if (value.schema_version !== 'project.github_repository_stack.observed.v1') return false;
+    const stacks = value.observed_stacks;
+    if (!Array.isArray(stacks) || stacks.some((stack) => !isDetectedStack(stack))) return false;
+    const normalized = [...new Set(stacks as DetectedStack[])].sort();
+    return canonicalizeJson(normalized).sha256 === canonicalizeJson(input.legacyObservedStacks).sha256;
+  }
+  if (value.schema_version !== 'project.github_repository_stack.observed.v2') return false;
+  if (value.projection_complete !== input.manifestChangesComplete) return false;
+  const rawChanges = value.manifest_changes;
+  if (!Array.isArray(rawChanges)) return false;
+  const expected = input.manifestChanges.map((change) => ({path_hash: change.pathHash, stack: change.stack, state: change.state}));
+  return canonicalizeJson(rawChanges).sha256 === canonicalizeJson(expected).sha256;
+}
+
+async function requireDeliveryOrder(
+  db: Kysely<DatabaseSchema>,
+  job: OutboxJobRow,
+  input: ProjectObservationPayload,
+  receivedAt: Date,
+): Promise<void> {
+  const earlier = await sql<{state: OutboxJobState}>`
+    select pending.state
+    from outbox_jobs pending
+    join github_deliveries delivery on delivery.delivery_id = pending.payload ->> 'delivery_id'
+    where pending.job_type = ${PROJECT_GITHUB_OBSERVATION_JOB_TYPE}
+      and pending.job_id <> ${job.job_id}
+      and pending.payload ->> 'project_id' = ${input.projectId}
+      and pending.state <> 'succeeded'
+      and (
+        delivery.received_at < ${receivedAt}
+        or (delivery.received_at = ${receivedAt} and delivery.delivery_id < ${input.deliveryId})
+      )
+    order by delivery.received_at asc, delivery.delivery_id asc
+    limit 1
+  `.execute(db);
+  const state = earlier.rows[0]?.state;
+  if (!state) return;
+  if (state === 'failed') throw new Error('project_github_observation_earlier_delivery_failed');
+  throw new Error('project_github_observation_waiting_for_earlier_delivery');
 }
 
 async function handleSessionExpiry(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date): Promise<void> {
@@ -291,7 +397,7 @@ async function handleProjectGitHubObservation(db: Kysely<DatabaseSchema>, job: O
   await db.transaction().execute(async (transaction) => {
     const project = await transaction
       .selectFrom('projects')
-      .select(['project_id', 'repository_id', 'observed_stack_labels'])
+      .select(['project_id', 'repository_id', 'observed_stack_labels', 'observed_manifest_fingerprints'])
       .where('project_id', '=', payload.projectId)
       .forUpdate()
       .executeTakeFirst();
@@ -305,6 +411,8 @@ async function handleProjectGitHubObservation(db: Kysely<DatabaseSchema>, job: O
     if (!delivery || delivery.event_name !== 'push' || delivery.repository_id !== payload.repositoryId || !(delivery.received_at instanceof Date)) {
       throw new Error('project_github_observation_delivery_receipt_invalid');
     }
+
+    await requireDeliveryOrder(transaction, job, payload, delivery.received_at);
 
     await appendHistoryEvent(transaction, {
       eventFamily: 'evidence',
@@ -327,10 +435,6 @@ async function handleProjectGitHubObservation(db: Kysely<DatabaseSchema>, job: O
       },
     });
 
-    if (payload.observedStacks.length === 0) return;
-
-    const previousObservedStacks = stackListFromProjection(project.observed_stack_labels);
-    const currentObservedStacks = [...new Set([...previousObservedStacks, ...payload.observedStacks])].sort();
     const stackDedupeKey = `evidence:project.github_repository_stack.observed:${payload.projectId}:${payload.deliveryId}`;
     const existingStackReceipt = await transaction
       .selectFrom('history_events')
@@ -338,14 +442,25 @@ async function handleProjectGitHubObservation(db: Kysely<DatabaseSchema>, job: O
       .where('dedupe_key', '=', stackDedupeKey)
       .executeTakeFirst();
     if (existingStackReceipt) {
-      if (!sameStackReceiptMatches(existingStackReceipt.payload, payload.deliveryId, payload.observedStacks)) {
-        throw new Error('project_github_stack_history_invalid');
-      }
-      if (currentObservedStacks.length !== previousObservedStacks.length) {
-        await transaction.updateTable('projects').set({observed_stack_labels: currentObservedStacks}).where('project_id', '=', payload.projectId).execute();
-      }
+      if (!receiptMatches(existingStackReceipt.payload, payload)) throw new Error('project_github_stack_history_invalid');
       return;
     }
+
+    if (payload.schemaVersion === 'project.github_observation.job.v2' && payload.manifestChanges.length === 0 && payload.manifestChangesComplete) return;
+
+    const previousObservedStacks = stackListFromProjection(project.observed_stack_labels);
+    let manifestMap = manifestMapFromProjection(project.observed_manifest_fingerprints);
+    if (payload.schemaVersion === 'project.github_observation.job.v1' || !payload.manifestChangesComplete) {
+      manifestMap = {};
+    } else {
+      manifestMap = {...manifestMap};
+      for (const change of payload.manifestChanges) {
+        if (change.state === 'REMOVED') delete manifestMap[change.pathHash];
+        else manifestMap[change.pathHash] = change.stack;
+      }
+    }
+    const currentObservedStacks = [...new Set(Object.values(manifestMap))].sort();
+    const manifestChanges = payload.manifestChanges.map((change) => ({path_hash: change.pathHash, stack: change.stack, state: change.state}));
 
     await appendHistoryEvent(transaction, {
       eventFamily: 'evidence',
@@ -355,17 +470,33 @@ async function handleProjectGitHubObservation(db: Kysely<DatabaseSchema>, job: O
       subjectType: 'project',
       subjectId: payload.projectId,
       occurredAt: delivery.received_at,
-      payload: {
-        schema_version: 'project.github_repository_stack.observed.v1',
-        provider: 'github',
-        delivery_id: payload.deliveryId,
-        observed_stacks: payload.observedStacks,
-        previous_observed_stacks: previousObservedStacks,
-        current_observed_stacks: currentObservedStacks,
-        truth_state: 'OBSERVED',
-      },
+      payload: payload.schemaVersion === 'project.github_observation.job.v1'
+        ? {
+            schema_version: 'project.github_repository_stack.observed.v2',
+            provider: 'github',
+            delivery_id: payload.deliveryId,
+            manifest_changes: [],
+            projection_complete: false,
+            previous_observed_stacks: previousObservedStacks,
+            current_observed_stacks: currentObservedStacks,
+            legacy_observed_stacks: payload.legacyObservedStacks,
+            truth_state: 'OBSERVED',
+          }
+        : {
+            schema_version: 'project.github_repository_stack.observed.v2',
+            provider: 'github',
+            delivery_id: payload.deliveryId,
+            manifest_changes: manifestChanges,
+            projection_complete: payload.manifestChangesComplete,
+            previous_observed_stacks: previousObservedStacks,
+            current_observed_stacks: currentObservedStacks,
+            truth_state: 'OBSERVED',
+          },
     });
-    await transaction.updateTable('projects').set({observed_stack_labels: currentObservedStacks}).where('project_id', '=', payload.projectId).execute();
+    await transaction.updateTable('projects').set({
+      observed_manifest_fingerprints: manifestMap,
+      observed_stack_labels: currentObservedStacks,
+    }).where('project_id', '=', payload.projectId).execute();
   });
 }
 

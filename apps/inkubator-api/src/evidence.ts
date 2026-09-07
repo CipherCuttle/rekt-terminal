@@ -249,7 +249,7 @@ export function detectStackFromManifestPaths(paths: readonly string[]): {
   };
 }
 
-export type ProgressGateKey = 'FOUNDATION' | 'CORE_EXPERIENCE' | 'QUALITY' | 'SHIPABILITY';
+export type ProgressGateKey = 'FOUNDATION' | 'CORE_EXPERIENCE' | 'QUALITY_TESTING' | 'SHIPABILITY';
 
 export interface ProgressObservationSuggestion {
   ruleVersion: typeof PROGRESS_EVIDENCE_RULE_VERSION;
@@ -275,7 +275,7 @@ export function deriveProgressObservationSuggestion(snapshot: GitHubEvidenceSnap
   if (latest.kind === 'WORKFLOW' && latest.outcome === 'SUCCEEDED') {
     return {
       ruleVersion: PROGRESS_EVIDENCE_RULE_VERSION,
-      gateKey: 'QUALITY',
+      gateKey: 'QUALITY_TESTING',
       suggestedSignalState: 'OBSERVED',
       observationId: latest.observationId,
       reasonCode: 'workflow_succeeded',

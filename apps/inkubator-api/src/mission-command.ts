@@ -278,7 +278,7 @@ async function commandByMissionId(db: Kysely<DatabaseSchema>, missionId: string)
     .where('subject_type', '=', 'project')
     .where('subject_id', '=', project.project_id)
     .orderBy('occurred_at', 'desc')
-    .orderBy('history_event_id', 'desc')
+    .orderBy(sql<string>`payload ->> 'delivery_id'`, 'desc')
     .executeTakeFirst();
   const observedStacks = stacksFromProjectProjection(project.observed_stack_labels);
   const previousObservedStacks = stackObservation ? stacksFromProjectEvidence(stackObservation.payload, 'previous_observed_stacks') : [];

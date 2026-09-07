@@ -72,7 +72,10 @@ function schemaType(schema: Schema): string {
   if (schema.const !== undefined) return JSON.stringify(schema.const);
   if (schema.enum) return schema.enum.map((value) => JSON.stringify(value)).join(' | ');
   if (Array.isArray(schema.type)) return schema.type.map(primitiveType).join(' | ');
-  if (schema.type === 'array') return `${schema.items ? schemaType(schema.items) : 'unknown'}[]`;
+  if (schema.type === 'array') {
+    const itemType = schema.items ? schemaType(schema.items) : 'unknown';
+    return `${itemType.includes(' | ') ? `(${itemType})` : itemType}[]`;
+  }
   if (schema.type) return primitiveType(schema.type);
   return 'unknown';
 }
