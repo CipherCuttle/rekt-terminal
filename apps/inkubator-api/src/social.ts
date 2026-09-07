@@ -373,7 +373,8 @@ export async function reactUsefulToComment(db: Kysely<DatabaseSchema>, actorIdIn
     if (!comment) throw new Error('comment_not_found');
     if (comment.state !== 'ACTIVE') throw new Error('comment_not_active');
     if (await interactionBlocked(tx, actorId, comment.author_player_id)) throw new Error('social_interaction_blocked');
-    const project = await tx.selectFrom('projects').select('project_id').where('project_id', '=', comment.project_id).forUpdate().executeTakeFirstOrThrow();
+    const project = await tx.selectFrom('projects').select(['project_id', 'owner_player_id']).where('project_id', '=', comment.project_id).forUpdate().executeTakeFirstOrThrow();
+    if (await interactionBlocked(tx, actorId, project.owner_player_id)) throw new Error('social_interaction_blocked');
     if (await discussionLocked(tx, project.project_id)) throw new Error('project_discussion_locked');
     const inserted = await tx.insertInto('project_comment_reactions').values({comment_id: commentId, player_id: actorId, reaction: 'USEFUL'})
       .onConflict((c) => c.columns(['comment_id', 'player_id', 'reaction']).doNothing()).returning('comment_id').executeTakeFirst();
