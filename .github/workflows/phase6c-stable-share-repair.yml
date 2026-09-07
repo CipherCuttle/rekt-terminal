@@ -121,6 +121,12 @@ jobs:
           """
           contract.write_text(text.replace(anchor, addition, 1))
 
+          replace_once(
+              'apps/inkubator-api/src/generate-client.ts',
+              "  ['/v1/projects/{projectId}/ship', 'get'],\n",
+              "  ['/v1/projects/{projectId}/ship', 'get'],\n  ['/v1/ship-receipts/{receiptId}', 'get'],\n",
+          )
+
           test_path = Path('apps/inkubator-api/test/integration/phase6-ship-artifact-attribution.test.mjs')
           text = test_path.read_text()
           test_anchor = "test('Phase 6C snapshots accepted Party/Assist attribution and exposes a privacy-safe PROVEN Artifact state', async () => {"
@@ -197,6 +203,7 @@ jobs:
           git add \
             apps/inkubator-api/src/app.ts \
             apps/inkubator-api/src/contract-phase6c.ts \
+            apps/inkubator-api/src/generate-client.ts \
             apps/inkubator-api/src/ship-artifact.ts \
             apps/inkubator-api/test/integration/phase6-ship-artifact-attribution.test.mjs \
             apps/inkubator-lab/src/generated/inkubator-api-client.ts
