@@ -1,0 +1,82 @@
+name: Phase 6B API Verification
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/phase6b-api-verify.yml'
+      - 'apps/inkubator-api/**'
+      - 'apps/inkubator-lab/src/generated/inkubator-api-client.ts'
+      - 'packages/inkubator-protocol/**'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_USER: rekt
+          POSTGRES_PASSWORD: rekt_test
+          POSTGRES_DB: rekt_inkubator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rekt -d rekt_inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://rekt:rekt_test@127.0.0.1:5432/rekt_inkubator
+      INKUBATOR_APP_ORIGIN: http://127.0.0.1:4175
+      INKUBATOR_DEV_AUTH: '1'
+      NODE_ENV: test
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify canonical toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = 'v24.20.0'
+          test "$(npm -v)" = '11.19.0'
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build authenticated API
+        run: npm run build -w @rekt-ink/inkubator-api
+
+      - name: Verify generated typed client
+        run: node apps/inkubator-api/dist/generate-client.js --check
+
+      - name: API unit tests
+        run: npm run test -w @rekt-ink/inkubator-api
+
+      - name: Protocol compatibility tests
+        run: npm run test -w @rekt-ink/inkubator-protocol
+
+      - name: Apply migrations
+        run: npm run migrate -w @rekt-ink/inkubator-api
+
+      - name: Focused Phase 6B repair falsification
+        run: >-
+          timeout 90s node --test --test-concurrency=1
+          apps/inkubator-api/test/integration/phase6-ship-acceptance-receipt.test.mjs
+          apps/inkubator-api/test/integration/phase6-ship-unavailable-truth.test.mjs
+          apps/inkubator-api/test/integration/phase6-ship-reconciliation-starvation.test.mjs
+
+      - name: Full Postgres integration after Phase 6B residue
+        run: timeout 180s npm run test:integration -w @rekt-ink/inkubator-api
