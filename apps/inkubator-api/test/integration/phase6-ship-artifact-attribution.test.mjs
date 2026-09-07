@@ -96,6 +96,10 @@ async function publicShip(app, projectId) {
   return response.json();
 }
 
+async function publicReceipt(app, receiptId) {
+  return app.inject({method: 'GET', url: `/v1/ship-receipts/${receiptId}`});
+}
+
 test('Phase 6C snapshots accepted Party/Assist attribution and exposes a privacy-safe PROVEN Artifact state', async () => {
   const db = createDatabase(databaseUrl);
   await migrateToLatest(db);
@@ -158,6 +162,15 @@ test('Phase 6C snapshots accepted Party/Assist attribution and exposes a privacy
     assert.equal(publicJson.includes(reviewMarker), false);
     assert.equal(publicJson.includes('"reason":'), false);
 
+    const stableReceipt = await publicReceipt(app, artifact.receipt_id);
+  assert.equal(stableReceipt.statusCode, 200);
+  assert.equal(stableReceipt.headers['cache-control'], 'public, max-age=31536000, immutable');
+  assert.deepEqual(stableReceipt.json(), artifact);
+  assert.equal(JSON.stringify(stableReceipt.json()).includes(privateMarker), false);
+  assert.equal(JSON.stringify(stableReceipt.json()).includes(reviewMarker), false);
+  assert.equal((await publicReceipt(app, 'not-a-uuid')).statusCode, 400);
+  assert.equal((await publicReceipt(app, randomUUID())).statusCode, 404);
+
     const snapshotBeforeLate = await db.selectFrom('ship_receipt_attributions').selectAll().where('receipt_id', '=', artifact.receipt_id).orderBy('role', 'asc').orderBy('player_id', 'asc').execute();
     assert.equal(snapshotBeforeLate.length, 2);
 
@@ -167,6 +180,10 @@ test('Phase 6C snapshots accepted Party/Assist attribution and exposes a privacy
     assert.deepEqual(afterLatePartyChange.latest_submission.accepted_ship, artifact);
     assert.equal(afterLatePartyChange.latest_submission.accepted_ship.builders.some((row) => row.player_id === lateHelper.playerId), false);
     assert.equal(afterLatePartyChange.latest_submission.accepted_ship.assists.some((row) => row.assist_id === lateAssistId), false);
+
+    const stableAfterLatePartyChange = await publicReceipt(app, artifact.receipt_id);
+  assert.equal(stableAfterLatePartyChange.statusCode, 200);
+  assert.deepEqual(stableAfterLatePartyChange.json(), artifact);
 
     const replay = await operatorReviewShipAcceptance(db, submissionId, {requestId, decision: 'ACCEPT', reason: reviewMarker});
     assert.equal(replay.accepted_receipt.receipt_id, artifact.receipt_id);

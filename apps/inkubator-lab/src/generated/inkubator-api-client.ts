@@ -615,6 +615,10 @@ export class InkubatorApiClient {
     return this.request<ProjectShipStateView>(`/v1/projects/${encodeURIComponent(projectId)}/ship`, {method: 'GET'});
   }
 
+  getShipReceipt(receiptId: string): Promise<AcceptedShipArtifactView> {
+    return this.request<AcceptedShipArtifactView>(`/v1/ship-receipts/${encodeURIComponent(receiptId)}`, {method: 'GET'});
+  }
+
   listRounds(): Promise<RoundList> {
     return this.request<RoundList>("/v1/rounds", {method: 'GET'});
   }

@@ -48,6 +48,7 @@ const clientOperations = [
   ['/v1/players/{playerId}/private', 'get'],
   ['/v1/missions/{missionId}/ship-submissions', 'post'],
   ['/v1/projects/{projectId}/ship', 'get'],
+  ['/v1/ship-receipts/{receiptId}', 'get'],
   ['/v1/rounds', 'get'],
   ['/v1/rounds/{roundId}/join', 'post'],
   ['/v1/missions', 'post'],

@@ -35,6 +35,7 @@ import {
   toPublicDevelopmentProject,
 } from './projects.js';
 import {toPrivatePlayer, toPublicPlayer} from './projection.js';
+import {getAcceptedShipArtifactByReceiptId} from './ship-artifact.js';
 import {getProjectShipState, submitShip} from './ship.js';
 import {acceptAssist, blockPlayer, closeHelpBeacon, createExternalTestRequest, createHelpBeacon, createProjectComment, deleteOwnProjectComment, followPlayer, getProjectExternalTests, getProjectHelpLoop, listDiscoverablePlayers, listDiscoverableProjects, listProjectComments, listWorldSignals, offerAssist, reactUsefulToComment, recordExternalTestResult, reportProjectComment, setProjectDiscussionLock, unblockPlayer, watchProject} from './social.js';
 import {
@@ -530,6 +531,15 @@ export function buildApp(options: BuildAppOptions) {
     const {projectId}=request.params as {projectId:string};
     try{return await getProjectShipState(options.db,projectId);}catch(cause){return phase6Error(reply,cause);}
   });
+
+  app.get('/v1/ship-receipts/:receiptId', async (request, reply) => {
+  const {receiptId}=request.params as {receiptId:string};
+  if(!isUuid(receiptId))return error(reply,400,'invalid_receipt_id');
+  const artifact=await getAcceptedShipArtifactByReceiptId(options.db,receiptId);
+  if(!artifact)return error(reply,404,'ship_receipt_not_found');
+  reply.header('cache-control','public, max-age=31536000, immutable');
+  return artifact;
+});
 
   app.delete('/v1/session', async (request, reply) => {
     const token = readSessionToken(request.headers.cookie);

@@ -169,3 +169,17 @@ export async function getAcceptedShipArtifactForSubmission(
     shipped_at: receipt.shipped_at.toISOString(),
   };
 }
+
+
+export async function getAcceptedShipArtifactByReceiptId(
+  dbInput: Kysely<DatabaseSchema>,
+  receiptId: string,
+) {
+  const db = artifactDb(dbInput);
+  const receipt = await db.selectFrom('ship_receipts')
+    .select('submission_id')
+    .where('receipt_id', '=', receiptId)
+    .executeTakeFirst();
+  if (!receipt) return null;
+  return getAcceptedShipArtifactForSubmission(dbInput, receipt.submission_id);
+}

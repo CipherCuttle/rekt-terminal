@@ -117,3 +117,14 @@ schemas.ProjectShipStateView = {
 const paths = openapiDocument.paths as unknown as Record<string, any>;
 paths['/v1/missions/{missionId}/ship-submissions'].post.responses['201'].content['application/json'].schema = {$ref: '#/components/schemas/ShipSubmissionPrivateView'};
 paths['/v1/projects/{projectId}/ship'].get.responses['200'].description = 'Privacy-safe public Ship state with immutable accepted Artifact attribution when PROVEN';
+paths['/v1/ship-receipts/{receiptId}'] = {
+  get: {
+    operationId: 'getShipReceipt',
+    parameters: [{name: 'receiptId', in: 'path', required: true, schema: {type: 'string', format: 'uuid'}}],
+    responses: {
+      '200': {description: 'Stable privacy-safe accepted Ship Artifact permalink', content: {'application/json': {schema: {$ref: '#/components/schemas/AcceptedShipArtifactView'}}}},
+      '400': {description: 'Invalid receipt ID', content: {'application/json': {schema: {$ref: '#/components/schemas/Error'}}}},
+      '404': {description: 'Accepted Ship Receipt not found', content: {'application/json': {schema: {$ref: '#/components/schemas/Error'}}}},
+    },
+  },
+};
