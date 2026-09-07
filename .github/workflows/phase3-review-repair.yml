@@ -44,7 +44,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = '8940765b9cb3f4f1a186c0733deca6924ba869fc'
+          test "$(git rev-parse HEAD^)" = 'cdd3e37673cceee39cae1f7bab26a95b3e9870e4'
+          test "$(git rev-parse HEAD^^)" = '8940765b9cb3f4f1a186c0733deca6924ba869fc'
           test "$(git rev-parse --abbrev-ref HEAD)" = 'feature/inkubator-player-mission-command-v0'
 
       - name: Apply bounded P1 and contract repair
@@ -57,24 +58,11 @@ jobs:
           path = Path('apps/inkubator-api/src/mission-command.ts')
           source = path.read_text()
 
-          terminal_anchor = """    if (await existingRequest(transaction, dedupeKey, 'mission.gate.updated', playerId, 'mission', missionId, payload)) {
-              const snapshot = await commandByMissionId(transaction, missionId);
-              if (!snapshot) throw new Error('mission_not_found');
-              return snapshot;
-            }
-            const gate = await transaction.selectFrom('mission_gates').selectAll().where('mission_id', '=', missionId).where('gate_key', '=', gateKey).executeTakeFirst();
-          """
-          terminal_replacement = """    if (await existingRequest(transaction, dedupeKey, 'mission.gate.updated', playerId, 'mission', missionId, payload)) {
-              const snapshot = await commandByMissionId(transaction, missionId);
-              if (!snapshot) throw new Error('mission_not_found');
-              return snapshot;
-            }
-            if (TERMINAL_STATES.has(mission.state)) throw new Error('mission_terminal');
-            const gate = await transaction.selectFrom('mission_gates').selectAll().where('mission_id', '=', missionId).where('gate_key', '=', gateKey).executeTakeFirst();
-          """
-          if source.count(terminal_anchor) != 1:
-              raise SystemExit(f'terminal gate anchor drifted: {source.count(terminal_anchor)}')
-          source = source.replace(terminal_anchor, terminal_replacement)
+          gate_anchor = "    const gate = await transaction.selectFrom('mission_gates').selectAll().where('mission_id', '=', missionId).where('gate_key', '=', gateKey).executeTakeFirst();\n"
+          gate_replacement = "    if (TERMINAL_STATES.has(mission.state)) throw new Error('mission_terminal');\n" + gate_anchor
+          if source.count(gate_anchor) != 1:
+              raise SystemExit(f'terminal gate anchor drifted: {source.count(gate_anchor)}')
+          source = source.replace(gate_anchor, gate_replacement)
 
           blocker_anchor = "      blocker: snapshot.mission.blocker,\n"
           blocker_replacement = "      ...(snapshot.mission.blocker !== null ? {blocker: snapshot.mission.blocker} : {}),\n"
