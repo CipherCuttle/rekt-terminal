@@ -9,6 +9,8 @@ export interface DevSessionRequest {
 
 export type PlayerId = string;
 
+export type ProjectId = string;
+
 export interface PublicPlayer {
   schema_version: "player.public.v1";
   player_id: PlayerId;
@@ -33,6 +35,53 @@ export interface GitHubInstallView {
   schema_version: "github.install.v1";
   install_url: string;
   expires_at: string;
+}
+
+export interface DevelopmentProjectRequest {
+  name: string;
+  goal: string;
+  ship_condition: string;
+  current_focus: string;
+  next_move: string;
+}
+
+export interface ProjectGitHubRepositoryLinkRequest {
+  repository_id: string;
+}
+
+export interface PublicProject {
+  schema_version: "project.public.v1";
+  project_id: ProjectId;
+  name: string;
+  mission_id: string;
+  mission_state: "DECLARED";
+  source_connected: boolean;
+  source_visibility: string;
+  observation_state: string;
+}
+
+export interface PrivateProject {
+  schema_version: "project.private.v1";
+  project_id: ProjectId;
+  owner_player_id: PlayerId;
+  name: string;
+  mission_id: string;
+  mission_state: "DECLARED";
+  goal: string;
+  ship_condition: string;
+  current_focus: string;
+  next_move: string;
+  source_connected: boolean;
+  source_visibility: string;
+  observation_state: string;
+  repository_id?: string;
+  repository_full_name?: string;
+  repository_private?: boolean;
+  repository_active?: boolean;
+  last_delivery_id?: string;
+  last_ref?: string;
+  last_before?: string;
+  last_after?: string;
 }
 
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -85,6 +134,22 @@ export class InkubatorApiClient {
 
   getPrivatePlayer(playerId: PlayerId): Promise<PrivatePlayer> {
     return this.request<PrivatePlayer>(`/v1/players/${encodeURIComponent(playerId)}/private`, {method: 'GET'});
+  }
+
+  createDevelopmentProject(body: DevelopmentProjectRequest): Promise<PrivateProject> {
+    return this.request<PrivateProject>("/v1/development/projects", {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  getPublicProject(projectId: ProjectId): Promise<PublicProject> {
+    return this.request<PublicProject>(`/v1/projects/${encodeURIComponent(projectId)}`, {method: 'GET'});
+  }
+
+  getPrivateProject(projectId: ProjectId): Promise<PrivateProject> {
+    return this.request<PrivateProject>(`/v1/projects/${encodeURIComponent(projectId)}/private`, {method: 'GET'});
+  }
+
+  linkProjectGitHubRepository(projectId: ProjectId, body: ProjectGitHubRepositoryLinkRequest): Promise<PrivateProject> {
+    return this.request<PrivateProject>(`/v1/projects/${encodeURIComponent(projectId)}/github-repositories`, {method: 'POST', body: JSON.stringify(body)});
   }
 
   createGitHubInstall(): Promise<GitHubInstallView> {

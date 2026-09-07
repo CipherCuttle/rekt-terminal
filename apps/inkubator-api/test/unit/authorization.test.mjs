@@ -15,9 +15,15 @@ test('authorization is owner-only and deny-by-default', () => {
   const actor = {playerId: '11111111-1111-4111-8111-111111111111'};
   const own = {kind: 'player', playerId: actor.playerId};
   const other = {kind: 'player', playerId: '22222222-2222-4222-8222-222222222222'};
+  const ownProject = {kind: 'project', ownerPlayerId: actor.playerId};
+  const otherProject = {kind: 'project', ownerPlayerId: other.playerId};
   assert.equal(authorize(actor, 'player.read_private', own), true);
   assert.equal(authorize(actor, 'player.update', own), true);
   assert.equal(authorize(actor, 'player.read_private', other), false);
+  assert.equal(authorize(actor, 'project.read_private', ownProject), true);
+  assert.equal(authorize(actor, 'project.link_repository', ownProject), true);
+  assert.equal(authorize(actor, 'project.read_private', otherProject), false);
+  assert.equal(authorize(null, 'project.read_private', ownProject), false);
   assert.equal(authorize(null, 'player.read_private', own), false);
   assert.equal(authorize(actor, 'future.unknown.action', own), false);
 });

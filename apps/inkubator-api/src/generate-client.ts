@@ -42,6 +42,10 @@ const clientOperations = [
   ['/v1/me', 'get'],
   ['/v1/players/{playerId}', 'get'],
   ['/v1/players/{playerId}/private', 'get'],
+  ['/v1/development/projects', 'post'],
+  ['/v1/projects/{projectId}', 'get'],
+  ['/v1/projects/{projectId}/private', 'get'],
+  ['/v1/projects/{projectId}/github-repositories', 'post'],
   ['/v1/github/install', 'post'],
 ] as const;
 
