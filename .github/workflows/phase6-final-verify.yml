@@ -64,6 +64,9 @@ jobs:
           npm run test -w @rekt-ink/inkubator-protocol
           npm run build -w @rekt-ink/inkubator-lab
 
+      - name: Verify generated client freshness
+        run: git diff --exit-code -- apps/inkubator-lab/src/generated/inkubator-api-client.ts
+
       - name: Apply migrations
         run: npm run migrate -w @rekt-ink/inkubator-api
 
@@ -78,7 +81,3 @@ jobs:
 
       - name: Full Postgres integration
         run: timeout 300s npm run test:integration -w @rekt-ink/inkubator-api
-
-      - name: Show generated client delta
-        if: always()
-        run: git diff -- apps/inkubator-lab/src/generated/inkubator-api-client.ts || true
