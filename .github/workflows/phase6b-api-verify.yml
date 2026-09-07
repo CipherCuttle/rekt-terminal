@@ -71,50 +71,8 @@ jobs:
       - name: Apply migrations
         run: npm run migrate -w @rekt-ink/inkubator-api
 
-      - name: Probe combined Phase 6B file
-        id: probe_combined
-        continue-on-error: true
+      - name: Focused Phase 6B falsification
         run: timeout 60s node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase6-ship-acceptance-receipt.test.mjs
 
-      - name: Probe PASS then ACCEPT
-        id: probe_pass_accept
-        continue-on-error: true
-        run: timeout 30s node --test --test-concurrency=1 --test-name-pattern='PASS alone cannot Ship' apps/inkubator-api/test/integration/phase6-ship-acceptance-receipt.test.mjs
-
-      - name: Probe ACCEPT then PASS
-        id: probe_accept_pass
-        continue-on-error: true
-        run: timeout 30s node --test --test-concurrency=1 --test-name-pattern='ACCEPT before verifier PASS' apps/inkubator-api/test/integration/phase6-ship-acceptance-receipt.test.mjs
-
-      - name: Probe negative evidence
-        id: probe_negative
-        continue-on-error: true
-        run: timeout 30s node --test --test-concurrency=1 --test-name-pattern='REJECT and failed verifier evidence' apps/inkubator-api/test/integration/phase6-ship-acceptance-receipt.test.mjs
-
-      - name: Probe concurrent acceptance
-        id: probe_concurrency
-        continue-on-error: true
-        run: timeout 30s node --test --test-concurrency=1 --test-name-pattern='concurrent trusted acceptance attempts' apps/inkubator-api/test/integration/phase6-ship-acceptance-receipt.test.mjs
-
-      - name: Probe pre-existing integration suite after Phase 6B residue
-        id: probe_existing_suite
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          files=()
-          while IFS= read -r -d '' file; do files+=("$file"); done < <(find apps/inkubator-api/test/integration -maxdepth 1 -name '*.test.mjs' ! -name 'phase6-ship-acceptance-receipt.test.mjs' -print0 | sort -z)
-          test "${#files[@]}" -gt 0
-          timeout 90s node --test --test-concurrency=1 "${files[@]}"
-
-      - name: Require all Phase 6B diagnostics
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          test '${{ steps.probe_combined.outcome }}' = 'success'
-          test '${{ steps.probe_pass_accept.outcome }}' = 'success'
-          test '${{ steps.probe_accept_pass.outcome }}' = 'success'
-          test '${{ steps.probe_negative.outcome }}' = 'success'
-          test '${{ steps.probe_concurrency.outcome }}' = 'success'
-          test '${{ steps.probe_existing_suite.outcome }}' = 'success'
+      - name: Full Postgres integration after Phase 6B residue
+        run: timeout 120s npm run test:integration -w @rekt-ink/inkubator-api
