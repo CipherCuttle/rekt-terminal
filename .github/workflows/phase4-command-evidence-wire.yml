@@ -89,7 +89,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm .github/workflows/phase4-command-evidence-wire.yml .github/scripts/phase4_command_evidence_wire.py
+          git rm -f .github/workflows/phase4-command-evidence-wire.yml .github/scripts/phase4_command_evidence_wire.py
           git add apps/inkubator-api/src/mission-command.ts apps/inkubator-api/src/contract.ts apps/inkubator-api/test/integration/phase4-github-evidence-daemon.test.mjs apps/inkubator-lab/src/generated/inkubator-api-client.ts
           git commit -m 'feat(inkubator): wire GitHub evidence into Command'
           git push origin HEAD:feature/inkubator-github-evidence-daemon-v0
