@@ -7,6 +7,6 @@ export default defineConfig({
   plugins: [react()],
   resolve: {alias: {'@': fileURLToPath(new URL('./src', import.meta.url))}},
   server: {host: '127.0.0.1', port: 5174},
-  test: {environment: 'jsdom'},
+  test: {environment: 'jsdom', include: ['src/**/*.test.{ts,tsx}']},
   build: {target: 'es2022', outDir: '../../inkubator', emptyOutDir: true}
 });
