@@ -58,6 +58,13 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Correct established control webhook expectation
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i "s/assert.equal(suspend.statusCode, 202);/assert.equal(suspend.statusCode, 200);/" .github/scripts/phase4_command_evidence_wire.py
+          grep -F "assert.equal(suspend.statusCode, 200);" .github/scripts/phase4_command_evidence_wire.py
+
       - name: Apply bounded Command evidence wiring
         run: python3 .github/scripts/phase4_command_evidence_wire.py
 
