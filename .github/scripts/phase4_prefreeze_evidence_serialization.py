@@ -31,7 +31,83 @@ if old not in text:
 text = text.replace(old, new, 1)
 events.write_text(text)
 
-# 2) Serialize Project evidence materialization and source freshness from immutable GitHub delivery receipt time.
+# 2) Add a bounded current-state Project projection for trusted observed stack labels.
+database = Path('apps/inkubator-api/src/database.ts')
+text = database.read_text()
+old = """  name: string;
+  repository_id: string | null;
+  created_at: Generated<Date>;
+"""
+new = """  name: string;
+  repository_id: string | null;
+  observed_stack_labels: Generated<unknown>;
+  created_at: Generated<Date>;
+"""
+if old not in text:
+    raise SystemExit('project table type anchor drifted')
+text = text.replace(old, new, 1)
+database.write_text(text)
+
+migration_path = Path('apps/inkubator-api/src/migrations/007-phase4-project-evidence-projection.ts')
+if migration_path.exists():
+    raise SystemExit('phase4 projection migration already exists')
+migration_path.write_text("""import {sql} from 'kysely';
+import type {Migration} from 'kysely/migration';
+
+export const phase4ProjectEvidenceProjectionMigration: Migration = {
+  async up(db) {
+    await db.schema
+      .alterTable('projects')
+      .addColumn('observed_stack_labels', 'jsonb', (column) => column.notNull().defaultTo(sql`'[]'::jsonb`))
+      .execute();
+    await sql`
+      alter table projects
+      add constraint projects_observed_stack_labels_array
+      check (jsonb_typeof(observed_stack_labels) = 'array')
+    `.execute(db);
+    await sql`
+      update projects project
+      set observed_stack_labels = evidence.observed_stack_labels
+      from (
+        select
+          history.subject_id::uuid as project_id,
+          to_jsonb(array_agg(distinct stacks.stack_label order by stacks.stack_label)) as observed_stack_labels
+        from history_events history
+        cross join lateral jsonb_array_elements_text(history.payload -> 'observed_stacks') as stacks(stack_label)
+        where history.event_type = 'project.github_repository_stack.observed'
+          and history.subject_type = 'project'
+        group by history.subject_id
+      ) evidence
+      where project.project_id = evidence.project_id
+    `.execute(db);
+  },
+  async down(db) {
+    await db.schema.alterTable('projects').dropColumn('observed_stack_labels').execute();
+  },
+};
+""")
+
+migrations = Path('apps/inkubator-api/src/migrations.ts')
+text = migrations.read_text()
+old = """import {playerMissionCommandMigration} from './migrations/006-player-mission-command.js';
+"""
+new = """import {playerMissionCommandMigration} from './migrations/006-player-mission-command.js';
+import {phase4ProjectEvidenceProjectionMigration} from './migrations/007-phase4-project-evidence-projection.js';
+"""
+if old not in text:
+    raise SystemExit('migration import anchor drifted')
+text = text.replace(old, new, 1)
+old = """      '006_player_mission_command': playerMissionCommandMigration,
+"""
+new = """      '006_player_mission_command': playerMissionCommandMigration,
+      '007_phase4_project_evidence_projection': phase4ProjectEvidenceProjectionMigration,
+"""
+if old not in text:
+    raise SystemExit('migration registry anchor drifted')
+text = text.replace(old, new, 1)
+migrations.write_text(text)
+
+# 3) Serialize Project evidence materialization, use immutable delivery receipt time, and atomically update current stack projection.
 jobs = Path('apps/inkubator-api/src/jobs.ts')
 text = jobs.read_text()
 
@@ -47,6 +123,13 @@ helper = """function sameStackReceiptMatches(payload: unknown, deliveryId: strin
   return normalized.length === observedStacks.length && normalized.every((stack, index) => stack === observedStacks[index]);
 }
 
+function stackListFromProjection(value: unknown): DetectedStack[] {
+  if (!Array.isArray(value) || value.length > 9 || value.some((stack) => !isDetectedStack(stack))) {
+    throw new Error('project_github_stack_projection_invalid');
+  }
+  return [...new Set(value as DetectedStack[])].sort();
+}
+
 """
 if anchor not in text:
     raise SystemExit('stack helper anchor drifted')
@@ -59,7 +142,7 @@ replacement = """async function handleProjectGitHubObservation(db: Kysely<Databa
   await db.transaction().execute(async (transaction) => {
     const project = await transaction
       .selectFrom('projects')
-      .select(['project_id', 'repository_id'])
+      .select(['project_id', 'repository_id', 'observed_stack_labels'])
       .where('project_id', '=', payload.projectId)
       .forUpdate()
       .executeTakeFirst();
@@ -97,6 +180,8 @@ replacement = """async function handleProjectGitHubObservation(db: Kysely<Databa
 
     if (payload.observedStacks.length === 0) return;
 
+    const previousObservedStacks = stackListFromProjection(project.observed_stack_labels);
+    const currentObservedStacks = [...new Set([...previousObservedStacks, ...payload.observedStacks])].sort();
     const stackDedupeKey = `evidence:project.github_repository_stack.observed:${payload.projectId}:${payload.deliveryId}`;
     const existingStackReceipt = await transaction
       .selectFrom('history_events')
@@ -107,20 +192,12 @@ replacement = """async function handleProjectGitHubObservation(db: Kysely<Databa
       if (!sameStackReceiptMatches(existingStackReceipt.payload, payload.deliveryId, payload.observedStacks)) {
         throw new Error('project_github_stack_history_invalid');
       }
+      if (currentObservedStacks.length !== previousObservedStacks.length) {
+        await transaction.updateTable('projects').set({observed_stack_labels: currentObservedStacks}).where('project_id', '=', payload.projectId).execute();
+      }
       return;
     }
 
-    const previousEvent = await transaction
-      .selectFrom('history_events')
-      .select('payload')
-      .where('event_type', '=', 'project.github_repository_stack.observed')
-      .where('subject_type', '=', 'project')
-      .where('subject_id', '=', payload.projectId)
-      .orderBy('occurred_at', 'desc')
-      .orderBy('history_event_id', 'desc')
-      .executeTakeFirst();
-    const previousObservedStacks = previousEvent ? stackListFromEvidencePayload(previousEvent.payload) : [];
-    const currentObservedStacks = [...new Set([...previousObservedStacks, ...payload.observedStacks])].sort();
     await appendHistoryEvent(transaction, {
       eventFamily: 'evidence',
       eventType: 'project.github_repository_stack.observed',
@@ -139,13 +216,39 @@ replacement = """async function handleProjectGitHubObservation(db: Kysely<Databa
         truth_state: 'OBSERVED',
       },
     });
+    await transaction.updateTable('projects').set({observed_stack_labels: currentObservedStacks}).where('project_id', '=', payload.projectId).execute();
   });
 }
 """
 text = text[:start] + replacement + text[end:]
 jobs.write_text(text)
 
-# 3) Strengthen the existing Phase-4 integration regression.
+# 4) Command reads the serialized current projection, while immutable history remains provenance/advisory context.
+mission = Path('apps/inkubator-api/src/mission-command.ts')
+text = mission.read_text()
+anchor = """function stacksFromProjectEvidence(payload: unknown, key: 'previous_observed_stacks' | 'current_observed_stacks'): DetectedStack[] {
+"""
+helper = """function stacksFromProjectProjection(value: unknown): DetectedStack[] {
+  if (!Array.isArray(value) || value.some((stack) => !isDetectedStack(stack))) return [];
+  return [...new Set(value as DetectedStack[])].sort();
+}
+
+"""
+if anchor not in text:
+    raise SystemExit('command stack helper anchor drifted')
+text = text.replace(anchor, helper + anchor, 1)
+old = """  const observedStacks = stackObservation ? stacksFromProjectEvidence(stackObservation.payload, 'current_observed_stacks') : [];
+  const previousObservedStacks = stackObservation ? stacksFromProjectEvidence(stackObservation.payload, 'previous_observed_stacks') : [];
+"""
+new = """  const observedStacks = stacksFromProjectProjection(project.observed_stack_labels);
+  const previousObservedStacks = stackObservation ? stacksFromProjectEvidence(stackObservation.payload, 'previous_observed_stacks') : [];
+"""
+if old not in text:
+    raise SystemExit('command observed stack projection anchor drifted')
+text = text.replace(old, new, 1)
+mission.write_text(text)
+
+# 5) Strengthen the existing Phase-4 integration regression.
 test = Path('apps/inkubator-api/test/integration/phase4-github-evidence-daemon.test.mjs')
 text = test.read_text()
 text = text.replace(
@@ -238,6 +341,8 @@ concurrency_block = """    assert.match(expandedStack.json().daemon.scope_damage
 
     const concurrentCommand = await app.inject({method: 'GET', url: '/v1/me/command', headers: {cookie}});
     assert.deepEqual(concurrentCommand.json().github_evidence.observed_stacks, ['GO', 'JAVASCRIPT_TYPESCRIPT', 'PYTHON', 'RUST']);
+    const projectedStacks = await db.selectFrom('projects').select('observed_stack_labels').where('project_id', '=', projectId).executeTakeFirstOrThrow();
+    assert.deepEqual(projectedStacks.observed_stack_labels, ['GO', 'JAVASCRIPT_TYPESCRIPT', 'PYTHON', 'RUST']);
     const concurrentStackEvents = await db.selectFrom('history_events').selectAll()
       .where('event_type', '=', 'project.github_repository_stack.observed').where('subject_id', '=', projectId).execute();
     assert.equal(concurrentStackEvents.length, 4);
@@ -249,6 +354,8 @@ concurrency_block = """    assert.match(expandedStack.json().daemon.scope_damage
     const stackEventsAfterLateRetry = await db.selectFrom('history_events').selectAll()
       .where('event_type', '=', 'project.github_repository_stack.observed').where('subject_id', '=', projectId).execute();
     assert.equal(stackEventsAfterLateRetry.length, 4);
+    const projectionAfterLateRetry = await db.selectFrom('projects').select('observed_stack_labels').where('project_id', '=', projectId).executeTakeFirstOrThrow();
+    assert.deepEqual(projectionAfterLateRetry.observed_stack_labels, ['GO', 'JAVASCRIPT_TYPESCRIPT', 'PYTHON', 'RUST']);
 
     const suspend = await sendWebhook(app, 'installation', {action: 'suspend', installation: {id: Number(installationId)}});
 """
