@@ -5,6 +5,7 @@ import {componentSchemas, openapiDocument} from './contract.js';
 type Schema = {
   type?: string;
   const?: string | number | boolean;
+  enum?: Array<string | number | boolean>;
   $ref?: string;
   properties?: Record<string, Schema>;
   required?: string[];
@@ -42,12 +43,17 @@ const clientOperations = [
   ['/v1/me', 'get'],
   ['/v1/players/{playerId}', 'get'],
   ['/v1/players/{playerId}/private', 'get'],
+  ['/v1/development/projects', 'post'],
+  ['/v1/projects/{projectId}', 'get'],
+  ['/v1/projects/{projectId}/private', 'get'],
+  ['/v1/projects/{projectId}/github-repositories', 'post'],
   ['/v1/github/install', 'post'],
 ] as const;
 
 function schemaType(schema: Schema): string {
   if (schema.$ref) return schema.$ref.split('/').at(-1) ?? 'unknown';
   if (schema.const !== undefined) return JSON.stringify(schema.const);
+  if (schema.enum) return schema.enum.map((value) => JSON.stringify(value)).join(' | ');
   if (schema.type === 'string') return 'string';
   if (schema.type === 'number' || schema.type === 'integer') return 'number';
   if (schema.type === 'boolean') return 'boolean';

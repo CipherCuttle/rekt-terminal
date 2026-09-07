@@ -16,6 +16,13 @@ import {
 } from './github.js';
 import {enqueueOutboxJob, SESSION_EXPIRY_JOB_TYPE} from './jobs.js';
 import {createPlayer, getPlayer, normalizeDisplayName} from './players.js';
+import {
+  createDevelopmentProject,
+  getDevelopmentProject,
+  linkDevelopmentProjectRepository,
+  toPrivateDevelopmentProject,
+  toPublicDevelopmentProject,
+} from './projects.js';
 import {toPrivatePlayer, toPublicPlayer} from './projection.js';
 import {
   clearSessionCookie,
@@ -118,6 +125,74 @@ export function buildApp(options: BuildAppOptions) {
       });
       reply.header('set-cookie', serializeSessionCookie(result.session.token, options.sessionTtlSeconds));
       return reply.code(201).send({schema_version: 'session.private.v1', player: toPrivatePlayer(result.player), expires_at: result.session.expiresAt.toISOString()});
+    });
+
+    app.post('/v1/development/projects', {schema: {body: componentSchemas.DevelopmentProjectRequest}}, async (request, reply) => {
+      const authenticated = await authenticate(request, options.db);
+      if (!authenticated) return error(reply, 401, 'authentication_required');
+      const body = request.body as {name: string; goal: string; ship_condition: string; current_focus: string; next_move: string};
+      try {
+        const project = await createDevelopmentProject(options.db, authenticated.actor.playerId, {
+          name: body.name,
+          goal: body.goal,
+          shipCondition: body.ship_condition,
+          currentFocus: body.current_focus,
+          nextMove: body.next_move,
+        });
+        reply.header('cache-control', 'no-store');
+        return reply.code(201).send(toPrivateDevelopmentProject(project));
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : 'project_create_failed';
+        if (message.startsWith('invalid_')) return error(reply, 400, message);
+        throw cause;
+      }
+    });
+
+    app.get('/v1/projects/:projectId', async (request, reply) => {
+      const {projectId} = request.params as {projectId: string};
+      if (!isUuid(projectId)) return error(reply, 400, 'invalid_project_id');
+      const project = await getDevelopmentProject(options.db, projectId);
+      if (!project) return error(reply, 404, 'project_not_found');
+      return toPublicDevelopmentProject(project);
+    });
+
+    app.get('/v1/projects/:projectId/private', async (request, reply) => {
+      const {projectId} = request.params as {projectId: string};
+      const authenticated = await authenticate(request, options.db);
+      if (!authenticated) return error(reply, 401, 'authentication_required');
+      if (!isUuid(projectId)) return error(reply, 400, 'invalid_project_id');
+      const project = await getDevelopmentProject(options.db, projectId);
+      if (!project) return error(reply, 404, 'project_not_found');
+      if (!authorize(authenticated.actor, 'project.read_private', {kind: 'project', ownerPlayerId: project.ownerPlayerId})) {
+        return error(reply, 403, 'authorization_denied');
+      }
+      reply.header('cache-control', 'no-store');
+      return toPrivateDevelopmentProject(project);
+    });
+
+    app.post('/v1/projects/:projectId/github-repositories', {schema: {body: componentSchemas.ProjectGitHubRepositoryLinkRequest}}, async (request, reply) => {
+      const {projectId} = request.params as {projectId: string};
+      const authenticated = await authenticate(request, options.db);
+      if (!authenticated) return error(reply, 401, 'authentication_required');
+      if (!isUuid(projectId)) return error(reply, 400, 'invalid_project_id');
+      const project = await getDevelopmentProject(options.db, projectId);
+      if (!project) return error(reply, 404, 'project_not_found');
+      if (!authorize(authenticated.actor, 'project.link_repository', {kind: 'project', ownerPlayerId: project.ownerPlayerId})) {
+        return error(reply, 403, 'authorization_denied');
+      }
+      const body = request.body as {repository_id: string};
+      try {
+        const linked = await linkDevelopmentProjectRepository(options.db, projectId, authenticated.actor.playerId, body.repository_id);
+        reply.header('cache-control', 'no-store');
+        return toPrivateDevelopmentProject(linked);
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : 'project_repository_link_failed';
+        if (message === 'project_not_found') return error(reply, 404, message);
+        if (message === 'authorization_denied' || message === 'github_repository_not_available') return error(reply, 403, message);
+        if (message === 'project_repository_already_linked' || message === 'github_repository_already_linked') return error(reply, 409, message);
+        if (message === 'invalid_repository_id') return error(reply, 400, message);
+        throw cause;
+      }
     });
   }
 

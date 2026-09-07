@@ -2,10 +2,15 @@ import {randomUUID} from 'node:crypto';
 import {sql, type Kysely} from 'kysely';
 import {canonicalizeJson} from './canonical-json.js';
 import {readDatabaseNow, type DatabaseSchema, type OutboxJobRow, type OutboxJobState} from './database.js';
+import {appendHistoryEvent} from './events.js';
 
 export const OUTBOX_JOB_VERSION = 'job.v1';
 export const SESSION_EXPIRY_JOB_TYPE = 'session.expiry';
+export const PROJECT_GITHUB_OBSERVATION_JOB_TYPE = 'project.github_observation';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DELIVERY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const GIT_SHA_PATTERN = /^[0-9a-f]{40,64}$/i;
+const REF_PATTERN = /^refs\/[A-Za-z0-9._\/-]{1,240}$/;
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_LEASE_MS = 30_000;
 const DEFAULT_RETRY_BASE_MS = 1_000;
@@ -206,6 +211,28 @@ function sessionIdFromPayload(payload: unknown): string {
   return sessionId;
 }
 
+function projectObservationPayload(payload: unknown) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('project_github_observation_payload_invalid');
+  const value = payload as Record<string, unknown>;
+  const schemaVersion = value.schema_version;
+  const projectId = value.project_id;
+  const deliveryId = value.delivery_id;
+  const repositoryId = value.repository_id;
+  const ref = value.ref;
+  const before = value.before;
+  const after = value.after;
+  const repositoryPrivate = value.repository_private;
+  if (schemaVersion !== 'project.github_observation.job.v1') throw new Error('project_github_observation_payload_invalid');
+  if (typeof projectId !== 'string' || !UUID_PATTERN.test(projectId)) throw new Error('project_github_observation_payload_invalid');
+  if (typeof deliveryId !== 'string' || !DELIVERY_PATTERN.test(deliveryId)) throw new Error('project_github_observation_payload_invalid');
+  if (typeof repositoryId !== 'string' || !/^[1-9]\d*$/.test(repositoryId)) throw new Error('project_github_observation_payload_invalid');
+  if (typeof ref !== 'string' || !REF_PATTERN.test(ref)) throw new Error('project_github_observation_payload_invalid');
+  if (typeof before !== 'string' || !GIT_SHA_PATTERN.test(before)) throw new Error('project_github_observation_payload_invalid');
+  if (typeof after !== 'string' || !GIT_SHA_PATTERN.test(after)) throw new Error('project_github_observation_payload_invalid');
+  if (typeof repositoryPrivate !== 'boolean') throw new Error('project_github_observation_payload_invalid');
+  return {projectId, deliveryId, repositoryId, ref, before, after, repositoryPrivate};
+}
+
 async function handleSessionExpiry(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date): Promise<void> {
   const sessionId = sessionIdFromPayload(job.payload);
   const session = await db
@@ -226,11 +253,37 @@ async function handleSessionExpiry(db: Kysely<DatabaseSchema>, job: OutboxJobRow
     .execute();
 }
 
+async function handleProjectGitHubObservation(db: Kysely<DatabaseSchema>, job: OutboxJobRow): Promise<void> {
+  const payload = projectObservationPayload(job.payload);
+  await appendHistoryEvent(db, {
+    eventFamily: 'evidence',
+    eventType: 'project.github_repository_push.observed',
+    dedupeKey: `evidence:project.github_repository_push.observed:${payload.projectId}:${payload.deliveryId}`,
+    actorPlayerId: null,
+    subjectType: 'project',
+    subjectId: payload.projectId,
+    payload: {
+      schema_version: 'project.github_repository_push.observed.v1',
+      provider: 'github',
+      delivery_id: payload.deliveryId,
+      repository_id: payload.repositoryId,
+      ref: payload.ref,
+      before: payload.before,
+      after: payload.after,
+      repository_private: payload.repositoryPrivate,
+      truth_state: 'OBSERVED',
+    },
+  });
+}
+
 async function handleJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date): Promise<void> {
   if (job.job_version !== OUTBOX_JOB_VERSION) throw new Error(`unsupported_job_version:${job.job_version}`);
   switch (job.job_type) {
     case SESSION_EXPIRY_JOB_TYPE:
       await handleSessionExpiry(db, job, databaseNow);
+      return;
+    case PROJECT_GITHUB_OBSERVATION_JOB_TYPE:
+      await handleProjectGitHubObservation(db, job);
       return;
     default:
       throw new Error(`unsupported_job_type:${job.job_type}`);

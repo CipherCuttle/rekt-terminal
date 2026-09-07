@@ -3,6 +3,8 @@ import type {Kysely} from 'kysely';
 import {sql} from 'kysely';
 import type {DatabaseSchema, GitHubRepositoryRow} from './database.js';
 import {appendHistoryEvent} from './events.js';
+import {enqueueOutboxJob, PROJECT_GITHUB_OBSERVATION_JOB_TYPE} from './jobs.js';
+import {findLinkedProjectIdForRepository} from './projects.js';
 
 const GITHUB_API_VERSION = '2026-03-10';
 const SETUP_TTL_SECONDS = 10 * 60;
@@ -620,6 +622,24 @@ export async function processGitHubWebhook(
         truth_state: 'OBSERVED',
       },
     });
+
+    const projectId = await findLinkedProjectIdForRepository(transaction, repositoryId);
+    if (projectId) {
+      await enqueueOutboxJob(transaction, {
+        jobType: PROJECT_GITHUB_OBSERVATION_JOB_TYPE,
+        idempotencyKey: `project.github_observation:${projectId}:${deliveryId}`,
+        payload: {
+          schema_version: 'project.github_observation.job.v1',
+          project_id: projectId,
+          delivery_id: deliveryId,
+          repository_id: repositoryId,
+          ref,
+          before,
+          after,
+          repository_private: repository.private,
+        },
+      });
+    }
 
     return {status: 'observed', repositoryId};
   });
