@@ -3,7 +3,7 @@ import type {Kysely} from 'kysely';
 import type {DatabaseSchema} from './database.js';
 import {getPlayerReputation, getWorldBoards, reconcilePlayerCheevos} from './reputation.js';
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function registerPhase7ReputationRoutes(app: FastifyInstance, db: Kysely<DatabaseSchema>): void {
   app.get('/v1/players/:playerId/reputation', async (request, reply) => {
