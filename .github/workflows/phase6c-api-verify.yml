@@ -9,7 +9,7 @@ on:
       - 'packages/inkubator-protocol/**'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
@@ -36,8 +36,10 @@ jobs:
       NODE_ENV: test
 
     steps:
-      - name: Check out source
+      - name: Check out PR branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Set up canonical Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -61,12 +63,17 @@ jobs:
           npm run typecheck -w @rekt-ink/inkubator-api
           npm run build -w @rekt-ink/inkubator-api
 
-      - name: Generate typed client and print candidate
+      - name: Generate and persist deterministic typed client
         run: |
           npm run generate:client -w @rekt-ink/inkubator-api
-          echo '=== PHASE6C_GENERATED_CLIENT_BEGIN ==='
-          cat apps/inkubator-lab/src/generated/inkubator-api-client.ts
-          echo '=== PHASE6C_GENERATED_CLIENT_END ==='
+          npm run verify:client -w @rekt-ink/inkubator-api
+          if ! git diff --quiet -- apps/inkubator-lab/src/generated/inkubator-api-client.ts; then
+            git config user.name 'phase6c-verifier[bot]'
+            git config user.email 'phase6c-verifier[bot]@users.noreply.github.com'
+            git add apps/inkubator-lab/src/generated/inkubator-api-client.ts
+            git commit -m 'build(inkubator): refresh Phase 6C typed client'
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
 
       - name: API unit and protocol compatibility
         run: |
@@ -75,7 +82,7 @@ jobs:
 
       - name: Lab Artifact tests and build
         run: |
-          npm run test -w @rekt-ink/inkubator-lab -- --run apps/inkubator-lab/src/signal-system/GoldenScreens.test.tsx
+          npm run test -w @rekt-ink/inkubator-lab -- --run src/signal-system/GoldenScreens.test.tsx
           npm run build -w @rekt-ink/inkubator-lab
 
       - name: Apply migrations
