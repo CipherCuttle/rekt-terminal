@@ -14,7 +14,7 @@ export const phase7CheevoReputationMigration: Migration = {
       .execute();
 
     // Existing Phase-6 receipts predate the serialized Phase-7 boundary. Backfill them
-    // deterministically once so lazy Cheevo reconciliation never has to infer a winner.
+    // deterministically once so lazy Cheevo reconciliation never has to infer a second winner.
     await sql`
       insert into round_first_ship_receipts (round_id, receipt_id, owner_player_id, shipped_at)
       select distinct on (round_id)
@@ -62,6 +62,82 @@ export const phase7CheevoReputationMigration: Migration = {
       .columns(['cheevo_key', 'earned_at'])
       .execute();
 
+    // Serialize same-Round accepted Ships before assigning shipped_at. This makes
+    // shipped_at reflect the canonical Round acceptance order and prevents a public
+    // reputation read from ever observing a later winner while an earlier winner is
+    // still uncommitted. The AFTER trigger persists the unique Round winner fact.
+    await sql`
+      create function phase7_serialize_round_ship()
+      returns trigger
+      language plpgsql
+      as $$
+      begin
+        if new.round_id is not null then
+          perform 1 from rounds where round_id = new.round_id for update;
+          if not found then
+            raise exception 'phase7_round_not_found' using errcode = '23503';
+          end if;
+          new.shipped_at := clock_timestamp();
+        end if;
+        return new;
+      end;
+      $$
+    `.execute(db);
+
+    await sql`
+      create trigger phase7_ship_receipt_round_boundary
+      before insert on ship_receipts
+      for each row execute function phase7_serialize_round_ship()
+    `.execute(db);
+
+    await sql`
+      create function phase7_record_first_round_ship()
+      returns trigger
+      language plpgsql
+      as $$
+      begin
+        if new.round_id is not null then
+          insert into round_first_ship_receipts (round_id, receipt_id, owner_player_id, shipped_at)
+          values (new.round_id, new.receipt_id, new.owner_player_id, new.shipped_at)
+          on conflict (round_id) do nothing;
+        end if;
+        return new;
+      end;
+      $$
+    `.execute(db);
+
+    await sql`
+      create trigger phase7_ship_receipt_first_round_fact
+      after insert on ship_receipts
+      for each row execute function phase7_record_first_round_ship()
+    `.execute(db);
+
+    // External-test timestamps are only useful as a historical cutoff if they share
+    // the same Project serialization boundary as Ship attribution. A test result now
+    // locks its Project before observed_at is assigned, so it either commits before
+    // Ship snapshotting or waits until the Ship transaction has committed.
+    await sql`
+      create function phase7_serialize_external_test()
+      returns trigger
+      language plpgsql
+      as $$
+      begin
+        perform 1 from projects where project_id = new.project_id for update;
+        if not found then
+          raise exception 'phase7_project_not_found' using errcode = '23503';
+        end if;
+        new.observed_at := clock_timestamp();
+        return new;
+      end;
+      $$
+    `.execute(db);
+
+    await sql`
+      create trigger phase7_external_test_project_boundary
+      before insert on external_test_results
+      for each row execute function phase7_serialize_external_test()
+    `.execute(db);
+
     // Cheevos are durable authority facts. The application may only add a new
     // versioned award; it cannot edit or erase historical awards in place.
     await sql`
@@ -92,6 +168,12 @@ export const phase7CheevoReputationMigration: Migration = {
     await sql`drop trigger if exists player_cheevos_immutable_delete on player_cheevos`.execute(db);
     await sql`drop trigger if exists player_cheevos_immutable_update on player_cheevos`.execute(db);
     await sql`drop function if exists prevent_player_cheevo_mutation()`.execute(db);
+    await sql`drop trigger if exists phase7_external_test_project_boundary on external_test_results`.execute(db);
+    await sql`drop function if exists phase7_serialize_external_test()`.execute(db);
+    await sql`drop trigger if exists phase7_ship_receipt_first_round_fact on ship_receipts`.execute(db);
+    await sql`drop function if exists phase7_record_first_round_ship()`.execute(db);
+    await sql`drop trigger if exists phase7_ship_receipt_round_boundary on ship_receipts`.execute(db);
+    await sql`drop function if exists phase7_serialize_round_ship()`.execute(db);
     await db.schema.dropTable('player_cheevos').execute();
     await db.schema.dropTable('round_first_ship_receipts').execute();
   },
