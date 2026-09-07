@@ -283,7 +283,6 @@ export interface ShipVerifierObservationView {
   schema_version: "ship.verifier_observation.public.v1";
   outcome: "PASS" | "FAILED" | "UNAVAILABLE";
   reason_code: string;
-  final_url?: string;
   http_status?: number;
   duration_ms: number;
   redirects: number;
@@ -526,7 +525,7 @@ export interface ShipSubmissionPrivateView {
   mission_id: MissionId;
   project_id: ProjectId;
   artifact: ShipArtifactPrivateView;
-  state: "SUBMITTED" | "OBSERVED" | "ATTENTION" | "ACCEPTED" | "REJECTED";
+  state: "SUBMITTED" | "OBSERVED" | "ATTENTION" | "ACCEPTED" | "REJECTED" | "SUPERSEDED";
   submitted_at: string;
   verifier_observation?: ShipVerifierObservationView;
 }
