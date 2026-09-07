@@ -1,6 +1,7 @@
 export const GITHUB_EVIDENCE_RULE_VERSION = 'github-evidence.v1' as const;
 export const PROGRESS_EVIDENCE_RULE_VERSION = 'progress-evidence.v1' as const;
 export const DAEMON_ADVISORY_RULE_VERSION = 'daemon-advisory.v1' as const;
+export const GITHUB_PUSH_EVIDENCE_STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 
 export type GitHubObservationKind = 'PUSH' | 'PULL_REQUEST' | 'WORKFLOW' | 'DEPLOYMENT' | 'MANIFEST';
 export type ObservationOutcome = 'OBSERVED' | 'SUCCEEDED' | 'FAILED' | 'IN_PROGRESS' | 'UNKNOWN';
@@ -139,6 +140,28 @@ export function classifyGitHubEvidence(input: {
     reasonCode: 'latest_observation_current',
     latestObservation: latest.observation,
   };
+}
+
+export function classifyGitHubPushEvidence(input: {
+  observationId?: string;
+  observedAt?: string | Date;
+  sourceAvailable: boolean;
+  now: string | number | Date;
+}): GitHubEvidenceSnapshot {
+  if ((input.observationId === undefined) !== (input.observedAt === undefined)) {
+    throw new Error('github_push_evidence_observation_incomplete');
+  }
+  return classifyGitHubEvidence({
+    observations: input.observationId && input.observedAt ? [{
+      observationId: input.observationId,
+      kind: 'PUSH',
+      outcome: 'OBSERVED',
+      observedAt: input.observedAt instanceof Date ? input.observedAt.toISOString() : input.observedAt,
+    }] : [],
+    sourceAvailable: input.sourceAvailable,
+    now: input.now,
+    staleAfterMs: GITHUB_PUSH_EVIDENCE_STALE_AFTER_MS,
+  });
 }
 
 export type DetectedStack =

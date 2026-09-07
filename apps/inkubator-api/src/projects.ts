@@ -1,7 +1,8 @@
 import {randomUUID} from 'node:crypto';
 import {sql, type Kysely} from 'kysely';
-import type {DatabaseSchema, GitHubRepositoryRow, MissionState} from './database.js';
+import {readDatabaseNow, type DatabaseSchema, type GitHubRepositoryRow, type MissionState} from './database.js';
 import {appendHistoryEvent} from './events.js';
+import {classifyGitHubPushEvidence, type GitHubEvidenceSnapshot} from './evidence.js';
 
 const PROJECT_HISTORY_SCHEMA_VERSION = 'project.development.v1';
 const MISSION_HISTORY_SCHEMA_VERSION = 'mission.development.v1';
@@ -37,6 +38,7 @@ export interface DevelopmentProjectSnapshot {
   currentFocus: string;
   nextMove: string;
   repository: GitHubRepositoryRow | null;
+  githubEvidence: GitHubEvidenceSnapshot;
   observation: {
     deliveryId: string;
     repositoryId: string;
@@ -283,6 +285,12 @@ export async function getDevelopmentProject(
     };
   }
 
+  const githubEvidence = classifyGitHubPushEvidence({
+    ...(observationEvent ? {observationId: observationEvent.history_event_id, observedAt: observationEvent.occurred_at} : {}),
+    sourceAvailable: Boolean(repository?.active),
+    now: await readDatabaseNow(db),
+  });
+
   return {
     projectId: project.project_id,
     ownerPlayerId: project.owner_player_id,
@@ -294,26 +302,27 @@ export async function getDevelopmentProject(
     currentFocus: mission.current_focus,
     nextMove: mission.next_move,
     repository,
+    githubEvidence,
     observation,
   };
 }
 
 export function toPublicDevelopmentProject(project: DevelopmentProjectSnapshot) {
   return {
-    schema_version: 'project.public.v1' as const,
+    schema_version: 'project.public.v2' as const,
     project_id: project.projectId,
     name: project.name,
     mission_id: project.missionId,
     mission_state: project.missionState,
     source_connected: Boolean(project.repository?.active),
     source_visibility: project.repository ? (project.repository.private ? 'PRIVATE' : 'PUBLIC') : 'NONE',
-    observation_state: project.observation ? 'OBSERVED' : 'UNKNOWN',
+    observation_state: project.githubEvidence.signalState,
   };
 }
 
 export function toPrivateDevelopmentProject(project: DevelopmentProjectSnapshot) {
   return {
-    schema_version: 'project.private.v1' as const,
+    schema_version: 'project.private.v2' as const,
     project_id: project.projectId,
     owner_player_id: project.ownerPlayerId,
     name: project.name,
@@ -325,7 +334,7 @@ export function toPrivateDevelopmentProject(project: DevelopmentProjectSnapshot)
     next_move: project.nextMove,
     source_connected: Boolean(project.repository?.active),
     source_visibility: project.repository ? (project.repository.private ? 'PRIVATE' : 'PUBLIC') : 'NONE',
-    observation_state: project.observation ? 'OBSERVED' : 'UNKNOWN',
+    observation_state: project.githubEvidence.signalState,
     ...(project.repository
       ? {
           repository_id: project.repository.repository_id,

@@ -91,7 +91,7 @@ export interface ProjectGitHubRepositoryLinkRequest {
 }
 
 export interface PublicProject {
-  schema_version: "project.public.v1";
+  schema_version: "project.public.v2";
   project_id: ProjectId;
   name: string;
   mission_id: MissionId;
@@ -102,7 +102,7 @@ export interface PublicProject {
 }
 
 export interface PrivateProject {
-  schema_version: "project.private.v1";
+  schema_version: "project.private.v2";
   project_id: ProjectId;
   owner_player_id: PlayerId;
   name: string;
@@ -114,7 +114,7 @@ export interface PrivateProject {
   next_move: string;
   source_connected: boolean;
   source_visibility: "NONE" | "PUBLIC" | "PRIVATE";
-  observation_state: "UNKNOWN" | "OBSERVED";
+  observation_state: "UNKNOWN" | "ACTIVE" | "OBSERVED" | "STALE" | "FAILED";
   repository_id?: string;
   repository_full_name?: string;
   repository_private?: boolean;
@@ -155,7 +155,7 @@ export interface CommandProject {
   name: string;
   source_connected: boolean;
   source_visibility: "NONE" | "PUBLIC" | "PRIVATE";
-  observation_state: "UNKNOWN" | "OBSERVED";
+  observation_state: "UNKNOWN" | "ACTIVE" | "OBSERVED" | "STALE" | "FAILED";
 }
 
 export interface CommandMission {

@@ -163,7 +163,7 @@ export const componentSchemas = {
       'observation_state',
     ],
     properties: {
-      schema_version: {type: 'string', const: 'project.public.v1'},
+      schema_version: {type: 'string', const: 'project.public.v2'},
       project_id: {$ref: '#/components/schemas/ProjectId'},
       name: {type: 'string'},
       mission_id: {$ref: '#/components/schemas/MissionId'},
@@ -192,7 +192,7 @@ export const componentSchemas = {
       'observation_state',
     ],
     properties: {
-      schema_version: {type: 'string', const: 'project.private.v1'},
+      schema_version: {type: 'string', const: 'project.private.v2'},
       project_id: {$ref: '#/components/schemas/ProjectId'},
       owner_player_id: {$ref: '#/components/schemas/PlayerId'},
       name: {type: 'string'},
@@ -204,7 +204,7 @@ export const componentSchemas = {
       next_move: {type: 'string'},
       source_connected: {type: 'boolean'},
       source_visibility: {type: 'string', enum: ['NONE', 'PUBLIC', 'PRIVATE']},
-      observation_state: {type: 'string', enum: ['UNKNOWN', 'OBSERVED']},
+      observation_state: {type: 'string', enum: ['UNKNOWN', 'ACTIVE', 'OBSERVED', 'STALE', 'FAILED']},
       repository_id: {type: 'string'},
       repository_full_name: {type: 'string'},
       repository_private: {type: 'boolean'},
@@ -262,7 +262,7 @@ export const componentSchemas = {
       name: {type: 'string'},
       source_connected: {type: 'boolean'},
       source_visibility: {type: 'string', enum: ['NONE', 'PUBLIC', 'PRIVATE']},
-      observation_state: {type: 'string', enum: ['UNKNOWN', 'OBSERVED']},
+      observation_state: {type: 'string', enum: ['UNKNOWN', 'ACTIVE', 'OBSERVED', 'STALE', 'FAILED']},
     },
   },
   CommandMission: {

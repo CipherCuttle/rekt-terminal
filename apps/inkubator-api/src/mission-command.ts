@@ -14,14 +14,13 @@ import type {
   RoundRow,
 } from './database.js';
 import {appendHistoryEvent, HISTORY_EVENT_VERSION} from './events.js';
-import {classifyGitHubEvidence, deriveDaemonAdvisory, type DaemonAdvisory, type GitHubEvidenceSnapshot} from './evidence.js';
+import {classifyGitHubPushEvidence, deriveDaemonAdvisory, type DaemonAdvisory, type GitHubEvidenceSnapshot} from './evidence.js';
 
 const PROJECT_SCHEMA_VERSION = 'project.current.v1';
 const MISSION_SCHEMA_VERSION = 'mission.current.v1';
 const PROFILE_SCHEMA_VERSION = 'player.profile.v1';
 const ROUND_MEMBERSHIP_SCHEMA_VERSION = 'round.membership.v1';
 const PROGRESS_MODEL_VERSION = 'mission.progress.v1';
-const COMMAND_GITHUB_EVIDENCE_STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const DEFAULT_GATES = [
@@ -260,16 +259,10 @@ async function commandByMissionId(db: Kysely<DatabaseSchema>, missionId: string)
     .orderBy('occurred_at', 'desc')
     .orderBy('history_event_id', 'desc')
     .executeTakeFirst();
-  const githubEvidence = classifyGitHubEvidence({
-    observations: observation ? [{
-      observationId: observation.history_event_id,
-      kind: 'PUSH',
-      outcome: 'OBSERVED',
-      observedAt: observation.occurred_at.toISOString(),
-    }] : [],
+  const githubEvidence = classifyGitHubPushEvidence({
+    ...(observation ? {observationId: observation.history_event_id, observedAt: observation.occurred_at} : {}),
     sourceAvailable: Boolean(repository?.active),
     now: await readDatabaseNow(db),
-    staleAfterMs: COMMAND_GITHUB_EVIDENCE_STALE_AFTER_MS,
   });
   const daemonAdvisory = deriveDaemonAdvisory({snapshot: githubEvidence, detectedStacks: []});
   return {project, mission, round, gates, repository, githubEvidence, daemonAdvisory};

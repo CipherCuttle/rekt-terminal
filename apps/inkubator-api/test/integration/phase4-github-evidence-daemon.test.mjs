@@ -125,6 +125,16 @@ test('Phase 4 projects trusted push evidence into freshness-aware advisory Comma
     assert.equal(stale.json().github_evidence.reason_code, 'latest_observation_stale');
     assert.match(stale.json().daemon.likely_blocker, /stale/i);
     assert.equal(stale.json().gates.every((gate) => gate.state === 'UNKNOWN'), true);
+    const publicStale = await app.inject({method: 'GET', url: `/v1/projects/${projectId}`});
+    assert.equal(publicStale.statusCode, 200);
+    assert.equal(publicStale.json().schema_version, 'project.public.v2');
+    assert.equal(publicStale.json().observation_state, 'STALE');
+    assert.equal(JSON.stringify(publicStale.json()).includes(repositoryId), false);
+    assert.equal(JSON.stringify(publicStale.json()).includes(fullName), false);
+    const privateStale = await app.inject({method: 'GET', url: `/v1/projects/${projectId}/private`, headers: {cookie}});
+    assert.equal(privateStale.statusCode, 200);
+    assert.equal(privateStale.json().schema_version, 'project.private.v2');
+    assert.equal(privateStale.json().observation_state, 'STALE');
 
     const freshPush = await sendWebhook(app, 'push', {
       ref: 'refs/heads/main', before: '2'.repeat(40), after: '3'.repeat(40),
@@ -145,8 +155,17 @@ test('Phase 4 projects trusted push evidence into freshness-aware advisory Comma
     assert.equal(unavailable.json().github_evidence.reason_code, 'source_unavailable_cached_evidence_not_current');
     assert.equal(unavailable.json().daemon.authority, 'ADVISORY_ONLY');
     assert.equal(unavailable.json().gates.every((gate) => gate.state === 'UNKNOWN'), true);
+    const publicUnavailable = await app.inject({method: 'GET', url: `/v1/projects/${projectId}`});
+    assert.equal(publicUnavailable.statusCode, 200);
+    assert.equal(publicUnavailable.json().source_connected, false);
+    assert.equal(publicUnavailable.json().observation_state, 'STALE');
+    const privateUnavailable = await app.inject({method: 'GET', url: `/v1/projects/${projectId}/private`, headers: {cookie}});
+    assert.equal(privateUnavailable.statusCode, 200);
+    assert.equal(privateUnavailable.json().source_connected, false);
+    assert.equal(privateUnavailable.json().observation_state, 'STALE');
 
-    const proofEvents = await db.selectFrom('history_events').selectAll().where('subject_id', 'in', [projectId, missionId]).execute();
+    const proofEvents = await db.selectFrom('history_events')
+      .selectAll().where('subject_id', 'in', [projectId, missionId]).execute();
     assert.equal(JSON.stringify(proofEvents).includes('PROVEN'), false);
     const gates = await db.selectFrom('mission_gates').selectAll().where('mission_id', '=', missionId).execute();
     assert.equal(gates.every((gate) => gate.signal_state === 'UNKNOWN'), true);
