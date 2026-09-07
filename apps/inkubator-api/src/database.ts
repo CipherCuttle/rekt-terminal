@@ -82,6 +82,7 @@ export type MissionGateState =
 export interface MissionTable {
   mission_id: string;
   schema_version: string;
+  creation_request_id: string | null;
   project_id: string;
   owner_player_id: string;
   round_id: string | null;
