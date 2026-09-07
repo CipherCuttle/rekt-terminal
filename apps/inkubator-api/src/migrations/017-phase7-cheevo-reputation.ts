@@ -138,6 +138,33 @@ export const phase7CheevoReputationMigration: Migration = {
       for each row execute function phase7_serialize_external_test()
     `.execute(db);
 
+    // Defense in depth: even if future eligibility-query code regresses, FIRST_BLOOD
+    // can only materialize from the receipt persisted as that Round's canonical winner.
+    await sql`
+      create function phase7_guard_first_blood_award()
+      returns trigger
+      language plpgsql
+      as $$
+      begin
+        if new.cheevo_key = 'FIRST_BLOOD' and not exists (
+          select 1
+          from round_first_ship_receipts first_ship
+          where first_ship.receipt_id::text = new.source_id
+            and first_ship.owner_player_id = new.player_id
+        ) then
+          return null;
+        end if;
+        return new;
+      end;
+      $$
+    `.execute(db);
+
+    await sql`
+      create trigger player_cheevos_first_blood_guard
+      before insert on player_cheevos
+      for each row execute function phase7_guard_first_blood_award()
+    `.execute(db);
+
     // Cheevos are durable authority facts. The application may only add a new
     // versioned award; it cannot edit or erase historical awards in place.
     await sql`
@@ -168,6 +195,8 @@ export const phase7CheevoReputationMigration: Migration = {
     await sql`drop trigger if exists player_cheevos_immutable_delete on player_cheevos`.execute(db);
     await sql`drop trigger if exists player_cheevos_immutable_update on player_cheevos`.execute(db);
     await sql`drop function if exists prevent_player_cheevo_mutation()`.execute(db);
+    await sql`drop trigger if exists player_cheevos_first_blood_guard on player_cheevos`.execute(db);
+    await sql`drop function if exists phase7_guard_first_blood_award()`.execute(db);
     await sql`drop trigger if exists phase7_external_test_project_boundary on external_test_results`.execute(db);
     await sql`drop function if exists phase7_serialize_external_test()`.execute(db);
     await sql`drop trigger if exists phase7_ship_receipt_first_round_fact on ship_receipts`.execute(db);
