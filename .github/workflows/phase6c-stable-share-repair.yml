@@ -57,7 +57,7 @@ jobs:
               text = p.read_text()
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f'{path}: expected exactly one match, got {count}')
+                  raise SystemExit(f'{path}: expected exactly one match for {old!r}, got {count}')
               p.write_text(text.replace(old, new, 1))
 
           ship_artifact = Path('apps/inkubator-api/src/ship-artifact.ts')
@@ -89,19 +89,8 @@ jobs:
               "import {getProjectShipState, submitShip} from './ship.js';\n",
               "import {getAcceptedShipArtifactByReceiptId} from './ship-artifact.js';\nimport {getProjectShipState, submitShip} from './ship.js';\n",
           )
-          replace_once(
-              'apps/inkubator-api/src/app.ts',
-              """  app.get('/v1/projects/:projectId/ship', async (request, reply) => {
-            const {projectId}=request.params as {projectId:string};
-            try{return await getProjectShipState(options.db,projectId);}catch(cause){return phase6Error(reply,cause);}
-          });
-          """,
-              """  app.get('/v1/projects/:projectId/ship', async (request, reply) => {
-            const {projectId}=request.params as {projectId:string};
-            try{return await getProjectShipState(options.db,projectId);}catch(cause){return phase6Error(reply,cause);}
-          });
-
-          app.get('/v1/ship-receipts/:receiptId', async (request, reply) => {
+          route_anchor = "  app.delete('/v1/session', async (request, reply) => {"
+          route = """  app.get('/v1/ship-receipts/:receiptId', async (request, reply) => {
             const {receiptId}=request.params as {receiptId:string};
             if(!isUuid(receiptId))return error(reply,400,'invalid_receipt_id');
             const artifact=await getAcceptedShipArtifactByReceiptId(options.db,receiptId);
@@ -109,8 +98,9 @@ jobs:
             reply.header('cache-control','public, max-age=31536000, immutable');
             return artifact;
           });
-          """,
-          )
+
+          """
+          replace_once('apps/inkubator-api/src/app.ts', route_anchor, route + route_anchor)
 
           contract = Path('apps/inkubator-api/src/contract-phase6c.ts')
           text = contract.read_text()
@@ -131,35 +121,21 @@ jobs:
           """
           contract.write_text(text.replace(anchor, addition, 1))
 
-          replace_once(
-              'apps/inkubator-api/test/integration/phase6-ship-artifact-attribution.test.mjs',
-              """async function publicShip(app, projectId) {
-            const response = await app.inject({method: 'GET', url: `/v1/projects/${projectId}/ship`});
-            assert.equal(response.statusCode, 200);
-            return response.json();
-          }
-          """,
-              """async function publicShip(app, projectId) {
-            const response = await app.inject({method: 'GET', url: `/v1/projects/${projectId}/ship`});
-            assert.equal(response.statusCode, 200);
-            return response.json();
-          }
-
-          async function publicReceipt(app, receiptId) {
+          test_path = Path('apps/inkubator-api/test/integration/phase6-ship-artifact-attribution.test.mjs')
+          text = test_path.read_text()
+          test_anchor = "test('Phase 6C snapshots accepted Party/Assist attribution and exposes a privacy-safe PROVEN Artifact state', async () => {"
+          if text.count(test_anchor) != 1:
+              raise SystemExit('Phase 6C test anchor not unique')
+          helper = """async function publicReceipt(app, receiptId) {
             return app.inject({method: 'GET', url: `/v1/ship-receipts/${receiptId}`});
           }
-          """,
-          )
-          replace_once(
-              'apps/inkubator-api/test/integration/phase6-ship-artifact-attribution.test.mjs',
-              """    assert.equal(publicJson.includes(reviewMarker), false);
-            assert.equal(publicJson.includes('\"reason\":'), false);
 
-            const snapshotBeforeLate = await db.selectFrom('ship_receipt_attributions')""",
-              """    assert.equal(publicJson.includes(reviewMarker), false);
-            assert.equal(publicJson.includes('\"reason\":'), false);
-
-            const stableReceipt = await publicReceipt(app, artifact.receipt_id);
+          """
+          text = text.replace(test_anchor, helper + test_anchor, 1)
+          snapshot_anchor = "    const snapshotBeforeLate = await db.selectFrom('ship_receipt_attributions')"
+          if text.count(snapshot_anchor) != 1:
+              raise SystemExit('Phase 6C snapshot anchor not unique')
+          stable_checks = """    const stableReceipt = await publicReceipt(app, artifact.receipt_id);
             assert.equal(stableReceipt.statusCode, 200);
             assert.equal(stableReceipt.headers['cache-control'], 'public, max-age=31536000, immutable');
             assert.deepEqual(stableReceipt.json(), artifact);
@@ -168,20 +144,17 @@ jobs:
             assert.equal((await publicReceipt(app, 'not-a-uuid')).statusCode, 400);
             assert.equal((await publicReceipt(app, randomUUID())).statusCode, 404);
 
-            const snapshotBeforeLate = await db.selectFrom('ship_receipt_attributions')""",
-          )
-          replace_once(
-              'apps/inkubator-api/test/integration/phase6-ship-artifact-attribution.test.mjs',
-              """    assert.equal(afterLatePartyChange.latest_submission.accepted_ship.assists.some((row) => row.assist_id === lateAssistId), false);
-
-            const replay = await operatorReviewShipAcceptance""",
-              """    assert.equal(afterLatePartyChange.latest_submission.accepted_ship.assists.some((row) => row.assist_id === lateAssistId), false);
-            const stableAfterLatePartyChange = await publicReceipt(app, artifact.receipt_id);
+          """
+          text = text.replace(snapshot_anchor, stable_checks + snapshot_anchor, 1)
+          replay_anchor = "    const replay = await operatorReviewShipAcceptance(db, submissionId, {requestId, decision: 'ACCEPT', reason: reviewMarker});"
+          if text.count(replay_anchor) != 1:
+              raise SystemExit('Phase 6C replay anchor not unique')
+          late_checks = """    const stableAfterLatePartyChange = await publicReceipt(app, artifact.receipt_id);
             assert.equal(stableAfterLatePartyChange.statusCode, 200);
             assert.deepEqual(stableAfterLatePartyChange.json(), artifact);
 
-            const replay = await operatorReviewShipAcceptance""",
-          )
+          """
+          test_path.write_text(text.replace(replay_anchor, late_checks + replay_anchor, 1))
           PY
 
       - name: Install locked dependencies
