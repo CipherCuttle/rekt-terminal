@@ -1,6 +1,7 @@
 import {sql, type Kysely} from 'kysely';
 import {Migrator, type Migration, type MigrationProvider} from 'kysely/migration';
 import type {DatabaseSchema} from './database.js';
+import {playerMissionCommandMigration} from './migrations/006-player-mission-command.js';
 
 const initialMigration: Migration = {
   async up(db) {
@@ -290,6 +291,7 @@ class StaticMigrationProvider implements MigrationProvider {
       '003_github_ingress_foundation': githubIngressFoundationMigration,
       '004_github_concurrency_hardening': githubConcurrencyHardeningMigration,
       '005_github_repository_authority': githubRepositoryAuthorityMigration,
+      '006_player_mission_command': playerMissionCommandMigration,
     };
   }
 }
