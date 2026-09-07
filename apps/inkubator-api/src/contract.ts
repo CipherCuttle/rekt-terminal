@@ -19,6 +19,34 @@ export const componentSchemas = {
     type: 'string',
     format: 'uuid',
   },
+  MissionId: {
+    type: 'string',
+    format: 'uuid',
+  },
+  RoundId: {
+    type: 'string',
+    format: 'uuid',
+  },
+  RequestId: {
+    type: 'string',
+    format: 'uuid',
+  },
+  MissionState: {
+    type: 'string',
+    enum: ['DRAFT', 'DECLARED', 'BUILDING', 'BLOCKED', 'SHIP_READY', 'SUBMITTED', 'SHIPPED', 'CLOSED_NOT_SHIPPED', 'ARCHIVED'],
+  },
+  MissionGateKey: {
+    type: 'string',
+    enum: ['FOUNDATION', 'CORE_EXPERIENCE', 'QUALITY_TESTING', 'SHIPABILITY'],
+  },
+  MissionGateState: {
+    type: 'string',
+    enum: ['UNKNOWN', 'CLAIMED', 'ACTIVE', 'OBSERVED', 'PROVEN', 'ATTENTION', 'BLOCKED', 'STALE', 'FAILED'],
+  },
+  ParticipantMissionGateState: {
+    type: 'string',
+    enum: ['UNKNOWN', 'CLAIMED', 'ACTIVE', 'ATTENTION', 'BLOCKED', 'STALE', 'FAILED'],
+  },
   PublicPlayer: {
     type: 'object',
     additionalProperties: false,
@@ -50,6 +78,48 @@ export const componentSchemas = {
       player: {$ref: '#/components/schemas/PrivatePlayer'},
       expires_at: {type: 'string', format: 'date-time'},
     },
+  },
+  PlayerProfileView: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['schema_version', 'player_id'],
+    properties: {
+      schema_version: {type: 'string', const: 'player.profile.v1'},
+      player_id: {$ref: '#/components/schemas/PlayerId'},
+      bio: {type: 'string'},
+      character_name: {type: 'string'},
+      character_archetype: {type: 'string'},
+    },
+  },
+  PlayerProfileUpdateRequest: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['request_id'],
+    minProperties: 2,
+    properties: {
+      request_id: {$ref: '#/components/schemas/RequestId'},
+      bio: {type: ['string', 'null'], maxLength: 280},
+      character_name: {type: ['string', 'null'], maxLength: 80},
+      character_archetype: {type: ['string', 'null'], maxLength: 80},
+    },
+  },
+  RoundView: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['schema_version', 'round_id', 'code', 'title', 'constraint', 'state', 'joined'],
+    properties: {
+      schema_version: {type: 'string', const: 'round.private.v1'},
+      round_id: {$ref: '#/components/schemas/RoundId'},
+      code: {type: 'string'},
+      title: {type: 'string'},
+      constraint: {type: 'string'},
+      state: {type: 'string', enum: ['OPEN', 'CLOSED', 'ARCHIVED']},
+      joined: {type: 'boolean'},
+    },
+  },
+  RoundList: {
+    type: 'array',
+    items: {$ref: '#/components/schemas/RoundView'},
   },
   GitHubInstallView: {
     type: 'object',
@@ -96,8 +166,8 @@ export const componentSchemas = {
       schema_version: {type: 'string', const: 'project.public.v1'},
       project_id: {$ref: '#/components/schemas/ProjectId'},
       name: {type: 'string'},
-      mission_id: {type: 'string', format: 'uuid'},
-      mission_state: {type: 'string', const: 'DECLARED'},
+      mission_id: {$ref: '#/components/schemas/MissionId'},
+      mission_state: {$ref: '#/components/schemas/MissionState'},
       source_connected: {type: 'boolean'},
       source_visibility: {type: 'string', enum: ['NONE', 'PUBLIC', 'PRIVATE']},
       observation_state: {type: 'string', enum: ['UNKNOWN', 'OBSERVED']},
@@ -126,8 +196,8 @@ export const componentSchemas = {
       project_id: {$ref: '#/components/schemas/ProjectId'},
       owner_player_id: {$ref: '#/components/schemas/PlayerId'},
       name: {type: 'string'},
-      mission_id: {type: 'string', format: 'uuid'},
-      mission_state: {type: 'string', const: 'DECLARED'},
+      mission_id: {$ref: '#/components/schemas/MissionId'},
+      mission_state: {$ref: '#/components/schemas/MissionState'},
       goal: {type: 'string'},
       ship_condition: {type: 'string'},
       current_focus: {type: 'string'},
@@ -143,6 +213,108 @@ export const componentSchemas = {
       last_ref: {type: 'string'},
       last_before: {type: 'string'},
       last_after: {type: 'string'},
+    },
+  },
+  MissionCreateRequest: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['request_id', 'round_id', 'project_name', 'goal', 'ship_condition', 'current_focus', 'next_move'],
+    properties: {
+      request_id: {$ref: '#/components/schemas/RequestId'},
+      round_id: {$ref: '#/components/schemas/RoundId'},
+      project_name: {type: 'string', minLength: 1, maxLength: 120},
+      goal: {type: 'string', minLength: 1, maxLength: 240},
+      ship_condition: {type: 'string', minLength: 1, maxLength: 240},
+      current_focus: {type: 'string', minLength: 1, maxLength: 240},
+      next_move: {type: 'string', minLength: 1, maxLength: 240},
+      stack_labels: {type: 'array', maxItems: 8, items: {type: 'string', minLength: 1, maxLength: 40}},
+    },
+  },
+  MissionUpdateRequest: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['request_id'],
+    minProperties: 2,
+    properties: {
+      request_id: {$ref: '#/components/schemas/RequestId'},
+      state: {type: 'string', enum: ['DECLARED', 'BUILDING', 'BLOCKED', 'SHIP_READY', 'CLOSED_NOT_SHIPPED']},
+      current_focus: {type: 'string', minLength: 1, maxLength: 240},
+      next_move: {type: 'string', minLength: 1, maxLength: 240},
+      blocker: {type: ['string', 'null'], maxLength: 240},
+      stack_labels: {type: 'array', maxItems: 8, items: {type: 'string', minLength: 1, maxLength: 40}},
+    },
+  },
+  MissionGateUpdateRequest: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['request_id', 'state'],
+    properties: {
+      request_id: {$ref: '#/components/schemas/RequestId'},
+      state: {$ref: '#/components/schemas/ParticipantMissionGateState'},
+    },
+  },
+  CommandProject: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['project_id', 'name', 'source_connected', 'source_visibility', 'observation_state'],
+    properties: {
+      project_id: {$ref: '#/components/schemas/ProjectId'},
+      name: {type: 'string'},
+      source_connected: {type: 'boolean'},
+      source_visibility: {type: 'string', enum: ['NONE', 'PUBLIC', 'PRIVATE']},
+      observation_state: {type: 'string', enum: ['UNKNOWN', 'OBSERVED']},
+    },
+  },
+  CommandMission: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['mission_id', 'state', 'goal', 'ship_condition', 'current_focus', 'next_move', 'progress_model_version', 'stack_labels', 'stack_source'],
+    properties: {
+      mission_id: {$ref: '#/components/schemas/MissionId'},
+      state: {$ref: '#/components/schemas/MissionState'},
+      goal: {type: 'string'},
+      ship_condition: {type: 'string'},
+      current_focus: {type: 'string'},
+      next_move: {type: 'string'},
+      blocker: {type: 'string'},
+      progress_model_version: {type: 'string', const: 'mission.progress.v1'},
+      stack_labels: {type: 'array', items: {type: 'string'}},
+      stack_source: {type: 'string', enum: ['UNKNOWN', 'PLAYER_CONFIRMED']},
+    },
+  },
+  CommandRound: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['round_id', 'code', 'title', 'constraint', 'state'],
+    properties: {
+      round_id: {$ref: '#/components/schemas/RoundId'},
+      code: {type: 'string'},
+      title: {type: 'string'},
+      constraint: {type: 'string'},
+      state: {type: 'string', enum: ['OPEN', 'CLOSED', 'ARCHIVED']},
+    },
+  },
+  MissionGateView: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['key', 'label', 'state', 'position'],
+    properties: {
+      key: {$ref: '#/components/schemas/MissionGateKey'},
+      label: {type: 'string'},
+      state: {$ref: '#/components/schemas/MissionGateState'},
+      position: {type: 'integer'},
+    },
+  },
+  CommandView: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['schema_version', 'project', 'mission', 'gates'],
+    properties: {
+      schema_version: {type: 'string', const: 'command.private.v1'},
+      project: {$ref: '#/components/schemas/CommandProject'},
+      mission: {$ref: '#/components/schemas/CommandMission'},
+      round: {$ref: '#/components/schemas/CommandRound'},
+      gates: {type: 'array', items: {$ref: '#/components/schemas/MissionGateView'}},
     },
   },
 };
@@ -206,6 +378,39 @@ export const openapiDocument = {
         },
       },
     },
+    '/v1/me/profile': {
+      get: {
+        operationId: 'getMyProfile',
+        security: [{sessionCookie: []}],
+        responses: {
+          '200': {description: 'Authenticated Player profile', content: {'application/json': {schema: ref('PlayerProfileView')}}},
+          '401': errorResponse('Authentication required'),
+        },
+      },
+      patch: {
+        operationId: 'updateMyProfile',
+        security: [{sessionCookie: []}],
+        requestBody: {required: true, content: {'application/json': {schema: ref('PlayerProfileUpdateRequest')}}},
+        responses: {
+          '200': {description: 'Updated Player profile', content: {'application/json': {schema: ref('PlayerProfileView')}}},
+          '400': errorResponse('Invalid profile mutation'),
+          '401': errorResponse('Authentication required'),
+          '403': errorResponse('Origin denied'),
+          '409': errorResponse('Idempotency conflict'),
+        },
+      },
+    },
+    '/v1/me/command': {
+      get: {
+        operationId: 'getMyCommand',
+        security: [{sessionCookie: []}],
+        responses: {
+          '200': {description: 'Current canonical Command Center state', content: {'application/json': {schema: ref('CommandView')}}},
+          '401': errorResponse('Authentication required'),
+          '404': errorResponse('No active Mission'),
+        },
+      },
+    },
     '/v1/players/{playerId}': {
       get: {
         operationId: 'getPublicPlayer',
@@ -231,6 +436,79 @@ export const openapiDocument = {
         },
       },
     },
+    '/v1/rounds': {
+      get: {
+        operationId: 'listRounds',
+        security: [{sessionCookie: []}],
+        responses: {
+          '200': {description: 'Available Rounds with Player membership state', content: {'application/json': {schema: ref('RoundList')}}},
+          '401': errorResponse('Authentication required'),
+        },
+      },
+    },
+    '/v1/rounds/{roundId}/join': {
+      post: {
+        operationId: 'joinRound',
+        security: [{sessionCookie: []}],
+        parameters: [{name: 'roundId', in: 'path', required: true, schema: ref('RoundId')}],
+        responses: {
+          '200': {description: 'Round joined/selected', content: {'application/json': {schema: ref('RoundView')}}},
+          '400': errorResponse('Invalid or closed Round'),
+          '401': errorResponse('Authentication required'),
+          '403': errorResponse('Origin denied'),
+          '404': errorResponse('Round not found'),
+        },
+      },
+    },
+    '/v1/missions': {
+      post: {
+        operationId: 'createMission',
+        security: [{sessionCookie: []}],
+        requestBody: {required: true, content: {'application/json': {schema: ref('MissionCreateRequest')}}},
+        responses: {
+          '201': {description: 'Project/Mission declared and Command state returned', content: {'application/json': {schema: ref('CommandView')}}},
+          '400': errorResponse('Invalid Mission declaration'),
+          '401': errorResponse('Authentication required'),
+          '403': errorResponse('Origin denied'),
+          '409': errorResponse('Idempotency conflict'),
+        },
+      },
+    },
+    '/v1/missions/{missionId}': {
+      patch: {
+        operationId: 'updateMission',
+        security: [{sessionCookie: []}],
+        parameters: [{name: 'missionId', in: 'path', required: true, schema: ref('MissionId')}],
+        requestBody: {required: true, content: {'application/json': {schema: ref('MissionUpdateRequest')}}},
+        responses: {
+          '200': {description: 'Mission current state updated', content: {'application/json': {schema: ref('CommandView')}}},
+          '400': errorResponse('Invalid Mission mutation'),
+          '401': errorResponse('Authentication required'),
+          '403': errorResponse('Authorization denied'),
+          '404': errorResponse('Mission not found'),
+          '409': errorResponse('Idempotency or transition conflict'),
+        },
+      },
+    },
+    '/v1/missions/{missionId}/gates/{gateKey}': {
+      patch: {
+        operationId: 'updateMissionGate',
+        security: [{sessionCookie: []}],
+        parameters: [
+          {name: 'missionId', in: 'path', required: true, schema: ref('MissionId')},
+          {name: 'gateKey', in: 'path', required: true, schema: ref('MissionGateKey')},
+        ],
+        requestBody: {required: true, content: {'application/json': {schema: ref('MissionGateUpdateRequest')}}},
+        responses: {
+          '200': {description: 'Participant-controlled Mission gate state updated', content: {'application/json': {schema: ref('CommandView')}}},
+          '400': errorResponse('Invalid gate mutation'),
+          '401': errorResponse('Authentication required'),
+          '403': errorResponse('Authorization or truth-ceiling denied'),
+          '404': errorResponse('Mission/gate not found'),
+          '409': errorResponse('Idempotency conflict'),
+        },
+      },
+    },
     '/v1/development/projects': {
       post: {
         operationId: 'createDevelopmentProject',
@@ -248,7 +526,6 @@ export const openapiDocument = {
     '/v1/projects/{projectId}': {
       get: {
         operationId: 'getPublicProject',
-        'x-development-only': true,
         parameters: [{name: 'projectId', in: 'path', required: true, schema: ref('ProjectId')}],
         responses: {
           '200': {description: 'Safe public Project projection', content: {'application/json': {schema: ref('PublicProject')}}},
@@ -260,7 +537,6 @@ export const openapiDocument = {
     '/v1/projects/{projectId}/private': {
       get: {
         operationId: 'getPrivateProject',
-        'x-development-only': true,
         security: [{sessionCookie: []}],
         parameters: [{name: 'projectId', in: 'path', required: true, schema: ref('ProjectId')}],
         responses: {
@@ -275,7 +551,6 @@ export const openapiDocument = {
     '/v1/projects/{projectId}/github-repositories': {
       post: {
         operationId: 'linkProjectGitHubRepository',
-        'x-development-only': true,
         security: [{sessionCookie: []}],
         parameters: [{name: 'projectId', in: 'path', required: true, schema: ref('ProjectId')}],
         requestBody: {required: true, content: {'application/json': {schema: ref('ProjectGitHubRepositoryLinkRequest')}}},
