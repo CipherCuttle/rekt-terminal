@@ -1,0 +1,205 @@
+name: Phase 3 prefreeze concurrency repair
+
+on:
+  push:
+    branches:
+      - 'feature/inkubator-player-mission-command-v0'
+    paths:
+      - '.github/workflows/phase3-prefreeze-concurrency-repair.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: inkubator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/inkubator
+      INKUBATOR_APP_ORIGIN: http://127.0.0.1:4175
+    steps:
+      - name: Check out exact branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/inkubator-player-mission-command-v0
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify canonical toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = 'v24.20.0'
+          test "$(npm -v)" = '11.19.0'
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Serialize participant Mission mutations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/inkubator-api/src/mission-command.ts')
+          text = path.read_text()
+
+          create_anchor = """  return db.transaction().execute(async (transaction) => {
+              const existing = await transaction.selectFrom('missions').selectAll().where('creation_request_id', '=', requestId).executeTakeFirst();
+          """.replace('              ', '    ')
+          create_replacement = """  return db.transaction().execute(async (transaction) => {
+              await transaction.selectFrom('players').select('player_id').where('player_id', '=', playerId).forUpdate().executeTakeFirstOrThrow();
+              const existing = await transaction.selectFrom('missions').selectAll().where('creation_request_id', '=', requestId).executeTakeFirst();
+          """.replace('              ', '    ')
+          if text.count(create_anchor) != 1:
+              raise SystemExit(f'createMission serialization anchor drifted: {text.count(create_anchor)}')
+          text = text.replace(create_anchor, create_replacement)
+
+          mission_select = "const mission = await transaction.selectFrom('missions').selectAll().where('mission_id', '=', missionId).executeTakeFirst();"
+          locked_select = "const mission = await transaction.selectFrom('missions').selectAll().where('mission_id', '=', missionId).forUpdate().executeTakeFirst();"
+          if text.count(mission_select) != 2:
+              raise SystemExit(f'Mission mutation lock anchor drifted: {text.count(mission_select)}')
+          text = text.replace(mission_select, locked_select)
+
+          path.write_text(text)
+          PY
+
+      - name: Add forced concurrency regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >> apps/inkubator-api/test/integration/phase3-player-mission-command.test.mjs <<'EOF'
+
+          test('Phase 3 serializes concurrent Mission creation and state transitions', async () => {
+            const db = createDatabase(databaseUrl);
+            await migrateToLatest(db);
+            const app = buildApp({db, appOrigin, allowDevAuth: true, sessionTtlSeconds: 3600, github: null});
+            try {
+              const owner = await createSession(app, `Phase3 Race ${randomUUID().slice(0, 8)}`);
+              const rounds = await app.inject({method: 'GET', url: '/v1/rounds', headers: {cookie: owner.cookie}});
+              const founding = rounds.json().find((round) => round.code === 'ROUND_01');
+              assert.ok(founding);
+              assert.equal((await app.inject({method: 'POST', url: `/v1/rounds/${founding.round_id}/join`, headers: mutationHeaders(owner.cookie)})).statusCode, 200);
+
+              const declaration = {
+                request_id: randomUUID(),
+                round_id: founding.round_id,
+                project_name: 'REKT Race Proof',
+                goal: 'Serialize concurrent declaration',
+                ship_condition: 'One durable Mission exists',
+                current_focus: 'Race duplicate creation',
+                next_move: 'Enter BUILDING',
+              };
+
+              let releasePlayerLock;
+              let playerLockReady;
+              const playerRelease = new Promise((resolve) => { releasePlayerLock = resolve; });
+              const playerReady = new Promise((resolve) => { playerLockReady = resolve; });
+              const heldPlayerLock = db.transaction().execute(async (transaction) => {
+                await transaction.selectFrom('players').select('player_id').where('player_id', '=', owner.playerId).forUpdate().executeTakeFirstOrThrow();
+                playerLockReady();
+                await playerRelease;
+              });
+              await playerReady;
+              const createOnePromise = app.inject({method: 'POST', url: '/v1/missions', headers: mutationHeaders(owner.cookie), payload: declaration});
+              const createTwoPromise = app.inject({method: 'POST', url: '/v1/missions', headers: mutationHeaders(owner.cookie), payload: declaration});
+              await new Promise((resolve) => setTimeout(resolve, 75));
+              releasePlayerLock();
+              await heldPlayerLock;
+              const [createOne, createTwo] = await Promise.all([createOnePromise, createTwoPromise]);
+              assert.equal(createOne.statusCode, 201);
+              assert.equal(createTwo.statusCode, 201);
+              assert.equal(createOne.json().mission.mission_id, createTwo.json().mission.mission_id);
+              assert.equal(createOne.json().project.project_id, createTwo.json().project.project_id);
+              const missionId = createOne.json().mission.mission_id;
+
+              const building = await app.inject({method: 'PATCH', url: `/v1/missions/${missionId}`, headers: mutationHeaders(owner.cookie), payload: {
+                request_id: randomUUID(), state: 'BUILDING', current_focus: 'Force a stale-read race', next_move: 'Serialize transition validation',
+              }});
+              assert.equal(building.statusCode, 200);
+
+              let releaseMissionLock;
+              let missionLockReady;
+              const missionRelease = new Promise((resolve) => { releaseMissionLock = resolve; });
+              const missionReady = new Promise((resolve) => { missionLockReady = resolve; });
+              const heldMissionLock = db.transaction().execute(async (transaction) => {
+                await transaction.selectFrom('missions').select('mission_id').where('mission_id', '=', missionId).forUpdate().executeTakeFirstOrThrow();
+                missionLockReady();
+                await missionRelease;
+              });
+              await missionReady;
+              const blockPromise = app.inject({method: 'PATCH', url: `/v1/missions/${missionId}`, headers: mutationHeaders(owner.cookie), payload: {
+                request_id: randomUUID(), state: 'BLOCKED', blocker: 'Forced concurrency barrier', next_move: 'Resolve the barrier',
+              }});
+              await new Promise((resolve) => setTimeout(resolve, 75));
+              const shipReadyPromise = app.inject({method: 'PATCH', url: `/v1/missions/${missionId}`, headers: mutationHeaders(owner.cookie), payload: {
+                request_id: randomUUID(), state: 'SHIP_READY',
+              }});
+              await new Promise((resolve) => setTimeout(resolve, 75));
+              releaseMissionLock();
+              await heldMissionLock;
+              const [blocked, shipReady] = await Promise.all([blockPromise, shipReadyPromise]);
+              assert.equal(blocked.statusCode, 200);
+              assert.equal(blocked.json().mission.state, 'BLOCKED');
+              assert.equal(shipReady.statusCode, 400);
+              assert.equal(shipReady.json().error, 'mission_transition_invalid');
+
+              const finalCommand = await app.inject({method: 'GET', url: '/v1/me/command', headers: {cookie: owner.cookie}});
+              assert.equal(finalCommand.statusCode, 200);
+              assert.equal(finalCommand.json().mission.state, 'BLOCKED');
+              assert.equal(finalCommand.json().mission.blocker, 'Forced concurrency barrier');
+
+              const creationCount = Number((await db.selectFrom('missions').select(({fn}) => fn.countAll().as('count')).where('creation_request_id', '=', declaration.request_id).executeTakeFirstOrThrow()).count);
+              assert.equal(creationCount, 1);
+            } finally {
+              await app.close();
+              await db.destroy();
+            }
+          });
+          EOF
+
+      - name: Build and unit test API
+        run: |
+          npm run build -w @rekt-ink/inkubator-api
+          npm run test -w @rekt-ink/inkubator-api
+
+      - name: Apply migrations
+        run: npm run migrate -w @rekt-ink/inkubator-api
+
+      - name: Run complete Postgres integration suite
+        run: npm run test:integration -w @rekt-ink/inkubator-api
+
+      - name: Verify generated client remains current
+        run: npm run verify:client -w @rekt-ink/inkubator-api
+
+      - name: Commit verified prefreeze repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/phase3-prefreeze-concurrency-repair.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix(inkubator): serialize Phase 3 participant mutations'
+          git push origin HEAD:feature/inkubator-player-mission-command-v0
