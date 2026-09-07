@@ -4,6 +4,9 @@ import {componentSchemas, openapiDocument} from './contract.js';
 // The base Ship Receipt schema remains inkubator.ship-receipt/1.0; this extension
 // versions only the public shareable Artifact/Project Ship projection.
 const schemas = componentSchemas as unknown as Record<string, any>;
+if (!schemas.ShipVerifierObservationView?.properties) throw new Error('phase6c_ship_verifier_schema_missing');
+// final_url is verifier-internal because redirect targets may contain temporary query credentials.
+delete schemas.ShipVerifierObservationView.properties.final_url;
 
 schemas.ShipArtifactPrivateView = {
   type: 'object', additionalProperties: false, required: ['title', 'url'],
@@ -83,7 +86,7 @@ schemas.ShipSubmissionPrivateView = {
     mission_id: {$ref: '#/components/schemas/MissionId'},
     project_id: {$ref: '#/components/schemas/ProjectId'},
     artifact: {$ref: '#/components/schemas/ShipArtifactPrivateView'},
-    state: {type: 'string', enum: ['SUBMITTED', 'OBSERVED', 'ATTENTION', 'ACCEPTED', 'REJECTED']},
+    state: {type: 'string', enum: ['SUBMITTED', 'OBSERVED', 'ATTENTION', 'ACCEPTED', 'REJECTED', 'SUPERSEDED']},
     submitted_at: {type: 'string', format: 'date-time'},
     verifier_observation: {$ref: '#/components/schemas/ShipVerifierObservationView'},
   },
