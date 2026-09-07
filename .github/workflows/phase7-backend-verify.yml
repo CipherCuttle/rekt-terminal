@@ -1,0 +1,71 @@
+name: Phase 7 Backend Verify
+
+on:
+  push:
+    branches: [feature/inkubator-cheevo-reputation-boards-v0]
+    paths:
+      - '.github/workflows/phase7-backend-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_USER: rekt
+          POSTGRES_PASSWORD: rekt_test
+          POSTGRES_DB: rekt_inkubator
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U rekt -d rekt_inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://rekt:rekt_test@127.0.0.1:5432/rekt_inkubator
+      INKUBATOR_APP_ORIGIN: http://127.0.0.1:4175
+      INKUBATOR_DEV_AUTH: '1'
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/inkubator-cheevo-reputation-boards-v0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck and build API
+        run: |
+          npm run typecheck -w @rekt-ink/inkubator-api
+          npm run build -w @rekt-ink/inkubator-api
+      - name: Generate Phase 7 client candidate
+        run: npm run generate:client -w @rekt-ink/inkubator-api
+      - name: Show generated client delta
+        run: git diff -- apps/inkubator-lab/src/generated/inkubator-api-client.ts || true
+      - name: Apply all migrations
+        run: npm run migrate -w @rekt-ink/inkubator-api
+      - name: API unit suite
+        run: npm run test -w @rekt-ink/inkubator-api
+      - name: Phase 7 empty-state route smoke
+        run: |
+          node --input-type=module <<'NODE'
+          import {buildApp} from './apps/inkubator-api/dist/app.js';
+          import {createDatabase} from './apps/inkubator-api/dist/database.js';
+          const db=createDatabase(process.env.DATABASE_URL);
+          const app=buildApp({db,appOrigin:process.env.INKUBATOR_APP_ORIGIN,allowDevAuth:true,sessionTtlSeconds:3600,github:null});
+          try {
+            const boards=await app.inject({method:'GET',url:'/v1/world/boards'});
+            if(boards.statusCode!==200) throw new Error(`boards_${boards.statusCode}_${boards.body}`);
+            const body=boards.json();
+            if(body.schema_version!=='world.boards.public.v1'||body.boards.length!==3) throw new Error('boards_shape_invalid');
+            const missing=await app.inject({method:'GET',url:'/v1/players/00000000-0000-4000-8000-000000000001/reputation'});
+            if(missing.statusCode!==404) throw new Error(`missing_player_${missing.statusCode}`);
+          } finally { await app.close(); await db.destroy(); }
+          NODE
