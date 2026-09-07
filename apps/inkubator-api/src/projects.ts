@@ -1,13 +1,22 @@
 import {randomUUID} from 'node:crypto';
 import {sql, type Kysely} from 'kysely';
-import type {DatabaseSchema, GitHubRepositoryRow, HistoryEventRow} from './database.js';
+import type {DatabaseSchema, GitHubRepositoryRow, MissionState} from './database.js';
 import {appendHistoryEvent} from './events.js';
 
-const PROJECT_SCHEMA_VERSION = 'project.development.v1';
-const MISSION_SCHEMA_VERSION = 'mission.development.v1';
+const PROJECT_HISTORY_SCHEMA_VERSION = 'project.development.v1';
+const MISSION_HISTORY_SCHEMA_VERSION = 'mission.development.v1';
+const PROJECT_CURRENT_SCHEMA_VERSION = 'project.current.v1';
+const MISSION_CURRENT_SCHEMA_VERSION = 'mission.current.v1';
 const PROJECT_LINK_SCHEMA_VERSION = 'project.github_repository_link.v1';
 const PROJECT_OBSERVATION_EVENT = 'project.github_repository_push.observed';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const DEFAULT_GATES = [
+  {gate_key: 'FOUNDATION', label: 'FOUNDATION', position: 0},
+  {gate_key: 'CORE_EXPERIENCE', label: 'CORE EXPERIENCE', position: 1},
+  {gate_key: 'QUALITY_TESTING', label: 'QUALITY / TESTING', position: 2},
+  {gate_key: 'SHIPABILITY', label: 'SHIPABILITY', position: 3},
+] as const;
 
 export interface DevelopmentProjectInput {
   name: string;
@@ -22,7 +31,7 @@ export interface DevelopmentProjectSnapshot {
   ownerPlayerId: string;
   name: string;
   missionId: string;
-  missionState: 'DECLARED';
+  missionState: MissionState;
   goal: string;
   shipCondition: string;
   currentFocus: string;
@@ -67,45 +76,7 @@ async function lockKeys(db: Kysely<DatabaseSchema>, keys: string[]): Promise<voi
   }
 }
 
-async function projectCreatedEvent(db: Kysely<DatabaseSchema>, projectId: string): Promise<HistoryEventRow | null> {
-  return (
-    (await db
-      .selectFrom('history_events')
-      .selectAll()
-      .where('event_type', '=', 'project.created')
-      .where('subject_type', '=', 'project')
-      .where('subject_id', '=', projectId)
-      .executeTakeFirst()) ?? null
-  );
-}
-
-async function missionDeclaredEvent(db: Kysely<DatabaseSchema>, projectId: string): Promise<HistoryEventRow> {
-  const result = await sql<HistoryEventRow>`
-    select *
-    from history_events
-    where event_type = 'mission.declared'
-      and subject_type = 'mission'
-      and payload ->> 'project_id' = ${projectId}
-    order by occurred_at asc
-    limit 2
-  `.execute(db);
-  if (result.rows.length !== 1) throw new Error('project_mission_history_invalid');
-  return result.rows[0];
-}
-
-async function projectLinkEvent(db: Kysely<DatabaseSchema>, projectId: string): Promise<HistoryEventRow | null> {
-  return (
-    (await db
-      .selectFrom('history_events')
-      .selectAll()
-      .where('event_type', '=', 'project.github_repository.linked')
-      .where('subject_type', '=', 'project')
-      .where('subject_id', '=', projectId)
-      .executeTakeFirst()) ?? null
-  );
-}
-
-async function latestProjectObservation(db: Kysely<DatabaseSchema>, projectId: string): Promise<HistoryEventRow | null> {
+async function latestProjectObservation(db: Kysely<DatabaseSchema>, projectId: string) {
   return (
     (await db
       .selectFrom('history_events')
@@ -132,6 +103,38 @@ export async function createDevelopmentProject(
   const missionId = randomUUID();
 
   return db.transaction().execute(async (transaction) => {
+    await transaction.insertInto('projects').values({
+      project_id: projectId,
+      schema_version: PROJECT_CURRENT_SCHEMA_VERSION,
+      owner_player_id: ownerPlayerId,
+      name,
+      repository_id: null,
+    }).execute();
+    await transaction.insertInto('missions').values({
+      mission_id: missionId,
+      schema_version: MISSION_CURRENT_SCHEMA_VERSION,
+      creation_request_id: null,
+      project_id: projectId,
+      owner_player_id: ownerPlayerId,
+      round_id: null,
+      goal,
+      ship_condition: shipCondition,
+      state: 'DECLARED',
+      current_focus: currentFocus,
+      next_move: nextMove,
+      blocker: null,
+      progress_model_version: 'mission.progress.v1',
+      stack_labels: [],
+      stack_source: 'UNKNOWN',
+    }).execute();
+    await transaction.insertInto('mission_gates').values(DEFAULT_GATES.map((gate) => ({
+      mission_id: missionId,
+      gate_key: gate.gate_key,
+      label: gate.label,
+      signal_state: 'UNKNOWN' as const,
+      position: gate.position,
+    }))).execute();
+
     await appendHistoryEvent(transaction, {
       eventFamily: 'activity',
       eventType: 'project.created',
@@ -140,7 +143,7 @@ export async function createDevelopmentProject(
       subjectType: 'project',
       subjectId: projectId,
       payload: {
-        schema_version: PROJECT_SCHEMA_VERSION,
+        schema_version: PROJECT_HISTORY_SCHEMA_VERSION,
         owner_player_id: ownerPlayerId,
         name,
       },
@@ -153,7 +156,7 @@ export async function createDevelopmentProject(
       subjectType: 'mission',
       subjectId: missionId,
       payload: {
-        schema_version: MISSION_SCHEMA_VERSION,
+        schema_version: MISSION_HISTORY_SCHEMA_VERSION,
         mission_id: missionId,
         owner_player_id: ownerPlayerId,
         project_id: projectId,
@@ -174,17 +177,9 @@ export async function findLinkedProjectIdForRepository(
   db: Kysely<DatabaseSchema>,
   repositoryId: string,
 ): Promise<string | null> {
-  const result = await sql<{project_id: string}>`
-    select subject_id as project_id
-    from history_events
-    where event_type = 'project.github_repository.linked'
-      and subject_type = 'project'
-      and payload ->> 'repository_id' = ${repositoryId}
-    order by occurred_at asc
-    limit 2
-  `.execute(db);
-  if (result.rows.length > 1) throw new Error('project_repository_link_invariant_violation');
-  return result.rows[0]?.project_id ?? null;
+  const rows = await db.selectFrom('projects').select('project_id').where('repository_id', '=', repositoryId).limit(2).execute();
+  if (rows.length > 1) throw new Error('project_repository_link_invariant_violation');
+  return rows[0]?.project_id ?? null;
 }
 
 export async function linkDevelopmentProjectRepository(
@@ -200,9 +195,9 @@ export async function linkDevelopmentProjectRepository(
       `rekt:project-repository-link:repository:${repositoryId}`,
     ]);
 
-    const project = await getDevelopmentProject(transaction, projectId);
+    const project = await transaction.selectFrom('projects').selectAll().where('project_id', '=', projectId).executeTakeFirst();
     if (!project) throw new Error('project_not_found');
-    if (project.ownerPlayerId !== ownerPlayerId) throw new Error('authorization_denied');
+    if (project.owner_player_id !== ownerPlayerId) throw new Error('authorization_denied');
 
     const repository = await transaction
       .selectFrom('github_repositories as repository')
@@ -215,10 +210,8 @@ export async function linkDevelopmentProjectRepository(
       .executeTakeFirst();
     if (!repository) throw new Error('github_repository_not_available');
 
-    const existingProjectLink = await projectLinkEvent(transaction, projectId);
-    if (existingProjectLink) {
-      const linkedId = requiredString(objectPayload(existingProjectLink.payload), 'repository_id');
-      if (linkedId !== repositoryId) throw new Error('project_repository_already_linked');
+    if (project.repository_id) {
+      if (project.repository_id !== repositoryId) throw new Error('project_repository_already_linked');
       const snapshot = await getDevelopmentProject(transaction, projectId);
       if (!snapshot) throw new Error('project_not_found');
       return snapshot;
@@ -227,6 +220,10 @@ export async function linkDevelopmentProjectRepository(
     const existingProjectId = await findLinkedProjectIdForRepository(transaction, repositoryId);
     if (existingProjectId && existingProjectId !== projectId) throw new Error('github_repository_already_linked');
 
+    await transaction.updateTable('projects')
+      .set({repository_id: repositoryId, updated_at: sql`clock_timestamp()`})
+      .where('project_id', '=', projectId)
+      .execute();
     await appendHistoryEvent(transaction, {
       eventFamily: 'activity',
       eventType: 'project.github_repository.linked',
@@ -251,30 +248,18 @@ export async function getDevelopmentProject(
   projectId: string,
 ): Promise<DevelopmentProjectSnapshot | null> {
   if (!UUID_PATTERN.test(projectId)) return null;
-  const projectEvent = await projectCreatedEvent(db, projectId);
-  if (!projectEvent) return null;
-  const projectPayload = objectPayload(projectEvent.payload);
-  if (requiredString(projectPayload, 'schema_version') !== PROJECT_SCHEMA_VERSION) throw new Error('project_history_version_unsupported');
-  const ownerPlayerId = requiredString(projectPayload, 'owner_player_id');
-  const name = requiredString(projectPayload, 'name');
+  const project = await db.selectFrom('projects').selectAll().where('project_id', '=', projectId).executeTakeFirst();
+  if (!project) return null;
+  const mission = await db.selectFrom('missions')
+    .selectAll()
+    .where('project_id', '=', projectId)
+    .orderBy('updated_at', 'desc')
+    .executeTakeFirst();
+  if (!mission) throw new Error('project_mission_current_state_invalid');
 
-  const missionEvent = await missionDeclaredEvent(db, projectId);
-  const missionPayload = objectPayload(missionEvent.payload);
-  if (requiredString(missionPayload, 'schema_version') !== MISSION_SCHEMA_VERSION) throw new Error('mission_history_version_unsupported');
-  const missionId = requiredString(missionPayload, 'mission_id');
-  if (missionEvent.subject_id !== missionId) throw new Error('project_mission_history_invalid');
-  if (requiredString(missionPayload, 'owner_player_id') !== ownerPlayerId) throw new Error('project_mission_history_invalid');
-  if (requiredString(missionPayload, 'project_id') !== projectId) throw new Error('project_mission_history_invalid');
-  if (requiredString(missionPayload, 'state') !== 'DECLARED') throw new Error('project_mission_history_invalid');
-
-  const link = await projectLinkEvent(db, projectId);
   let repository: GitHubRepositoryRow | null = null;
-  if (link) {
-    const linkPayload = objectPayload(link.payload);
-    if (requiredString(linkPayload, 'schema_version') !== PROJECT_LINK_SCHEMA_VERSION) throw new Error('project_link_history_version_unsupported');
-    const repositoryId = requiredString(linkPayload, 'repository_id');
-    repository =
-      (await db.selectFrom('github_repositories').selectAll().where('repository_id', '=', repositoryId).executeTakeFirst()) ?? null;
+  if (project.repository_id) {
+    repository = (await db.selectFrom('github_repositories').selectAll().where('repository_id', '=', project.repository_id).executeTakeFirst()) ?? null;
     if (!repository) throw new Error('project_repository_link_invalid');
   }
 
@@ -299,15 +284,15 @@ export async function getDevelopmentProject(
   }
 
   return {
-    projectId,
-    ownerPlayerId,
-    name,
-    missionId,
-    missionState: 'DECLARED',
-    goal: requiredString(missionPayload, 'goal'),
-    shipCondition: requiredString(missionPayload, 'ship_condition'),
-    currentFocus: requiredString(missionPayload, 'current_focus'),
-    nextMove: requiredString(missionPayload, 'next_move'),
+    projectId: project.project_id,
+    ownerPlayerId: project.owner_player_id,
+    name: project.name,
+    missionId: mission.mission_id,
+    missionState: mission.state,
+    goal: mission.goal,
+    shipCondition: mission.ship_condition,
+    currentFocus: mission.current_focus,
+    nextMove: mission.next_move,
     repository,
     observation,
   };
