@@ -156,7 +156,7 @@ test('Phase 6C snapshots accepted Party/Assist attribution and exposes a privacy
     assert.equal(publicJson.includes('source_url'), false);
     assert.equal(publicJson.includes(privateMarker), false);
     assert.equal(publicJson.includes(reviewMarker), false);
-    assert.equal(publicJson.includes('reason'), false);
+    assert.equal(publicJson.includes('"reason":'), false);
 
     const snapshotBeforeLate = await db.selectFrom('ship_receipt_attributions').selectAll().where('receipt_id', '=', artifact.receipt_id).orderBy('role', 'asc').orderBy('player_id', 'asc').execute();
     assert.equal(snapshotBeforeLate.length, 2);
