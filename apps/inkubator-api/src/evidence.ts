@@ -29,9 +29,30 @@ export interface GitHubEvidenceSnapshot {
   latestObservation?: StructuredGitHubObservation;
 }
 
-function observationTimestamp(observation: StructuredGitHubObservation): number | null {
-  const value = Date.parse(observation.observedAt);
-  return Number.isFinite(value) ? value : null;
+const OBSERVATION_KINDS = new Set<GitHubObservationKind>(['PUSH', 'PULL_REQUEST', 'WORKFLOW', 'DEPLOYMENT', 'MANIFEST']);
+const OBSERVATION_OUTCOMES = new Set<ObservationOutcome>(['OBSERVED', 'SUCCEEDED', 'FAILED', 'IN_PROGRESS', 'UNKNOWN']);
+const MAX_FUTURE_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+function sanitizeObservation(observation: StructuredGitHubObservation): {observation: StructuredGitHubObservation; timestamp: number} | null {
+  if (!observation || typeof observation !== 'object') return null;
+  const candidate = observation as Partial<StructuredGitHubObservation>;
+  if (typeof candidate.observationId !== 'string' || candidate.observationId.length === 0 || candidate.observationId.length > 256) return null;
+  if (typeof candidate.kind !== 'string' || !OBSERVATION_KINDS.has(candidate.kind as GitHubObservationKind)) return null;
+  if (typeof candidate.outcome !== 'string' || !OBSERVATION_OUTCOMES.has(candidate.outcome as ObservationOutcome)) return null;
+  if (typeof candidate.observedAt !== 'string' || candidate.observedAt.length === 0 || candidate.observedAt.length > 64) return null;
+
+  const timestamp = Date.parse(candidate.observedAt);
+  if (!Number.isFinite(timestamp)) return null;
+
+  return {
+    timestamp,
+    observation: {
+      observationId: candidate.observationId,
+      kind: candidate.kind as GitHubObservationKind,
+      outcome: candidate.outcome as ObservationOutcome,
+      observedAt: candidate.observedAt,
+    },
+  };
 }
 
 function signalStateForOutcome(outcome: ObservationOutcome): EvidenceSignalState {
@@ -55,8 +76,8 @@ export function classifyGitHubEvidence(input: {
   if (!Number.isFinite(nowMs)) throw new Error('evidence_now_invalid');
 
   const valid = input.observations
-    .map((observation) => ({observation, timestamp: observationTimestamp(observation)}))
-    .filter((entry): entry is {observation: StructuredGitHubObservation; timestamp: number} => entry.timestamp !== null)
+    .map(sanitizeObservation)
+    .filter((entry): entry is {observation: StructuredGitHubObservation; timestamp: number} => entry !== null && entry.timestamp <= nowMs + MAX_FUTURE_CLOCK_SKEW_MS)
     .sort((left, right) => right.timestamp - left.timestamp);
 
   const latest = valid[0];
@@ -81,7 +102,7 @@ export function classifyGitHubEvidence(input: {
       staleAfterMs: input.staleAfterMs,
       invalidObservationCount,
       reasonCode: 'source_unavailable_cached_evidence_not_current',
-      latestObservation: {...latest.observation},
+      latestObservation: latest.observation,
     };
   }
 
@@ -105,7 +126,7 @@ export function classifyGitHubEvidence(input: {
       staleAfterMs: input.staleAfterMs,
       invalidObservationCount,
       reasonCode: 'latest_observation_stale',
-      latestObservation: {...latest.observation},
+      latestObservation: latest.observation,
     };
   }
 
@@ -116,7 +137,7 @@ export function classifyGitHubEvidence(input: {
     staleAfterMs: input.staleAfterMs,
     invalidObservationCount,
     reasonCode: 'latest_observation_current',
-    latestObservation: {...latest.observation},
+    latestObservation: latest.observation,
   };
 }
 
@@ -135,6 +156,18 @@ export interface StackDetection {
   stack: DetectedStack;
   evidencePaths: string[];
 }
+
+const DETECTED_STACKS = new Set<DetectedStack>([
+  'JAVASCRIPT_TYPESCRIPT',
+  'PYTHON',
+  'RUST',
+  'GO',
+  'JVM',
+  'RUBY',
+  'PHP',
+  'DOTNET',
+  'CONTAINER',
+]);
 
 const MANIFEST_STACK: Readonly<Record<string, DetectedStack>> = {
   'package.json': 'JAVASCRIPT_TYPESCRIPT',
@@ -163,6 +196,7 @@ export function detectStackFromManifestPaths(paths: readonly string[]): {
   const detections = new Map<DetectedStack, Set<string>>();
 
   for (const rawPath of boundedPaths) {
+    if (typeof rawPath !== 'string' || rawPath.length === 0 || rawPath.length > 240 || /[\u0000-\u001f\u007f]/.test(rawPath)) continue;
     const normalized = rawPath.replaceAll('\\', '/').replace(/^\.\//, '').replace(/^\/+/, '');
     const segments = normalized.split('/').filter(Boolean);
     if (segments.length === 0 || segments.length > 3) continue;
@@ -247,13 +281,18 @@ const OBSERVATION_LABEL: Readonly<Record<GitHubObservationKind, string>> = {
   MANIFEST: 'A repository manifest was observed.',
 };
 
+function safeStacks(stacks: readonly DetectedStack[]): DetectedStack[] {
+  return [...new Set(stacks.filter((stack) => DETECTED_STACKS.has(stack)))].sort();
+}
+
 export function deriveDaemonAdvisory(input: {
   snapshot: GitHubEvidenceSnapshot;
   detectedStacks: readonly DetectedStack[];
   previousDetectedStacks?: readonly DetectedStack[];
 }): DaemonAdvisory {
-  const previous = new Set(input.previousDetectedStacks ?? []);
-  const newStacks = [...new Set(input.detectedStacks)].filter((stack) => !previous.has(stack)).sort();
+  const currentStacks = safeStacks(input.detectedStacks);
+  const previous = new Set(safeStacks(input.previousDetectedStacks ?? []));
+  const newStacks = currentStacks.filter((stack) => !previous.has(stack));
   const latest = input.snapshot.latestObservation;
 
   let likelyBlocker: string | undefined;
@@ -276,10 +315,14 @@ export function deriveDaemonAdvisory(input: {
     proposedNextMove = 'Compare the latest observed change with the Mission current focus and ship condition.';
   }
 
+  const whatChanged = latest && OBSERVATION_KINDS.has(latest.kind)
+    ? OBSERVATION_LABEL[latest.kind]
+    : 'No current GitHub observation is available.';
+
   return {
     ruleVersion: DAEMON_ADVISORY_RULE_VERSION,
     authority: 'ADVISORY_ONLY',
-    whatChanged: latest ? OBSERVATION_LABEL[latest.kind] : 'No current GitHub observation is available.',
+    whatChanged,
     ...(likelyBlocker ? {likelyBlocker} : {}),
     ...(newStacks.length > 0 && previous.size > 0 ? {scopeDamageWarning: `New detected runtime stack: ${newStacks.join(', ')}. Confirm that scope expansion is intentional.`} : {}),
     proposedNextMove,
