@@ -78,6 +78,21 @@ test('World live signal columns never overlap', async ({page}) => {
   }
 });
 
+test('World development fixture marker stays visible after scrolling below the hero', async ({page}) => {
+  await page.goto('/?lab=signals&screen=world');
+  await waitForGoldenScreen(page, 'world');
+  const marker = page.getByText('BROADCAST / DEVELOPMENT FIXTURE', {exact: true});
+  await expect(marker).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect(marker).toBeVisible();
+  const markerBox = await marker.boundingBox();
+  const viewport = page.viewportSize();
+  expect(markerBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(markerBox!.y).toBeGreaterThanOrEqual(0);
+  expect(markerBox!.y + markerBox!.height).toBeLessThanOrEqual(viewport!.height);
+});
+
 test('reduced motion disables ambient World orbit', async ({page}) => {
   await page.emulateMedia({reducedMotion: 'reduce'});
   await page.goto('/?lab=signals&screen=world');

@@ -49,7 +49,7 @@ function Shell({screen, mode, children}: {screen: GoldenScreen; mode: 'broadcast
               </a>
             ))}
           </div>
-          <span className={styles.navMeta}>{mode.toUpperCase()} / SIGNAL SYSTEM V0</span>
+          <span className={styles.navMeta}>{screen === 'world' ? 'BROADCAST / DEVELOPMENT FIXTURE' : `${mode.toUpperCase()} / SIGNAL SYSTEM V0`}</span>
         </nav>
         <main className={`${styles.page} ${screen === 'world' ? styles.world : ''} ${screen === 'ship' ? styles.ship : ''}`}>
           {children}
