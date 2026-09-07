@@ -167,8 +167,9 @@ test('Phase-1 exit vertical assembles auth, Project/Mission, GitHub observation,
   }
 });
 
-test('temporary Phase-1 Project routes are absent when development auth is disabled', async () => {
+test('development creation stays disabled while graduated Project routes remain registered', async () => {
   const db = createDatabase(databaseUrl);
+  await migrateToLatest(db);
   const app = buildApp({db, appOrigin, allowDevAuth: false, sessionTtlSeconds: 3600, github: null});
   const projectId = randomUUID();
   try {
@@ -176,9 +177,11 @@ test('temporary Phase-1 Project routes are absent when development auth is disab
       name: 'must not exist', goal: 'must not exist', ship_condition: 'must not exist', current_focus: 'must not exist', next_move: 'must not exist',
     }});
     assert.equal(create.statusCode, 404);
-    assert.equal((await app.inject({method: 'GET', url: `/v1/projects/${projectId}`})).statusCode, 404);
-    assert.equal((await app.inject({method: 'GET', url: `/v1/projects/${projectId}/private`})).statusCode, 404);
-    assert.equal((await app.inject({method: 'POST', url: `/v1/projects/${projectId}/github-repositories`, headers: {origin: appOrigin}, payload: {repository_id: repositoryId}})).statusCode, 404);
+    const publicProject = await app.inject({method: 'GET', url: `/v1/projects/${projectId}`});
+    assert.equal(publicProject.statusCode, 404);
+    assert.equal(publicProject.json().error, 'project_not_found');
+    assert.equal((await app.inject({method: 'GET', url: `/v1/projects/${projectId}/private`})).statusCode, 401);
+    assert.equal((await app.inject({method: 'POST', url: `/v1/projects/${projectId}/github-repositories`, headers: {origin: appOrigin}, payload: {repository_id: repositoryId}})).statusCode, 401);
   } finally {
     await app.close();
     await db.destroy();

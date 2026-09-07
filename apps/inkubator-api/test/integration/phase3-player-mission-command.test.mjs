@@ -221,7 +221,9 @@ test('Phase 3 current product routes remain available when development auth is d
       name: 'must not exist', goal: 'must not exist', ship_condition: 'must not exist', current_focus: 'must not exist', next_move: 'must not exist',
     }});
     assert.equal(developmentProject.statusCode, 404);
-    assert.notEqual((await app.inject({method: 'GET', url: `/v1/projects/${randomUUID()}`})).statusCode, 404, 'product Project route must be registered');
+    const productProject = await app.inject({method: 'GET', url: `/v1/projects/${randomUUID()}`});
+    assert.equal(productProject.statusCode, 404);
+    assert.equal(productProject.json().error, 'project_not_found');
   } finally {
     await app.close();
     await db.destroy();

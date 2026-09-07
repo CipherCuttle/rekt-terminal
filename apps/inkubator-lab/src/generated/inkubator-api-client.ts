@@ -11,6 +11,20 @@ export type PlayerId = string;
 
 export type ProjectId = string;
 
+export type MissionId = string;
+
+export type RoundId = string;
+
+export type RequestId = string;
+
+export type MissionState = "DRAFT" | "DECLARED" | "BUILDING" | "BLOCKED" | "SHIP_READY" | "SUBMITTED" | "SHIPPED" | "CLOSED_NOT_SHIPPED" | "ARCHIVED";
+
+export type MissionGateKey = "FOUNDATION" | "CORE_EXPERIENCE" | "QUALITY_TESTING" | "SHIPABILITY";
+
+export type MissionGateState = "UNKNOWN" | "CLAIMED" | "ACTIVE" | "OBSERVED" | "PROVEN" | "ATTENTION" | "BLOCKED" | "STALE" | "FAILED";
+
+export type ParticipantMissionGateState = "UNKNOWN" | "CLAIMED" | "ACTIVE" | "ATTENTION" | "BLOCKED" | "STALE" | "FAILED";
+
 export interface PublicPlayer {
   schema_version: "player.public.v1";
   player_id: PlayerId;
@@ -30,6 +44,33 @@ export interface SessionView {
   player: PrivatePlayer;
   expires_at: string;
 }
+
+export interface PlayerProfileView {
+  schema_version: "player.profile.v1";
+  player_id: PlayerId;
+  bio?: string;
+  character_name?: string;
+  character_archetype?: string;
+}
+
+export interface PlayerProfileUpdateRequest {
+  request_id: RequestId;
+  bio?: string | null;
+  character_name?: string | null;
+  character_archetype?: string | null;
+}
+
+export interface RoundView {
+  schema_version: "round.private.v1";
+  round_id: RoundId;
+  code: string;
+  title: string;
+  constraint: string;
+  state: "OPEN" | "CLOSED" | "ARCHIVED";
+  joined: boolean;
+}
+
+export type RoundList = RoundView[];
 
 export interface GitHubInstallView {
   schema_version: "github.install.v1";
@@ -53,8 +94,8 @@ export interface PublicProject {
   schema_version: "project.public.v1";
   project_id: ProjectId;
   name: string;
-  mission_id: string;
-  mission_state: "DECLARED";
+  mission_id: MissionId;
+  mission_state: MissionState;
   source_connected: boolean;
   source_visibility: "NONE" | "PUBLIC" | "PRIVATE";
   observation_state: "UNKNOWN" | "OBSERVED";
@@ -65,8 +106,8 @@ export interface PrivateProject {
   project_id: ProjectId;
   owner_player_id: PlayerId;
   name: string;
-  mission_id: string;
-  mission_state: "DECLARED";
+  mission_id: MissionId;
+  mission_state: MissionState;
   goal: string;
   ship_condition: string;
   current_focus: string;
@@ -82,6 +123,75 @@ export interface PrivateProject {
   last_ref?: string;
   last_before?: string;
   last_after?: string;
+}
+
+export interface MissionCreateRequest {
+  request_id: RequestId;
+  round_id: RoundId;
+  project_name: string;
+  goal: string;
+  ship_condition: string;
+  current_focus: string;
+  next_move: string;
+  stack_labels?: string[];
+}
+
+export interface MissionUpdateRequest {
+  request_id: RequestId;
+  state?: "DECLARED" | "BUILDING" | "BLOCKED" | "SHIP_READY" | "CLOSED_NOT_SHIPPED";
+  current_focus?: string;
+  next_move?: string;
+  blocker?: string | null;
+  stack_labels?: string[];
+}
+
+export interface MissionGateUpdateRequest {
+  request_id: RequestId;
+  state: ParticipantMissionGateState;
+}
+
+export interface CommandProject {
+  project_id: ProjectId;
+  name: string;
+  source_connected: boolean;
+  source_visibility: "NONE" | "PUBLIC" | "PRIVATE";
+  observation_state: "UNKNOWN" | "OBSERVED";
+}
+
+export interface CommandMission {
+  mission_id: MissionId;
+  state: MissionState;
+  goal: string;
+  ship_condition: string;
+  current_focus: string;
+  next_move: string;
+  blocker?: string;
+  progress_model_version: "mission.progress.v1";
+  stack_labels: string[];
+  stack_source: "UNKNOWN" | "PLAYER_CONFIRMED";
+}
+
+export interface CommandRound {
+  round_id: RoundId;
+  code: string;
+  title: string;
+  constraint: string;
+  state: "OPEN" | "CLOSED" | "ARCHIVED";
+}
+
+export interface MissionGateView {
+  key: MissionGateKey;
+  label: string;
+  state: MissionGateState;
+  position: number;
+}
+
+export interface CommandView {
+  schema_version: "command.private.v1";
+  project: CommandProject;
+  mission: CommandMission;
+  round?: CommandRound;
+  gates: MissionGateView[];
 }
 
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -128,12 +238,44 @@ export class InkubatorApiClient {
     return this.request<PrivatePlayer>("/v1/me", {method: 'GET'});
   }
 
+  getMyProfile(): Promise<PlayerProfileView> {
+    return this.request<PlayerProfileView>("/v1/me/profile", {method: 'GET'});
+  }
+
+  updateMyProfile(body: PlayerProfileUpdateRequest): Promise<PlayerProfileView> {
+    return this.request<PlayerProfileView>("/v1/me/profile", {method: 'PATCH', body: JSON.stringify(body)});
+  }
+
+  getMyCommand(): Promise<CommandView> {
+    return this.request<CommandView>("/v1/me/command", {method: 'GET'});
+  }
+
   getPublicPlayer(playerId: PlayerId): Promise<PublicPlayer> {
     return this.request<PublicPlayer>(`/v1/players/${encodeURIComponent(playerId)}`, {method: 'GET'});
   }
 
   getPrivatePlayer(playerId: PlayerId): Promise<PrivatePlayer> {
     return this.request<PrivatePlayer>(`/v1/players/${encodeURIComponent(playerId)}/private`, {method: 'GET'});
+  }
+
+  listRounds(): Promise<RoundList> {
+    return this.request<RoundList>("/v1/rounds", {method: 'GET'});
+  }
+
+  joinRound(roundId: RoundId): Promise<RoundView> {
+    return this.request<RoundView>(`/v1/rounds/${encodeURIComponent(roundId)}/join`, {method: 'POST'});
+  }
+
+  createMission(body: MissionCreateRequest): Promise<CommandView> {
+    return this.request<CommandView>("/v1/missions", {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  updateMission(missionId: MissionId, body: MissionUpdateRequest): Promise<CommandView> {
+    return this.request<CommandView>(`/v1/missions/${encodeURIComponent(missionId)}`, {method: 'PATCH', body: JSON.stringify(body)});
+  }
+
+  updateMissionGate(missionId: MissionId, gateKey: MissionGateKey, body: MissionGateUpdateRequest): Promise<CommandView> {
+    return this.request<CommandView>(`/v1/missions/${encodeURIComponent(missionId)}/gates/${encodeURIComponent(gateKey)}`, {method: 'PATCH', body: JSON.stringify(body)});
   }
 
   createDevelopmentProject(body: DevelopmentProjectRequest): Promise<PrivateProject> {

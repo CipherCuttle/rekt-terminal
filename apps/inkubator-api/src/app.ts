@@ -121,8 +121,29 @@ function phase3Error(reply: FastifyReply, cause: unknown) {
   throw cause;
 }
 
+const FASTIFY_SCHEMA_ID = 'inkubator-component-schemas-v1';
+
+function rewriteFastifyRefs(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(rewriteFastifyRefs);
+  if (value === null || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).map(([key, child]) => [
+    key,
+    key === '$ref' && typeof child === 'string' && child.startsWith('#/components/schemas/')
+      ? child.replace('#/components/schemas/', `${FASTIFY_SCHEMA_ID}#/definitions/`)
+      : rewriteFastifyRefs(child),
+  ]));
+}
+
+const fastifyComponentSchemas = rewriteFastifyRefs(componentSchemas) as Record<string, object>;
+
+function fastifyBodySchema(name: keyof typeof componentSchemas) {
+  return {$ref: `${FASTIFY_SCHEMA_ID}#/definitions/${name}`};
+}
+
 export function buildApp(options: BuildAppOptions) {
   const app = Fastify({logger: false});
+
+  app.addSchema({$id: FASTIFY_SCHEMA_ID, definitions: fastifyComponentSchemas});
 
   app.addHook('onRequest', async (request, reply) => {
     if (request.headers.origin === options.appOrigin) setCorsHeaders(reply, options.appOrigin);
@@ -151,7 +172,7 @@ export function buildApp(options: BuildAppOptions) {
   app.get('/openapi.json', async () => openapiDocument);
 
   if (options.allowDevAuth) {
-    app.post('/v1/dev/session', {schema: {body: componentSchemas.DevSessionRequest}}, async (request, reply) => {
+    app.post('/v1/dev/session', {schema: {body: fastifyBodySchema('DevSessionRequest')}}, async (request, reply) => {
       const body = request.body as {display_name: string};
       let displayName: string;
       try { displayName = normalizeDisplayName(body.display_name); } catch { return error(reply, 400, 'invalid_display_name'); }
@@ -172,7 +193,7 @@ export function buildApp(options: BuildAppOptions) {
       return reply.code(201).send({schema_version: 'session.private.v1', player: toPrivatePlayer(result.player), expires_at: result.session.expiresAt.toISOString()});
     });
 
-    app.post('/v1/development/projects', {schema: {body: componentSchemas.DevelopmentProjectRequest}}, async (request, reply) => {
+    app.post('/v1/development/projects', {schema: {body: fastifyBodySchema('DevelopmentProjectRequest')}}, async (request, reply) => {
       const authenticated = await authenticate(request, options.db);
       if (!authenticated) return error(reply, 401, 'authentication_required');
       const body = request.body as {name: string; goal: string; ship_condition: string; current_focus: string; next_move: string};
@@ -210,7 +231,7 @@ export function buildApp(options: BuildAppOptions) {
     return profileView(authenticated.actor.playerId, await getPlayerProfile(options.db, authenticated.actor.playerId));
   });
 
-  app.patch('/v1/me/profile', {schema: {body: componentSchemas.PlayerProfileUpdateRequest}}, async (request, reply) => {
+  app.patch('/v1/me/profile', {schema: {body: fastifyBodySchema('PlayerProfileUpdateRequest')}}, async (request, reply) => {
     const authenticated = await authenticate(request, options.db);
     if (!authenticated) return error(reply, 401, 'authentication_required');
     const actor = authenticated.actor;
@@ -244,7 +265,7 @@ export function buildApp(options: BuildAppOptions) {
     } catch (cause) { return phase3Error(reply, cause); }
   });
 
-  app.post('/v1/missions', {schema: {body: componentSchemas.MissionCreateRequest}}, async (request, reply) => {
+  app.post('/v1/missions', {schema: {body: fastifyBodySchema('MissionCreateRequest')}}, async (request, reply) => {
     const authenticated = await authenticate(request, options.db);
     if (!authenticated) return error(reply, 401, 'authentication_required');
     const body = request.body as {
@@ -270,7 +291,7 @@ export function buildApp(options: BuildAppOptions) {
     return commandToPrivateView(command);
   });
 
-  app.patch('/v1/missions/:missionId', {schema: {body: componentSchemas.MissionUpdateRequest}}, async (request, reply) => {
+  app.patch('/v1/missions/:missionId', {schema: {body: fastifyBodySchema('MissionUpdateRequest')}}, async (request, reply) => {
     const authenticated = await authenticate(request, options.db);
     if (!authenticated) return error(reply, 401, 'authentication_required');
     const {missionId} = request.params as {missionId: string};
@@ -286,7 +307,7 @@ export function buildApp(options: BuildAppOptions) {
     } catch (cause) { return phase3Error(reply, cause); }
   });
 
-  app.patch('/v1/missions/:missionId/gates/:gateKey', {schema: {body: componentSchemas.MissionGateUpdateRequest}}, async (request, reply) => {
+  app.patch('/v1/missions/:missionId/gates/:gateKey', {schema: {body: fastifyBodySchema('MissionGateUpdateRequest')}}, async (request, reply) => {
     const authenticated = await authenticate(request, options.db);
     if (!authenticated) return error(reply, 401, 'authentication_required');
     const {missionId, gateKey} = request.params as {missionId: string; gateKey: string};
