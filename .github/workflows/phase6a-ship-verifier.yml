@@ -1,0 +1,76 @@
+name: Phase 6A Ship Verifier
+
+on:
+  push:
+    branches: [feature/inkubator-ship-verifier-receipt-v0]
+    paths: [.github/workflows/phase6a-ship-verifier.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: inkubator
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/inkubator
+      INKUBATOR_APP_ORIGIN: http://127.0.0.1:4175
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+          cache: npm
+      - run: npm install --global npm@11.19.0
+      - name: Verify Phase 5 parent
+        run: git merge-base --is-ancestor 18121952a72802b5cd5fb4ddef3493e6cba56ec5 HEAD
+      - name: Apply Phase 6A slice
+        run: python3 .github/scripts/phase6a-ship-verifier.py
+      - name: Refresh locked workspace graph
+        run: npm install --package-lock-only --ignore-scripts
+      - run: npm ci
+      - name: Verifier typecheck and hostile policy tests
+        run: |
+          npm run typecheck -w @rekt-ink/inkubator-verifier
+          npm test -w @rekt-ink/inkubator-verifier
+      - name: Generate API client
+        run: npm run generate:client -w @rekt-ink/inkubator-api
+      - name: API typecheck
+        run: npm run typecheck -w @rekt-ink/inkubator-api
+      - name: Phase 6A focused Postgres falsification
+        run: node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase6-ship-verifier-control.test.mjs
+      - name: API unit suite
+        run: npm test -w @rekt-ink/inkubator-api
+      - name: Full API Postgres integration
+        run: npm run test:integration -w @rekt-ink/inkubator-api
+      - name: Generated client freshness
+        run: npm run verify:client -w @rekt-ink/inkubator-api
+      - name: Root verifier inclusion smoke
+        run: |
+          grep -q '@rekt-ink/inkubator-verifier' package.json
+          npm run build -w @rekt-ink/inkubator-verifier
+      - name: Publish product-only Phase 6A slice
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name CipherCuttle
+          git config user.email 97258089+CipherCuttle@users.noreply.github.com
+          git rm -f .github/scripts/phase6a-ship-verifier.py .github/workflows/phase6a-ship-verifier.yml
+          git add package.json package-lock.json apps/inkubator-api apps/inkubator-verifier apps/inkubator-lab/src/generated/inkubator-api-client.ts
+          git diff --cached --check
+          git commit -m "feat(inkubator): add Ship submission and isolated verifier control plane"
+          git push origin HEAD:feature/inkubator-ship-verifier-receipt-v0
