@@ -94,6 +94,19 @@ export interface GitHubDeliveryTable {
   received_at: Generated<Date>;
 }
 
+export interface GitHubInstallationTombstoneTable {
+  installation_id: string;
+  revoked_at: Generated<Date>;
+  source_key: string;
+}
+
+export interface GitHubRepositoryTombstoneTable {
+  repository_id: string;
+  installation_id: string;
+  removed_at: Generated<Date>;
+  source_key: string;
+}
+
 export interface DatabaseSchema {
   players: PlayerTable;
   sessions: SessionTable;
@@ -103,6 +116,8 @@ export interface DatabaseSchema {
   github_installations: GitHubInstallationTable;
   github_repositories: GitHubRepositoryTable;
   github_deliveries: GitHubDeliveryTable;
+  github_installation_tombstones: GitHubInstallationTombstoneTable;
+  github_repository_tombstones: GitHubRepositoryTombstoneTable;
 }
 
 export type PlayerRow = Selectable<PlayerTable>;

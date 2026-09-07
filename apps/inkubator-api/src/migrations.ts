@@ -174,12 +174,44 @@ const githubIngressFoundationMigration: Migration = {
   },
 };
 
+const githubConcurrencyHardeningMigration: Migration = {
+  async up(db) {
+    await db.schema
+      .createTable('github_installation_tombstones')
+      .addColumn('installation_id', 'bigint', (column) => column.primaryKey())
+      .addColumn('revoked_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`clock_timestamp()`))
+      .addColumn('source_key', 'text', (column) => column.notNull())
+      .addCheckConstraint('github_installation_tombstones_source_nonempty', sql`char_length(source_key) > 0`)
+      .execute();
+
+    await db.schema
+      .createTable('github_repository_tombstones')
+      .addColumn('repository_id', 'bigint', (column) => column.primaryKey())
+      .addColumn('installation_id', 'bigint', (column) => column.notNull())
+      .addColumn('removed_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`clock_timestamp()`))
+      .addColumn('source_key', 'text', (column) => column.notNull())
+      .addCheckConstraint('github_repository_tombstones_source_nonempty', sql`char_length(source_key) > 0`)
+      .execute();
+
+    await db.schema
+      .createIndex('github_repository_tombstones_installation_idx')
+      .on('github_repository_tombstones')
+      .column('installation_id')
+      .execute();
+  },
+  async down(db) {
+    await db.schema.dropTable('github_repository_tombstones').execute();
+    await db.schema.dropTable('github_installation_tombstones').execute();
+  },
+};
+
 class StaticMigrationProvider implements MigrationProvider {
   async getMigrations(): Promise<Record<string, Migration>> {
     return {
       '001_initial_player_sessions': initialMigration,
       '002_event_job_foundation': eventJobFoundationMigration,
       '003_github_ingress_foundation': githubIngressFoundationMigration,
+      '004_github_concurrency_hardening': githubConcurrencyHardeningMigration,
     };
   }
 }

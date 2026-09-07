@@ -26,7 +26,8 @@ Rules:
 
 - installation flow begins from an authenticated Inkubator session;
 - installation URL uses a high-entropy one-time `state` bound to that Player and an expiry;
-- setup callback must validate and atomically consume the state;
+- setup callback must atomically consume the state **before** exchanging any GitHub authorization code;
+- a failed external verification leaves that state spent; the Player must start a fresh setup rather than replaying it;
 - the callback exchanges the GitHub authorization code for a temporary user access token and verifies the installation through GitHub's authenticated API;
 - the GitHub user token is never persisted and is discarded immediately after installation verification;
 - no GitHub user token becomes browser/session/worker/SDK authority;
@@ -44,6 +45,8 @@ RAW REQUEST BYTES
   -> NORMALIZE
   -> ONE POSTGRES TRANSACTION
        delivery receipt
+       + installation-scoped serialization
+       + binding/tombstone decision
        + history observation
        + existing outbox work only if required
   -> EXPLICIT PRIVATE/PUBLIC PROJECTION
@@ -58,6 +61,25 @@ Store immutable numeric GitHub identifiers where relevant:
 - repository ID.
 
 Mutable GitHub login/name/full-name values are descriptive metadata, never identity keys.
+
+## Concurrency / interleaving authority
+
+F1D has multiple asynchronous actors: browser setup callbacks, GitHub installation lifecycle callbacks, repository-membership callbacks, and push callbacks. Sequential green tests are therefore not evidence against ordering defects.
+
+For each authoritative resource:
+
+| Resource | What can race / arrive late | Serialization authority | Winner rule |
+| --- | --- | --- | --- |
+| setup state | duplicate callbacks / one-use OAuth codes | atomic Postgres `UPDATE ... WHERE consumed_at IS NULL` before external verification | first successful claim owns the state; every later callback fails before OAuth |
+| installation ownership | two Players binding one installation | installation-scoped Postgres transaction advisory lock + conditional ownership upsert | first persisted Player owns it; a different Player cannot overwrite provenance |
+| installation revocation | suspend/delete before or during setup | installation tombstone + same installation lock | setup created before revocation cannot reactivate; fresh authenticated setup is required |
+| repository membership | removal before setup, stale add after removal | repository tombstone + same installation lock | removal is sticky; lifecycle `added` traffic cannot clear a tombstone |
+| explicit reactivation | legitimate repository return after removal | fresh authenticated setup whose state was created after the tombstone | only the fresh setup may clear the tombstone after GitHub verification |
+| push vs removal/suspension | overlapping valid signed callbacks | same installation-scoped transaction lock | whichever transaction serializes first wins; a push cannot authorize before removal and commit after it |
+
+`X-GitHub-Delivery` is an idempotency identity, **not an ordering authority**. F1D never infers provider event order from delivery GUID values.
+
+The installation lock is local to PostgreSQL and this modular monolith. It does not authorize a new queue, service, Redis, Kafka, distributed lock provider, or event-sourcing model.
 
 ## One normalized product observation
 
@@ -104,6 +126,11 @@ The first review candidate may not be frozen until all applicable checks pass:
 - [ ] installation/repository mismatch produces no observation;
 - [ ] repository not bound to installation produces no observation;
 - [ ] revoked/removed repository cannot continue producing accepted observations;
+- [ ] same setup state raced by two callbacks reaches external OAuth verification at most once;
+- [ ] two Players racing one installation cannot overwrite installation ownership;
+- [ ] repository removal racing initial setup cannot be lost;
+- [ ] stale repository-add control cannot reactivate a tombstoned repository;
+- [ ] push racing removal/suspension corresponds to one valid database serialization order;
 - [ ] private webhook fields are absent from public projection;
 - [ ] no participant repository content is executed;
 - [ ] no GitHub write permission is required;
@@ -116,7 +143,7 @@ The first review candidate may not be frozen until all applicable checks pass:
 
 After the pre-freeze hostile matrix passes:
 
-`IMPLEMENT -> TEST -> PRE-FREEZE HOSTILE MATRIX -> FREEZE EXACT SHA -> ONE independent hostile review -> fix Critical/High -> ONE re-review only if Critical/High repair was required -> CLOSE -> MOVE FORWARD`
+`CONTRACT -> DOMINANT FAILURE MODEL -> IMPLEMENT -> FOCUSED FALSIFICATION -> ONE SELF-HOSTILE PASS -> FULL VERIFY ONCE -> FREEZE EXACT SHA -> ONE independent hostile review -> bounded repair -> ONE re-review only if Critical/High repair was required -> CLOSE -> MOVE FORWARD`
 
 Medium/Low findings do not restart F1D unless they undermine the phase objective, invalidate evidence, violate a frozen invariant/contract, or create a fail-closed/security defect.
 

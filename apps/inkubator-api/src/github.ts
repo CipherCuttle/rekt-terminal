@@ -1,7 +1,6 @@
 import {createHash, createHmac, randomBytes, timingSafeEqual} from 'node:crypto';
 import type {Kysely} from 'kysely';
 import {sql} from 'kysely';
-import {canonicalizeJson} from './canonical-json.js';
 import type {DatabaseSchema, GitHubRepositoryRow} from './database.js';
 import {appendHistoryEvent} from './events.js';
 
@@ -41,6 +40,10 @@ export interface GitHubUserVerifier {
 export interface GitHubWebhookResult {
   status: 'observed' | 'duplicate' | 'control' | 'ignored';
   repositoryId?: string;
+}
+
+export interface ClaimedGitHubSetupState {
+  createdAt: Date;
 }
 
 function positiveIntegerId(value: unknown, name: string): string {
@@ -124,75 +127,154 @@ export async function createGitHubSetupState(
   return {state, expiresAt};
 }
 
-export async function validateGitHubSetupState(
+export async function claimGitHubSetupState(
   db: Kysely<DatabaseSchema>,
   state: string,
   playerId: string,
-): Promise<void> {
-  const row = await db
-    .selectFrom('github_setup_states')
-    .select('state_hash')
-    .where('state_hash', '=', setupStateHash(state))
-    .where('player_id', '=', playerId)
-    .where('consumed_at', 'is', null)
-    .where('expires_at', '>', sql<Date>`clock_timestamp()`)
-    .executeTakeFirst();
-  if (!row) throw new Error('github_setup_state_invalid');
+): Promise<ClaimedGitHubSetupState> {
+  const claimed = await sql<{created_at: Date}>`
+    update github_setup_states
+    set consumed_at = clock_timestamp()
+    where state_hash = ${setupStateHash(state)}
+      and player_id = ${playerId}::uuid
+      and consumed_at is null
+      and expires_at > clock_timestamp()
+    returning created_at
+  `.execute(db);
+  const createdAt = claimed.rows[0]?.created_at;
+  if (!(createdAt instanceof Date) || claimed.rows.length !== 1) throw new Error('github_setup_state_invalid');
+  return {createdAt};
 }
 
-async function assertRepositoryBindingAvailable(
+async function lockGitHubInstallation(db: Kysely<DatabaseSchema>, installationId: string): Promise<void> {
+  await sql`
+    select pg_advisory_xact_lock(
+      hashtextextended(${`rekt:github:installation:${installationId}`}, 0)
+    )
+  `.execute(db);
+}
+
+async function readInstallationTombstone(db: Kysely<DatabaseSchema>, installationId: string) {
+  return db
+    .selectFrom('github_installation_tombstones')
+    .select(['installation_id', 'revoked_at', 'source_key'])
+    .where('installation_id', '=', installationId)
+    .executeTakeFirst();
+}
+
+async function readRepositoryTombstone(db: Kysely<DatabaseSchema>, repositoryId: string) {
+  return db
+    .selectFrom('github_repository_tombstones')
+    .select(['repository_id', 'installation_id', 'removed_at', 'source_key'])
+    .where('repository_id', '=', repositoryId)
+    .executeTakeFirst();
+}
+
+async function writeInstallationTombstone(
+  db: Kysely<DatabaseSchema>,
+  installationId: string,
+  sourceKey: string,
+): Promise<void> {
+  await sql`
+    insert into github_installation_tombstones (installation_id, revoked_at, source_key)
+    values (${installationId}::bigint, clock_timestamp(), ${sourceKey})
+    on conflict (installation_id) do update
+      set revoked_at = clock_timestamp(), source_key = excluded.source_key
+  `.execute(db);
+}
+
+async function writeRepositoryTombstone(
   db: Kysely<DatabaseSchema>,
   repositoryId: string,
   installationId: string,
+  sourceKey: string,
 ): Promise<void> {
-  const existing = await db
-    .selectFrom('github_repositories')
-    .select('installation_id')
-    .where('repository_id', '=', repositoryId)
-    .executeTakeFirst();
-  if (existing && existing.installation_id !== installationId) {
-    throw new Error('github_repository_already_bound');
-  }
+  const result = await sql<{repository_id: string}>`
+    insert into github_repository_tombstones (repository_id, installation_id, removed_at, source_key)
+    values (${repositoryId}::bigint, ${installationId}::bigint, clock_timestamp(), ${sourceKey})
+    on conflict (repository_id) do update
+      set removed_at = clock_timestamp(), source_key = excluded.source_key
+    where github_repository_tombstones.installation_id = excluded.installation_id
+    returning repository_id
+  `.execute(db);
+  if (result.rows.length !== 1) throw new Error('github_repository_already_bound');
+}
+
+async function upsertInstallationOwnership(
+  db: Kysely<DatabaseSchema>,
+  playerId: string,
+  verified: VerifiedGitHubInstallation,
+): Promise<void> {
+  const result = await sql<{player_id: string}>`
+    insert into github_installations (
+      installation_id, player_id, github_user_id, account_id, account_type, repository_selection, revoked_at
+    ) values (
+      ${verified.installationId}::bigint,
+      ${playerId}::uuid,
+      ${verified.githubUserId}::bigint,
+      ${verified.accountId}::bigint,
+      ${verified.accountType},
+      ${verified.repositorySelection},
+      null
+    )
+    on conflict (installation_id) do update set
+      github_user_id = excluded.github_user_id,
+      account_id = excluded.account_id,
+      account_type = excluded.account_type,
+      repository_selection = excluded.repository_selection,
+      revoked_at = null
+    where github_installations.player_id = excluded.player_id
+    returning player_id
+  `.execute(db);
+  if (result.rows.length !== 1) throw new Error('github_installation_already_bound');
+}
+
+async function upsertRepositoryBinding(
+  db: Kysely<DatabaseSchema>,
+  installationId: string,
+  repository: VerifiedGitHubRepository,
+  active: boolean,
+): Promise<void> {
+  const result = await sql<{repository_id: string}>`
+    insert into github_repositories (
+      repository_id, installation_id, full_name, private, active, updated_at
+    ) values (
+      ${repository.repositoryId}::bigint,
+      ${installationId}::bigint,
+      ${repository.fullName},
+      ${repository.private},
+      ${active},
+      clock_timestamp()
+    )
+    on conflict (repository_id) do update set
+      full_name = excluded.full_name,
+      private = excluded.private,
+      active = excluded.active,
+      updated_at = clock_timestamp()
+    where github_repositories.installation_id = excluded.installation_id
+    returning repository_id
+  `.execute(db);
+  if (result.rows.length !== 1) throw new Error('github_repository_already_bound');
 }
 
 async function bindVerifiedInstallation(
   db: Kysely<DatabaseSchema>,
   playerId: string,
+  setupCreatedAt: Date,
   verified: VerifiedGitHubInstallation,
-): Promise<void> {
-  const existing = await db
-    .selectFrom('github_installations')
-    .selectAll()
-    .where('installation_id', '=', verified.installationId)
-    .executeTakeFirst();
-
-  if (existing && existing.player_id !== playerId) throw new Error('github_installation_already_bound');
-
-  for (const repository of verified.repositories) {
-    await assertRepositoryBindingAvailable(db, repository.repositoryId, verified.installationId);
+): Promise<number> {
+  const installationTombstone = await readInstallationTombstone(db, verified.installationId);
+  if (installationTombstone && setupCreatedAt.getTime() <= installationTombstone.revoked_at.getTime()) {
+    throw new Error('github_installation_revoked_during_setup');
+  }
+  if (installationTombstone) {
+    await db
+      .deleteFrom('github_installation_tombstones')
+      .where('installation_id', '=', verified.installationId)
+      .execute();
   }
 
-  await db
-    .insertInto('github_installations')
-    .values({
-      installation_id: verified.installationId,
-      player_id: playerId,
-      github_user_id: verified.githubUserId,
-      account_id: verified.accountId,
-      account_type: verified.accountType,
-      repository_selection: verified.repositorySelection,
-      revoked_at: null,
-    })
-    .onConflict((conflict) =>
-      conflict.column('installation_id').doUpdateSet({
-        github_user_id: verified.githubUserId,
-        account_id: verified.accountId,
-        account_type: verified.accountType,
-        repository_selection: verified.repositorySelection,
-        revoked_at: null,
-      }),
-    )
-    .execute();
+  await upsertInstallationOwnership(db, playerId, verified);
 
   await db
     .updateTable('github_repositories')
@@ -200,46 +282,33 @@ async function bindVerifiedInstallation(
     .where('installation_id', '=', verified.installationId)
     .execute();
 
+  let repositoriesConnected = 0;
   for (const repository of verified.repositories) {
-    await db
-      .insertInto('github_repositories')
-      .values({
-        repository_id: repository.repositoryId,
-        installation_id: verified.installationId,
-        full_name: repository.fullName,
-        private: repository.private,
-        active: true,
-      })
-      .onConflict((conflict) =>
-        conflict.column('repository_id').doUpdateSet({
-          full_name: repository.fullName,
-          private: repository.private,
-          active: true,
-          updated_at: sql<Date>`clock_timestamp()`,
-        }),
-      )
-      .execute();
+    const tombstone = await readRepositoryTombstone(db, repository.repositoryId);
+    const canReactivate = !tombstone || setupCreatedAt.getTime() > tombstone.removed_at.getTime();
+    if (tombstone && canReactivate) {
+      await db
+        .deleteFrom('github_repository_tombstones')
+        .where('repository_id', '=', repository.repositoryId)
+        .execute();
+    }
+    await upsertRepositoryBinding(db, verified.installationId, repository, canReactivate);
+    if (canReactivate) repositoriesConnected += 1;
   }
+
+  return repositoriesConnected;
 }
 
 export async function finalizeGitHubSetup(
   db: Kysely<DatabaseSchema>,
-  state: string,
   playerId: string,
+  setupCreatedAt: Date,
   verified: VerifiedGitHubInstallation,
-): Promise<void> {
-  await db.transaction().execute(async (transaction) => {
-    const consumed = await sql<{player_id: string}>`
-      update github_setup_states
-      set consumed_at = clock_timestamp()
-      where state_hash = ${setupStateHash(state)}
-        and player_id = ${playerId}::uuid
-        and consumed_at is null
-        and expires_at > clock_timestamp()
-      returning player_id
-    `.execute(transaction);
-    if (consumed.rows.length !== 1) throw new Error('github_setup_state_invalid');
-    await bindVerifiedInstallation(transaction, playerId, verified);
+): Promise<{repositoriesConnected: number}> {
+  return db.transaction().execute(async (transaction) => {
+    await lockGitHubInstallation(transaction, verified.installationId);
+    const repositoriesConnected = await bindVerifiedInstallation(transaction, playerId, setupCreatedAt, verified);
+    return {repositoriesConnected};
   });
 }
 
@@ -400,63 +469,86 @@ async function processInstallationControl(
   db: Kysely<DatabaseSchema>,
   payload: Record<string, unknown>,
   installationId: string,
+  deliveryId: string,
 ): Promise<void> {
   const action = payload.action;
-  if (action === 'deleted' || action === 'suspend') {
-    await db
-      .updateTable('github_installations')
-      .set({revoked_at: sql<Date>`clock_timestamp()`})
-      .where('installation_id', '=', installationId)
-      .execute();
-    await db
-      .updateTable('github_repositories')
-      .set({active: false, updated_at: sql<Date>`clock_timestamp()`})
-      .where('installation_id', '=', installationId)
-      .execute();
-  }
+  if (action !== 'deleted' && action !== 'suspend') return;
+  await writeInstallationTombstone(db, installationId, `github:delivery:${deliveryId}`);
+  await db
+    .updateTable('github_installations')
+    .set({revoked_at: sql<Date>`clock_timestamp()`})
+    .where('installation_id', '=', installationId)
+    .execute();
+  await db
+    .updateTable('github_repositories')
+    .set({active: false, updated_at: sql<Date>`clock_timestamp()`})
+    .where('installation_id', '=', installationId)
+    .execute();
+}
+
+async function existingRepositoryInstallation(
+  db: Kysely<DatabaseSchema>,
+  repositoryId: string,
+): Promise<string | null> {
+  const row = await db
+    .selectFrom('github_repositories')
+    .select('installation_id')
+    .where('repository_id', '=', repositoryId)
+    .executeTakeFirst();
+  return row?.installation_id ?? null;
 }
 
 async function processRepositoryControl(
   db: Kysely<DatabaseSchema>,
   payload: Record<string, unknown>,
   installationId: string,
+  deliveryId: string,
 ): Promise<void> {
   const installation = await db
     .selectFrom('github_installations')
-    .select('installation_id')
+    .select(['installation_id', 'revoked_at'])
     .where('installation_id', '=', installationId)
-    .where('revoked_at', 'is', null)
     .executeTakeFirst();
-  if (!installation) return;
 
   const added = Array.isArray(payload.repositories_added) ? payload.repositories_added : [];
   const removed = Array.isArray(payload.repositories_removed) ? payload.repositories_removed : [];
-  for (const candidate of added) {
-    if (!candidate || typeof candidate !== 'object') continue;
-    const repository = candidate as {id?: unknown; full_name?: unknown; private?: unknown};
-    if (typeof repository.private !== 'boolean' || typeof repository.full_name !== 'string') continue;
-    const repositoryId = positiveIntegerId(repository.id, 'github_repository_id');
-    await assertRepositoryBindingAvailable(db, repositoryId, installationId);
-    await db
-      .insertInto('github_repositories')
-      .values({repository_id: repositoryId, installation_id: installationId, full_name: repository.full_name, private: repository.private, active: true})
-      .onConflict((conflict) => conflict.column('repository_id').doUpdateSet({
-        full_name: repository.full_name as string,
-        private: repository.private as boolean,
-        active: true,
-        updated_at: sql<Date>`clock_timestamp()`,
-      }))
-      .execute();
-  }
+
   for (const candidate of removed) {
     if (!candidate || typeof candidate !== 'object') continue;
-    const repositoryId = positiveIntegerId((candidate as {id?: unknown}).id, 'github_repository_id');
+    const repository = candidate as {id?: unknown};
+    const repositoryId = positiveIntegerId(repository.id, 'github_repository_id');
+    const existingInstallationId = await existingRepositoryInstallation(db, repositoryId);
+    if (existingInstallationId && existingInstallationId !== installationId) {
+      throw new Error('github_repository_already_bound');
+    }
+    await writeRepositoryTombstone(db, repositoryId, installationId, `github:delivery:${deliveryId}`);
     await db
       .updateTable('github_repositories')
       .set({active: false, updated_at: sql<Date>`clock_timestamp()`})
       .where('repository_id', '=', repositoryId)
       .where('installation_id', '=', installationId)
       .execute();
+  }
+
+  if (!installation || installation.revoked_at) return;
+
+  for (const candidate of added) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const repository = candidate as {id?: unknown; full_name?: unknown; private?: unknown};
+    if (typeof repository.private !== 'boolean' || typeof repository.full_name !== 'string') continue;
+    const repositoryId = positiveIntegerId(repository.id, 'github_repository_id');
+    const existingInstallationId = await existingRepositoryInstallation(db, repositoryId);
+    if (existingInstallationId && existingInstallationId !== installationId) {
+      throw new Error('github_repository_already_bound');
+    }
+    const tombstone = await readRepositoryTombstone(db, repositoryId);
+    const active = !tombstone;
+    await upsertRepositoryBinding(
+      db,
+      installationId,
+      {repositoryId, fullName: repository.full_name, private: repository.private},
+      active,
+    );
   }
 }
 
@@ -476,16 +568,19 @@ export async function processGitHubWebhook(
     if (receipt === 'duplicate') return {status: 'duplicate'};
 
     if (input.eventName === 'installation' && installationId) {
-      await processInstallationControl(transaction, payload, installationId);
+      await lockGitHubInstallation(transaction, installationId);
+      await processInstallationControl(transaction, payload, installationId, deliveryId);
       return {status: 'control'};
     }
     if (input.eventName === 'installation_repositories' && installationId) {
-      await processRepositoryControl(transaction, payload, installationId);
+      await lockGitHubInstallation(transaction, installationId);
+      await processRepositoryControl(transaction, payload, installationId, deliveryId);
       return {status: 'control'};
     }
     if (input.eventName !== 'push') return {status: 'ignored'};
     if (!installationId || !repositoryId) throw new Error('github_push_identity_missing');
 
+    await lockGitHubInstallation(transaction, installationId);
     const binding = await activeRepository(transaction, installationId, repositoryId);
     if (!binding) throw new Error('github_repository_not_bound');
 
@@ -502,6 +597,7 @@ export async function processGitHubWebhook(
       .set({private: repository.private, updated_at: sql<Date>`clock_timestamp()`})
       .where('repository_id', '=', repositoryId)
       .where('installation_id', '=', installationId)
+      .where('active', '=', true)
       .execute();
 
     await appendHistoryEvent(transaction, {

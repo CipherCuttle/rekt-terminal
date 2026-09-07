@@ -5,11 +5,11 @@ import type {InkubatorDatabase} from './database.js';
 import {appendHistoryEvent} from './events.js';
 import {
   buildGitHubInstallUrl,
+  claimGitHubSetupState,
   createGitHubSetupState,
   finalizeGitHubSetup,
   processGitHubWebhook,
   validateDeliveryId,
-  validateGitHubSetupState,
   verifyGitHubWebhookSignature,
   type GitHubRuntimeOptions,
   type GitHubUserVerifier,
@@ -178,11 +178,15 @@ export function buildApp(options: BuildAppOptions) {
         return error(reply, 400, 'github_setup_invalid');
       }
       try {
-        await validateGitHubSetupState(options.db, query.state, authenticated.actor.playerId);
+        const claimed = await claimGitHubSetupState(options.db, query.state, authenticated.actor.playerId);
         const verified = await options.github!.verifier.verifyInstallation(query.code, query.installation_id);
-        await finalizeGitHubSetup(options.db, query.state, authenticated.actor.playerId, verified);
+        const finalized = await finalizeGitHubSetup(options.db, authenticated.actor.playerId, claimed.createdAt, verified);
         reply.header('cache-control', 'no-store');
-        return {schema_version: 'github.installation.private.v1', installation_id: verified.installationId, repositories_connected: verified.repositories.length};
+        return {
+          schema_version: 'github.installation.private.v1',
+          installation_id: verified.installationId,
+          repositories_connected: finalized.repositoriesConnected,
+        };
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : 'github_setup_failed';
         if (message.startsWith('github_')) return error(reply, 400, message.split(':')[0]);

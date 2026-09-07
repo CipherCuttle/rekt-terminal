@@ -22,6 +22,8 @@ function cookieFrom(response) {
 }
 
 async function resetDatabase(db) {
+  await db.deleteFrom('github_repository_tombstones').execute();
+  await db.deleteFrom('github_installation_tombstones').execute();
   await db.deleteFrom('github_deliveries').execute();
   await db.deleteFrom('github_repositories').execute();
   await db.deleteFrom('github_installations').execute();
@@ -32,7 +34,7 @@ async function resetDatabase(db) {
   await db.deleteFrom('players').execute();
 }
 
-test('GitHub setup rejects invalid state before OAuth verification and refuses repository re-parenting', async () => {
+test('GitHub setup rejects invalid state before OAuth verification, spends claimed state, and refuses repository re-parenting', async () => {
   const db = createDatabase(databaseUrl);
   await migrateToLatest(db);
   await resetDatabase(db);
@@ -96,7 +98,16 @@ test('GitHub setup rejects invalid state before OAuth verification and refuses r
     const secondInstallation = await db.selectFrom('github_installations').select('installation_id').where('installation_id', '=', '9002').executeTakeFirst();
     assert.equal(secondInstallation, undefined);
     const secondStateRow = await db.selectFrom('github_setup_states').select('consumed_at').where('player_id', '=', secondSession.json().player.player_id).executeTakeFirstOrThrow();
-    assert.equal(secondStateRow.consumed_at, null);
+    assert.ok(secondStateRow.consumed_at instanceof Date);
+
+    const replayAfterFailedBinding = await app.inject({
+      method: 'GET',
+      url: `/v1/github/setup?code=good-code&installation_id=9002&state=${encodeURIComponent(secondState)}`,
+      headers: {cookie: secondCookie},
+    });
+    assert.equal(replayAfterFailedBinding.statusCode, 400);
+    assert.equal(replayAfterFailedBinding.json().error, 'github_setup_state_invalid');
+    assert.equal(verifierCalls, 2);
   } finally {
     await app.close();
     await resetDatabase(db);
