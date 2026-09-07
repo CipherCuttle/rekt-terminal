@@ -35,7 +35,7 @@ import {
   toPublicDevelopmentProject,
 } from './projects.js';
 import {toPrivatePlayer, toPublicPlayer} from './projection.js';
-import {acceptAssist, createHelpBeacon, followPlayer, getProjectHelpLoop, listDiscoverablePlayers, listDiscoverableProjects, offerAssist, watchProject} from './social.js';
+import {acceptAssist, createHelpBeacon, createProjectComment, deleteOwnProjectComment, followPlayer, getProjectHelpLoop, listDiscoverablePlayers, listDiscoverableProjects, listProjectComments, listWorldSignals, offerAssist, reactUsefulToComment, setProjectDiscussionLock, watchProject} from './social.js';
 import {
   clearSessionCookie,
   createSession,
@@ -121,7 +121,7 @@ function phase5Error(reply: FastifyReply, cause: unknown) {
   const message = cause instanceof Error ? cause.message : 'phase5_mutation_failed';
   if (message === 'authorization_denied' || message.endsWith('_self_forbidden')) return error(reply, 403, message);
   if (message.endsWith('_not_found') || message === 'project_not_found' || message === 'player_not_found') return error(reply, 404, message);
-  if (message.includes('idempotency_conflict') || message.endsWith('_already_open') || message.endsWith('_already_offered') || message === 'help_beacon_not_open' || message === 'assist_not_offerable') return error(reply, 409, message);
+  if (message.includes('idempotency_conflict') || message.endsWith('_already_open') || message.endsWith('_already_offered') || message === 'help_beacon_not_open' || message === 'assist_not_offerable' || message === 'project_discussion_locked' || message.endsWith('_not_active') || message === 'parent_comment_project_mismatch') return error(reply, 409, message);
   if (message.startsWith('invalid_')) return error(reply, 400, message);
   throw cause;
 }
@@ -321,6 +321,53 @@ export function buildApp(options: BuildAppOptions) {
     const {projectId} = request.params as {projectId: string};
     try { return await getProjectHelpLoop(options.db, projectId); }
     catch (cause) { return phase5Error(reply, cause); }
+  });
+
+  app.get('/v1/projects/:projectId/comments', async (request, reply) => {
+    const {projectId} = request.params as {projectId: string};
+    try { return await listProjectComments(options.db, projectId); }
+    catch (cause) { return phase5Error(reply, cause); }
+  });
+
+  app.post('/v1/projects/:projectId/comments', {schema: {body: fastifyBodySchema('ProjectCommentCreateRequest')}}, async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const {projectId} = request.params as {projectId: string};
+    const body = request.body as {request_id: string; body: string; parent_comment_id?: string | null};
+    try { return reply.code(201).send(await createProjectComment(options.db, authenticated.actor.playerId, projectId, {requestId: body.request_id, body: body.body, parentCommentId: body.parent_comment_id})); }
+    catch (cause) { return phase5Error(reply, cause); }
+  });
+
+  app.post('/v1/comments/:commentId/reactions/useful', {schema: {body: fastifyBodySchema('SocialMutationRequest')}}, async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const {commentId} = request.params as {commentId: string};
+    const body = request.body as {request_id: string};
+    try { return await reactUsefulToComment(options.db, authenticated.actor.playerId, commentId, body.request_id); }
+    catch (cause) { return phase5Error(reply, cause); }
+  });
+
+  app.delete('/v1/comments/:commentId', {schema: {body: fastifyBodySchema('SocialMutationRequest')}}, async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const {commentId} = request.params as {commentId: string};
+    const body = request.body as {request_id: string};
+    try { return await deleteOwnProjectComment(options.db, authenticated.actor.playerId, commentId, body.request_id); }
+    catch (cause) { return phase5Error(reply, cause); }
+  });
+
+  app.patch('/v1/projects/:projectId/discussion', {schema: {body: fastifyBodySchema('ProjectDiscussionSettingRequest')}}, async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const {projectId} = request.params as {projectId: string};
+    const body = request.body as {request_id: string; locked: boolean};
+    try { return await setProjectDiscussionLock(options.db, authenticated.actor.playerId, projectId, {requestId: body.request_id, locked: body.locked}); }
+    catch (cause) { return phase5Error(reply, cause); }
+  });
+
+  app.get('/v1/world/signals', async (_request, reply) => {
+    reply.header('cache-control', 'public, max-age=15');
+    return listWorldSignals(options.db);
   });
 
   app.get('/v1/rounds', async (request, reply) => {

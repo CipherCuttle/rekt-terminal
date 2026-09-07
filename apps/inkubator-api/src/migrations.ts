@@ -6,6 +6,7 @@ import {phase4ProjectEvidenceProjectionMigration} from './migrations/007-phase4-
 import {phase4ManifestTruthMigration} from './migrations/008-phase4-manifest-truth.js';
 import {phase4ManifestRefScopeMigration} from './migrations/009-phase4-manifest-ref-scope.js';
 import {phase5HelpLoopCoreMigration} from './migrations/010-phase5-help-loop-core.js';
+import {phase5ProjectDiscussionWorldMigration} from './migrations/011-phase5-project-discussion-world.js';
 
 const initialMigration: Migration = {
   async up(db) {
@@ -300,6 +301,7 @@ class StaticMigrationProvider implements MigrationProvider {
       '008_phase4_manifest_truth': phase4ManifestTruthMigration,
       '009_phase4_manifest_ref_scope': phase4ManifestRefScopeMigration,
       '010_phase5_help_loop_core': phase5HelpLoopCoreMigration,
+      '011_phase5_project_discussion_world': phase5ProjectDiscussionWorldMigration,
     };
   }
 }

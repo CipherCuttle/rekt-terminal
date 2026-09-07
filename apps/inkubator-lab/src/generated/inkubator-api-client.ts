@@ -139,6 +139,73 @@ export type PublicPlayerList = PublicPlayer[];
 
 export type ProjectDiscoveryList = ProjectDiscoveryView[];
 
+export interface ProjectCommentCreateRequest {
+  request_id: RequestId;
+  body: string;
+  parent_comment_id?: string | null;
+}
+
+export interface ProjectDiscussionSettingRequest {
+  request_id: RequestId;
+  locked: boolean;
+}
+
+export interface ProjectCommentAuthorView {
+  player_id: PlayerId;
+  display_name: string;
+}
+
+export interface ProjectCommentView {
+  schema_version: "project.comment.public.v1";
+  comment_id: string;
+  project_id: ProjectId;
+  author: ProjectCommentAuthorView;
+  parent_comment_id?: string;
+  state: "ACTIVE" | "DELETED" | "REMOVED";
+  body?: string;
+  useful_count: number;
+  created_at: string;
+}
+
+export interface ProjectCommentsView {
+  schema_version: "project.comments.public.v1";
+  project_id: ProjectId;
+  locked: boolean;
+  comments: ProjectCommentView[];
+}
+
+export interface ProjectCommentReactionView {
+  schema_version: "project.comment.reaction.v1";
+  comment_id: string;
+  player_id: PlayerId;
+  reaction: "USEFUL";
+  active: boolean;
+}
+
+export interface ProjectCommentDeleteView {
+  schema_version: "project.comment.delete.v1";
+  comment_id: string;
+  state: "DELETED";
+}
+
+export interface ProjectDiscussionSettingView {
+  schema_version: "project.discussion.setting.v1";
+  project_id: ProjectId;
+  locked: boolean;
+}
+
+export interface WorldSignalView {
+  schema_version: "world.signal.public.v1";
+  signal_id: string;
+  kind: "HELP_BEACON_OPENED" | "ASSIST_ACCEPTED";
+  project_id: ProjectId;
+  project_name: string;
+  truth_state: "CLAIMED" | "OBSERVED";
+  occurred_at: string;
+}
+
+export type WorldSignalList = WorldSignalView[];
+
 export interface RoundView {
   schema_version: "round.private.v1";
   round_id: RoundId;

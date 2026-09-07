@@ -130,6 +130,8 @@ test('Phase 5 core makes another builder materially useful without minting proof
     const partyEvents = await db.selectFrom('history_events').selectAll().where('event_type', '=', 'project.party_member.joined').where('subject_id', '=', projectId).execute();
     assert.equal(acceptedEvents.length, 1);
     assert.equal(partyEvents.length, 1);
+    assert.equal(acceptedEvents[0].payload.truth_state, 'OBSERVED');
+    assert.equal(partyEvents[0].payload.truth_state, 'OBSERVED');
     assert.equal(JSON.stringify([...acceptedEvents, ...partyEvents]).includes('PROVEN'), false);
     const gates = await db.selectFrom('mission_gates').selectAll().where('mission_id', '=', missionId).execute();
     assert.equal(gates.every((gate) => gate.signal_state === 'UNKNOWN'), true);

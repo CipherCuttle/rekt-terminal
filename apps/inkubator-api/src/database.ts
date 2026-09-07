@@ -197,6 +197,34 @@ export interface ProjectPartyMemberTable {
   joined_at: Generated<Date>;
 }
 
+export type ProjectCommentState = 'ACTIVE' | 'DELETED' | 'REMOVED';
+export interface ProjectCommentTable {
+  comment_id: string;
+  project_id: string;
+  author_player_id: string;
+  parent_comment_id: string | null;
+  creation_request_id: string;
+  deletion_request_id: string | null;
+  body: string;
+  state: ProjectCommentState;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+  deleted_at: Date | null;
+}
+
+export interface ProjectCommentReactionTable {
+  comment_id: string;
+  player_id: string;
+  reaction: 'USEFUL';
+  created_at: Generated<Date>;
+}
+
+export interface ProjectDiscussionSettingTable {
+  project_id: string;
+  locked: Generated<boolean>;
+  updated_at: Generated<Date>;
+}
+
 export interface GitHubSetupStateTable {
   state_hash: string;
   player_id: string;
@@ -272,6 +300,9 @@ export interface DatabaseSchema {
   help_beacons: HelpBeaconTable;
   assist_offers: AssistOfferTable;
   project_party_members: ProjectPartyMemberTable;
+  project_comments: ProjectCommentTable;
+  project_comment_reactions: ProjectCommentReactionTable;
+  project_discussion_settings: ProjectDiscussionSettingTable;
   github_setup_states: GitHubSetupStateTable;
   github_installations: GitHubInstallationTable;
   github_repositories: GitHubRepositoryTable;

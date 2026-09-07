@@ -151,6 +151,43 @@ export const componentSchemas = {
   },
   PublicPlayerList: {type: 'array', items: {$ref: '#/components/schemas/PublicPlayer'}},
   ProjectDiscoveryList: {type: 'array', items: {$ref: '#/components/schemas/ProjectDiscoveryView'}},
+  ProjectCommentCreateRequest: {
+    type: 'object', additionalProperties: false, required: ['request_id', 'body'],
+    properties: {request_id: {$ref: '#/components/schemas/RequestId'}, body: {type: 'string', minLength: 1, maxLength: 1000}, parent_comment_id: {type: ['string', 'null'], format: 'uuid'}},
+  },
+  ProjectDiscussionSettingRequest: {
+    type: 'object', additionalProperties: false, required: ['request_id', 'locked'],
+    properties: {request_id: {$ref: '#/components/schemas/RequestId'}, locked: {type: 'boolean'}},
+  },
+  ProjectCommentAuthorView: {
+    type: 'object', additionalProperties: false, required: ['player_id', 'display_name'],
+    properties: {player_id: {$ref: '#/components/schemas/PlayerId'}, display_name: {type: 'string'}},
+  },
+  ProjectCommentView: {
+    type: 'object', additionalProperties: false, required: ['schema_version', 'comment_id', 'project_id', 'author', 'state', 'useful_count', 'created_at'],
+    properties: {schema_version: {type: 'string', const: 'project.comment.public.v1'}, comment_id: {type: 'string', format: 'uuid'}, project_id: {$ref: '#/components/schemas/ProjectId'}, author: {$ref: '#/components/schemas/ProjectCommentAuthorView'}, parent_comment_id: {type: 'string', format: 'uuid'}, state: {type: 'string', enum: ['ACTIVE', 'DELETED', 'REMOVED']}, body: {type: 'string'}, useful_count: {type: 'integer', minimum: 0}, created_at: {type: 'string', format: 'date-time'}},
+  },
+  ProjectCommentsView: {
+    type: 'object', additionalProperties: false, required: ['schema_version', 'project_id', 'locked', 'comments'],
+    properties: {schema_version: {type: 'string', const: 'project.comments.public.v1'}, project_id: {$ref: '#/components/schemas/ProjectId'}, locked: {type: 'boolean'}, comments: {type: 'array', maxItems: 200, items: {$ref: '#/components/schemas/ProjectCommentView'}}},
+  },
+  ProjectCommentReactionView: {
+    type: 'object', additionalProperties: false, required: ['schema_version', 'comment_id', 'player_id', 'reaction', 'active'],
+    properties: {schema_version: {type: 'string', const: 'project.comment.reaction.v1'}, comment_id: {type: 'string', format: 'uuid'}, player_id: {$ref: '#/components/schemas/PlayerId'}, reaction: {type: 'string', const: 'USEFUL'}, active: {type: 'boolean'}},
+  },
+  ProjectCommentDeleteView: {
+    type: 'object', additionalProperties: false, required: ['schema_version', 'comment_id', 'state'],
+    properties: {schema_version: {type: 'string', const: 'project.comment.delete.v1'}, comment_id: {type: 'string', format: 'uuid'}, state: {type: 'string', const: 'DELETED'}},
+  },
+  ProjectDiscussionSettingView: {
+    type: 'object', additionalProperties: false, required: ['schema_version', 'project_id', 'locked'],
+    properties: {schema_version: {type: 'string', const: 'project.discussion.setting.v1'}, project_id: {$ref: '#/components/schemas/ProjectId'}, locked: {type: 'boolean'}},
+  },
+  WorldSignalView: {
+    type: 'object', additionalProperties: false, required: ['schema_version', 'signal_id', 'kind', 'project_id', 'project_name', 'truth_state', 'occurred_at'],
+    properties: {schema_version: {type: 'string', const: 'world.signal.public.v1'}, signal_id: {type: 'string', format: 'uuid'}, kind: {type: 'string', enum: ['HELP_BEACON_OPENED', 'ASSIST_ACCEPTED']}, project_id: {$ref: '#/components/schemas/ProjectId'}, project_name: {type: 'string'}, truth_state: {type: 'string', enum: ['CLAIMED', 'OBSERVED']}, occurred_at: {type: 'string', format: 'date-time'}},
+  },
+  WorldSignalList: {type: 'array', maxItems: 50, items: {$ref: '#/components/schemas/WorldSignalView'}},
   RoundView: {
     type: 'object',
     additionalProperties: false,
@@ -533,6 +570,22 @@ export const openapiDocument = {
     '/v1/help-beacons/{beaconId}/assists': {post: {operationId: 'offerAssist', security: [{sessionCookie: []}], parameters: [{name: 'beaconId', in: 'path', required: true, schema: {type: 'string', format: 'uuid'}}], requestBody: {required: true, content: {'application/json': {schema: ref('AssistOfferCreateRequest')}}}, responses: {'201': {description: 'Assist offered', content: {'application/json': {schema: ref('AssistView')}}}, '400': errorResponse('Invalid Assist'), '401': errorResponse('Authentication required'), '403': errorResponse('Self-assist forbidden'), '404': errorResponse('Beacon not found'), '409': errorResponse('Assist conflict')}}},
     '/v1/assists/{assistId}/accept': {post: {operationId: 'acceptAssist', security: [{sessionCookie: []}], parameters: [{name: 'assistId', in: 'path', required: true, schema: {type: 'string', format: 'uuid'}}], requestBody: {required: true, content: {'application/json': {schema: ref('SocialMutationRequest')}}}, responses: {'200': {description: 'Assist accepted and Party membership recorded', content: {'application/json': {schema: ref('AssistView')}}}, '400': errorResponse('Invalid Assist'), '401': errorResponse('Authentication required'), '403': errorResponse('Project owner required'), '404': errorResponse('Assist not found'), '409': errorResponse('Assist state conflict')}}},
     '/v1/projects/{projectId}/help-loop': {get: {operationId: 'getProjectHelpLoop', parameters: [{name: 'projectId', in: 'path', required: true, schema: ref('ProjectId')}], responses: {'200': {description: 'Public Help/Party context', content: {'application/json': {schema: ref('ProjectHelpLoopView')}}}, '400': errorResponse('Invalid Project ID'), '404': errorResponse('Project not found')}}},
+    '/v1/projects/{projectId}/comments': {
+      get: {operationId: 'listProjectComments', parameters: [{name: 'projectId', in: 'path', required: true, schema: ref('ProjectId')}], responses: {'200': {description: 'Project-context discussion', content: {'application/json': {schema: ref('ProjectCommentsView')}}}, '404': errorResponse('Project not found')}},
+      post: {operationId: 'createProjectComment', security: [{sessionCookie: []}], parameters: [{name: 'projectId', in: 'path', required: true, schema: ref('ProjectId')}], requestBody: {required: true, content: {'application/json': {schema: ref('ProjectCommentCreateRequest')}}}, responses: {'201': {description: 'Claimed Project comment', content: {'application/json': {schema: ref('ProjectCommentView')}}}, '400': errorResponse('Invalid comment'), '401': errorResponse('Authentication required'), '409': errorResponse('Discussion or idempotency conflict')}},
+    },
+    '/v1/comments/{commentId}/reactions/useful': {
+      post: {operationId: 'reactUsefulToComment', security: [{sessionCookie: []}], parameters: [{name: 'commentId', in: 'path', required: true, schema: {type: 'string', format: 'uuid'}}], requestBody: {required: true, content: {'application/json': {schema: ref('SocialMutationRequest')}}}, responses: {'200': {description: 'Semantic useful reaction', content: {'application/json': {schema: ref('ProjectCommentReactionView')}}}, '401': errorResponse('Authentication required'), '404': errorResponse('Comment not found'), '409': errorResponse('Comment/discussion unavailable')}},
+    },
+    '/v1/comments/{commentId}': {
+      delete: {operationId: 'deleteOwnProjectComment', security: [{sessionCookie: []}], parameters: [{name: 'commentId', in: 'path', required: true, schema: {type: 'string', format: 'uuid'}}], requestBody: {required: true, content: {'application/json': {schema: ref('SocialMutationRequest')}}}, responses: {'200': {description: 'Author soft-deleted comment', content: {'application/json': {schema: ref('ProjectCommentDeleteView')}}}, '401': errorResponse('Authentication required'), '403': errorResponse('Author only'), '404': errorResponse('Comment not found')}},
+    },
+    '/v1/projects/{projectId}/discussion': {
+      patch: {operationId: 'setProjectDiscussionLock', security: [{sessionCookie: []}], parameters: [{name: 'projectId', in: 'path', required: true, schema: ref('ProjectId')}], requestBody: {required: true, content: {'application/json': {schema: ref('ProjectDiscussionSettingRequest')}}}, responses: {'200': {description: 'Owner discussion setting', content: {'application/json': {schema: ref('ProjectDiscussionSettingView')}}}, '401': errorResponse('Authentication required'), '403': errorResponse('Project owner only'), '404': errorResponse('Project not found')}},
+    },
+    '/v1/world/signals': {
+      get: {operationId: 'listWorldSignals', responses: {'200': {description: 'Deterministic meaningful World Signals', content: {'application/json': {schema: ref('WorldSignalList')}}}}},
+    },
     '/v1/rounds': {
       get: {
         operationId: 'listRounds',
