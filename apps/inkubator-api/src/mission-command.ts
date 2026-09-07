@@ -209,6 +209,7 @@ export async function updatePlayerProfile(
   const dedupeKey = `activity:player.profile.updated:${playerId}:${requestId}`;
 
   return db.transaction().execute(async (transaction) => {
+    await transaction.selectFrom('players').select('player_id').where('player_id', '=', playerId).forUpdate().executeTakeFirstOrThrow();
     if (await existingRequest(transaction, dedupeKey, 'player.profile.updated', playerId, 'player', playerId, payload)) {
       return transaction.selectFrom('player_profiles').selectAll().where('player_id', '=', playerId).executeTakeFirstOrThrow();
     }
@@ -294,17 +295,57 @@ export async function createMission(
   const stackLabels = normalizeStackLabels(input.stackLabels) ?? [];
 
   return db.transaction().execute(async (transaction) => {
+    await transaction.selectFrom('players').select('player_id').where('player_id', '=', playerId).forUpdate().executeTakeFirstOrThrow();
     const existing = await transaction.selectFrom('missions').selectAll().where('creation_request_id', '=', requestId).executeTakeFirst();
     if (existing) {
-      const project = await transaction.selectFrom('projects').selectAll().where('project_id', '=', existing.project_id).executeTakeFirstOrThrow();
-      const same = existing.owner_player_id === playerId && existing.round_id === roundId && project.name === projectName &&
-        existing.goal === goal && existing.ship_condition === shipCondition && existing.current_focus === currentFocus &&
-        existing.next_move === nextMove && JSON.stringify(parseStackLabels(existing.stack_labels)) === JSON.stringify(stackLabels);
-      if (!same) throw new Error('mission_creation_idempotency_conflict');
-      const snapshot = await commandByMissionId(transaction, existing.mission_id);
-      if (!snapshot) throw new Error('mission_creation_failed');
-      return snapshot;
+  const project = await transaction.selectFrom('projects').selectAll().where('project_id', '=', existing.project_id).executeTakeFirstOrThrow();
+  const projectPayload = {schema_version: PROJECT_SCHEMA_VERSION, owner_player_id: playerId, name: projectName};
+  const missionPayload = {
+    schema_version: MISSION_SCHEMA_VERSION,
+    creation_request_id: requestId,
+    mission_id: existing.mission_id,
+    owner_player_id: playerId,
+    project_id: existing.project_id,
+    round_id: roundId,
+    goal,
+    ship_condition: shipCondition,
+    state: 'DECLARED',
+    current_focus: currentFocus,
+    next_move: nextMove,
+    progress_model_version: PROGRESS_MODEL_VERSION,
+    stack_labels: stackLabels,
+    stack_source: stackLabels.length ? 'PLAYER_CONFIRMED' : 'UNKNOWN',
+  };
+  try {
+    const projectReceiptMatches = await existingRequest(
+      transaction,
+      `activity:project.created:${project.project_id}`,
+      'project.created',
+      playerId,
+      'project',
+      project.project_id,
+      projectPayload,
+    );
+    const missionReceiptMatches = await existingRequest(
+      transaction,
+      `activity:mission.declared:${existing.mission_id}`,
+      'mission.declared',
+      playerId,
+      'mission',
+      existing.mission_id,
+      missionPayload,
+    );
+    if (!projectReceiptMatches || !missionReceiptMatches) throw new Error('mission_creation_idempotency_conflict');
+  } catch (cause) {
+    if (cause instanceof Error && cause.message.startsWith('history_event_idempotency_conflict:')) {
+      throw new Error('mission_creation_idempotency_conflict');
     }
+    throw cause;
+  }
+  const snapshot = await commandByMissionId(transaction, existing.mission_id);
+  if (!snapshot) throw new Error('mission_creation_failed');
+  return snapshot;
+}
 
     const membership = await transaction.selectFrom('round_memberships as membership')
       .innerJoin('rounds as round', 'round.round_id', 'membership.round_id')
@@ -409,7 +450,7 @@ export async function updateMission(
   const dedupeKey = `activity:mission.updated:${missionId}:${requestId}`;
 
   return db.transaction().execute(async (transaction) => {
-    const mission = await transaction.selectFrom('missions').selectAll().where('mission_id', '=', missionId).executeTakeFirst();
+    const mission = await transaction.selectFrom('missions').selectAll().where('mission_id', '=', missionId).forUpdate().executeTakeFirst();
     if (!mission) throw new Error('mission_not_found');
     if (mission.owner_player_id !== playerId) throw new Error('authorization_denied');
     if (await existingRequest(transaction, dedupeKey, 'mission.updated', playerId, 'mission', missionId, payload)) {
@@ -457,7 +498,7 @@ export async function updateMissionGate(
   const dedupeKey = `activity:mission.gate.updated:${missionId}:${gateKey}:${requestId}`;
 
   return db.transaction().execute(async (transaction) => {
-    const mission = await transaction.selectFrom('missions').selectAll().where('mission_id', '=', missionId).executeTakeFirst();
+    const mission = await transaction.selectFrom('missions').selectAll().where('mission_id', '=', missionId).forUpdate().executeTakeFirst();
     if (!mission) throw new Error('mission_not_found');
     if (mission.owner_player_id !== playerId) throw new Error('authorization_denied');
     if (await existingRequest(transaction, dedupeKey, 'mission.gate.updated', playerId, 'mission', missionId, payload)) {

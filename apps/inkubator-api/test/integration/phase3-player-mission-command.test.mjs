@@ -229,3 +229,126 @@ test('Phase 3 current product routes remain available when development auth is d
     await db.destroy();
   }
 });
+
+test('Phase 3 serializes first profile writes, Mission creation, and state transitions', async () => {
+  const db = createDatabase(databaseUrl);
+  await migrateToLatest(db);
+  const app = buildApp({db, appOrigin, allowDevAuth: true, sessionTtlSeconds: 3600, github: null});
+  try {
+    const owner = await createSession(app, `Phase3 Race ${randomUUID().slice(0, 8)}`);
+
+    const profilePayload = {
+      request_id: randomUUID(),
+      bio: 'Concurrency proof',
+      character_name: 'Lockstep',
+      character_archetype: 'BUILDER',
+    };
+    let releaseProfilePlayerLock;
+    let profilePlayerLockReady;
+    const profilePlayerRelease = new Promise((resolve) => { releaseProfilePlayerLock = resolve; });
+    const profilePlayerReady = new Promise((resolve) => { profilePlayerLockReady = resolve; });
+    const heldProfilePlayerLock = db.transaction().execute(async (transaction) => {
+      await transaction.selectFrom('players').select('player_id').where('player_id', '=', owner.playerId).forUpdate().executeTakeFirstOrThrow();
+      profilePlayerLockReady();
+      await profilePlayerRelease;
+    });
+    await profilePlayerReady;
+    const profileOnePromise = app.inject({method: 'PATCH', url: '/v1/me/profile', headers: mutationHeaders(owner.cookie), payload: profilePayload});
+    const profileTwoPromise = app.inject({method: 'PATCH', url: '/v1/me/profile', headers: mutationHeaders(owner.cookie), payload: profilePayload});
+    await new Promise((resolve) => setTimeout(resolve, 75));
+    releaseProfilePlayerLock();
+    await heldProfilePlayerLock;
+    const [profileOne, profileTwo] = await Promise.all([profileOnePromise, profileTwoPromise]);
+    assert.equal(profileOne.statusCode, 200);
+    assert.equal(profileTwo.statusCode, 200);
+    assert.deepEqual(profileOne.json(), profileTwo.json());
+    const profileHistoryCount = Number((await db.selectFrom('history_events').select(({fn}) => fn.countAll().as('count')).where('dedupe_key', '=', `activity:player.profile.updated:${owner.playerId}:${profilePayload.request_id}`).executeTakeFirstOrThrow()).count);
+    assert.equal(profileHistoryCount, 1);
+
+    const rounds = await app.inject({method: 'GET', url: '/v1/rounds', headers: {cookie: owner.cookie}});
+    const founding = rounds.json().find((round) => round.code === 'ROUND_01');
+    assert.ok(founding);
+    assert.equal((await app.inject({method: 'POST', url: `/v1/rounds/${founding.round_id}/join`, headers: mutationHeaders(owner.cookie)})).statusCode, 200);
+
+    const declaration = {
+      request_id: randomUUID(),
+      round_id: founding.round_id,
+      project_name: 'REKT Race Proof',
+      goal: 'Serialize concurrent declaration',
+      ship_condition: 'One durable Mission exists',
+      current_focus: 'Race duplicate creation',
+      next_move: 'Enter BUILDING',
+    };
+
+    let releaseCreatePlayerLock;
+    let createPlayerLockReady;
+    const createPlayerRelease = new Promise((resolve) => { releaseCreatePlayerLock = resolve; });
+    const createPlayerReady = new Promise((resolve) => { createPlayerLockReady = resolve; });
+    const heldCreatePlayerLock = db.transaction().execute(async (transaction) => {
+      await transaction.selectFrom('players').select('player_id').where('player_id', '=', owner.playerId).forUpdate().executeTakeFirstOrThrow();
+      createPlayerLockReady();
+      await createPlayerRelease;
+    });
+    await createPlayerReady;
+    const createOnePromise = app.inject({method: 'POST', url: '/v1/missions', headers: mutationHeaders(owner.cookie), payload: declaration});
+    const createTwoPromise = app.inject({method: 'POST', url: '/v1/missions', headers: mutationHeaders(owner.cookie), payload: declaration});
+    await new Promise((resolve) => setTimeout(resolve, 75));
+    releaseCreatePlayerLock();
+    await heldCreatePlayerLock;
+    const [createOne, createTwo] = await Promise.all([createOnePromise, createTwoPromise]);
+    assert.equal(createOne.statusCode, 201);
+    assert.equal(createTwo.statusCode, 201);
+    assert.equal(createOne.json().mission.mission_id, createTwo.json().mission.mission_id);
+    assert.equal(createOne.json().project.project_id, createTwo.json().project.project_id);
+    const missionId = createOne.json().mission.mission_id;
+    const projectId = createOne.json().project.project_id;
+    const creationCount = Number((await db.selectFrom('missions').select(({fn}) => fn.countAll().as('count')).where('creation_request_id', '=', declaration.request_id).executeTakeFirstOrThrow()).count);
+    assert.equal(creationCount, 1);
+
+    const building = await app.inject({method: 'PATCH', url: `/v1/missions/${missionId}`, headers: mutationHeaders(owner.cookie), payload: {
+      request_id: randomUUID(), state: 'BUILDING', current_focus: 'Force a stale-read race', next_move: 'Serialize transition validation',
+    }});
+    assert.equal(building.statusCode, 200);
+
+    const oldCreationRetry = await app.inject({method: 'POST', url: '/v1/missions', headers: mutationHeaders(owner.cookie), payload: declaration});
+    assert.equal(oldCreationRetry.statusCode, 201);
+    assert.equal(oldCreationRetry.json().mission.mission_id, missionId);
+    assert.equal(oldCreationRetry.json().project.project_id, projectId);
+    assert.equal(oldCreationRetry.json().mission.state, 'BUILDING');
+    assert.equal(oldCreationRetry.json().mission.current_focus, 'Force a stale-read race');
+
+    let releaseMissionLock;
+    let missionLockReady;
+    const missionRelease = new Promise((resolve) => { releaseMissionLock = resolve; });
+    const missionReady = new Promise((resolve) => { missionLockReady = resolve; });
+    const heldMissionLock = db.transaction().execute(async (transaction) => {
+      await transaction.selectFrom('missions').select('mission_id').where('mission_id', '=', missionId).forUpdate().executeTakeFirstOrThrow();
+      missionLockReady();
+      await missionRelease;
+    });
+    await missionReady;
+    const blockPromise = app.inject({method: 'PATCH', url: `/v1/missions/${missionId}`, headers: mutationHeaders(owner.cookie), payload: {
+      request_id: randomUUID(), state: 'BLOCKED', blocker: 'Forced concurrency barrier', next_move: 'Resolve the barrier',
+    }});
+    await new Promise((resolve) => setTimeout(resolve, 75));
+    const shipReadyPromise = app.inject({method: 'PATCH', url: `/v1/missions/${missionId}`, headers: mutationHeaders(owner.cookie), payload: {
+      request_id: randomUUID(), state: 'SHIP_READY',
+    }});
+    await new Promise((resolve) => setTimeout(resolve, 75));
+    releaseMissionLock();
+    await heldMissionLock;
+    const [blocked, shipReady] = await Promise.all([blockPromise, shipReadyPromise]);
+    assert.equal(blocked.statusCode, 200);
+    assert.equal(blocked.json().mission.state, 'BLOCKED');
+    assert.equal(shipReady.statusCode, 409);
+    assert.equal(shipReady.json().error, 'mission_transition_invalid');
+
+    const finalCommand = await app.inject({method: 'GET', url: '/v1/me/command', headers: {cookie: owner.cookie}});
+    assert.equal(finalCommand.statusCode, 200);
+    assert.equal(finalCommand.json().mission.state, 'BLOCKED');
+    assert.equal(finalCommand.json().mission.blocker, 'Forced concurrency barrier');
+  } finally {
+    await app.close();
+    await db.destroy();
+  }
+});
