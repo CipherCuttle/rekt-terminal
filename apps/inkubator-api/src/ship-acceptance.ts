@@ -254,6 +254,10 @@ export async function reconcileShipAcceptances(dbInput: Kysely<DatabaseSchema>) 
     .select('ship_acceptance_reviews.submission_id')
     .where('ship_submissions.state', 'in', [...ACTIVE_SUBMISSION_STATES])
     .where('ship_receipts.receipt_id', 'is', null)
+    .where((eb) => eb.or([
+      eb('ship_acceptance_reviews.decision', '=', 'REJECT'),
+      eb('ship_verifier_observations.outcome', 'in', ['PASS', 'FAILED']),
+    ]))
     .orderBy('ship_acceptance_reviews.reviewed_at', 'asc')
     .limit(50)
     .execute();
