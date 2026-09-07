@@ -1,8 +1,8 @@
-import {Activity, ArrowRight, Box, GitBranch, RadioTower, Rocket, ShieldCheck, Sparkles, Users} from 'lucide-react';
+import {Activity, GitBranch, ShieldCheck, Users} from 'lucide-react';
 import {useMemo} from 'react';
 import './tokens.css';
 import styles from './SignalSystem.module.css';
-import {evidence, fixtureEvents, fixtureMission, fixtureThread, worldSignals} from './fixtures';
+import {evidence, fixtureAcceptedShip, fixtureEvents, fixtureMission, fixtureThread, worldSignals} from './fixtures';
 import {
   InkBeacon,
   InkButton,
@@ -241,31 +241,46 @@ function PlayerScreen() {
   );
 }
 
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '?';
+}
+
 function ShipScreen() {
+  const ship = fixtureAcceptedShip;
+  const party = ship.builders.filter((builder) => builder.role === 'PARTY');
   return (
     <Shell screen="ship" mode="artifact">
       <section className={styles.shipArtifact} aria-label="Accepted shipped artifact">
         <div className={styles.shipWindow}>
-          <strong>THE THING ACTUALLY WORKS.</strong>
+          <span className={styles.kicker}>ARTIFACT / DEVELOPMENT FIXTURE</span>
+          <strong>{ship.artifact.title}</strong>
+          <a href={ship.artifact.url} target="_blank" rel="noreferrer">OPEN THE THING ↗</a>
         </div>
       </section>
       <aside className={styles.shipReceipt}>
-        <span className={styles.kicker}>SHIP / ACCEPTED ARTIFACT</span>
+        <span className={styles.kicker}>SHIP / ACCEPTED ARTIFACT / DEVELOPMENT FIXTURE</span>
         <InkSignal state="PROVEN" label="SHIP ACCEPTED" source="SHIP RULE V1" />
-        <h1>REKT MACHINE / ROUND 01</h1>
-        <p>The artifact dominates. Proof, Party and receipt data stay legible but secondary to the thing that was actually shipped.</p>
-        <div className={styles.receiptId}>receipt_01JQ.REKT.MACHINE.8F7C<br />rule: ship.accepted.v1<br />evidence ceiling: PROVEN</div>
+        <h1>{ship.artifact.title} / ROUND 01</h1>
+        <p>The artifact dominates. The PROVEN state belongs to the accepted Ship fact; Party and Assist attribution remain historical credits from their own bounded source state.</p>
+        <div className={styles.receiptId}>{ship.receipt_id}<br />receipt: {ship.receipt_schema_version}<br />rule: {ship.acceptance_rule_version}<br />evidence ceiling: {ship.truth_state}</div>
         <InkFrame label="ACCEPTANCE CHAIN" artifact>
           <EvidenceRow label="PUBLIC ARTIFACT" detail="Reachable bounded target" state="OBSERVED" source="VERIFIER" />
-          <EvidenceRow label="EXTERNAL TEST" detail="Critical flow completed" state="OBSERVED" source="HUMAN" />
-          <EvidenceRow label="SHIP RULE" detail="Required evidence set satisfied" state="PROVEN" source="INKUBATOR" />
+          <EvidenceRow label="TRUSTED REVIEW" detail="Bounded human review recorded" state="OBSERVED" source="HUMAN" />
+          <EvidenceRow label="SHIP RULE" detail="Required observations satisfied deterministic server rule" state="PROVEN" source="INKUBATOR" />
+        </InkFrame>
+        <InkFrame label="BUILDERS / SHIP-TIME SNAPSHOT" meta={`${ship.builders.length} CREDITED`} artifact>
+          <div style={{display: 'flex', gap: 10, flexWrap: 'wrap'}} aria-label="Ship builders">
+            {ship.builders.map((builder) => <InkPortrait key={builder.player_id} initials={initials(builder.display_name)} label={`${builder.display_name} · ${builder.role}`} size={54} />)}
+          </div>
+          {ship.assists.map((assist) => <InkEvent key={assist.assist_id} title={`ASSIST / ${assist.display_name}`} body="Accepted before Ship and preserved in the immutable Ship-time attribution snapshot." time="SHIP" kind="help" />)}
         </InkFrame>
         <InkMetaStrip items={[
-          {label: 'PARTY', value: '02'},
-          {label: 'ASSISTS', value: '01'},
+          {label: 'OWNER', value: ship.builders.find((builder) => builder.role === 'OWNER')?.display_name ?? ship.owner_player_id},
+          {label: 'PARTY', value: String(party.length).padStart(2, '0')},
+          {label: 'ASSISTS', value: String(ship.assists.length).padStart(2, '0')},
           {label: 'ROUND', value: '01'},
         ]} />
-        <div className={styles.missionActions}><InkButton tone="proof"><span style={{display: 'inline-flex', gap: 7, alignItems: 'center'}}><ShieldCheck size={15} /> VIEW RECEIPT</span></InkButton><ExternalArtifactLink /></div>
+        <div className={styles.missionActions}><InkButton tone="proof"><span style={{display: 'inline-flex', gap: 7, alignItems: 'center'}}><ShieldCheck size={15} /> RECEIPT {ship.receipt_id.slice(0, 8).toUpperCase()}</span></InkButton><a href={ship.artifact.url} target="_blank" rel="noreferrer">OPEN ARTIFACT ↗</a></div>
       </aside>
     </Shell>
   );

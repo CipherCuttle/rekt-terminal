@@ -8,6 +8,10 @@ import {phase4ManifestRefScopeMigration} from './migrations/009-phase4-manifest-
 import {phase5HelpLoopCoreMigration} from './migrations/010-phase5-help-loop-core.js';
 import {phase5ProjectDiscussionWorldMigration} from './migrations/011-phase5-project-discussion-world.js';
 import {phase5TesterModerationMigration} from './migrations/012-phase5-tester-moderation.js';
+import {phase6ShipVerifierControlMigration} from './migrations/013-phase6-ship-verifier-control.js';
+import {phase6ShipAcceptanceReceiptMigration} from './migrations/014-phase6-ship-acceptance-receipt.js';
+import {phase6ShipArtifactAttributionMigration} from './migrations/015-phase6-ship-artifact-attribution.js';
+import {phase6ReviewRepairMigration} from './migrations/016-phase6-review-repair.js';
 
 const initialMigration: Migration = {
   async up(db) {
@@ -304,6 +308,10 @@ class StaticMigrationProvider implements MigrationProvider {
       '010_phase5_help_loop_core': phase5HelpLoopCoreMigration,
       '011_phase5_project_discussion_world': phase5ProjectDiscussionWorldMigration,
       '012_phase5_tester_moderation': phase5TesterModerationMigration,
+      '013_phase6_ship_verifier_control': phase6ShipVerifierControlMigration,
+      '014_phase6_ship_acceptance_receipt': phase6ShipAcceptanceReceiptMigration,
+      '015_phase6_ship_artifact_attribution': phase6ShipArtifactAttributionMigration,
+      '016_phase6_review_repair': phase6ReviewRepairMigration,
     };
   }
 }

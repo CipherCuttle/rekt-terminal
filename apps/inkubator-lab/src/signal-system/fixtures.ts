@@ -35,3 +35,36 @@ export const evidence = [
   {label: 'PUBLIC BUILD', detail: 'Deployment responds and is externally reachable', state: 'OBSERVED' as InkSignalState, source: 'ADAPTER'},
   {label: 'EXTERNAL TEST', detail: 'No accepted tester result yet', state: 'UNKNOWN' as InkSignalState, source: 'HUMAN'},
 ];
+
+// Development fixture for the ARTIFACT golden screen. It mirrors the bounded public
+// Phase-6C projection: receipt 1.0 remains immutable while attribution lives in the
+// separately versioned shareable Artifact projection.
+export const fixtureAcceptedShip = {
+  schema_version: 'ship.artifact.public.v1' as const,
+  receipt_id: '9b2dd782-3854-4c82-8bd7-f65d93a45f02',
+  receipt_schema_version: 'inkubator.ship-receipt/1.0' as const,
+  submission_id: 'bb26d7a9-c48d-4c26-ad33-d34bf4acf49b',
+  mission_id: '1dd307c7-95d9-466a-bdad-b0765296a4df',
+  project_id: 'f3b430ed-d3f4-4994-97e5-8b75420616b7',
+  owner_player_id: 'd2ef1542-43bf-4905-a172-1d362557ca5f',
+  round_id: '07289206-4ae0-4d77-83d8-5bc03b915a85',
+  acceptance_rule_version: 'ship.acceptance.v1' as const,
+  artifact: {
+    title: 'REKT MACHINE',
+    url: 'https://example.com/rekt-machine',
+    demo_url: 'https://example.com/rekt-machine/demo',
+  },
+  builders: [
+    {player_id: 'd2ef1542-43bf-4905-a172-1d362557ca5f', display_name: 'CipherCuttle', role: 'OWNER' as const},
+    {player_id: '04e45ce8-945e-4fbc-8e12-70dd288b3396', display_name: 'Honeyslop', role: 'PARTY' as const},
+  ],
+  assists: [
+    {assist_id: '8739029d-7781-4c29-a65b-cfbe93b81b62', player_id: '04e45ce8-945e-4fbc-8e12-70dd288b3396', display_name: 'Honeyslop', accepted_at: '2026-09-07T18:40:00.000Z', source_state: 'ACCEPTED' as const},
+  ],
+  evidence: {
+    verifier_observation_id: '3954da06-16f1-4234-a2a7-8c0a6a6f283c',
+    acceptance_review_id: '0862e02e-ec79-4544-8d63-731c2667b263',
+  },
+  truth_state: 'PROVEN' as const,
+  shipped_at: '2026-09-07T18:45:00.000Z',
+};
