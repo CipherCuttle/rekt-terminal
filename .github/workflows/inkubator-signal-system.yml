@@ -1,0 +1,68 @@
+name: Inkubator Signal System
+
+on:
+  push:
+    branches:
+      - 'feature/inkubator-signal-system-v0'
+    paths:
+      - '.github/workflows/inkubator-signal-system.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'apps/inkubator-lab/**'
+      - 'scripts/verify-inkubator-signal-system.mjs'
+  pull_request:
+    paths:
+      - '.github/workflows/inkubator-signal-system.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'apps/inkubator-lab/**'
+      - 'scripts/verify-inkubator-signal-system.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify canonical toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = 'v24.20.0'
+          test "$(npm -v)" = '11.19.0'
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify Signal System source invariants
+        run: npm run verify:inkubator-signal-system
+
+      - name: Unit and semantic tests
+        run: npm run test -w @rekt-ink/inkubator-lab
+
+      - name: Typecheck and build Inkubator
+        run: npm run build -w @rekt-ink/inkubator-lab
+
+      - name: Verify split chunks and bundle budget
+        run: npm run verify:inkubator-signal-system -- --dist
+
+      - name: Build Storybook catalog
+        run: npm run build-storybook -w @rekt-ink/inkubator-lab
+
+      - name: Install Chromium for interaction and a11y gates
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright journeys, axe, mobile and visual snapshots
+        run: npm run test:e2e -w @rekt-ink/inkubator-lab

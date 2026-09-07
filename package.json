@@ -18,13 +18,14 @@
     "verify:source": "node scripts/verify-source.mjs",
     "verify:inkubator-foundation": "node scripts/verify-inkubator-foundation.mjs",
     "verify:inkubator-api-client": "npm run verify:client -w @rekt-ink/inkubator-api",
+    "verify:inkubator-signal-system": "node scripts/verify-inkubator-signal-system.mjs",
     "verify:pwa": "node scripts/verify-pwa.mjs",
     "verify:career-tuning": "node scripts/verify-career-tuning.mjs",
     "verify:learning": "npm run test -w @rekt-ink/learning && node scripts/verify-learning.mjs",
     "verify:episodes": "node scripts/verify-episodes.mjs && npm run test -w @rekt-ink/episodes && npm run test -w @rekt-ink/sim",
     "test:career-tuning": "node --test scripts/career-tuning/test/*.test.mjs",
     "test": "npm run verify:core && npm run verify:source && npm run verify:pwa && npm run test -w @rekt-ink/episodes && npm run test -w @rekt-ink/sim && npm run test -w @rekt-ink/career && npm run test -w @rekt-ink/learning && npm run test -w @rekt-ink/api && npm run test -w @rekt-ink/web && npm run test -w @rekt-ink/inkubator-api && npm run test:career-tuning",
-    "verify": "npm run verify:core && npm run verify:source && npm run verify:inkubator-foundation && npm run verify:inkubator-api-client && npm run verify:pwa && npm run verify:episodes && npm run verify:learning && npm run typecheck && npm test && npm run build"
+    "verify": "npm run verify:core && npm run verify:source && npm run verify:inkubator-foundation && npm run verify:inkubator-api-client && npm run verify:inkubator-signal-system && npm run verify:pwa && npm run verify:episodes && npm run verify:learning && npm run typecheck && npm test && npm run build"
   },
   "engines": {
     "node": "24.20.x",
