@@ -57,4 +57,16 @@ describe('REKT Signal System golden screens', () => {
     expect(accepted.getAttribute('data-ink-signal')).toBe('PROVEN');
     expect(artifact.getAttribute('data-ink-signal')).toBe('OBSERVED');
   });
+
+  it('renders the shareable Artifact fixture from canonical Phase-6C semantics without private source leakage', () => {
+    const {container} = render(<GoldenScreens screen="ship" />);
+    const text = container.textContent ?? '';
+    expect(text).toContain('ARTIFACT / DEVELOPMENT FIXTURE');
+    expect(text).toContain('inkubator.ship-receipt/1.0');
+    expect(text).toContain('ship.acceptance.v1');
+    expect(text).toContain('BUILDERS / SHIP-TIME SNAPSHOT');
+    expect(text).toContain('Honeyslop');
+    expect(text).not.toContain('source_url');
+    expect(text).not.toContain('PRIVATE_REVIEW');
+  });
 });
