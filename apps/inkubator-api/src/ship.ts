@@ -3,6 +3,7 @@ import {sql, type Kysely, type Selectable} from 'kysely';
 import type {DatabaseSchema, ShipSubmissionTable, ShipVerifierObservationTable} from './database.js';
 import {appendHistoryEvent} from './events.js';
 import {enqueueOutboxJob, SHIP_VERIFICATION_JOB_TYPE} from './jobs.js';
+import {getAcceptedShipArtifactForSubmission} from './ship-artifact.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function uuid(value: string, name: string) { if (typeof value !== 'string' || !UUID.test(value)) throw new Error(`invalid_${name}`); return value.toLowerCase(); }
@@ -22,8 +23,8 @@ function observationView(row: Selectable<ShipVerifierObservationTable>) {
   return {schema_version:'ship.verifier_observation.public.v1' as const, outcome:row.outcome, reason_code:row.reason_code,
     ...(row.final_url?{final_url:row.final_url}:{}), ...(row.http_status!==null?{http_status:row.http_status}:{}), duration_ms:row.duration_ms, redirects:row.redirects, observed_at:row.observed_at.toISOString()};
 }
-function publicSubmissionState(state: string): 'SUBMITTED' | 'OBSERVED' | 'ATTENTION' {
-  if (state === 'ACCEPTED') return 'OBSERVED';
+function publicSubmissionState(state: string): 'SUBMITTED' | 'OBSERVED' | 'ATTENTION' | 'PROVEN' {
+  if (state === 'ACCEPTED') return 'PROVEN';
   if (state === 'REJECTED') return 'ATTENTION';
   if (state === 'SUBMITTED' || state === 'OBSERVED' || state === 'ATTENTION') return state;
   throw new Error('ship_submission_state_invalid');
@@ -60,8 +61,10 @@ export async function getProjectShipState(db:Kysely<DatabaseSchema>,projectIdInp
   const projectId=uuid(projectIdInput,'project_id');
   const project=await db.selectFrom('projects').select('project_id').where('project_id','=',projectId).executeTakeFirst(); if(!project)throw new Error('project_not_found');
   const submission=await db.selectFrom('ship_submissions').selectAll().where('project_id','=',projectId).orderBy('submitted_at','desc').executeTakeFirst();
-  if(!submission)return{schema_version:'project.ship.public.v1' as const,project_id:projectId};
+  if(!submission)return{schema_version:'project.ship.public.v2' as const,project_id:projectId};
   const observation=await db.selectFrom('ship_verifier_observations').selectAll().where('submission_id','=',submission.submission_id).executeTakeFirst();
-  return{schema_version:'project.ship.public.v1' as const,project_id:projectId,latest_submission:{schema_version:'ship.submission.public.v1' as const,submission_id:submission.submission_id,mission_id:submission.mission_id,
-    artifact:{title:submission.artifact_title,url:submission.artifact_url,...(submission.demo_url?{demo_url:submission.demo_url}:{}),...(submission.source_url?{source_url:submission.source_url}:{})},state:publicSubmissionState(String(submission.state)),submitted_at:submission.submitted_at.toISOString(),...(observation?{verifier_observation:observationView(observation)}:{})}};
+  const acceptedShip=await getAcceptedShipArtifactForSubmission(db,submission.submission_id);
+  return{schema_version:'project.ship.public.v2' as const,project_id:projectId,latest_submission:{schema_version:'ship.submission.public.v2' as const,submission_id:submission.submission_id,mission_id:submission.mission_id,project_id:submission.project_id,
+    // Public Ship projection deliberately omits source_url. Private submission responses retain it for the owner.
+    artifact:{title:submission.artifact_title,url:submission.artifact_url,...(submission.demo_url?{demo_url:submission.demo_url}:{})},state:publicSubmissionState(String(submission.state)),submitted_at:submission.submitted_at.toISOString(),...(observation?{verifier_observation:observationView(observation)}:{}),...(acceptedShip?{accepted_ship:acceptedShip}:{})}};
 }
