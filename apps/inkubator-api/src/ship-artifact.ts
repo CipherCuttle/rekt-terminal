@@ -1,3 +1,4 @@
+import './contract-phase6c.js';
 import {type Generated, type Kysely, type Selectable} from 'kysely';
 import type {DatabaseSchema} from './database.js';
 
