@@ -20,7 +20,7 @@ async function waitForGoldenScreen(page: Page, screen: GoldenScreen) {
       await expect(page.getByRole('heading', {name: 'CIPHERCUTTLE'})).toBeVisible();
       break;
     case 'ship':
-      await expect(page.getByLabelText(/SHIP ACCEPTED, source SHIP RULE V1/i)).toBeVisible();
+      await expect(page.getByLabel(/SHIP ACCEPTED, source SHIP RULE V1/i)).toBeVisible();
       break;
   }
 }
