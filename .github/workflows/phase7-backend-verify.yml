@@ -5,6 +5,7 @@ on:
     branches: [feature/inkubator-cheevo-reputation-boards-v0]
     paths:
       - '.github/workflows/phase7-backend-verify.yml'
+      - 'apps/inkubator-api/test/integration/phase7-cheevo-reputation-boards.test.mjs'
 
 permissions:
   contents: read
