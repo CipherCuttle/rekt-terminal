@@ -225,6 +225,54 @@ export interface ProjectDiscussionSettingTable {
   updated_at: Generated<Date>;
 }
 
+export interface PlayerBlockTable {
+  blocker_player_id: string;
+  blocked_player_id: string;
+  created_at: Generated<Date>;
+}
+
+export type ContentReportReason = 'SPAM' | 'ABUSE' | 'PRIVACY' | 'OTHER';
+export interface ContentReportTable {
+  report_id: string;
+  reporter_player_id: string;
+  comment_id: string;
+  creation_request_id: string;
+  reason: ContentReportReason;
+  detail: string | null;
+  state: 'OPEN';
+  created_at: Generated<Date>;
+}
+
+export interface ModerationOperatorTable {
+  player_id: string;
+  scope: 'GLOBAL_MODERATION';
+  granted_at: Generated<Date>;
+}
+
+export type ExternalTestRequestState = 'OPEN' | 'COMPLETED' | 'CLOSED';
+export interface ExternalTestRequestTable {
+  test_request_id: string;
+  project_id: string;
+  owner_player_id: string;
+  creation_request_id: string;
+  prompt: string;
+  state: ExternalTestRequestState;
+  created_at: Generated<Date>;
+  completed_at: Date | null;
+}
+
+export type ExternalTestOutcome = 'PASS' | 'ISSUE_FOUND' | 'BLOCKED';
+export interface ExternalTestResultTable {
+  test_result_id: string;
+  test_request_id: string;
+  project_id: string;
+  tester_player_id: string;
+  creation_request_id: string;
+  outcome: ExternalTestOutcome;
+  summary: string;
+  observed_at: Generated<Date>;
+}
+
 export interface GitHubSetupStateTable {
   state_hash: string;
   player_id: string;
@@ -303,6 +351,11 @@ export interface DatabaseSchema {
   project_comments: ProjectCommentTable;
   project_comment_reactions: ProjectCommentReactionTable;
   project_discussion_settings: ProjectDiscussionSettingTable;
+  player_blocks: PlayerBlockTable;
+  content_reports: ContentReportTable;
+  moderation_operators: ModerationOperatorTable;
+  external_test_requests: ExternalTestRequestTable;
+  external_test_results: ExternalTestResultTable;
   github_setup_states: GitHubSetupStateTable;
   github_installations: GitHubInstallationTable;
   github_repositories: GitHubRepositoryTable;

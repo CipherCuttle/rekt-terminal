@@ -197,7 +197,7 @@ export interface ProjectDiscussionSettingView {
 export interface WorldSignalView {
   schema_version: "world.signal.public.v1";
   signal_id: string;
-  kind: "HELP_BEACON_OPENED" | "ASSIST_ACCEPTED";
+  kind: "HELP_BEACON_OPENED" | "ASSIST_ACCEPTED" | "EXTERNAL_TEST_RECORDED";
   project_id: ProjectId;
   project_name: string;
   truth_state: "CLAIMED" | "OBSERVED";
@@ -205,6 +205,75 @@ export interface WorldSignalView {
 }
 
 export type WorldSignalList = WorldSignalView[];
+
+export interface PlayerBlockView {
+  schema_version: "player.block.v1";
+  blocker_player_id: PlayerId;
+  blocked_player_id: PlayerId;
+  active: boolean;
+}
+
+export interface ContentReportCreateRequest {
+  request_id: RequestId;
+  reason: "SPAM" | "ABUSE" | "PRIVACY" | "OTHER";
+  detail?: string | null;
+}
+
+export interface ContentReportView {
+  schema_version: "content.report.private.v1";
+  report_id: string;
+  comment_id: string;
+  reason: "SPAM" | "ABUSE" | "PRIVACY" | "OTHER";
+  state: "OPEN";
+}
+
+export interface OperatorCommentRemoveRequest {
+  request_id: RequestId;
+  reason: string;
+}
+
+export interface OperatorCommentRemoveView {
+  schema_version: "ops.project_comment.remove.v1";
+  comment_id: string;
+  state: "REMOVED";
+}
+
+export interface ExternalTestRequestCreateRequest {
+  request_id: RequestId;
+  prompt: string;
+}
+
+export interface ExternalTestRequestView {
+  schema_version: "external_test.request.public.v1";
+  test_request_id: string;
+  project_id: ProjectId;
+  prompt: string;
+  state: "OPEN" | "COMPLETED" | "CLOSED";
+}
+
+export interface ExternalTestResultCreateRequest {
+  request_id: RequestId;
+  outcome: "PASS" | "ISSUE_FOUND" | "BLOCKED";
+  summary: string;
+}
+
+export interface ExternalTestResultView {
+  schema_version: "external_test.result.public.v1";
+  test_result_id: string;
+  test_request_id: string;
+  project_id: ProjectId;
+  tester: ProjectCommentAuthorView;
+  outcome: "PASS" | "ISSUE_FOUND" | "BLOCKED";
+  summary: string;
+  observed_at: string;
+}
+
+export interface ProjectExternalTestsView {
+  schema_version: "project.external_tests.public.v1";
+  project_id: ProjectId;
+  requests: ExternalTestRequestView[];
+  results: ExternalTestResultView[];
+}
 
 export interface RoundView {
   schema_version: "round.private.v1";

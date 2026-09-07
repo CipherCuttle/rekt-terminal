@@ -96,6 +96,7 @@ export async function followPlayer(db: Kysely<DatabaseSchema>, actorIdInput: str
   return db.transaction().execute(async (tx) => {
     const target = await tx.selectFrom('players').select('player_id').where('player_id', '=', targetId).executeTakeFirst();
     if (!target) throw new Error('player_not_found');
+    if (await interactionBlocked(tx, actorId, targetId)) throw new Error('social_interaction_blocked');
     const inserted = await tx.insertInto('player_follows').values({follower_player_id: actorId, followed_player_id: targetId})
       .onConflict((c) => c.columns(['follower_player_id', 'followed_player_id']).doNothing()).returning('followed_player_id').executeTakeFirst();
     if (inserted) await appendHistoryEvent(tx, {
@@ -170,6 +171,7 @@ export async function offerAssist(db: Kysely<DatabaseSchema>, actorIdInput: stri
     if (!beacon) throw new Error('help_beacon_not_found');
     if (beacon.state !== 'OPEN') throw new Error('help_beacon_not_open');
     if (beacon.owner_player_id === actorId) throw new Error('assist_self_forbidden');
+    if (await interactionBlocked(tx, actorId, beacon.owner_player_id)) throw new Error('social_interaction_blocked');
     const existing = await tx.selectFrom('assist_offers').selectAll().where('beacon_id', '=', beaconId).where('offered_by_player_id', '=', actorId).executeTakeFirst();
     if (existing) throw new Error('assist_already_offered');
     const row = await tx.insertInto('assist_offers').values({
@@ -248,6 +250,14 @@ function commentView(row: {comment_id: string; project_id: string; author_player
   };
 }
 
+async function interactionBlocked(db: Kysely<DatabaseSchema>, leftPlayerId: string, rightPlayerId: string): Promise<boolean> {
+  if (leftPlayerId === rightPlayerId) return false;
+  const direct = await db.selectFrom('player_blocks').select('blocker_player_id').where('blocker_player_id', '=', leftPlayerId).where('blocked_player_id', '=', rightPlayerId).executeTakeFirst();
+  if (direct) return true;
+  const reverse = await db.selectFrom('player_blocks').select('blocker_player_id').where('blocker_player_id', '=', rightPlayerId).where('blocked_player_id', '=', leftPlayerId).executeTakeFirst();
+  return Boolean(reverse);
+}
+
 async function discussionLocked(db: Kysely<DatabaseSchema>, projectId: string): Promise<boolean> {
   const setting = await db.selectFrom('project_discussion_settings').select('locked').where('project_id', '=', projectId).executeTakeFirst();
   return setting?.locked ?? false;
@@ -287,8 +297,9 @@ export async function createProjectComment(db: Kysely<DatabaseSchema>, actorIdIn
       const count = await tx.selectFrom('project_comment_reactions').select(({fn}) => fn.countAll<number>().as('count')).where('comment_id', '=', replay.comment_id).where('reaction', '=', 'USEFUL').executeTakeFirstOrThrow();
       return commentView(replay, author.display_name, Number(count.count));
     }
-    const project = await tx.selectFrom('projects').select('project_id').where('project_id', '=', projectId).forUpdate().executeTakeFirst();
+    const project = await tx.selectFrom('projects').select(['project_id', 'owner_player_id']).where('project_id', '=', projectId).forUpdate().executeTakeFirst();
     if (!project) throw new Error('project_not_found');
+    if (await interactionBlocked(tx, actorId, project.owner_player_id)) throw new Error('social_interaction_blocked');
     if (await discussionLocked(tx, projectId)) throw new Error('project_discussion_locked');
     if (parentCommentId) {
       const parent = await tx.selectFrom('project_comments').select(['project_id', 'state']).where('comment_id', '=', parentCommentId).executeTakeFirst();
@@ -315,9 +326,10 @@ export async function reactUsefulToComment(db: Kysely<DatabaseSchema>, actorIdIn
   const commentId = uuid(commentIdInput, 'comment_id');
   uuid(requestIdInput, 'request_id');
   return db.transaction().execute(async (tx) => {
-    const comment = await tx.selectFrom('project_comments').select(['comment_id', 'project_id', 'state']).where('comment_id', '=', commentId).executeTakeFirst();
+    const comment = await tx.selectFrom('project_comments').select(['comment_id', 'project_id', 'author_player_id', 'state']).where('comment_id', '=', commentId).executeTakeFirst();
     if (!comment) throw new Error('comment_not_found');
     if (comment.state !== 'ACTIVE') throw new Error('comment_not_active');
+    if (await interactionBlocked(tx, actorId, comment.author_player_id)) throw new Error('social_interaction_blocked');
     const project = await tx.selectFrom('projects').select('project_id').where('project_id', '=', comment.project_id).forUpdate().executeTakeFirstOrThrow();
     if (await discussionLocked(tx, project.project_id)) throw new Error('project_discussion_locked');
     const inserted = await tx.insertInto('project_comment_reactions').values({comment_id: commentId, player_id: actorId, reaction: 'USEFUL'})
@@ -375,7 +387,7 @@ export async function listWorldSignals(db: Kysely<DatabaseSchema>) {
   const events = await db.selectFrom('history_events')
     .select(['history_event_id', 'event_type', 'subject_id', 'occurred_at'])
     .where('subject_type', '=', 'project')
-    .where('event_type', 'in', ['project.help_beacon.opened', 'project.assist.accepted'])
+    .where('event_type', 'in', ['project.help_beacon.opened', 'project.assist.accepted', 'project.external_test.observed'])
     .orderBy('occurred_at', 'desc').orderBy('history_event_id', 'desc').limit(50).execute();
   const projectIds = [...new Set(events.map((event) => event.subject_id))];
   const projects = projectIds.length === 0 ? [] : await db.selectFrom('projects').select(['project_id', 'name']).where('project_id', 'in', projectIds).execute();
@@ -383,7 +395,7 @@ export async function listWorldSignals(db: Kysely<DatabaseSchema>) {
   const signals: Array<{
     schema_version: 'world.signal.public.v1';
     signal_id: string;
-    kind: 'HELP_BEACON_OPENED' | 'ASSIST_ACCEPTED';
+    kind: 'HELP_BEACON_OPENED' | 'ASSIST_ACCEPTED' | 'EXTERNAL_TEST_RECORDED';
     project_id: string;
     project_name: string;
     truth_state: 'CLAIMED' | 'OBSERVED';
@@ -396,7 +408,95 @@ export async function listWorldSignals(db: Kysely<DatabaseSchema>) {
       signals.push({schema_version: 'world.signal.public.v1', signal_id: event.history_event_id, kind: 'HELP_BEACON_OPENED', project_id: event.subject_id, project_name: projectName, truth_state: 'CLAIMED', occurred_at: event.occurred_at.toISOString()});
     } else if (event.event_type === 'project.assist.accepted') {
       signals.push({schema_version: 'world.signal.public.v1', signal_id: event.history_event_id, kind: 'ASSIST_ACCEPTED', project_id: event.subject_id, project_name: projectName, truth_state: 'OBSERVED', occurred_at: event.occurred_at.toISOString()});
+    } else if (event.event_type === 'project.external_test.observed') {
+      signals.push({schema_version: 'world.signal.public.v1', signal_id: event.history_event_id, kind: 'EXTERNAL_TEST_RECORDED', project_id: event.subject_id, project_name: projectName, truth_state: 'OBSERVED', occurred_at: event.occurred_at.toISOString()});
     }
   }
   return signals;
+}
+
+
+export async function blockPlayer(db: Kysely<DatabaseSchema>, actorIdInput: string, targetIdInput: string, requestIdInput: string) {
+  const actorId=uuid(actorIdInput,'player_id'), targetId=uuid(targetIdInput,'player_id'), requestId=uuid(requestIdInput,'request_id');
+  if (actorId===targetId) throw new Error('block_self_forbidden');
+  return db.transaction().execute(async(tx)=>{
+    const target=await tx.selectFrom('players').select('player_id').where('player_id','=',targetId).executeTakeFirst(); if(!target) throw new Error('player_not_found');
+    const inserted=await tx.insertInto('player_blocks').values({blocker_player_id:actorId,blocked_player_id:targetId}).onConflict((c)=>c.columns(['blocker_player_id','blocked_player_id']).doNothing()).returning('blocked_player_id').executeTakeFirst();
+    await tx.deleteFrom('player_follows').where((eb)=>eb.or([eb.and([eb('follower_player_id','=',actorId),eb('followed_player_id','=',targetId)]),eb.and([eb('follower_player_id','=',targetId),eb('followed_player_id','=',actorId)])])).execute();
+    if(inserted) await appendHistoryEvent(tx,{eventFamily:'activity',eventType:'player.blocked',dedupeKey:`activity:player.blocked:${actorId}:${targetId}`,actorPlayerId:actorId,subjectType:'player',subjectId:targetId,payload:{schema_version:'player.blocked.v1',blocker_player_id:actorId,blocked_player_id:targetId}});
+    return {schema_version:'player.block.v1' as const,blocker_player_id:actorId,blocked_player_id:targetId,active:true};
+  });
+}
+
+export async function unblockPlayer(db: Kysely<DatabaseSchema>, actorIdInput:string,targetIdInput:string,requestIdInput:string){
+  const actorId=uuid(actorIdInput,'player_id'),targetId=uuid(targetIdInput,'player_id'),requestId=uuid(requestIdInput,'request_id');
+  if(actorId===targetId) throw new Error('block_self_forbidden');
+  return db.transaction().execute(async(tx)=>{
+    const removed=await tx.deleteFrom('player_blocks').where('blocker_player_id','=',actorId).where('blocked_player_id','=',targetId).returning('blocked_player_id').executeTakeFirst();
+    if(removed) await appendHistoryEvent(tx,{eventFamily:'activity',eventType:'player.unblocked',dedupeKey:`activity:player.unblocked:${actorId}:${targetId}:${requestId}`,actorPlayerId:actorId,subjectType:'player',subjectId:targetId,payload:{schema_version:'player.unblocked.v1',blocker_player_id:actorId,blocked_player_id:targetId}});
+    return {schema_version:'player.block.v1' as const,blocker_player_id:actorId,blocked_player_id:targetId,active:false};
+  });
+}
+
+export async function reportProjectComment(db: Kysely<DatabaseSchema>,actorIdInput:string,commentIdInput:string,input:{requestId:string;reason:string;detail?:string|null}){
+  const actorId=uuid(actorIdInput,'player_id'),commentId=uuid(commentIdInput,'comment_id'),requestId=uuid(input.requestId,'request_id');
+  const reasons=new Set(['SPAM','ABUSE','PRIVACY','OTHER']); if(!reasons.has(input.reason)) throw new Error('invalid_report_reason');
+  const detail=input.detail==null?null:text(input.detail,'report_detail',500);
+  return db.transaction().execute(async(tx)=>{
+    const replay=await tx.selectFrom('content_reports').selectAll().where('creation_request_id','=',requestId).executeTakeFirst();
+    if(replay){if(replay.reporter_player_id!==actorId||replay.comment_id!==commentId||replay.reason!==input.reason||replay.detail!==detail) throw new Error('report_idempotency_conflict'); return {schema_version:'content.report.private.v1' as const,report_id:replay.report_id,comment_id:commentId,reason:replay.reason,state:replay.state};}
+    const comment=await tx.selectFrom('project_comments').select(['comment_id','project_id']).where('comment_id','=',commentId).executeTakeFirst(); if(!comment) throw new Error('comment_not_found');
+    const row=await tx.insertInto('content_reports').values({report_id:randomUUID(),reporter_player_id:actorId,comment_id:commentId,creation_request_id:requestId,reason:input.reason as 'SPAM'|'ABUSE'|'PRIVACY'|'OTHER',detail,state:'OPEN'}).returningAll().executeTakeFirstOrThrow();
+    await appendHistoryEvent(tx,{eventFamily:'activity',eventType:'project.comment.reported',dedupeKey:`activity:project.comment.reported:${row.report_id}`,actorPlayerId:actorId,subjectType:'project',subjectId:comment.project_id,payload:{schema_version:'project.comment.reported.v1',report_id:row.report_id,comment_id:commentId,project_id:comment.project_id,reason:row.reason}});
+    return {schema_version:'content.report.private.v1' as const,report_id:row.report_id,comment_id:commentId,reason:row.reason,state:row.state};
+  });
+}
+
+export async function removeProjectCommentAsOperator(db: Kysely<DatabaseSchema>,actorIdInput:string,commentIdInput:string,input:{requestId:string;reason:string}){
+  const actorId=uuid(actorIdInput,'player_id'),commentId=uuid(commentIdInput,'comment_id'),requestId=uuid(input.requestId,'request_id'),reason=text(input.reason,'moderation_reason',240);
+  return db.transaction().execute(async(tx)=>{
+    const operator=await tx.selectFrom('moderation_operators').select('scope').where('player_id','=',actorId).executeTakeFirst(); if(operator?.scope!=='GLOBAL_MODERATION') throw new Error('moderation_operator_required');
+    const comment=await tx.selectFrom('project_comments').selectAll().where('comment_id','=',commentId).forUpdate().executeTakeFirst(); if(!comment) throw new Error('comment_not_found');
+    if(comment.state!=='REMOVED'){
+      await tx.updateTable('project_comments').set({state:'REMOVED',deleted_at:sql`clock_timestamp()`,updated_at:sql`clock_timestamp()`}).where('comment_id','=',commentId).execute();
+      await appendHistoryEvent(tx,{eventFamily:'activity',eventType:'ops.project_comment.removed',dedupeKey:`activity:ops.project_comment.removed:${commentId}`,actorPlayerId:actorId,subjectType:'project',subjectId:comment.project_id,payload:{schema_version:'ops.project_comment.removed.v1',comment_id:commentId,project_id:comment.project_id,reason,truth_state:'OBSERVED'}});
+    }
+    return {schema_version:'ops.project_comment.remove.v1' as const,comment_id:commentId,state:'REMOVED' as const};
+  });
+}
+
+function testRequestView(row:{test_request_id:string;project_id:string;prompt:string;state:'OPEN'|'COMPLETED'|'CLOSED'}){return {schema_version:'external_test.request.public.v1' as const,test_request_id:row.test_request_id,project_id:row.project_id,prompt:row.prompt,state:row.state};}
+function testResultView(row:{test_result_id:string;test_request_id:string;project_id:string;tester_player_id:string;outcome:'PASS'|'ISSUE_FOUND'|'BLOCKED';summary:string;observed_at:Date},displayName:string){return {schema_version:'external_test.result.public.v1' as const,test_result_id:row.test_result_id,test_request_id:row.test_request_id,project_id:row.project_id,tester:{player_id:row.tester_player_id,display_name:displayName},outcome:row.outcome,summary:row.summary,observed_at:row.observed_at.toISOString()};}
+
+export async function createExternalTestRequest(db:Kysely<DatabaseSchema>,actorIdInput:string,projectIdInput:string,input:{requestId:string;prompt:string}){
+  const actorId=uuid(actorIdInput,'player_id'),projectId=uuid(projectIdInput,'project_id'),requestId=uuid(input.requestId,'request_id'),prompt=text(input.prompt,'external_test_prompt',500);
+  return db.transaction().execute(async(tx)=>{
+    const replay=await tx.selectFrom('external_test_requests').selectAll().where('creation_request_id','=',requestId).executeTakeFirst(); if(replay){if(replay.project_id!==projectId||replay.owner_player_id!==actorId||replay.prompt!==prompt) throw new Error('external_test_request_idempotency_conflict'); return testRequestView(replay);}
+    const project=await tx.selectFrom('projects').select(['project_id','owner_player_id']).where('project_id','=',projectId).forUpdate().executeTakeFirst(); if(!project) throw new Error('project_not_found'); if(project.owner_player_id!==actorId) throw new Error('authorization_denied');
+    const open=await tx.selectFrom('external_test_requests').select('test_request_id').where('project_id','=',projectId).where('state','=','OPEN').executeTakeFirst(); if(open) throw new Error('external_test_request_already_open');
+    const row=await tx.insertInto('external_test_requests').values({test_request_id:randomUUID(),project_id:projectId,owner_player_id:actorId,creation_request_id:requestId,prompt,state:'OPEN',completed_at:null}).returningAll().executeTakeFirstOrThrow();
+    await appendHistoryEvent(tx,{eventFamily:'activity',eventType:'project.external_test.requested',dedupeKey:`activity:project.external_test.requested:${row.test_request_id}`,actorPlayerId:actorId,subjectType:'project',subjectId:projectId,payload:{schema_version:'project.external_test.requested.v1',test_request_id:row.test_request_id,project_id:projectId,truth_state:'CLAIMED'}});
+    return testRequestView(row);
+  });
+}
+
+export async function recordExternalTestResult(db:Kysely<DatabaseSchema>,actorIdInput:string,testRequestIdInput:string,input:{requestId:string;outcome:string;summary:string}){
+  const actorId=uuid(actorIdInput,'player_id'),testRequestId=uuid(testRequestIdInput,'test_request_id'),requestId=uuid(input.requestId,'request_id'),summary=text(input.summary,'external_test_summary',500);
+  const outcomes=new Set(['PASS','ISSUE_FOUND','BLOCKED']); if(!outcomes.has(input.outcome)) throw new Error('invalid_external_test_outcome');
+  return db.transaction().execute(async(tx)=>{
+    const replay=await tx.selectFrom('external_test_results').selectAll().where('creation_request_id','=',requestId).executeTakeFirst(); if(replay){if(replay.test_request_id!==testRequestId||replay.tester_player_id!==actorId||replay.outcome!==input.outcome||replay.summary!==summary) throw new Error('external_test_result_idempotency_conflict'); const tester=await tx.selectFrom('players').select('display_name').where('player_id','=',actorId).executeTakeFirstOrThrow(); return testResultView(replay,tester.display_name);}
+    const request=await tx.selectFrom('external_test_requests').selectAll().where('test_request_id','=',testRequestId).forUpdate().executeTakeFirst(); if(!request) throw new Error('external_test_request_not_found'); if(request.owner_player_id===actorId) throw new Error('external_test_self_forbidden'); if(request.state!=='OPEN') throw new Error('external_test_request_not_open');
+    if(await interactionBlocked(tx,actorId,request.owner_player_id)) throw new Error('social_interaction_blocked');
+    const row=await tx.insertInto('external_test_results').values({test_result_id:randomUUID(),test_request_id:testRequestId,project_id:request.project_id,tester_player_id:actorId,creation_request_id:requestId,outcome:input.outcome as 'PASS'|'ISSUE_FOUND'|'BLOCKED',summary}).returningAll().executeTakeFirstOrThrow();
+    await tx.updateTable('external_test_requests').set({state:'COMPLETED',completed_at:sql`clock_timestamp()`}).where('test_request_id','=',testRequestId).execute();
+    await appendHistoryEvent(tx,{eventFamily:'evidence',eventType:'project.external_test.observed',dedupeKey:`evidence:project.external_test.observed:${row.test_result_id}`,actorPlayerId:actorId,subjectType:'project',subjectId:request.project_id,payload:{schema_version:'project.external_test.observed.v1',test_result_id:row.test_result_id,test_request_id:testRequestId,project_id:request.project_id,tester_player_id:actorId,outcome:row.outcome,truth_state:'OBSERVED'}});
+    const tester=await tx.selectFrom('players').select('display_name').where('player_id','=',actorId).executeTakeFirstOrThrow(); return testResultView(row,tester.display_name);
+  });
+}
+
+export async function getProjectExternalTests(db:Kysely<DatabaseSchema>,projectIdInput:string){
+  const projectId=uuid(projectIdInput,'project_id'); const project=await db.selectFrom('projects').select('project_id').where('project_id','=',projectId).executeTakeFirst(); if(!project) throw new Error('project_not_found');
+  const requests=await db.selectFrom('external_test_requests').selectAll().where('project_id','=',projectId).orderBy('created_at','asc').execute();
+  const results=await db.selectFrom('external_test_results as result').innerJoin('players as tester','tester.player_id','result.tester_player_id').select(['result.test_result_id','result.test_request_id','result.project_id','result.tester_player_id','result.outcome','result.summary','result.observed_at','tester.display_name']).where('result.project_id','=',projectId).orderBy('result.observed_at','asc').execute();
+  return {schema_version:'project.external_tests.public.v1' as const,project_id:projectId,requests:requests.map(testRequestView),results:results.map((r)=>testResultView(r,r.display_name))};
 }
