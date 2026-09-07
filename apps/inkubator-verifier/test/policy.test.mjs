@@ -17,6 +17,15 @@ test('DNS policy rejects any private or mixed answer set', async () => {
   assert.equal((await resolveSafeTarget('https://ship.example', pub)).addresses.length, 2);
 });
 
+test('DNS resolution obeys an explicit deadline', async () => {
+  const started = Date.now();
+  await assert.rejects(
+    resolveSafeTarget('https://ship.example', async () => new Promise(() => {}), 25),
+    /TIMEOUT/,
+  );
+  assert.ok(Date.now() - started < 1000);
+});
+
 test('redirect target is re-resolved and cannot cross to private address', async () => {
   let requests = 0;
   const result = await verifyPublicUrl('00000000-0000-4000-8000-000000000001', 'https://ship.example', {
