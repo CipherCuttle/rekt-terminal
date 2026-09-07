@@ -184,7 +184,7 @@ function ProjectScreen() {
           <InkTabs defaultValue="thread" items={[
             {value: 'thread', label: 'THREAD', content: <InkThread items={fixtureThread} />},
             {value: 'evidence', label: 'EVIDENCE', content: <div>{evidence.map((item) => <EvidenceRow key={item.label} {...item} />)}</div>},
-            {value: 'activity', label: 'ACTIVITY', content: <div>{fixtureEvents.map((event) => <InkEvent key={event.title} {...event} />}</div>},
+            {value: 'activity', label: 'ACTIVITY', content: <div>{fixtureEvents.map((event) => <InkEvent key={event.title} {...event} />)}</div>},
           ]} />
         </InkFrame>
         <div style={{display: 'grid', gap: 20}}>
