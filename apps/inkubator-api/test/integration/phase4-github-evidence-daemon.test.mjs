@@ -26,11 +26,11 @@ function sign(raw) {
   return `sha256=${createHmac('sha256', webhookSecret).update(raw).digest('hex')}`;
 }
 
-async function sendWebhook(app, eventName, payload) {
+async function sendWebhook(app, eventName, payload, deliveryId = randomUUID()) {
   const raw = Buffer.from(JSON.stringify(payload), 'utf8');
   return app.inject({method: 'POST', url: '/v1/github/webhook', headers: {
     'content-type': 'application/json',
-    'x-github-delivery': randomUUID(),
+    'x-github-delivery': deliveryId,
     'x-github-event': eventName,
     'x-hub-signature-256': sign(raw),
   }, payload: raw});
@@ -151,6 +151,26 @@ test('Phase 4 projects trusted push evidence into freshness-aware advisory Comma
     assert.equal(privateStale.json().schema_version, 'project.private.v2');
     assert.equal(privateStale.json().observation_state, 'STALE');
 
+    const delayedDeliveryId = randomUUID();
+    const delayedPush = await sendWebhook(app, 'push', {
+      ref: 'refs/heads/main', before: '9'.repeat(40), after: 'a'.repeat(40),
+      installation: {id: Number(installationId)},
+      repository: {id: Number(repositoryId), private: true, full_name: fullName},
+      commits: [],
+    }, delayedDeliveryId);
+    assert.equal(delayedPush.statusCode, 202);
+    const delayedReceiptTime = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    await db.updateTable('github_deliveries').set({received_at: delayedReceiptTime}).where('delivery_id', '=', delayedDeliveryId).execute();
+    observationCount = await drainOneProjectJob(db, projectId, observationCount);
+    assert.equal(observationCount, 2);
+    const delayedMaterialization = await db.selectFrom('history_events').select(['occurred_at', 'payload'])
+      .where('event_type', '=', 'project.github_repository_push.observed').where('subject_id', '=', projectId)
+      .where('dedupe_key', '=', `evidence:project.github_repository_push.observed:${projectId}:${delayedDeliveryId}`).executeTakeFirstOrThrow();
+    assert.equal(delayedMaterialization.occurred_at.getTime(), delayedReceiptTime.getTime());
+    const stillStale = await app.inject({method: 'GET', url: '/v1/me/command', headers: {cookie}});
+    assert.equal(stillStale.json().github_evidence.signal_state, 'STALE');
+    assert.equal(stillStale.json().project.observation_state, 'STALE');
+
     const freshPush = await sendWebhook(app, 'push', {
       ref: 'refs/heads/main', before: '2'.repeat(40), after: '3'.repeat(40),
       installation: {id: Number(installationId)},
@@ -159,11 +179,68 @@ test('Phase 4 projects trusted push evidence into freshness-aware advisory Comma
     });
     assert.equal(freshPush.statusCode, 202);
     observationCount = await drainOneProjectJob(db, projectId, observationCount);
-    assert.equal(observationCount, 2);
+    assert.equal(observationCount, 3);
     const expandedStack = await app.inject({method: 'GET', url: '/v1/me/command', headers: {cookie}});
     assert.deepEqual(expandedStack.json().github_evidence.observed_stacks, ['JAVASCRIPT_TYPESCRIPT', 'PYTHON']);
     assert.match(expandedStack.json().daemon.scope_damage_warning, /PYTHON/);
     assert.equal(expandedStack.json().gates.every((gate) => gate.state === 'UNKNOWN'), true);
+
+    const rustDeliveryId = randomUUID();
+    const goDeliveryId = randomUUID();
+    assert.equal((await sendWebhook(app, 'push', {
+      ref: 'refs/heads/main', before: '3'.repeat(40), after: '4'.repeat(40),
+      installation: {id: Number(installationId)}, repository: {id: Number(repositoryId), private: true, full_name: fullName},
+      commits: [{added: ['Cargo.toml'], modified: [], removed: []}],
+    }, rustDeliveryId)).statusCode, 202);
+    assert.equal((await sendWebhook(app, 'push', {
+      ref: 'refs/heads/main', before: '4'.repeat(40), after: '5'.repeat(40),
+      installation: {id: Number(installationId)}, repository: {id: Number(repositoryId), private: true, full_name: fullName},
+      commits: [{added: ['go.mod'], modified: [], removed: []}],
+    }, goDeliveryId)).statusCode, 202);
+
+    const blockerDb = createDatabase(databaseUrl);
+    let releaseProjectLock;
+    let projectLockReady;
+    const projectLockReadyPromise = new Promise((resolve) => { projectLockReady = resolve; });
+    const releaseProjectLockPromise = new Promise((resolve) => { releaseProjectLock = resolve; });
+    const heldProjectLock = blockerDb.transaction().execute(async (transaction) => {
+      await transaction.selectFrom('projects').select('project_id').where('project_id', '=', projectId).forUpdate().executeTakeFirstOrThrow();
+      projectLockReady();
+      await releaseProjectLockPromise;
+    });
+    await projectLockReadyPromise;
+    const concurrentWorkers = [runOneJob(db, {leaseMs: 1000, retryBaseMs: 1}), runOneJob(db, {leaseMs: 1000, retryBaseMs: 1})];
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const running = await db.selectFrom('outbox_jobs').select('job_id')
+        .where('idempotency_key', 'in', [`project.github_observation:${projectId}:${rustDeliveryId}`, `project.github_observation:${projectId}:${goDeliveryId}`])
+        .where('state', '=', 'running').execute();
+      if (running.length === 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      if (attempt === 99) throw new Error('phase4_concurrent_project_jobs_not_claimed');
+    }
+    releaseProjectLock();
+    await heldProjectLock;
+    const concurrentResults = await Promise.all(concurrentWorkers);
+    assert.equal(concurrentResults.every((result) => result.status === 'succeeded'), true);
+    await blockerDb.destroy();
+
+    const concurrentCommand = await app.inject({method: 'GET', url: '/v1/me/command', headers: {cookie}});
+    assert.deepEqual(concurrentCommand.json().github_evidence.observed_stacks, ['GO', 'JAVASCRIPT_TYPESCRIPT', 'PYTHON', 'RUST']);
+    const projectedStacks = await db.selectFrom('projects').select('observed_stack_labels').where('project_id', '=', projectId).executeTakeFirstOrThrow();
+    assert.deepEqual(projectedStacks.observed_stack_labels, ['GO', 'JAVASCRIPT_TYPESCRIPT', 'PYTHON', 'RUST']);
+    const concurrentStackEvents = await db.selectFrom('history_events').selectAll()
+      .where('event_type', '=', 'project.github_repository_stack.observed').where('subject_id', '=', projectId).execute();
+    assert.equal(concurrentStackEvents.length, 4);
+
+    await db.updateTable('outbox_jobs').set({state: 'running', attempts: Math.max(1, firstObservationJob.attempts), locked_at: new Date(0), lock_token: randomUUID(), completed_at: null})
+      .where('job_id', '=', firstObservationJob.job_id).execute();
+    const oldRetryAfterNewerEvidence = await runOneJob(db, {leaseMs: 1, retryBaseMs: 1});
+    assert.equal(oldRetryAfterNewerEvidence.status, 'succeeded');
+    const stackEventsAfterLateRetry = await db.selectFrom('history_events').selectAll()
+      .where('event_type', '=', 'project.github_repository_stack.observed').where('subject_id', '=', projectId).execute();
+    assert.equal(stackEventsAfterLateRetry.length, 4);
+    const projectionAfterLateRetry = await db.selectFrom('projects').select('observed_stack_labels').where('project_id', '=', projectId).executeTakeFirstOrThrow();
+    assert.deepEqual(projectionAfterLateRetry.observed_stack_labels, ['GO', 'JAVASCRIPT_TYPESCRIPT', 'PYTHON', 'RUST']);
 
     const suspend = await sendWebhook(app, 'installation', {action: 'suspend', installation: {id: Number(installationId)}});
     assert.equal(suspend.statusCode, 200);

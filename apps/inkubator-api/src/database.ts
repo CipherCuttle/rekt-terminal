@@ -53,6 +53,7 @@ export interface ProjectTable {
   owner_player_id: string;
   name: string;
   repository_id: string | null;
+  observed_stack_labels: Generated<unknown>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

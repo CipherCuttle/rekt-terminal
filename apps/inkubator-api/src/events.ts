@@ -13,6 +13,7 @@ export interface AppendHistoryEventInput {
   actorPlayerId?: string | null;
   subjectType: string;
   subjectId: string;
+  occurredAt?: Date;
 }
 
 export async function appendHistoryEvent(
@@ -35,6 +36,7 @@ export async function appendHistoryEvent(
       actor_player_id: actorPlayerId,
       subject_type: input.subjectType,
       subject_id: input.subjectId,
+      ...(input.occurredAt ? {occurred_at: input.occurredAt} : {}),
     })
     .onConflict((conflict) => conflict.column('dedupe_key').doNothing())
     .returningAll()

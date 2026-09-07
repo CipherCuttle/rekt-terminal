@@ -90,6 +90,11 @@ export interface CommandSnapshot {
   observedStacks: DetectedStack[];
 }
 
+function stacksFromProjectProjection(value: unknown): DetectedStack[] {
+  if (!Array.isArray(value) || value.some((stack) => !isDetectedStack(stack))) return [];
+  return [...new Set(value as DetectedStack[])].sort();
+}
+
 function stacksFromProjectEvidence(payload: unknown, key: 'previous_observed_stacks' | 'current_observed_stacks'): DetectedStack[] {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return [];
   const stacks = (payload as Record<string, unknown>)[key];
@@ -275,7 +280,7 @@ async function commandByMissionId(db: Kysely<DatabaseSchema>, missionId: string)
     .orderBy('occurred_at', 'desc')
     .orderBy('history_event_id', 'desc')
     .executeTakeFirst();
-  const observedStacks = stackObservation ? stacksFromProjectEvidence(stackObservation.payload, 'current_observed_stacks') : [];
+  const observedStacks = stacksFromProjectProjection(project.observed_stack_labels);
   const previousObservedStacks = stackObservation ? stacksFromProjectEvidence(stackObservation.payload, 'previous_observed_stacks') : [];
   const githubEvidence = classifyGitHubPushEvidence({
     ...(observation ? {observationId: observation.history_event_id, observedAt: observation.occurred_at} : {}),

@@ -239,6 +239,23 @@ function projectObservationPayload(payload: unknown) {
   return {projectId, deliveryId, repositoryId, ref, before, after, repositoryPrivate, observedStacks};
 }
 
+function sameStackReceiptMatches(payload: unknown, deliveryId: string, observedStacks: readonly DetectedStack[]): boolean {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false;
+  const value = payload as Record<string, unknown>;
+  if (value.schema_version !== 'project.github_repository_stack.observed.v1' || value.delivery_id !== deliveryId || value.truth_state !== 'OBSERVED') return false;
+  const stacks = value.observed_stacks;
+  if (!Array.isArray(stacks) || stacks.some((stack) => !isDetectedStack(stack))) return false;
+  const normalized = [...new Set(stacks as DetectedStack[])].sort();
+  return normalized.length === observedStacks.length && normalized.every((stack, index) => stack === observedStacks[index]);
+}
+
+function stackListFromProjection(value: unknown): DetectedStack[] {
+  if (!Array.isArray(value) || value.length > 9 || value.some((stack) => !isDetectedStack(stack))) {
+    throw new Error('project_github_stack_projection_invalid');
+  }
+  return [...new Set(value as DetectedStack[])].sort();
+}
+
 function stackListFromEvidencePayload(payload: unknown): DetectedStack[] {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('project_github_stack_history_invalid');
   const value = payload as Record<string, unknown>;
@@ -271,47 +288,73 @@ async function handleSessionExpiry(db: Kysely<DatabaseSchema>, job: OutboxJobRow
 
 async function handleProjectGitHubObservation(db: Kysely<DatabaseSchema>, job: OutboxJobRow): Promise<void> {
   const payload = projectObservationPayload(job.payload);
-  await appendHistoryEvent(db, {
-    eventFamily: 'evidence',
-    eventType: 'project.github_repository_push.observed',
-    dedupeKey: `evidence:project.github_repository_push.observed:${payload.projectId}:${payload.deliveryId}`,
-    actorPlayerId: null,
-    subjectType: 'project',
-    subjectId: payload.projectId,
-    payload: {
-      schema_version: 'project.github_repository_push.observed.v1',
-      provider: 'github',
-      delivery_id: payload.deliveryId,
-      repository_id: payload.repositoryId,
-      ref: payload.ref,
-      before: payload.before,
-      after: payload.after,
-      repository_private: payload.repositoryPrivate,
-      truth_state: 'OBSERVED',
-    },
-  });
+  await db.transaction().execute(async (transaction) => {
+    const project = await transaction
+      .selectFrom('projects')
+      .select(['project_id', 'repository_id', 'observed_stack_labels'])
+      .where('project_id', '=', payload.projectId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!project || project.repository_id !== payload.repositoryId) throw new Error('project_github_observation_project_binding_invalid');
 
-  if (payload.observedStacks.length > 0) {
+    const delivery = await transaction
+      .selectFrom('github_deliveries')
+      .select(['event_name', 'repository_id', 'received_at'])
+      .where('delivery_id', '=', payload.deliveryId)
+      .executeTakeFirst();
+    if (!delivery || delivery.event_name !== 'push' || delivery.repository_id !== payload.repositoryId || !(delivery.received_at instanceof Date)) {
+      throw new Error('project_github_observation_delivery_receipt_invalid');
+    }
+
+    await appendHistoryEvent(transaction, {
+      eventFamily: 'evidence',
+      eventType: 'project.github_repository_push.observed',
+      dedupeKey: `evidence:project.github_repository_push.observed:${payload.projectId}:${payload.deliveryId}`,
+      actorPlayerId: null,
+      subjectType: 'project',
+      subjectId: payload.projectId,
+      occurredAt: delivery.received_at,
+      payload: {
+        schema_version: 'project.github_repository_push.observed.v1',
+        provider: 'github',
+        delivery_id: payload.deliveryId,
+        repository_id: payload.repositoryId,
+        ref: payload.ref,
+        before: payload.before,
+        after: payload.after,
+        repository_private: payload.repositoryPrivate,
+        truth_state: 'OBSERVED',
+      },
+    });
+
+    if (payload.observedStacks.length === 0) return;
+
+    const previousObservedStacks = stackListFromProjection(project.observed_stack_labels);
+    const currentObservedStacks = [...new Set([...previousObservedStacks, ...payload.observedStacks])].sort();
     const stackDedupeKey = `evidence:project.github_repository_stack.observed:${payload.projectId}:${payload.deliveryId}`;
-    const previousEvent = await db
+    const existingStackReceipt = await transaction
       .selectFrom('history_events')
       .select('payload')
-      .where('event_type', '=', 'project.github_repository_stack.observed')
-      .where('subject_type', '=', 'project')
-      .where('subject_id', '=', payload.projectId)
-      .where('dedupe_key', '!=', stackDedupeKey)
-      .orderBy('occurred_at', 'desc')
-      .orderBy('history_event_id', 'desc')
+      .where('dedupe_key', '=', stackDedupeKey)
       .executeTakeFirst();
-    const previousObservedStacks = previousEvent ? stackListFromEvidencePayload(previousEvent.payload) : [];
-    const currentObservedStacks = [...new Set([...previousObservedStacks, ...payload.observedStacks])].sort();
-    await appendHistoryEvent(db, {
+    if (existingStackReceipt) {
+      if (!sameStackReceiptMatches(existingStackReceipt.payload, payload.deliveryId, payload.observedStacks)) {
+        throw new Error('project_github_stack_history_invalid');
+      }
+      if (currentObservedStacks.length !== previousObservedStacks.length) {
+        await transaction.updateTable('projects').set({observed_stack_labels: currentObservedStacks}).where('project_id', '=', payload.projectId).execute();
+      }
+      return;
+    }
+
+    await appendHistoryEvent(transaction, {
       eventFamily: 'evidence',
       eventType: 'project.github_repository_stack.observed',
       dedupeKey: stackDedupeKey,
       actorPlayerId: null,
       subjectType: 'project',
       subjectId: payload.projectId,
+      occurredAt: delivery.received_at,
       payload: {
         schema_version: 'project.github_repository_stack.observed.v1',
         provider: 'github',
@@ -322,7 +365,8 @@ async function handleProjectGitHubObservation(db: Kysely<DatabaseSchema>, job: O
         truth_state: 'OBSERVED',
       },
     });
-  }
+    await transaction.updateTable('projects').set({observed_stack_labels: currentObservedStacks}).where('project_id', '=', payload.projectId).execute();
+  });
 }
 
 async function handleJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date): Promise<void> {
