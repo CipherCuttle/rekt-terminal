@@ -227,17 +227,6 @@ export interface ContentReportView {
   state: "OPEN";
 }
 
-export interface OperatorCommentRemoveRequest {
-  request_id: RequestId;
-  reason: string;
-}
-
-export interface OperatorCommentRemoveView {
-  schema_version: "ops.project_comment.remove.v1";
-  comment_id: string;
-  state: "REMOVED";
-}
-
 export interface ExternalTestRequestCreateRequest {
   request_id: RequestId;
   prompt: string;

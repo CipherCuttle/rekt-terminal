@@ -243,12 +243,6 @@ export interface ContentReportTable {
   created_at: Generated<Date>;
 }
 
-export interface ModerationOperatorTable {
-  player_id: string;
-  scope: 'GLOBAL_MODERATION';
-  granted_at: Generated<Date>;
-}
-
 export type ExternalTestRequestState = 'OPEN' | 'COMPLETED' | 'CLOSED';
 export interface ExternalTestRequestTable {
   test_request_id: string;
@@ -353,7 +347,6 @@ export interface DatabaseSchema {
   project_discussion_settings: ProjectDiscussionSettingTable;
   player_blocks: PlayerBlockTable;
   content_reports: ContentReportTable;
-  moderation_operators: ModerationOperatorTable;
   external_test_requests: ExternalTestRequestTable;
   external_test_results: ExternalTestResultTable;
   github_setup_states: GitHubSetupStateTable;

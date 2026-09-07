@@ -452,14 +452,13 @@ export async function reportProjectComment(db: Kysely<DatabaseSchema>,actorIdInp
   });
 }
 
-export async function removeProjectCommentAsOperator(db: Kysely<DatabaseSchema>,actorIdInput:string,commentIdInput:string,input:{requestId:string;reason:string}){
-  const actorId=uuid(actorIdInput,'player_id'),commentId=uuid(commentIdInput,'comment_id'),requestId=uuid(input.requestId,'request_id'),reason=text(input.reason,'moderation_reason',240);
+export async function operatorRemoveProjectComment(db: Kysely<DatabaseSchema>,commentIdInput:string,input:{requestId:string;reason:string}){
+  const commentId=uuid(commentIdInput,'comment_id'),requestId=uuid(input.requestId,'request_id'),reason=text(input.reason,'moderation_reason',240);
   return db.transaction().execute(async(tx)=>{
-    const operator=await tx.selectFrom('moderation_operators').select('scope').where('player_id','=',actorId).executeTakeFirst(); if(operator?.scope!=='GLOBAL_MODERATION') throw new Error('moderation_operator_required');
     const comment=await tx.selectFrom('project_comments').selectAll().where('comment_id','=',commentId).forUpdate().executeTakeFirst(); if(!comment) throw new Error('comment_not_found');
     if(comment.state!=='REMOVED'){
       await tx.updateTable('project_comments').set({state:'REMOVED',deleted_at:sql`clock_timestamp()`,updated_at:sql`clock_timestamp()`}).where('comment_id','=',commentId).execute();
-      await appendHistoryEvent(tx,{eventFamily:'activity',eventType:'ops.project_comment.removed',dedupeKey:`activity:ops.project_comment.removed:${commentId}`,actorPlayerId:actorId,subjectType:'project',subjectId:comment.project_id,payload:{schema_version:'ops.project_comment.removed.v1',comment_id:commentId,project_id:comment.project_id,reason,truth_state:'OBSERVED'}});
+      await appendHistoryEvent(tx,{eventFamily:'activity',eventType:'ops.project_comment.removed',dedupeKey:`activity:ops.project_comment.removed:${commentId}`,actorPlayerId:null,subjectType:'project',subjectId:comment.project_id,payload:{schema_version:'ops.project_comment.removed.v1',comment_id:commentId,project_id:comment.project_id,reason,request_id:requestId,truth_state:'OBSERVED'}});
     }
     return {schema_version:'ops.project_comment.remove.v1' as const,comment_id:commentId,state:'REMOVED' as const};
   });

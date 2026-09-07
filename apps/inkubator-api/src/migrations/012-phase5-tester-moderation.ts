@@ -24,12 +24,6 @@ export const phase5TesterModerationMigration: Migration = {
       .addCheckConstraint('content_reports_state',sql`state = 'OPEN'`).execute();
     await db.schema.createIndex('content_reports_comment_idx').on('content_reports').column('comment_id').execute();
 
-    await db.schema.createTable('moderation_operators')
-      .addColumn('player_id','uuid',(c)=>c.primaryKey().references('players.player_id').onDelete('cascade'))
-      .addColumn('scope','text',(c)=>c.notNull())
-      .addColumn('granted_at','timestamptz',(c)=>c.notNull().defaultTo(sql`clock_timestamp()`))
-      .addCheckConstraint('moderation_operators_scope',sql`scope = 'GLOBAL_MODERATION'`).execute();
-
     await db.schema.createTable('external_test_requests')
       .addColumn('test_request_id','uuid',(c)=>c.primaryKey())
       .addColumn('project_id','uuid',(c)=>c.notNull().references('projects.project_id').onDelete('cascade'))
@@ -59,7 +53,6 @@ export const phase5TesterModerationMigration: Migration = {
     await db.schema.dropTable('external_test_results').execute();
     await sql`drop index if exists external_test_requests_one_open_per_project`.execute(db);
     await db.schema.dropTable('external_test_requests').execute();
-    await db.schema.dropTable('moderation_operators').execute();
     await db.schema.dropTable('content_reports').execute();
     await db.schema.dropTable('player_blocks').execute();
   },
