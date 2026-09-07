@@ -555,6 +555,7 @@ async function handleShipVerification(db:Kysely<DatabaseSchema>,job:OutboxJobRow
   const existing=await db.selectFrom('ship_verifier_observations').select('observation_id').where('submission_id','=',input.submissionId).executeTakeFirst();if(existing)return;
   if(!client)throw new Error('ship_verifier_unavailable');
   const result=verifierResult(await client.verify({submissionId:input.submissionId,url:input.artifactUrl}),input.submissionId);
+  if(result.outcome==='UNAVAILABLE'&&job.attempts<job.max_attempts)throw new Error(`ship_verifier_transient_unavailable:${result.reasonCode}`);
   await db.transaction().execute(async tx=>{
     const submission=await tx.selectFrom('ship_submissions').selectAll().where('submission_id','=',input.submissionId).forUpdate().executeTakeFirst();
     if(!submission||submission.artifact_url!==input.artifactUrl)throw new Error('ship_verification_submission_invalid');
@@ -562,8 +563,12 @@ async function handleShipVerification(db:Kysely<DatabaseSchema>,job:OutboxJobRow
     const now=await readDatabaseNow(tx);
     await tx.insertInto('ship_verifier_observations').values({observation_id:randomUUID(),submission_id:input.submissionId,outcome:result.outcome,reason_code:result.reasonCode,final_url:result.finalUrl,http_status:result.httpStatus,duration_ms:result.durationMs,redirects:result.redirects,observed_at:now}).execute();
     await tx.updateTable('ship_submissions').set({state:result.outcome==='PASS'?'OBSERVED':'ATTENTION',updated_at:now}).where('submission_id','=',input.submissionId).execute();
+    if(result.outcome==='UNAVAILABLE'){
+      const released=await tx.updateTable('missions').set({state:'SHIP_READY',updated_at:now}).where('mission_id','=',submission.mission_id).where('state','=','SUBMITTED').executeTakeFirst();
+      if(Number(released.numUpdatedRows)!==1)throw new Error('ship_verification_retry_release_invariant');
+    }
     await appendHistoryEvent(tx,{eventFamily:'evidence',eventType:'project.ship_verifier.observed',dedupeKey:`evidence:project.ship_verifier.observed:${input.submissionId}`,actorPlayerId:null,subjectType:'project',subjectId:submission.project_id,occurredAt:now,
-      payload:{schema_version:'project.ship_verifier.observed.v1',submission_id:input.submissionId,outcome:result.outcome,reason_code:result.reasonCode,...(result.finalUrl?{final_url:result.finalUrl}:{}),...(result.httpStatus!==null?{http_status:result.httpStatus}:{}),duration_ms:result.durationMs,redirects:result.redirects,truth_state:result.outcome==='UNAVAILABLE'?'UNKNOWN':'OBSERVED'}});
+      payload:{schema_version:'project.ship_verifier.observed.v1',submission_id:input.submissionId,outcome:result.outcome,reason_code:result.reasonCode,...(result.httpStatus!==null?{http_status:result.httpStatus}:{}),duration_ms:result.durationMs,redirects:result.redirects,truth_state:result.outcome==='UNAVAILABLE'?'UNKNOWN':'OBSERVED'}});
   });
 }
 
