@@ -59,6 +59,18 @@ export async function snapshotShipAttribution(
   receipt: ShipReceiptSnapshotInput,
 ): Promise<void> {
   const db = artifactDb(dbInput);
+
+  // acceptAssist serializes on this same project row. Taking the project lock before
+  // reading Party/Assist state gives the immutable receipt a single Ship-time boundary:
+  // an Assist either commits before this lock is acquired and is included everywhere,
+  // or waits until the Ship transaction commits and is a later contribution.
+  const lockedProject = await db.selectFrom('projects')
+    .select('project_id')
+    .where('project_id', '=', receipt.project_id)
+    .forUpdate()
+    .executeTakeFirst();
+  if (!lockedProject) throw new Error('ship_attribution_invariant_violation');
+
   const existing = await db.selectFrom('ship_receipt_attributions')
     .select('player_id')
     .where('receipt_id', '=', receipt.receipt_id)
