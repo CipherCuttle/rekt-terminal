@@ -1,4 +1,5 @@
-import {sql, type Migration} from 'kysely';
+import {sql} from 'kysely';
+import type {Migration} from 'kysely/migration';
 
 export const FOUNDING_ROUND_ID = '00000000-0000-4000-8000-000000000001';
 
