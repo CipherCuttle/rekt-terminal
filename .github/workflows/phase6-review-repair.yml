@@ -1,0 +1,522 @@
+name: Phase 6 Final Review Repair
+
+on:
+  push:
+    branches: [feature/inkubator-ship-verifier-receipt-v0]
+    paths:
+      - '.github/workflows/phase6-review-repair.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_USER: rekt
+          POSTGRES_PASSWORD: rekt_test
+          POSTGRES_DB: rekt_inkubator
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U rekt -d rekt_inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://rekt:rekt_test@127.0.0.1:5432/rekt_inkubator
+      INKUBATOR_APP_ORIGIN: http://127.0.0.1:4175
+      INKUBATOR_DEV_AUTH: '1'
+      NODE_ENV: test
+
+    steps:
+      - name: Check out exact Phase 6 branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/inkubator-ship-verifier-receipt-v0
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Apply bounded Codex review repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, got {count}: {old[:100]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          # P1: final redirect targets may contain verifier-only credentials. Public projections
+          # must never expose them, and history does not need to persist them either.
+          replace_once(
+              'apps/inkubator-api/src/ship.ts',
+              """function observationView(row: Selectable<ShipVerifierObservationTable>) {
+            return {schema_version:'ship.verifier_observation.public.v1' as const, outcome:row.outcome, reason_code:row.reason_code,
+              ...(row.final_url?{final_url:row.final_url}:{}), ...(row.http_status!==null?{http_status:row.http_status}:{}), duration_ms:row.duration_ms, redirects:row.redirects, observed_at:row.observed_at.toISOString()};
+          }
+          """,
+              """function observationView(row: Selectable<ShipVerifierObservationTable>) {
+            return {schema_version:'ship.verifier_observation.public.v1' as const, outcome:row.outcome, reason_code:row.reason_code,
+              ...(row.http_status!==null?{http_status:row.http_status}:{}), duration_ms:row.duration_ms, redirects:row.redirects, observed_at:row.observed_at.toISOString()};
+          }
+          """,
+          )
+
+          # P1: an exhausted UNAVAILABLE check becomes retryable by the owner without pretending
+          # it was negative evidence. Only ATTENTION backed by UNAVAILABLE may be superseded.
+          replace_once(
+              'apps/inkubator-api/src/ship.ts',
+              """    const active=await tx.selectFrom('ship_submissions').select('submission_id').where('mission_id','=',missionId).where('state','in',['SUBMITTED','OBSERVED','ATTENTION']).executeTakeFirst();
+              if(active)throw new Error('ship_submission_active');
+          """,
+              """    const active=await tx.selectFrom('ship_submissions').select(['submission_id','state']).where('mission_id','=',missionId).where('state','in',['SUBMITTED','OBSERVED','ATTENTION']).executeTakeFirst();
+              if(active){
+                const activeObservation=await tx.selectFrom('ship_verifier_observations').select('outcome').where('submission_id','=',active.submission_id).executeTakeFirst();
+                if(active.state!=='ATTENTION'||activeObservation?.outcome!=='UNAVAILABLE')throw new Error('ship_submission_active');
+              }
+          """,
+          )
+
+          jobs = Path('apps/inkubator-api/src/jobs.ts')
+          text = jobs.read_text()
+          old = "  const result=verifierResult(await client.verify({submissionId:input.submissionId,url:input.artifactUrl}),input.submissionId);\n  await db.transaction().execute(async tx=>{"
+          new = "  const result=verifierResult(await client.verify({submissionId:input.submissionId,url:input.artifactUrl}),input.submissionId);\n  if(result.outcome==='UNAVAILABLE'&&job.attempts<job.max_attempts)throw new Error(`ship_verifier_transient_unavailable:${result.reasonCode}`);\n  await db.transaction().execute(async tx=>{"
+          if text.count(old) != 1: raise SystemExit('jobs.ts: verifier retry anchor mismatch')
+          text = text.replace(old, new, 1)
+          old = "    await tx.updateTable('ship_submissions').set({state:result.outcome==='PASS'?'OBSERVED':'ATTENTION',updated_at:now}).where('submission_id','=',input.submissionId).execute();\n    await appendHistoryEvent(tx,{eventFamily:'evidence',eventType:'project.ship_verifier.observed'"
+          new = "    await tx.updateTable('ship_submissions').set({state:result.outcome==='PASS'?'OBSERVED':'ATTENTION',updated_at:now}).where('submission_id','=',input.submissionId).execute();\n    if(result.outcome==='UNAVAILABLE'){\n      const released=await tx.updateTable('missions').set({state:'SHIP_READY',updated_at:now}).where('mission_id','=',submission.mission_id).where('state','=','SUBMITTED').executeTakeFirst();\n      if(Number(released.numUpdatedRows)!==1)throw new Error('ship_verification_retry_release_invariant');\n    }\n    await appendHistoryEvent(tx,{eventFamily:'evidence',eventType:'project.ship_verifier.observed'"
+          if text.count(old) != 1: raise SystemExit('jobs.ts: unavailable release anchor mismatch')
+          text = text.replace(old, new, 1)
+          old = "payload:{schema_version:'project.ship_verifier.observed.v1',submission_id:input.submissionId,outcome:result.outcome,reason_code:result.reasonCode,...(result.finalUrl?{final_url:result.finalUrl}:{}),...(result.httpStatus!==null?{http_status:result.httpStatus}:{}),duration_ms:result.durationMs,redirects:result.redirects,truth_state:result.outcome==='UNAVAILABLE'?'UNKNOWN':'OBSERVED'}});"
+          new = "payload:{schema_version:'project.ship_verifier.observed.v1',submission_id:input.submissionId,outcome:result.outcome,reason_code:result.reasonCode,...(result.httpStatus!==null?{http_status:result.httpStatus}:{}),duration_ms:result.durationMs,redirects:result.redirects,truth_state:result.outcome==='UNAVAILABLE'?'UNKNOWN':'OBSERVED'}});"
+          if text.count(old) != 1: raise SystemExit('jobs.ts: history final_url anchor mismatch')
+          jobs.write_text(text.replace(old, new, 1))
+
+          # P2: apply the total verifier deadline to DNS resolution as well as HTTPS hops.
+          policy = Path('apps/inkubator-verifier/src/policy.ts')
+          text = policy.read_text()
+          anchor = "export async function resolveSafeTarget(raw: string | URL, resolver: Resolver = systemResolver): Promise<SafeTarget> {\n"
+          helper = """async function resolveWithTimeout(hostname: string, resolver: Resolver, timeoutMs: number | undefined): Promise<ResolvedAddress[]> {
+            if (timeoutMs === undefined) return resolver(hostname);
+            if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error('TIMEOUT');
+            let timer: NodeJS.Timeout | undefined;
+            try {
+              return await Promise.race([
+                resolver(hostname),
+                new Promise<never>((_resolve, reject) => {
+                  timer = setTimeout(() => reject(new Error('TIMEOUT')), Math.max(1, Math.ceil(timeoutMs)));
+                  timer.unref?.();
+                }),
+              ]);
+            } finally {
+              if (timer) clearTimeout(timer);
+            }
+          }
+
+          export async function resolveSafeTarget(raw: string | URL, resolver: Resolver = systemResolver, timeoutMs?: number): Promise<SafeTarget> {
+          """
+          if text.count(anchor) != 1: raise SystemExit('policy.ts: resolveSafeTarget anchor mismatch')
+          text = text.replace(anchor, helper, 1)
+          old = "  try { addresses = await resolver(url.hostname); } catch { throw new Error('DNS_FAILURE'); }"
+          new = "  try { addresses = await resolveWithTimeout(url.hostname, resolver, timeoutMs); } catch (error) { if (error instanceof Error && error.message === 'TIMEOUT') throw error; throw new Error('DNS_FAILURE'); }"
+          if text.count(old) != 1: raise SystemExit('policy.ts: resolver await anchor mismatch')
+          text = text.replace(old, new, 1)
+          old = "  try { current = await resolveSafeTarget(rawUrl, resolver); }\n  catch (error) {\n    const code = error instanceof Error ? error.message : 'URL_INVALID';\n    if (code === 'DNS_FAILURE') return failure(submissionId, start, 0, 'UNAVAILABLE', 'DNS_FAILURE');"
+          new = "  try { current = await resolveSafeTarget(rawUrl, resolver, TOTAL_TIMEOUT_MS); }\n  catch (error) {\n    const code = error instanceof Error ? error.message : 'URL_INVALID';\n    if (code === 'TIMEOUT') return failure(submissionId, start, 0, 'UNAVAILABLE', 'TIMEOUT');\n    if (code === 'DNS_FAILURE') return failure(submissionId, start, 0, 'UNAVAILABLE', 'DNS_FAILURE');"
+          if text.count(old) != 1: raise SystemExit('policy.ts: initial resolve anchor mismatch')
+          text = text.replace(old, new, 1)
+          old = "      try { current = await resolveSafeTarget(next, resolver); }\n      catch (error) {\n        const code = error instanceof Error ? error.message : 'URL_INVALID';\n        if (code === 'DNS_FAILURE') return failure(submissionId, start, redirects + 1, 'UNAVAILABLE', 'DNS_FAILURE');"
+          new = "      const remainingForDns = TOTAL_TIMEOUT_MS - (performance.now() - start);\n      if (remainingForDns <= 0) return failure(submissionId, start, redirects + 1, 'UNAVAILABLE', 'TIMEOUT');\n      try { current = await resolveSafeTarget(next, resolver, remainingForDns); }\n      catch (error) {\n        const code = error instanceof Error ? error.message : 'URL_INVALID';\n        if (code === 'TIMEOUT') return failure(submissionId, start, redirects + 1, 'UNAVAILABLE', 'TIMEOUT');\n        if (code === 'DNS_FAILURE') return failure(submissionId, start, redirects + 1, 'UNAVAILABLE', 'DNS_FAILURE');"
+          if text.count(old) != 1: raise SystemExit('policy.ts: redirect resolve anchor mismatch')
+          policy.write_text(text.replace(old, new, 1))
+
+          # Public contract must match the runtime privacy projection.
+          replace_once(
+              'apps/inkubator-api/src/contract-phase6c.ts',
+              "const schemas = componentSchemas as unknown as Record<string, any>;\n",
+              "const schemas = componentSchemas as unknown as Record<string, any>;\nif (!schemas.ShipVerifierObservationView?.properties) throw new Error('phase6c_ship_verifier_schema_missing');\ndelete schemas.ShipVerifierObservationView.properties.final_url;\n",
+          )
+
+          # P2: one Party member may contribute multiple accepted Assists. Keep builders deduped,
+          # but snapshot every accepted Assist in a normalized immutable receipt-child table.
+          migration = Path('apps/inkubator-api/src/migrations/016-phase6-review-repair.ts')
+          migration.write_text("""import {sql, type Kysely} from 'kysely';
+          import type {DatabaseSchema} from '../database.js';
+
+          export const phase6ReviewRepairMigration = {
+            async up(db: Kysely<DatabaseSchema>) {
+              await db.schema.createTable('ship_receipt_assists')
+                .addColumn('receipt_id', 'uuid', (c) => c.notNull().references('ship_receipts.receipt_id').onDelete('cascade'))
+                .addColumn('assist_id', 'uuid', (c) => c.notNull())
+                .addColumn('player_id', 'uuid', (c) => c.notNull())
+                .addColumn('display_name', 'text', (c) => c.notNull())
+                .addColumn('accepted_at', 'timestamptz', (c) => c.notNull())
+                .addColumn('snapshotted_at', 'timestamptz', (c) => c.notNull().defaultTo(sql`clock_timestamp()`))
+                .addPrimaryKeyConstraint('ship_receipt_assists_pk', ['receipt_id', 'assist_id'])
+                .addCheckConstraint('ship_receipt_assists_display_name', sql`char_length(display_name) between 1 and 80`)
+                .execute();
+            },
+            async down(db: Kysely<DatabaseSchema>) {
+              await db.schema.dropTable('ship_receipt_assists').execute();
+            },
+          };
+          """)
+
+          replace_once(
+              'apps/inkubator-api/src/migrations.ts',
+              "import {phase6ShipArtifactAttributionMigration} from './migrations/015-phase6-ship-artifact-attribution.js';\n",
+              "import {phase6ShipArtifactAttributionMigration} from './migrations/015-phase6-ship-artifact-attribution.js';\nimport {phase6ReviewRepairMigration} from './migrations/016-phase6-review-repair.js';\n",
+          )
+          replace_once(
+              'apps/inkubator-api/src/migrations.ts',
+              "      '015_phase6_ship_artifact_attribution': phase6ShipArtifactAttributionMigration,\n",
+              "      '015_phase6_ship_artifact_attribution': phase6ShipArtifactAttributionMigration,\n      '016_phase6_review_repair': phase6ReviewRepairMigration,\n",
+          )
+
+          artifact = Path('apps/inkubator-api/src/ship-artifact.ts')
+          text = artifact.read_text()
+          anchor = """interface ShipReceiptAttributionTable {
+            receipt_id: string;
+            player_id: string;
+            display_name: string;
+            role: 'OWNER' | 'PARTY';
+            assist_id: string | null;
+            accepted_at: Date | null;
+            snapshotted_at: Generated<Date>;
+          }
+
+          type ArtifactDatabaseSchema = DatabaseSchema & {
+          """
+          replacement = """interface ShipReceiptAttributionTable {
+            receipt_id: string;
+            player_id: string;
+            display_name: string;
+            role: 'OWNER' | 'PARTY';
+            assist_id: string | null;
+            accepted_at: Date | null;
+            snapshotted_at: Generated<Date>;
+          }
+
+          interface ShipReceiptAssistTable {
+            receipt_id: string;
+            assist_id: string;
+            player_id: string;
+            display_name: string;
+            accepted_at: Date;
+            snapshotted_at: Generated<Date>;
+          }
+
+          type ArtifactDatabaseSchema = DatabaseSchema & {
+          """
+          if text.count(anchor) != 1: raise SystemExit('ship-artifact.ts: type anchor mismatch')
+          text = text.replace(anchor, replacement, 1)
+          old = """  ship_receipts: ShipReceiptTable;
+            ship_receipt_attributions: ShipReceiptAttributionTable;
+          };
+          """
+          new = """  ship_receipts: ShipReceiptTable;
+            ship_receipt_attributions: ShipReceiptAttributionTable;
+            ship_receipt_assists: ShipReceiptAssistTable;
+          };
+          """
+          if text.count(old) != 1: raise SystemExit('ship-artifact.ts: schema anchor mismatch')
+          text = text.replace(old, new, 1)
+          anchor = "\n  }\n}\n\nexport async function getAcceptedShipArtifactForSubmission("
+          insert = """
+            }
+
+            const acceptedAssists = await db.selectFrom('assist_offers')
+              .innerJoin('players', 'players.player_id', 'assist_offers.offered_by_player_id')
+              .select(['assist_offers.assist_id', 'assist_offers.offered_by_player_id', 'assist_offers.accepted_at', 'players.display_name'])
+              .where('assist_offers.project_id', '=', receipt.project_id)
+              .where('assist_offers.state', '=', 'ACCEPTED')
+              .where('assist_offers.accepted_at', 'is not', null)
+              .orderBy('assist_offers.accepted_at', 'asc')
+              .orderBy('assist_offers.assist_id', 'asc')
+              .execute();
+            for (const assist of acceptedAssists) {
+              if (!(assist.accepted_at instanceof Date)) throw new Error('ship_attribution_invariant_violation');
+              await db.insertInto('ship_receipt_assists').values({
+                receipt_id: receipt.receipt_id,
+                assist_id: assist.assist_id,
+                player_id: assist.offered_by_player_id,
+                display_name: assist.display_name,
+                accepted_at: assist.accepted_at,
+              }).execute();
+            }
+          }
+
+          export async function getAcceptedShipArtifactForSubmission("""
+          if text.count(anchor) != 1: raise SystemExit('ship-artifact.ts: snapshot close anchor mismatch')
+          text = text.replace(anchor, '\n' + insert, 1)
+          old = """  const builders = attributions.map((row) => ({
+            player_id: row.player_id,
+            display_name: row.display_name,
+            role: row.role,
+          }));
+            const assists = attributions
+              .filter((row) => row.role === 'PARTY' && row.assist_id !== null && row.accepted_at instanceof Date)
+              .map((row) => ({
+                assist_id: row.assist_id!,
+                player_id: row.player_id,
+                display_name: row.display_name,
+                accepted_at: row.accepted_at!.toISOString(),
+                source_state: 'ACCEPTED' as const,
+              }));
+          """
+          new = """  const assistAttributions = await db.selectFrom('ship_receipt_assists')
+            .selectAll()
+            .where('receipt_id', '=', receipt.receipt_id)
+            .orderBy('accepted_at', 'asc')
+            .orderBy('assist_id', 'asc')
+            .execute();
+
+            const builders = attributions.map((row) => ({
+              player_id: row.player_id,
+              display_name: row.display_name,
+              role: row.role,
+            }));
+            const assists = assistAttributions.map((row) => ({
+              assist_id: row.assist_id,
+              player_id: row.player_id,
+              display_name: row.display_name,
+              accepted_at: row.accepted_at.toISOString(),
+              source_state: 'ACCEPTED' as const,
+            }));
+          """
+          if text.count(old) != 1: raise SystemExit('ship-artifact.ts: public assists anchor mismatch')
+          artifact.write_text(text.replace(old, new, 1))
+
+          # Extend verifier policy tests with a fast hanging-DNS deadline regression.
+          verifier_test = Path('apps/inkubator-verifier/test/policy.test.mjs')
+          text = verifier_test.read_text()
+          anchor = "test('redirect target is re-resolved and cannot cross to private address', async () => {"
+          addition = """test('DNS resolution obeys an explicit deadline', async () => {
+            const started = Date.now();
+            await assert.rejects(
+              resolveSafeTarget('https://ship.example', async () => new Promise(() => {}), 25),
+              /TIMEOUT/,
+            );
+            assert.ok(Date.now() - started < 1000);
+          });
+
+          """
+          if text.count(anchor) != 1: raise SystemExit('policy.test: anchor mismatch')
+          verifier_test.write_text(text.replace(anchor, addition + anchor, 1))
+
+          # Add a focused end-to-end regression for bounded UNAVAILABLE retries and public redirect privacy.
+          repair_test = Path('apps/inkubator-api/test/integration/phase6-review-repair.test.mjs')
+          repair_test.write_text("""import {randomUUID} from 'node:crypto';
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import {createDatabase} from '../../dist/database.js';
+          import {migrateToLatest} from '../../dist/migrations.js';
+          import {getProjectShipState, submitShip} from '../../dist/ship.js';
+          import {runOneJob, SHIP_VERIFICATION_JOB_TYPE} from '../../dist/jobs.js';
+
+          const databaseUrl = process.env.DATABASE_URL;
+          if (!databaseUrl) throw new Error('DATABASE_URL required');
+
+          async function fixture(db, label) {
+            const playerId = randomUUID();
+            const projectId = randomUUID();
+            const missionId = randomUUID();
+            await db.insertInto('players').values({player_id: playerId, display_name: `${label} ${playerId.slice(0, 5)}`}).execute();
+            await db.insertInto('projects').values({project_id: projectId, schema_version: 'project.current.v1', owner_player_id: playerId, name: `${label} project`}).execute();
+            await db.insertInto('missions').values({
+              mission_id: missionId, schema_version: 'mission.current.v1', project_id: projectId, owner_player_id: playerId,
+              round_id: null, goal: 'Bounded verification', ship_condition: 'Truthful Ship', state: 'SHIP_READY',
+              current_focus: 'Verify', next_move: 'Ship', progress_model_version: 'mission.progress.v1',
+            }).execute();
+            return {playerId, projectId, missionId};
+          }
+
+          async function dueShipJob(db, submissionId) {
+            const jobs = await db.selectFrom('outbox_jobs').selectAll().where('job_type', '=', SHIP_VERIFICATION_JOB_TYPE).execute();
+            const job = jobs.find((row) => row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload) && row.payload.submission_id === submissionId);
+            assert.ok(job);
+            await db.updateTable('outbox_jobs').set({next_attempt_at: new Date(0)}).where('job_id', '=', job.job_id).execute();
+            return job.job_id;
+          }
+
+          test('UNAVAILABLE retries are bounded, remain UNKNOWN, and release the Mission for a replacement submission', async () => {
+            const db = createDatabase(databaseUrl);
+            await migrateToLatest(db);
+            try {
+              const f = await fixture(db, 'Retry');
+              const first = await submitShip(db, f.playerId, f.missionId, {requestId: randomUUID(), title: 'Retry artifact', url: 'https://example.com/retry'});
+              const jobId = await dueShipJob(db, first.submission_id);
+              const unavailableClient = {verify: async ({submissionId}) => ({
+                schema_version: 'ship-verifier.observation.v1', submission_id: submissionId, outcome: 'UNAVAILABLE', reason_code: 'DNS_FAILURE', duration_ms: 5, redirects: 0,
+              })};
+
+              for (let attempt = 1; attempt < 5; attempt += 1) {
+                await db.updateTable('outbox_jobs').set({next_attempt_at: new Date(0)}).where('job_id', '=', jobId).execute();
+                const result = await runOneJob(db, {retryBaseMs: 1, shipVerifierClient: unavailableClient});
+                assert.equal(result.status, 'retry');
+                assert.equal((await db.selectFrom('ship_verifier_observations').select('observation_id').where('submission_id', '=', first.submission_id).execute()).length, 0);
+                assert.equal((await db.selectFrom('missions').select('state').where('mission_id', '=', f.missionId).executeTakeFirstOrThrow()).state, 'SUBMITTED');
+              }
+
+              await db.updateTable('outbox_jobs').set({next_attempt_at: new Date(0)}).where('job_id', '=', jobId).execute();
+              const terminal = await runOneJob(db, {retryBaseMs: 1, shipVerifierClient: unavailableClient});
+              assert.equal(terminal.status, 'succeeded');
+              const observation = await db.selectFrom('ship_verifier_observations').selectAll().where('submission_id', '=', first.submission_id).executeTakeFirstOrThrow();
+              assert.equal(observation.outcome, 'UNAVAILABLE');
+              assert.equal((await db.selectFrom('missions').select('state').where('mission_id', '=', f.missionId).executeTakeFirstOrThrow()).state, 'SHIP_READY');
+              assert.equal((await db.selectFrom('ship_submissions').select('state').where('submission_id', '=', first.submission_id).executeTakeFirstOrThrow()).state, 'ATTENTION');
+              const history = await db.selectFrom('history_events').select('payload').where('dedupe_key', '=', `evidence:project.ship_verifier.observed:${first.submission_id}`).executeTakeFirstOrThrow();
+              assert.equal(history.payload.truth_state, 'UNKNOWN');
+
+              const replacement = await submitShip(db, f.playerId, f.missionId, {requestId: randomUUID(), title: 'Retry artifact replacement', url: 'https://example.com/retry'});
+              assert.notEqual(replacement.submission_id, first.submission_id);
+              assert.equal((await db.selectFrom('missions').select('state').where('mission_id', '=', f.missionId).executeTakeFirstOrThrow()).state, 'SUBMITTED');
+            } finally { await db.destroy(); }
+          });
+
+          test('public Ship state never exposes a verifier redirect target or its query credential', async () => {
+            const db = createDatabase(databaseUrl);
+            await migrateToLatest(db);
+            try {
+              const f = await fixture(db, 'Redirect privacy');
+              const submitted = await submitShip(db, f.playerId, f.missionId, {requestId: randomUUID(), title: 'Redirect artifact', url: 'https://example.com/public'});
+              await dueShipJob(db, submitted.submission_id);
+              const secret = `X-Amz-Credential=${randomUUID()}`;
+              const result = await runOneJob(db, {shipVerifierClient: {verify: async ({submissionId}) => ({
+                schema_version: 'ship-verifier.observation.v1', submission_id: submissionId, outcome: 'PASS', reason_code: 'PUBLIC_HTTPS_OK',
+                final_url: `https://cdn.example/object?${secret}`, http_status: 200, duration_ms: 8, redirects: 1,
+              })}});
+              assert.equal(result.status, 'succeeded');
+              const publicState = await getProjectShipState(db, f.projectId);
+              const encoded = JSON.stringify(publicState);
+              assert.equal(encoded.includes('final_url'), false);
+              assert.equal(encoded.includes(secret), false);
+              const history = await db.selectFrom('history_events').select('payload').where('dedupe_key', '=', `evidence:project.ship_verifier.observed:${submitted.submission_id}`).executeTakeFirstOrThrow();
+              assert.equal(JSON.stringify(history.payload).includes(secret), false);
+            } finally { await db.destroy(); }
+          });
+          """)
+
+          # Existing Phase 6C test now proves multiple accepted Assists from the same Party member
+          # are preserved while offered-only and post-Ship Assists remain excluded.
+          test = Path('apps/inkubator-api/test/integration/phase6-ship-artifact-attribution.test.mjs')
+          text = test.read_text()
+          old = """    const acceptedAssistId = await offerAssist(app, acceptedHelper.cookie, beaconId, 'accepted before Ship');
+              await acceptAssist(app, owner.cookie, acceptedAssistId);
+              const offeredAssistId = await offerAssist(app, offeredHelper.cookie, beaconId, 'offered only');
+          """
+          new = """    const acceptedAssistId = await offerAssist(app, acceptedHelper.cookie, beaconId, 'accepted before Ship');
+              await acceptAssist(app, owner.cookie, acceptedAssistId);
+              const closed = await app.inject({method: 'POST', url: `/v1/help-beacons/${beaconId}/close`, headers: {origin: appOrigin, cookie: owner.cookie}, payload: {request_id: randomUUID()}});
+              assert.equal(closed.statusCode, 200);
+              const secondBeaconId = await createBeacon(app, owner.cookie, mission.projectId);
+              const secondAcceptedAssistId = await offerAssist(app, acceptedHelper.cookie, secondBeaconId, 'second accepted before Ship');
+              await acceptAssist(app, owner.cookie, secondAcceptedAssistId);
+              const offeredAssistId = await offerAssist(app, offeredHelper.cookie, secondBeaconId, 'offered only');
+          """
+          if text.count(old) != 1: raise SystemExit('artifact test: setup anchor mismatch')
+          text = text.replace(old, new, 1)
+          old = """    assert.equal(artifact.assists.length, 1);
+              assert.equal(artifact.assists[0].assist_id, acceptedAssistId);
+              assert.equal(artifact.assists[0].player_id, acceptedHelper.playerId);
+              assert.equal(artifact.assists[0].source_state, 'ACCEPTED');
+          """
+          new = """    assert.equal(artifact.assists.length, 2);
+              assert.deepEqual(new Set(artifact.assists.map((row) => row.assist_id)), new Set([acceptedAssistId, secondAcceptedAssistId]));
+              assert.equal(artifact.assists.every((row) => row.player_id === acceptedHelper.playerId), true);
+              assert.equal(artifact.assists.every((row) => row.source_state === 'ACCEPTED'), true);
+          """
+          if text.count(old) != 1: raise SystemExit('artifact test: assist assertions anchor mismatch')
+          text = text.replace(old, new, 1)
+          text = text.replace("const lateAssistId = await offerAssist(app, lateHelper.cookie, beaconId, 'accepted after Ship');", "const lateAssistId = await offerAssist(app, lateHelper.cookie, secondBeaconId, 'accepted after Ship');")
+          old = """    const snapshotBeforeLate = await db.selectFrom('ship_receipt_attributions').selectAll().where('receipt_id', '=', artifact.receipt_id).orderBy('role', 'asc').orderBy('player_id', 'asc').execute();
+              assert.equal(snapshotBeforeLate.length, 2);
+          """
+          new = """    const snapshotBeforeLate = await db.selectFrom('ship_receipt_attributions').selectAll().where('receipt_id', '=', artifact.receipt_id).orderBy('role', 'asc').orderBy('player_id', 'asc').execute();
+              assert.equal(snapshotBeforeLate.length, 2);
+              const assistsBeforeLate = await db.selectFrom('ship_receipt_assists').selectAll().where('receipt_id', '=', artifact.receipt_id).orderBy('accepted_at', 'asc').orderBy('assist_id', 'asc').execute();
+              assert.equal(assistsBeforeLate.length, 2);
+          """
+          if text.count(old) != 1: raise SystemExit('artifact test: snapshot anchor mismatch')
+          text = text.replace(old, new, 1)
+          old = """    const snapshotAfterReplay = await db.selectFrom('ship_receipt_attributions').selectAll().where('receipt_id', '=', artifact.receipt_id).orderBy('role', 'asc').orderBy('player_id', 'asc').execute();
+              assert.deepEqual(snapshotAfterReplay, snapshotBeforeLate);
+          """
+          new = """    const snapshotAfterReplay = await db.selectFrom('ship_receipt_attributions').selectAll().where('receipt_id', '=', artifact.receipt_id).orderBy('role', 'asc').orderBy('player_id', 'asc').execute();
+              assert.deepEqual(snapshotAfterReplay, snapshotBeforeLate);
+              const assistsAfterReplay = await db.selectFrom('ship_receipt_assists').selectAll().where('receipt_id', '=', artifact.receipt_id).orderBy('accepted_at', 'asc').orderBy('assist_id', 'asc').execute();
+              assert.deepEqual(assistsAfterReplay, assistsBeforeLate);
+          """
+          if text.count(old) != 1: raise SystemExit('artifact test: replay anchor mismatch')
+          test.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify isolated verifier
+        run: |
+          npm run typecheck -w @rekt-ink/inkubator-verifier
+          npm run test -w @rekt-ink/inkubator-verifier
+
+      - name: Verify API contract and generated client
+        run: |
+          npm run typecheck -w @rekt-ink/inkubator-api
+          npm run build -w @rekt-ink/inkubator-api
+          npm run generate:client -w @rekt-ink/inkubator-api
+          npm run verify:client -w @rekt-ink/inkubator-api
+          npm run test -w @rekt-ink/inkubator-api
+          npm run test -w @rekt-ink/inkubator-protocol
+          npm run build -w @rekt-ink/inkubator-lab
+
+      - name: Apply migrations
+        run: npm run migrate -w @rekt-ink/inkubator-api
+
+      - name: Focused Phase 6 review falsification
+        run: >-
+          timeout 180s node --test --test-concurrency=1
+          apps/inkubator-api/test/integration/phase6-review-repair.test.mjs
+          apps/inkubator-api/test/integration/phase6-ship-artifact-attribution.test.mjs
+          apps/inkubator-api/test/integration/phase6-ship-acceptance-receipt.test.mjs
+          apps/inkubator-api/test/integration/phase6-ship-unavailable-truth.test.mjs
+          apps/inkubator-api/test/integration/phase6-ship-reconciliation-starvation.test.mjs
+
+      - name: Full Postgres integration
+        run: timeout 300s npm run test:integration -w @rekt-ink/inkubator-api
+
+      - name: Publish verified product-only repair and remove harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/phase6-review-repair.yml
+          git add \
+            apps/inkubator-api/src/ship.ts \
+            apps/inkubator-api/src/jobs.ts \
+            apps/inkubator-api/src/contract-phase6c.ts \
+            apps/inkubator-api/src/migrations.ts \
+            apps/inkubator-api/src/migrations/016-phase6-review-repair.ts \
+            apps/inkubator-api/src/ship-artifact.ts \
+            apps/inkubator-api/test/integration/phase6-review-repair.test.mjs \
+            apps/inkubator-api/test/integration/phase6-ship-artifact-attribution.test.mjs \
+            apps/inkubator-verifier/src/policy.ts \
+            apps/inkubator-verifier/test/policy.test.mjs \
+            apps/inkubator-lab/src/generated/inkubator-api-client.ts
+          git diff --cached --check
+          git config user.name 'phase6-review-repair[bot]'
+          git config user.email 'phase6-review-repair[bot]@users.noreply.github.com'
+          git commit -m 'fix(inkubator): close final Phase 6 review findings'
+          git push origin HEAD:feature/inkubator-ship-verifier-receipt-v0
