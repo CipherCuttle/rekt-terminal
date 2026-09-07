@@ -3,6 +3,28 @@ import type {Migration} from 'kysely/migration';
 
 export const phase7CheevoReputationMigration: Migration = {
   async up(db) {
+    // FIRST_BLOOD must be a canonical Ship-time fact, not a winner recomputed later
+    // from whichever committed receipts happen to be visible to a public read.
+    await db.schema.createTable('round_first_ship_receipts')
+      .addColumn('round_id', 'uuid', (column) => column.primaryKey().references('rounds.round_id').onDelete('cascade'))
+      .addColumn('receipt_id', 'uuid', (column) => column.notNull().unique().references('ship_receipts.receipt_id').onDelete('cascade'))
+      .addColumn('owner_player_id', 'uuid', (column) => column.notNull().references('players.player_id').onDelete('cascade'))
+      .addColumn('shipped_at', 'timestamptz', (column) => column.notNull())
+      .addColumn('recorded_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`clock_timestamp()`))
+      .execute();
+
+    // Existing Phase-6 receipts predate the serialized Phase-7 boundary. Backfill them
+    // deterministically once so lazy Cheevo reconciliation never has to infer a winner.
+    await sql`
+      insert into round_first_ship_receipts (round_id, receipt_id, owner_player_id, shipped_at)
+      select distinct on (round_id)
+        round_id, receipt_id, owner_player_id, shipped_at
+      from ship_receipts
+      where round_id is not null
+      order by round_id, shipped_at asc, receipt_id asc
+      on conflict (round_id) do nothing
+    `.execute(db);
+
     await db.schema.createTable('player_cheevos')
       .addColumn('award_id', 'uuid', (column) => column.primaryKey())
       .addColumn('player_id', 'uuid', (column) => column.notNull().references('players.player_id').onDelete('restrict'))
@@ -71,5 +93,6 @@ export const phase7CheevoReputationMigration: Migration = {
     await sql`drop trigger if exists player_cheevos_immutable_update on player_cheevos`.execute(db);
     await sql`drop function if exists prevent_player_cheevo_mutation()`.execute(db);
     await db.schema.dropTable('player_cheevos').execute();
+    await db.schema.dropTable('round_first_ship_receipts').execute();
   },
 };
