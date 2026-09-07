@@ -1,0 +1,26 @@
+name: Phase 2 visual inspection export
+
+on:
+  push:
+    branches:
+      - 'feature/inkubator-signal-system-v0'
+    paths:
+      - '.github/workflows/phase2-visual-inspection-export.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out exact screenshots
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Export golden screenshots
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase2-golden-screens
+          path: apps/inkubator-lab/e2e/__screenshots__/*.png
+          if-no-files-found: error
+          retention-days: 1
