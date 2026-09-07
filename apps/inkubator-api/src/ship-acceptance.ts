@@ -180,11 +180,10 @@ export async function evaluateShipAcceptance(
     return null;
   }
 
-  if (observation.outcome !== 'PASS') {
-    if (submission.state === 'REJECTED' && mission.state === 'SHIP_READY') return null;
-    await transitionNotAccepted(db, submission, mission.state);
-    return null;
-  }
+  // Verifier evidence can satisfy the positive acceptance predicate only.
+  // FAILED and UNAVAILABLE remain non-authoritative for rejection; a trusted
+  // human REJECT is required to return the Mission to SHIP_READY.
+  if (observation.outcome !== 'PASS') return null;
 
   if (mission.state !== 'SUBMITTED') throw new Error('ship_acceptance_mission_state_invalid');
   if (!ACTIVE_SUBMISSION_STATES.includes(submission.state as (typeof ACTIVE_SUBMISSION_STATES)[number])) {
