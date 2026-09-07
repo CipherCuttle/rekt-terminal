@@ -20,9 +20,16 @@ for (const screen of screens) {
 
 test('keyboard navigation reaches the screen switcher and primary Command action', async ({page}) => {
   await page.goto('/?lab=signals&screen=command');
+  const world = page.getByRole('link', {name: 'WORLD'});
+  await world.focus();
+  await expect(world).toBeFocused();
+
+  for (const label of ['COMMAND', 'PROJECT', 'PLAYER', 'SHIP']) {
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('link', {name: label})).toBeFocused();
+  }
+
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('link', {name: 'WORLD'})).toBeFocused();
-  for (let i = 0; i < 5; i += 1) await page.keyboard.press('Tab');
   await expect(page.getByRole('button', {name: 'EDIT FOCUS'})).toBeFocused();
 });
 

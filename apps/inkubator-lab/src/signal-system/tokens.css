@@ -6,12 +6,12 @@
   --ink-surface-veil: rgba(8, 7, 14, 0.78);
   --ink-surface-soft: rgba(178, 154, 255, 0.055);
   --ink-signal-context: #b29aff;
-  --ink-signal-active: #7a5cff;
+  --ink-signal-active: #8f73ff;
   --ink-signal-observed: #5cc8ff;
   --ink-signal-proven: #9aff67;
   --ink-signal-attention: #ffc861;
   --ink-signal-blocked: #ff6d74;
-  --ink-signal-stale: #777184;
+  --ink-signal-stale: #8f899b;
   --ink-signal-failed: #ff4d61;
   --ink-text-primary: #f2eff8;
   --ink-text-secondary: #c5bfd0;

@@ -5,7 +5,7 @@ export default defineConfig({
   fullyParallel: false,
   timeout: 30_000,
   expect: {timeout: 8_000},
-  snapshotPathTemplate: '{testDir}/__screenshots__/{arg}',
+  snapshotPathTemplate: '{testDir}/__screenshots__/{arg}{ext}',
   use: {
     baseURL: 'http://127.0.0.1:5174',
     ...devices['Desktop Chrome'],

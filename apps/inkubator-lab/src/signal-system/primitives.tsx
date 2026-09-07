@@ -56,7 +56,8 @@ export function InkButton({
   onClick?: () => void;
   type?: 'button' | 'submit';
 }) {
-  return <Button className={styles.button} data-tone={tone} disabled={disabled} onClick={onClick} type={type}>{children}</Button>;
+  const style = tone === 'primary' ? {color: 'var(--ink-text-inverse)'} : undefined;
+  return <Button className={styles.button} data-tone={tone} disabled={disabled} onClick={onClick} style={style} type={type}>{children}</Button>;
 }
 
 export function InkIconButton({label, children, disabled = false, onClick}: {label: string; children: ReactNode; disabled?: boolean; onClick?: () => void}) {
