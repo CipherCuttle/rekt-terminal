@@ -1,0 +1,92 @@
+name: Phase 2 persistent fixture one-shot repair
+
+on:
+  push:
+    branches:
+      - 'feature/inkubator-signal-system-v0'
+    paths:
+      - '.github/workflows/phase2-fixture-persistence-repair.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/inkubator-signal-system-v0
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify canonical toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = 'v24.20.0'
+          test "$(npm -v)" = '11.19.0'
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Patch persistent World fixture marker and regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          screen_path = Path('apps/inkubator-lab/src/signal-system/GoldenScreens.tsx')
+          screen = screen_path.read_text()
+          old = '<span className={styles.navMeta}>{mode.toUpperCase()} / SIGNAL SYSTEM V0</span>'
+          new = '<span className={styles.navMeta}>{screen === \'world\' ? \'BROADCAST / DEVELOPMENT FIXTURE\' : `${mode.toUpperCase()} / SIGNAL SYSTEM V0`}</span>'
+          if screen.count(old) != 1:
+              raise SystemExit('Shell navMeta anchor drifted; refusing broad rewrite')
+          screen_path.write_text(screen.replace(old, new))
+
+          test_path = Path('apps/inkubator-lab/e2e/golden-screens.spec.ts')
+          test = test_path.read_text()
+          anchor = "test('reduced motion disables ambient World orbit', async ({page}) => {"
+          addition = """test('World development fixture marker stays visible after scrolling below the hero', async ({page}) => {\n  await page.goto('/?lab=signals&screen=world');\n  await waitForGoldenScreen(page, 'world');\n  const marker = page.getByText('BROADCAST / DEVELOPMENT FIXTURE', {exact: true});\n  await expect(marker).toBeVisible();\n  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));\n  await expect(marker).toBeVisible();\n  const markerBox = await marker.boundingBox();\n  const viewport = page.viewportSize();\n  expect(markerBox).not.toBeNull();\n  expect(viewport).not.toBeNull();\n  expect(markerBox!.y).toBeGreaterThanOrEqual(0);\n  expect(markerBox!.y + markerBox!.height).toBeLessThanOrEqual(viewport!.height);\n});\n\n"""
+          if test.count(anchor) != 1:
+              raise SystemExit('Playwright insertion anchor drifted; refusing broad rewrite')
+          if 'World development fixture marker stays visible' in test:
+              raise SystemExit('fixture persistence regression already exists; refusing duplicate insertion')
+          test_path.write_text(test.replace(anchor, addition + anchor))
+          PY
+
+      - name: Verify focused Signal System
+        run: |
+          npm run verify:inkubator-signal-system
+          npm run test -w @rekt-ink/inkubator-lab
+          npm run build -w @rekt-ink/inkubator-lab
+          npm run verify:inkubator-signal-system -- --dist
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Regenerate World golden baseline
+        run: npm run test:e2e -w @rekt-ink/inkubator-lab -- --grep "world visual baseline" --update-snapshots
+
+      - name: Run complete browser gate
+        run: npm run test:e2e -w @rekt-ink/inkubator-lab
+
+      - name: Remove one-shot workflow and commit final bounded repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/phase2-fixture-persistence-repair.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix(inkubator): persist World fixture truth marker'
+          git push origin HEAD:feature/inkubator-signal-system-v0
