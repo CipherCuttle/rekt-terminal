@@ -98,7 +98,7 @@ export interface PublicProject {
   mission_state: MissionState;
   source_connected: boolean;
   source_visibility: "NONE" | "PUBLIC" | "PRIVATE";
-  observation_state: "UNKNOWN" | "OBSERVED";
+  observation_state: "UNKNOWN" | "ACTIVE" | "OBSERVED" | "STALE" | "FAILED";
 }
 
 export interface PrivateProject {
@@ -186,12 +186,40 @@ export interface MissionGateView {
   position: number;
 }
 
+export interface CommandEvidenceObservation {
+  observation_id: string;
+  kind: "PUSH" | "PULL_REQUEST" | "WORKFLOW" | "DEPLOYMENT" | "MANIFEST";
+  outcome: "OBSERVED" | "SUCCEEDED" | "FAILED" | "IN_PROGRESS" | "UNKNOWN";
+  observed_at: string;
+}
+
+export interface CommandGitHubEvidence {
+  rule_version: "github-evidence.v1";
+  source_state: "AVAILABLE" | "UNAVAILABLE";
+  signal_state: "UNKNOWN" | "ACTIVE" | "OBSERVED" | "STALE" | "FAILED";
+  stale_after_ms: number;
+  invalid_observation_count: number;
+  reason_code: "source_unavailable_no_evidence" | "source_unavailable_cached_evidence_not_current" | "no_valid_observation" | "latest_observation_stale" | "latest_observation_current";
+  latest_observation?: CommandEvidenceObservation;
+}
+
+export interface CommandDaemonAdvisory {
+  rule_version: "daemon-advisory.v1";
+  authority: "ADVISORY_ONLY";
+  what_changed: string;
+  likely_blocker?: string;
+  scope_damage_warning?: string;
+  proposed_next_move: string;
+}
+
 export interface CommandView {
-  schema_version: "command.private.v1";
+  schema_version: "command.private.v2";
   project: CommandProject;
   mission: CommandMission;
   round?: CommandRound;
   gates: MissionGateView[];
+  github_evidence: CommandGitHubEvidence;
+  daemon: CommandDaemonAdvisory;
 }
 
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;

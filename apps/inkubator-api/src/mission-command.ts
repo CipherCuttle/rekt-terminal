@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {sql, type Kysely} from 'kysely';
 import {canonicalizeJson} from './canonical-json.js';
+import {readDatabaseNow} from './database.js';
 import type {
   DatabaseSchema,
   GitHubRepositoryRow,
@@ -13,12 +14,14 @@ import type {
   RoundRow,
 } from './database.js';
 import {appendHistoryEvent, HISTORY_EVENT_VERSION} from './events.js';
+import {classifyGitHubEvidence, deriveDaemonAdvisory, type DaemonAdvisory, type GitHubEvidenceSnapshot} from './evidence.js';
 
 const PROJECT_SCHEMA_VERSION = 'project.current.v1';
 const MISSION_SCHEMA_VERSION = 'mission.current.v1';
 const PROFILE_SCHEMA_VERSION = 'player.profile.v1';
 const ROUND_MEMBERSHIP_SCHEMA_VERSION = 'round.membership.v1';
 const PROGRESS_MODEL_VERSION = 'mission.progress.v1';
+const COMMAND_GITHUB_EVIDENCE_STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const DEFAULT_GATES = [
@@ -83,7 +86,8 @@ export interface CommandSnapshot {
   round: RoundRow | null;
   gates: MissionGateRow[];
   repository: GitHubRepositoryRow | null;
-  observationState: 'UNKNOWN' | 'OBSERVED';
+  githubEvidence: GitHubEvidenceSnapshot;
+  daemonAdvisory: DaemonAdvisory;
 }
 
 function requireUuid(value: string, name: string): string {
@@ -249,13 +253,26 @@ async function commandByMissionId(db: Kysely<DatabaseSchema>, missionId: string)
     ? (await db.selectFrom('github_repositories').selectAll().where('repository_id', '=', project.repository_id).executeTakeFirst()) ?? null
     : null;
   const observation = await db.selectFrom('history_events')
-    .select('history_event_id')
+    .select(['history_event_id', 'occurred_at'])
     .where('event_type', '=', 'project.github_repository_push.observed')
     .where('subject_type', '=', 'project')
     .where('subject_id', '=', project.project_id)
     .orderBy('occurred_at', 'desc')
+    .orderBy('history_event_id', 'desc')
     .executeTakeFirst();
-  return {project, mission, round, gates, repository, observationState: observation ? 'OBSERVED' : 'UNKNOWN'};
+  const githubEvidence = classifyGitHubEvidence({
+    observations: observation ? [{
+      observationId: observation.history_event_id,
+      kind: 'PUSH',
+      outcome: 'OBSERVED',
+      observedAt: observation.occurred_at.toISOString(),
+    }] : [],
+    sourceAvailable: Boolean(repository?.active),
+    now: await readDatabaseNow(db),
+    staleAfterMs: COMMAND_GITHUB_EVIDENCE_STALE_AFTER_MS,
+  });
+  const daemonAdvisory = deriveDaemonAdvisory({snapshot: githubEvidence, detectedStacks: []});
+  return {project, mission, round, gates, repository, githubEvidence, daemonAdvisory};
 }
 
 export async function getCurrentCommand(db: Kysely<DatabaseSchema>, playerId: string): Promise<CommandSnapshot | null> {
@@ -524,13 +541,13 @@ export async function updateMissionGate(
 export function commandToPrivateView(snapshot: CommandSnapshot) {
   const stackLabels = parseStackLabels(snapshot.mission.stack_labels);
   return {
-    schema_version: 'command.private.v1' as const,
+    schema_version: 'command.private.v2' as const,
     project: {
       project_id: snapshot.project.project_id,
       name: snapshot.project.name,
       source_connected: Boolean(snapshot.repository?.active),
       source_visibility: snapshot.repository ? (snapshot.repository.private ? 'PRIVATE' : 'PUBLIC') : 'NONE',
-      observation_state: snapshot.observationState,
+      observation_state: snapshot.githubEvidence.signalState,
     },
     mission: {
       mission_id: snapshot.mission.mission_id,
@@ -551,6 +568,28 @@ export function commandToPrivateView(snapshot: CommandSnapshot) {
       constraint: snapshot.round.constraint_text,
       state: snapshot.round.state,
     } : null,
+    github_evidence: {
+      rule_version: snapshot.githubEvidence.ruleVersion,
+      source_state: snapshot.githubEvidence.sourceState,
+      signal_state: snapshot.githubEvidence.signalState,
+      stale_after_ms: snapshot.githubEvidence.staleAfterMs,
+      invalid_observation_count: snapshot.githubEvidence.invalidObservationCount,
+      reason_code: snapshot.githubEvidence.reasonCode,
+      ...(snapshot.githubEvidence.latestObservation ? {latest_observation: {
+        observation_id: snapshot.githubEvidence.latestObservation.observationId,
+        kind: snapshot.githubEvidence.latestObservation.kind,
+        outcome: snapshot.githubEvidence.latestObservation.outcome,
+        observed_at: snapshot.githubEvidence.latestObservation.observedAt,
+      }} : {}),
+    },
+    daemon: {
+      rule_version: snapshot.daemonAdvisory.ruleVersion,
+      authority: snapshot.daemonAdvisory.authority,
+      what_changed: snapshot.daemonAdvisory.whatChanged,
+      ...(snapshot.daemonAdvisory.likelyBlocker ? {likely_blocker: snapshot.daemonAdvisory.likelyBlocker} : {}),
+      ...(snapshot.daemonAdvisory.scopeDamageWarning ? {scope_damage_warning: snapshot.daemonAdvisory.scopeDamageWarning} : {}),
+      proposed_next_move: snapshot.daemonAdvisory.proposedNextMove,
+    },
     gates: snapshot.gates.map((gate) => ({key: gate.gate_key, label: gate.label, state: gate.signal_state, position: gate.position})),
   };
 }
