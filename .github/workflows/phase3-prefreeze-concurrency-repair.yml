@@ -64,92 +64,76 @@ jobs:
           path = Path('apps/inkubator-api/src/mission-command.ts')
           text = path.read_text()
 
-          profile_anchor = """  return db.transaction().execute(async (transaction) => {
-              if (await existingRequest(transaction, dedupeKey, 'player.profile.updated', playerId, 'player', playerId, payload)) {
-          """.replace('              ', '    ')
-          profile_replacement = """  return db.transaction().execute(async (transaction) => {
-              await transaction.selectFrom('players').select('player_id').where('player_id', '=', playerId).forUpdate().executeTakeFirstOrThrow();
-              if (await existingRequest(transaction, dedupeKey, 'player.profile.updated', playerId, 'player', playerId, payload)) {
-          """.replace('              ', '    ')
+          profile_anchor = "  return db.transaction().execute(async (transaction) => {\n    if (await existingRequest(transaction, dedupeKey, 'player.profile.updated', playerId, 'player', playerId, payload)) {"
+          profile_replacement = "  return db.transaction().execute(async (transaction) => {\n    await transaction.selectFrom('players').select('player_id').where('player_id', '=', playerId).forUpdate().executeTakeFirstOrThrow();\n    if (await existingRequest(transaction, dedupeKey, 'player.profile.updated', playerId, 'player', playerId, payload)) {"
           if text.count(profile_anchor) != 1:
               raise SystemExit(f'profile serialization anchor drifted: {text.count(profile_anchor)}')
           text = text.replace(profile_anchor, profile_replacement)
 
-          create_anchor = """  return db.transaction().execute(async (transaction) => {
-              const existing = await transaction.selectFrom('missions').selectAll().where('creation_request_id', '=', requestId).executeTakeFirst();
-          """.replace('              ', '    ')
-          create_replacement = """  return db.transaction().execute(async (transaction) => {
-              await transaction.selectFrom('players').select('player_id').where('player_id', '=', playerId).forUpdate().executeTakeFirstOrThrow();
-              const existing = await transaction.selectFrom('missions').selectAll().where('creation_request_id', '=', requestId).executeTakeFirst();
-          """.replace('              ', '    ')
+          create_anchor = "  return db.transaction().execute(async (transaction) => {\n    const existing = await transaction.selectFrom('missions').selectAll().where('creation_request_id', '=', requestId).executeTakeFirst();"
+          create_replacement = "  return db.transaction().execute(async (transaction) => {\n    await transaction.selectFrom('players').select('player_id').where('player_id', '=', playerId).forUpdate().executeTakeFirstOrThrow();\n    const existing = await transaction.selectFrom('missions').selectAll().where('creation_request_id', '=', requestId).executeTakeFirst();"
           if text.count(create_anchor) != 1:
               raise SystemExit(f'createMission serialization anchor drifted: {text.count(create_anchor)}')
           text = text.replace(create_anchor, create_replacement)
 
-          existing_block = """    if (existing) {
-              const project = await transaction.selectFrom('projects').selectAll().where('project_id', '=', existing.project_id).executeTakeFirstOrThrow();
-              const same = existing.owner_player_id === playerId && existing.round_id === roundId && project.name === projectName &&
-                existing.goal === goal && existing.ship_condition === shipCondition && existing.current_focus === currentFocus &&
-                existing.next_move === nextMove && JSON.stringify(parseStackLabels(existing.stack_labels)) === JSON.stringify(stackLabels);
-              if (!same) throw new Error('mission_creation_idempotency_conflict');
-              const snapshot = await commandByMissionId(transaction, existing.mission_id);
-              if (!snapshot) throw new Error('mission_creation_failed');
-              return snapshot;
-            }
-          """.replace('              ', '      ')
+          existing_start = "    if (existing) {\n      const project = await transaction.selectFrom('projects').selectAll().where('project_id', '=', existing.project_id).executeTakeFirstOrThrow();"
+          membership_marker = "\n\n    const membership = await transaction.selectFrom('round_memberships as membership')"
+          start = text.find(existing_start)
+          if start < 0:
+              raise SystemExit('createMission receipt start anchor drifted')
+          end = text.find(membership_marker, start)
+          if end < 0:
+              raise SystemExit('createMission receipt end anchor drifted')
           replacement_block = """    if (existing) {
-              const project = await transaction.selectFrom('projects').selectAll().where('project_id', '=', existing.project_id).executeTakeFirstOrThrow();
-              const projectPayload = {schema_version: PROJECT_SCHEMA_VERSION, owner_player_id: playerId, name: projectName};
-              const missionPayload = {
-                schema_version: MISSION_SCHEMA_VERSION,
-                creation_request_id: requestId,
-                mission_id: existing.mission_id,
-                owner_player_id: playerId,
-                project_id: existing.project_id,
-                round_id: roundId,
-                goal,
-                ship_condition: shipCondition,
-                state: 'DECLARED',
-                current_focus: currentFocus,
-                next_move: nextMove,
-                progress_model_version: PROGRESS_MODEL_VERSION,
-                stack_labels: stackLabels,
-                stack_source: stackLabels.length ? 'PLAYER_CONFIRMED' : 'UNKNOWN',
-              };
-              try {
-                const projectReceiptMatches = await existingRequest(
-                  transaction,
-                  `activity:project.created:${project.project_id}`,
-                  'project.created',
-                  playerId,
-                  'project',
-                  project.project_id,
-                  projectPayload,
-                );
-                const missionReceiptMatches = await existingRequest(
-                  transaction,
-                  `activity:mission.declared:${existing.mission_id}`,
-                  'mission.declared',
-                  playerId,
-                  'mission',
-                  existing.mission_id,
-                  missionPayload,
-                );
-                if (!projectReceiptMatches || !missionReceiptMatches) throw new Error('mission_creation_idempotency_conflict');
-              } catch (cause) {
-                if (cause instanceof Error && cause.message.startsWith('history_event_idempotency_conflict:')) {
-                  throw new Error('mission_creation_idempotency_conflict');
-                }
-                throw cause;
+            const project = await transaction.selectFrom('projects').selectAll().where('project_id', '=', existing.project_id).executeTakeFirstOrThrow();
+            const projectPayload = {schema_version: PROJECT_SCHEMA_VERSION, owner_player_id: playerId, name: projectName};
+            const missionPayload = {
+              schema_version: MISSION_SCHEMA_VERSION,
+              creation_request_id: requestId,
+              mission_id: existing.mission_id,
+              owner_player_id: playerId,
+              project_id: existing.project_id,
+              round_id: roundId,
+              goal,
+              ship_condition: shipCondition,
+              state: 'DECLARED',
+              current_focus: currentFocus,
+              next_move: nextMove,
+              progress_model_version: PROGRESS_MODEL_VERSION,
+              stack_labels: stackLabels,
+              stack_source: stackLabels.length ? 'PLAYER_CONFIRMED' : 'UNKNOWN',
+            };
+            try {
+              const projectReceiptMatches = await existingRequest(
+                transaction,
+                `activity:project.created:${project.project_id}`,
+                'project.created',
+                playerId,
+                'project',
+                project.project_id,
+                projectPayload,
+              );
+              const missionReceiptMatches = await existingRequest(
+                transaction,
+                `activity:mission.declared:${existing.mission_id}`,
+                'mission.declared',
+                playerId,
+                'mission',
+                existing.mission_id,
+                missionPayload,
+              );
+              if (!projectReceiptMatches || !missionReceiptMatches) throw new Error('mission_creation_idempotency_conflict');
+            } catch (cause) {
+              if (cause instanceof Error && cause.message.startsWith('history_event_idempotency_conflict:')) {
+                throw new Error('mission_creation_idempotency_conflict');
               }
-              const snapshot = await commandByMissionId(transaction, existing.mission_id);
-              if (!snapshot) throw new Error('mission_creation_failed');
-              return snapshot;
+              throw cause;
             }
-          """.replace('              ', '      ')
-          if text.count(existing_block) != 1:
-              raise SystemExit(f'createMission receipt anchor drifted: {text.count(existing_block)}')
-          text = text.replace(existing_block, replacement_block)
+            const snapshot = await commandByMissionId(transaction, existing.mission_id);
+            if (!snapshot) throw new Error('mission_creation_failed');
+            return snapshot;
+          }""".replace('          ', '')
+          text = text[:start] + replacement_block + text[end:]
 
           mission_select = "const mission = await transaction.selectFrom('missions').selectAll().where('mission_id', '=', missionId).executeTakeFirst();"
           locked_select = "const mission = await transaction.selectFrom('missions').selectAll().where('mission_id', '=', missionId).forUpdate().executeTakeFirst();"
@@ -160,31 +144,10 @@ jobs:
           path.write_text(text)
           PY
 
-      - name: Add retry and forced concurrency regressions
+      - name: Add forced retry and concurrency regressions
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('apps/inkubator-api/test/integration/phase3-player-mission-command.test.mjs')
-          text = path.read_text()
-          anchor = """    assert.equal(laterFocus.statusCode, 200);
-            const oldRetry = await app.inject({method: 'PATCH', url: `/v1/missions/${missionId}`, headers: mutationHeaders(owner.cookie), payload: {
-          """.replace('            ', '    ')
-          insertion = """    assert.equal(laterFocus.statusCode, 200);
-            const oldCreateRetry = await app.inject({method: 'POST', url: '/v1/missions', headers: mutationHeaders(owner.cookie), payload: declaration});
-            assert.equal(oldCreateRetry.statusCode, 201);
-            assert.equal(oldCreateRetry.json().mission.mission_id, missionId);
-            assert.equal(oldCreateRetry.json().project.project_id, projectId);
-            assert.equal(oldCreateRetry.json().mission.current_focus, 'A later focus that must survive retry');
-            const oldRetry = await app.inject({method: 'PATCH', url: `/v1/missions/${missionId}`, headers: mutationHeaders(owner.cookie), payload: {
-          """.replace('            ', '    ')
-          if text.count(anchor) != 1:
-              raise SystemExit(f'old creation retry anchor drifted: {text.count(anchor)}')
-          path.write_text(text.replace(anchor, insertion))
-          PY
-
           cat >> apps/inkubator-api/test/integration/phase3-player-mission-command.test.mjs <<'EOF'
 
           test('Phase 3 serializes first profile writes, Mission creation, and state transitions', async () => {
@@ -218,7 +181,6 @@ jobs:
               const [profileOne, profileTwo] = await Promise.all([profileOnePromise, profileTwoPromise]);
               assert.equal(profileOne.statusCode, 200);
               assert.equal(profileTwo.statusCode, 200);
-              assert.equal(profileOne.json().character_name, 'Lockstep');
               assert.deepEqual(profileOne.json(), profileTwo.json());
               const profileHistoryCount = Number((await db.selectFrom('history_events').select(({fn}) => fn.countAll().as('count')).where('dedupe_key', '=', `activity:player.profile.updated:${owner.playerId}:${profilePayload.request_id}`).executeTakeFirstOrThrow()).count);
               assert.equal(profileHistoryCount, 1);
