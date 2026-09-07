@@ -1,10 +1,10 @@
 # Phase 2 Visual Kill-Criteria Audit V0
 
-Status: INDEPENDENT REVIEW REPAIR / TARGETED RE-REVIEW PENDING
+Status: FINAL NO-THIRD-REVIEW REPAIR / EXACT-HEAD VERIFICATION PENDING
 
 This receipt records the self-hostile visual audit and bounded independent-review repair for `REKT SIGNAL SYSTEM / PHASE 2`.
 
-It is evidence only. It does not grant merge authority, replace the canonical Inkubator documents, or close Phase 2.
+It is evidence only. It does not grant merge authority, replace the canonical Inkubator documents, or close Phase 2 before the final exact-head gates pass.
 
 ## Authority
 
@@ -28,23 +28,23 @@ The five golden screens fail Phase 2 if any of the following is true:
 8. Text, state labels, controls, or signal columns overlap at the canonical desktop/mobile fixtures.
 9. Keyboard order, reduced-motion behavior, automated accessibility, or responsive hierarchy breaks.
 10. Phase 2 silently replaces the existing V3 public landing page.
-11. Development fixtures are labeled or presented as LIVE/sourced state.
+11. Development fixtures are labeled or presented as LIVE/sourced state, including after viewport scrolling/cropping.
 
 ## Five-screen audit
 
 ### WORLD / BROADCAST
 
-PASS after bounded repairs.
+PASS after bounded repairs, pending final exact-head verification.
 
 - Large Broadcast headline and atmospheric grid remain dominant.
 - Meaningful builder Signals, help and latest Ship are instrumented underneath the Broadcast layer.
-- A self-hostile pixel audit found a real collision in the signal rail: state label, project name and detail could overlap.
-- The rail was repaired to use an explicit state column plus a bounded copy column.
-- A Playwright regression now proves every signal state column remains spatially separate from its copy and that name/detail stack vertically.
-- Regenerated golden screenshot inspected after the repair: no remaining collision.
-- Independent review then identified a truth-label defect: the hard-coded development fixture said `THE WORLD IS LIVE` and `LIVE SIGNALS`.
-- The fixture is now unmistakably labeled `ROUND 01 / DEVELOPMENT FIXTURE` and `FIXTURE SIGNALS / NOT LIVE DATA`.
-- A unit regression rejects both `THE WORLD IS LIVE` and `LIVE SIGNALS` on the fixture World.
+- A self-hostile pixel audit found a collision in the signal rail; the rail was repaired and covered by a geometry regression.
+- Independent review identified false LIVE wording; hero/rail labels were repaired to `DEVELOPMENT FIXTURE` / `FIXTURE SIGNALS / NOT LIVE DATA` with a semantic regression forbidding the old LIVE claims.
+- Targeted re-review then identified that those local labels could scroll out of view while lower fixture modules still looked current.
+- Final bounded repair adds `BROADCAST / DEVELOPMENT FIXTURE` to the global WORLD nav and restores true sticky behavior by changing root horizontal clipping from `overflow-x: hidden` to `overflow-x: clip`.
+- A browser regression scrolls below the hero and proves the persistent fixture marker remains inside the viewport.
+- The first attempted persistence repair correctly failed this new regression because the existing overflow containment prevented sticky positioning; the failed attempt was not published as product code.
+- Corrected one-shot run `34102028438` passed the complete focused Signal System/browser gate and committed the final bounded product repair as `56ac2036aa7f3a999acd34d279cef1100ddb3a9a`.
 
 ### COMMAND / COCKPIT
 
@@ -99,7 +99,8 @@ The Phase-2 browser/system gate includes:
 - mobile COMMAND hierarchy;
 - runtime Cockpit request isolation from React Bits/Three;
 - WORLD signal non-overlap regression;
-- fixture World truth-label regression forbidding LIVE claims.
+- fixture WORLD truth-label regression forbidding LIVE claims;
+- fixture WORLD persistent-marker regression after scrolling below the hero.
 
 ## Pre-freeze findings disposition
 
@@ -121,29 +122,45 @@ Findings:
 - High/P1: 1
 - Other review threads: 0
 
-P1: the fixture WORLD claimed `THE WORLD IS LIVE` / `LIVE SIGNALS` while all displayed content was hard-coded development fixture state. This violated the fail-closed truth rule against presenting simulated/fixture state as sourced LIVE state.
+P1: fixture WORLD claimed `THE WORLD IS LIVE` / `LIVE SIGNALS` while displayed content was hard-coded development state.
 
-### Bounded repair
+Repair lineage:
 
-Repair commit: `782b7a23124d812e89a6f843b0259e726206b66b`
+- product repair `782b7a23124d812e89a6f843b0259e726206b66b`;
+- exact reviewed repair candidate `151274a1893538fe599f940cac00ac833f5cf8bf`;
+- canonical gates on `151274a1...`: CI `34100900799` PASS; Inkubator Verification `34100900741` PASS; Inkubator Auth Foundation `34100900745` PASS; Inkubator Signal System `34100900744` PASS.
 
-- `ROUND 01 / THE WORLD IS LIVE` → `ROUND 01 / DEVELOPMENT FIXTURE`.
-- `LIVE SIGNALS / NOT SURVEILLANCE` → `FIXTURE SIGNALS / NOT LIVE DATA`.
-- Added a semantic unit regression requiring the fixture labels and forbidding both old LIVE claims.
-- Regenerated the WORLD golden screenshot under canonical Chromium.
-- Ran the complete focused browser gate successfully in one-shot workflow run `34100493926`.
-- The one-shot workflow removed itself after committing the bounded repair.
+Because a P1 was repaired, exactly one targeted re-review was authorized.
 
-The automatically generated PR workflow runs attached to the GitHub-Actions bot repair commit concluded `action_required` with zero jobs. They are not treated as success evidence. Canonical exact-head verification must therefore run again from a normal user-authored commit containing this receipt before targeted re-review.
+## Targeted independent re-review
 
-Because a P1 was repaired, exactly ONE targeted independent re-review is authorized. No additional review cycle is authorized after that re-review.
+Reviewed candidate: `151274a1893538fe599f940cac00ac833f5cf8bf`
 
-## Next gate
+Review: `PRR_kwDOUGimxs8AAAABMcIvEQ`
 
-1. Require the complete canonical Phase-2 verification on the exact user-authored head containing this receipt.
-2. Freeze that exact repaired candidate only after all canonical gates pass.
-3. Run exactly ONE targeted independent re-review of the P1 repair and regression risk.
-4. If no Critical/High defect remains, close Phase 2. If a new Critical/High defect is found, repair it without starting a third review cycle and close only after exact-head verification supports the final disposition.
+Findings:
+
+- Critical: 0
+- High/P1: 1
+
+P1: fixture status was locally truthful but not persistent; scrolling below the hero could leave apparently-current fixture facts on screen with no visible fixture marker.
+
+The targeted re-review consumes the final review budget. **No third review cycle is authorized.**
+
+### Final bounded repair — no further review
+
+Final product repair commit: `56ac2036aa7f3a999acd34d279cef1100ddb3a9a`
+
+- WORLD sticky-nav metadata is `BROADCAST / DEVELOPMENT FIXTURE`.
+- Root horizontal clipping uses `overflow-x: clip`, preserving horizontal containment without creating the scroll container that disabled sticky navigation.
+- New Playwright regression scrolls below the hero and requires the fixture marker to remain visibly inside the viewport.
+- WORLD golden baseline regenerated.
+- Complete focused Signal System/browser run `34102028438`: PASS.
+- No new service, product noun, truth state, Phase-3 domain behavior, or infrastructure was introduced.
+
+## Final gate
+
+Run all canonical workflows on the exact user-authored head containing this final receipt and `56ac2036...`. If all canonical gates pass, resolve both review threads and close Phase 2. Do not request another Codex review.
 
 MERGE_AUTHORITY: NO
 PHASE_2_CLOSED: NO
