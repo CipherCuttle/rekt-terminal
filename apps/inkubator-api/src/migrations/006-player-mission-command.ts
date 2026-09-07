@@ -71,6 +71,7 @@ export const playerMissionCommandMigration: Migration = {
       .createTable('missions')
       .addColumn('mission_id', 'uuid', (column) => column.primaryKey())
       .addColumn('schema_version', 'text', (column) => column.notNull())
+      .addColumn('creation_request_id', 'uuid', (column) => column.unique())
       .addColumn('project_id', 'uuid', (column) => column.notNull().references('projects.project_id').onDelete('cascade'))
       .addColumn('owner_player_id', 'uuid', (column) =>
         column.notNull().references('players.player_id').onDelete('cascade'),
@@ -155,6 +156,7 @@ export const playerMissionCommandMigration: Migration = {
       insert into missions (
         mission_id,
         schema_version,
+        creation_request_id,
         project_id,
         owner_player_id,
         round_id,
@@ -171,6 +173,7 @@ export const playerMissionCommandMigration: Migration = {
       select
         subject_id::uuid,
         'mission.current.v1',
+        null,
         (payload ->> 'project_id')::uuid,
         (payload ->> 'owner_player_id')::uuid,
         null,
