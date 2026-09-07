@@ -3,6 +3,7 @@ import {type Generated, type Kysely, type Selectable} from 'kysely';
 import type {DatabaseSchema, ShipSubmissionTable} from './database.js';
 import {readDatabaseNow} from './database.js';
 import {appendHistoryEvent} from './events.js';
+import {snapshotShipAttribution} from './ship-artifact.js';
 
 export const SHIP_ACCEPTANCE_RULE_VERSION = 'ship.acceptance.v1' as const;
 export const SHIP_RECEIPT_SCHEMA_VERSION = 'inkubator.ship-receipt/1.0' as const;
@@ -213,6 +214,10 @@ export async function evaluateShipAcceptance(
     shipped_at: now,
   }).returningAll().executeTakeFirstOrThrow();
 
+  // Attribution is immutable Ship-time history. It is snapshotted inside the same trusted
+  // acceptance transaction so later Party/Assist changes cannot rewrite an old Ship.
+  await snapshotShipAttribution(dbInput, receipt);
+
   await db.updateTable('ship_submissions')
     .set({state: 'ACCEPTED', updated_at: now})
     .where('submission_id', '=', submissionId)
@@ -227,8 +232,7 @@ export async function evaluateShipAcceptance(
     eventType: 'project.ship.accepted',
     dedupeKey: `evidence:project.ship.accepted:${submissionId}`,
     actorPlayerId: null,
-    subjectType: 'project',
-    subjectId: submission.project_id,
+    subjectType: 'project', subjectId: submission.project_id,
     occurredAt: now,
     payload: {
       schema_version: 'project.ship.accepted.v1',
@@ -343,8 +347,7 @@ export async function operatorReviewShipAcceptance(
       eventType: 'ops.project_ship_acceptance_review.observed',
       dedupeKey: `evidence:ops.project_ship_acceptance_review.observed:${submissionId}`,
       actorPlayerId: null,
-      subjectType: 'project',
-      subjectId: submission.project_id,
+      subjectType: 'project', subjectId: submission.project_id,
       occurredAt: now,
       payload: {
         schema_version: 'ops.project_ship_acceptance_review.observed.v1',
