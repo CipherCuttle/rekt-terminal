@@ -35,7 +35,7 @@ import {
   toPublicDevelopmentProject,
 } from './projects.js';
 import {toPrivatePlayer, toPublicPlayer} from './projection.js';
-import {acceptAssist, blockPlayer, createExternalTestRequest, createHelpBeacon, createProjectComment, deleteOwnProjectComment, followPlayer, getProjectExternalTests, getProjectHelpLoop, listDiscoverablePlayers, listDiscoverableProjects, listProjectComments, listWorldSignals, offerAssist, reactUsefulToComment, recordExternalTestResult, reportProjectComment, setProjectDiscussionLock, unblockPlayer, watchProject} from './social.js';
+import {acceptAssist, blockPlayer, closeHelpBeacon, createExternalTestRequest, createHelpBeacon, createProjectComment, deleteOwnProjectComment, followPlayer, getProjectExternalTests, getProjectHelpLoop, listDiscoverablePlayers, listDiscoverableProjects, listProjectComments, listWorldSignals, offerAssist, reactUsefulToComment, recordExternalTestResult, reportProjectComment, setProjectDiscussionLock, unblockPlayer, watchProject} from './social.js';
 import {
   clearSessionCookie,
   createSession,
@@ -296,6 +296,15 @@ export function buildApp(options: BuildAppOptions) {
     const {projectId} = request.params as {projectId: string};
     const body = request.body as {request_id: string; summary: string; skills_needed?: string[]};
     try { return reply.code(201).send(await createHelpBeacon(options.db, authenticated.actor.playerId, projectId, {requestId: body.request_id, summary: body.summary, skillsNeeded: body.skills_needed})); }
+    catch (cause) { return phase5Error(reply, cause); }
+  });
+
+  app.post('/v1/help-beacons/:beaconId/close', {schema: {body: fastifyBodySchema('SocialMutationRequest')}}, async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const {beaconId} = request.params as {beaconId: string};
+    const body = request.body as {request_id: string};
+    try { return await closeHelpBeacon(options.db, authenticated.actor.playerId, beaconId, body.request_id); }
     catch (cause) { return phase5Error(reply, cause); }
   });
 

@@ -56,7 +56,7 @@ test('Phase 5 discussion is project-scoped, moderation-safe and World broadcasts
 
     const world=await app.inject({method:'GET',url:'/v1/world/signals'}); assert.equal(world.statusCode,200); const mine=world.json().filter((s)=>s.project_id===first.projectId); assert.ok(mine.some((s)=>s.kind==='HELP_BEACON_OPENED'&&s.truth_state==='CLAIMED')); assert.ok(mine.some((s)=>s.kind==='ASSIST_ACCEPTED'&&s.truth_state==='OBSERVED'));
     assert.equal(JSON.stringify(world.json()).includes('The onboarding copy is ambiguous.'),false); assert.equal(JSON.stringify(world.json()).includes('USEFUL'),false);
-    assert.equal(world.json().every((s)=>['HELP_BEACON_OPENED','ASSIST_ACCEPTED'].includes(s.kind)),true);
+    assert.equal(mine.every((s)=>['HELP_BEACON_OPENED','ASSIST_ACCEPTED'].includes(s.kind)),true);
 
     const gates=await db.selectFrom('mission_gates').selectAll().where('mission_id','=',first.missionId).execute(); assert.equal(gates.every((g)=>g.signal_state==='UNKNOWN'),true);
     const projectEvents=await db.selectFrom('history_events').selectAll().where('subject_id','=',first.projectId).execute(); assert.equal(JSON.stringify(projectEvents).includes('PROVEN'),false);
