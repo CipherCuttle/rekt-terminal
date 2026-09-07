@@ -10,6 +10,7 @@ import {phase5ProjectDiscussionWorldMigration} from './migrations/011-phase5-pro
 import {phase5TesterModerationMigration} from './migrations/012-phase5-tester-moderation.js';
 import {phase6ShipVerifierControlMigration} from './migrations/013-phase6-ship-verifier-control.js';
 import {phase6ShipAcceptanceReceiptMigration} from './migrations/014-phase6-ship-acceptance-receipt.js';
+import {phase6ShipArtifactAttributionMigration} from './migrations/015-phase6-ship-artifact-attribution.js';
 
 const initialMigration: Migration = {
   async up(db) {
@@ -308,6 +309,7 @@ class StaticMigrationProvider implements MigrationProvider {
       '012_phase5_tester_moderation': phase5TesterModerationMigration,
       '013_phase6_ship_verifier_control': phase6ShipVerifierControlMigration,
       '014_phase6_ship_acceptance_receipt': phase6ShipAcceptanceReceiptMigration,
+      '015_phase6_ship_artifact_attribution': phase6ShipArtifactAttributionMigration,
     };
   }
 }
