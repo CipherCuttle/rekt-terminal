@@ -41,7 +41,10 @@ describe('REKT Signal System golden screens', () => {
   it('uses proof semantics only on explicitly proven signals in the Ship receipt', () => {
     render(<GoldenScreens screen="ship" />);
     const accepted = screen.getByLabelText(/SHIP ACCEPTED, source SHIP RULE V1/i);
-    const artifact = screen.getByLabelText(/PUBLIC ARTIFACT.*source VERIFIER/i);
+    const artifactLabel = screen.getByText('PUBLIC ARTIFACT');
+    const artifactRow = artifactLabel.closest('div');
+    expect(artifactRow).toBeTruthy();
+    const artifact = within(artifactRow as HTMLElement).getByLabelText(/OBSERVED, source VERIFIER/i);
     expect(accepted.getAttribute('data-ink-signal')).toBe('PROVEN');
     expect(artifact.getAttribute('data-ink-signal')).toBe('OBSERVED');
   });
