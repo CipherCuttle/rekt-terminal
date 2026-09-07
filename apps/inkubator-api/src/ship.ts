@@ -21,11 +21,11 @@ function submissionView(row: Selectable<ShipSubmissionTable>) {
 }
 function observationView(row: Selectable<ShipVerifierObservationTable>) {
   return {schema_version:'ship.verifier_observation.public.v1' as const, outcome:row.outcome, reason_code:row.reason_code,
-    ...(row.final_url?{final_url:row.final_url}:{}), ...(row.http_status!==null?{http_status:row.http_status}:{}), duration_ms:row.duration_ms, redirects:row.redirects, observed_at:row.observed_at.toISOString()};
+    ...(row.http_status!==null?{http_status:row.http_status}:{}), duration_ms:row.duration_ms, redirects:row.redirects, observed_at:row.observed_at.toISOString()};
 }
 function publicSubmissionState(state: string): 'SUBMITTED' | 'OBSERVED' | 'ATTENTION' | 'PROVEN' {
   if (state === 'ACCEPTED') return 'PROVEN';
-  if (state === 'REJECTED') return 'ATTENTION';
+  if (state === 'REJECTED' || state === 'SUPERSEDED') return 'ATTENTION';
   if (state === 'SUBMITTED' || state === 'OBSERVED' || state === 'ATTENTION') return state;
   throw new Error('ship_submission_state_invalid');
 }
@@ -45,8 +45,13 @@ export async function submitShip(db: Kysely<DatabaseSchema>, actorIdInput:string
     if(lockedReplay){if(!sameSubmission(lockedReplay,missionId,actorId,artifactTitle,artifactUrl,demoUrl,sourceUrl))throw new Error('ship_submission_idempotency_conflict');return submissionView(lockedReplay);}
     if(mission.owner_player_id!==actorId)throw new Error('authorization_denied');
     if(mission.state!=='SHIP_READY')throw new Error('mission_not_ship_ready');
-    const active=await tx.selectFrom('ship_submissions').select('submission_id').where('mission_id','=',missionId).where('state','in',['SUBMITTED','OBSERVED','ATTENTION']).executeTakeFirst();
-    if(active)throw new Error('ship_submission_active');
+    const active=await tx.selectFrom('ship_submissions').select(['submission_id','state']).where('mission_id','=',missionId).where('state','in',['SUBMITTED','OBSERVED','ATTENTION']).executeTakeFirst();
+    if(active){
+      const activeObservation=await tx.selectFrom('ship_verifier_observations').select('outcome').where('submission_id','=',active.submission_id).executeTakeFirst();
+      if(active.state!=='ATTENTION'||activeObservation?.outcome!=='UNAVAILABLE')throw new Error('ship_submission_active');
+      const superseded=await tx.updateTable('ship_submissions').set({state:'SUPERSEDED' as any,updated_at:sql`clock_timestamp()`}).where('submission_id','=',active.submission_id).where('state','=','ATTENTION').executeTakeFirst();
+      if(Number(superseded.numUpdatedRows)!==1)throw new Error('ship_submission_supersede_invariant');
+    }
     const row=await tx.insertInto('ship_submissions').values({submission_id:randomUUID(),mission_id:missionId,project_id:mission.project_id,owner_player_id:actorId,creation_request_id:requestId,
       artifact_title:artifactTitle,artifact_url:artifactUrl,demo_url:demoUrl,source_url:sourceUrl,state:'SUBMITTED'}).returningAll().executeTakeFirstOrThrow();
     await tx.updateTable('missions').set({state:'SUBMITTED',updated_at:sql`clock_timestamp()`}).where('mission_id','=',missionId).execute();
@@ -65,6 +70,6 @@ export async function getProjectShipState(db:Kysely<DatabaseSchema>,projectIdInp
   const observation=await db.selectFrom('ship_verifier_observations').selectAll().where('submission_id','=',submission.submission_id).executeTakeFirst();
   const acceptedShip=await getAcceptedShipArtifactForSubmission(db,submission.submission_id);
   return{schema_version:'project.ship.public.v2' as const,project_id:projectId,latest_submission:{schema_version:'ship.submission.public.v2' as const,submission_id:submission.submission_id,mission_id:submission.mission_id,project_id:submission.project_id,
-    // Public Ship projection deliberately omits source_url. Private submission responses retain it for the owner.
+    // Public Ship projection deliberately omits source_url and verifier redirect targets. Private submission/observation storage remains server-side.
     artifact:{title:submission.artifact_title,url:submission.artifact_url,...(submission.demo_url?{demo_url:submission.demo_url}:{})},state:publicSubmissionState(String(submission.state)),submitted_at:submission.submitted_at.toISOString(),...(observation?{verifier_observation:observationView(observation)}:{}),...(acceptedShip?{accepted_ship:acceptedShip}:{})}};
 }
