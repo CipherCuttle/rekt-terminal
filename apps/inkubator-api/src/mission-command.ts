@@ -506,6 +506,7 @@ export async function updateMissionGate(
       if (!snapshot) throw new Error('mission_not_found');
       return snapshot;
     }
+    if (TERMINAL_STATES.has(mission.state)) throw new Error('mission_terminal');
     const gate = await transaction.selectFrom('mission_gates').selectAll().where('mission_id', '=', missionId).where('gate_key', '=', gateKey).executeTakeFirst();
     if (!gate) throw new Error('mission_gate_not_found');
     await transaction.updateTable('mission_gates').set({signal_state: input.signalState, updated_at: sql`clock_timestamp()`})
@@ -538,7 +539,7 @@ export function commandToPrivateView(snapshot: CommandSnapshot) {
       ship_condition: snapshot.mission.ship_condition,
       current_focus: snapshot.mission.current_focus,
       next_move: snapshot.mission.next_move,
-      blocker: snapshot.mission.blocker,
+      ...(snapshot.mission.blocker !== null ? {blocker: snapshot.mission.blocker} : {}),
       progress_model_version: snapshot.mission.progress_model_version,
       stack_labels: stackLabels,
       stack_source: snapshot.mission.stack_source,
