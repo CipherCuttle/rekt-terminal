@@ -1,0 +1,54 @@
+name: Build Inkubator GitHack Preview
+
+on:
+  push:
+    branches:
+      - inkubator-githack-preview
+    paths:
+      - '.github/workflows/build-githack-preview.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out preview branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: inkubator-githack-preview
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build Inkubator Lab static frontend
+        run: |
+          npm run typecheck -w @rekt-ink/inkubator-lab
+          npm run build -w @rekt-ink/inkubator-lab
+          test -f inkubator/index.html
+          grep -q './assets/' inkubator/index.html
+
+      - name: Stamp exact source candidate
+        run: |
+          printf '%s\n' 'SOURCE_COMMIT=0f370a0549d86b3e6e3635d70fd9f62b12dcee6c' > inkubator/BUILD_SOURCE.txt
+
+      - name: Publish static preview and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/build-githack-preview.yml
+          git add -f inkubator
+          git diff --cached --check
+          git config user.name 'inkubator-preview[bot]'
+          git config user.email 'inkubator-preview[bot]@users.noreply.github.com'
+          git commit -m 'build(inkubator): publish GitHack preview'
+          git push origin HEAD:inkubator-githack-preview
