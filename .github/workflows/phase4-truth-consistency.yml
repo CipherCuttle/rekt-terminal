@@ -58,6 +58,20 @@ jobs:
       - name: Install
         run: npm ci --no-audit --no-fund
 
+      - name: Normalize regression anchor
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('apps/inkubator-api/test/integration/phase4-github-evidence-daemon.test.mjs')
+          text = p.read_text()
+          old = "const proofEvents = await db.selectFrom('history_events').selectAll()"
+          new = "const proofEvents = await db.selectFrom('history_events')\n      .selectAll()"
+          if old not in text:
+              raise SystemExit('phase4 proof query anchor drifted')
+          p.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Apply truth consistency repair
         run: python3 .github/scripts/phase4_truth_consistency.py
 
