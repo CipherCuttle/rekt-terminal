@@ -83,6 +83,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git rm -f .github/workflows/phase4-prefreeze-evidence-repair.yml .github/scripts/phase4_prefreeze_evidence_serialization.py
-          git add apps/inkubator-api/src/events.ts apps/inkubator-api/src/jobs.ts apps/inkubator-api/test/integration/phase4-github-evidence-daemon.test.mjs apps/inkubator-lab/src/generated/inkubator-api-client.ts
+          git add apps/inkubator-api/src/events.ts apps/inkubator-api/src/database.ts apps/inkubator-api/src/migrations.ts apps/inkubator-api/src/migrations/007-phase4-project-evidence-projection.ts apps/inkubator-api/src/jobs.ts apps/inkubator-api/src/mission-command.ts apps/inkubator-api/test/integration/phase4-github-evidence-daemon.test.mjs apps/inkubator-lab/src/generated/inkubator-api-client.ts
           git commit -m 'fix(inkubator): serialize Phase 4 evidence materialization'
           git push origin HEAD:feature/inkubator-github-evidence-daemon-v0
