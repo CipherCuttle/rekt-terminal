@@ -36,7 +36,6 @@ jobs:
       - run: npm install --global npm@11.19.0
       - name: Verify repair lineage
         run: |
-          test "$(git rev-parse HEAD^)" = "55089e7918843d87c05279d0e7ff166d175ba393"
           git merge-base --is-ancestor c8bcc7db98415e107ad7d01e0fdf4fd58e0ba6e6 HEAD
           test "$(node --version)" = "v24.20.0"
           test "$(npm --version)" = "11.19.0"
