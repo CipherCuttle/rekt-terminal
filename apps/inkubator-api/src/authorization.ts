@@ -12,12 +12,20 @@ export interface ProjectResource {
   ownerPlayerId: string;
 }
 
-export type Resource = PlayerResource | ProjectResource;
+export interface MissionResource {
+  kind: 'mission';
+  ownerPlayerId: string;
+}
+
+export type Resource = PlayerResource | ProjectResource | MissionResource;
 export type KnownAction =
   | 'player.read_private'
   | 'player.update'
   | 'project.read_private'
-  | 'project.link_repository';
+  | 'project.update'
+  | 'project.link_repository'
+  | 'mission.read_private'
+  | 'mission.update';
 
 export function authorize(actor: Actor | null, action: string, resource: Resource): boolean {
   if (!actor) return false;
@@ -27,8 +35,12 @@ export function authorize(actor: Actor | null, action: string, resource: Resourc
     case 'player.update':
       return resource.kind === 'player' && actor.playerId === resource.playerId;
     case 'project.read_private':
+    case 'project.update':
     case 'project.link_repository':
       return resource.kind === 'project' && actor.playerId === resource.ownerPlayerId;
+    case 'mission.read_private':
+    case 'mission.update':
+      return resource.kind === 'mission' && actor.playerId === resource.ownerPlayerId;
     default:
       return false;
   }
