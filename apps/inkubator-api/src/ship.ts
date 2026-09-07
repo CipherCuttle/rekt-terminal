@@ -22,6 +22,12 @@ function observationView(row: Selectable<ShipVerifierObservationTable>) {
   return {schema_version:'ship.verifier_observation.public.v1' as const, outcome:row.outcome, reason_code:row.reason_code,
     ...(row.final_url?{final_url:row.final_url}:{}), ...(row.http_status!==null?{http_status:row.http_status}:{}), duration_ms:row.duration_ms, redirects:row.redirects, observed_at:row.observed_at.toISOString()};
 }
+function publicSubmissionState(state: string): 'SUBMITTED' | 'OBSERVED' | 'ATTENTION' {
+  if (state === 'ACCEPTED') return 'OBSERVED';
+  if (state === 'REJECTED') return 'ATTENTION';
+  if (state === 'SUBMITTED' || state === 'OBSERVED' || state === 'ATTENTION') return state;
+  throw new Error('ship_submission_state_invalid');
+}
 function sameSubmission(row: Selectable<ShipSubmissionTable>, missionId:string, actorId:string, artifactTitle:string, artifactUrl:string, demoUrl:string|null, sourceUrl:string|null) {
   return row.mission_id===missionId && row.owner_player_id===actorId && row.artifact_title===artifactTitle && row.artifact_url===artifactUrl && row.demo_url===demoUrl && row.source_url===sourceUrl;
 }
@@ -57,5 +63,5 @@ export async function getProjectShipState(db:Kysely<DatabaseSchema>,projectIdInp
   if(!submission)return{schema_version:'project.ship.public.v1' as const,project_id:projectId};
   const observation=await db.selectFrom('ship_verifier_observations').selectAll().where('submission_id','=',submission.submission_id).executeTakeFirst();
   return{schema_version:'project.ship.public.v1' as const,project_id:projectId,latest_submission:{schema_version:'ship.submission.public.v1' as const,submission_id:submission.submission_id,mission_id:submission.mission_id,
-    artifact:{title:submission.artifact_title,url:submission.artifact_url,...(submission.demo_url?{demo_url:submission.demo_url}:{}),...(submission.source_url?{source_url:submission.source_url}:{})},state:submission.state,submitted_at:submission.submitted_at.toISOString(),...(observation?{verifier_observation:observationView(observation)}:{})}};
+    artifact:{title:submission.artifact_title,url:submission.artifact_url,...(submission.demo_url?{demo_url:submission.demo_url}:{}),...(submission.source_url?{source_url:submission.source_url}:{})},state:publicSubmissionState(String(submission.state)),submitted_at:submission.submitted_at.toISOString(),...(observation?{verifier_observation:observationView(observation)}:{})}};
 }

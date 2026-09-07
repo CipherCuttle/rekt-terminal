@@ -1,5 +1,6 @@
 import {createDatabase} from './database.js';
 import {runOneJob} from './jobs.js';
+import {reconcileShipAcceptances} from './ship-acceptance.js';
 import {createShipVerifierClient} from './ship-verifier-client.js';
 
 function requireValue(name: string): string {
@@ -41,6 +42,7 @@ try {
   while (!stopping) {
     try {
       const result = await runOneJob(db, {leaseMs, retryBaseMs, ...(shipVerifierClient ? {shipVerifierClient} : {})});
+      await reconcileShipAcceptances(db);
       if (result.status === 'idle') await sleep(pollMs);
     } catch (error) {
       console.error('inkubator worker iteration failed', error);
