@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {sql} from 'kysely';
 import {buildApp} from '../../dist/app.js';
 import {createDatabase} from '../../dist/database.js';
 import {migrateToLatest} from '../../dist/migrations.js';
@@ -236,6 +237,9 @@ test('Phase 7 derives Cheevos and contextual boards from shipped authority witho
     assert.equal(afterReplayCount, beforeReplayCount, 'reconciliation must be idempotent');
   } finally {
     await app.close();
+    // Synthetic Cheevo rows are deliberately immutable to ordinary DELETE/UPDATE. Test isolation
+    // uses TRUNCATE so this file cannot poison the repository-wide shared Postgres fixture.
+    await sql`truncate table player_cheevos`.execute(db);
     await db.destroy();
   }
 });
