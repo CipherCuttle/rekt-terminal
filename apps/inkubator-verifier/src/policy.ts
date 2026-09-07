@@ -83,10 +83,32 @@ export const systemResolver: Resolver = async (hostname) => {
   return result.map((entry) => ({address: entry.address, family: entry.family as AddressFamily}));
 };
 
-export async function resolveSafeTarget(raw: string | URL, resolver: Resolver = systemResolver): Promise<SafeTarget> {
+async function resolveWithTimeout(hostname: string, resolver: Resolver, timeoutMs: number | undefined): Promise<ResolvedAddress[]> {
+  if (timeoutMs === undefined) return resolver(hostname);
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error('TIMEOUT');
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      resolver(hostname),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('TIMEOUT')), Math.max(1, Math.ceil(timeoutMs)));
+        timer.unref?.();
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export async function resolveSafeTarget(raw: string | URL, resolver: Resolver = systemResolver, timeoutMs?: number): Promise<SafeTarget> {
   const url = typeof raw === 'string' ? normalizePublicHttpsUrl(raw) : normalizePublicHttpsUrl(raw.href);
   let addresses: ResolvedAddress[];
-  try { addresses = await resolver(url.hostname); } catch { throw new Error('DNS_FAILURE'); }
+  try {
+    addresses = await resolveWithTimeout(url.hostname, resolver, timeoutMs);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'TIMEOUT') throw error;
+    throw new Error('DNS_FAILURE');
+  }
   if (!Array.isArray(addresses) || addresses.length < 1 || addresses.length > 16) throw new Error('DNS_FAILURE');
   if (addresses.some((address) => !publicAddress(address))) throw new Error('TARGET_NOT_PUBLIC');
   const unique = [...new Map(addresses.map((entry) => [`${entry.family}:${entry.address}`, entry])).values()]
@@ -155,9 +177,11 @@ export async function verifyPublicUrl(
   const resolver = deps.resolver ?? systemResolver;
   const request = deps.request ?? pinnedHttpsRequest;
   let current: SafeTarget;
-  try { current = await resolveSafeTarget(rawUrl, resolver); }
-  catch (error) {
+  try {
+    current = await resolveSafeTarget(rawUrl, resolver, TOTAL_TIMEOUT_MS);
+  } catch (error) {
     const code = error instanceof Error ? error.message : 'URL_INVALID';
+    if (code === 'TIMEOUT') return failure(submissionId, start, 0, 'UNAVAILABLE', 'TIMEOUT');
     if (code === 'DNS_FAILURE') return failure(submissionId, start, 0, 'UNAVAILABLE', 'DNS_FAILURE');
     if (code === 'TARGET_NOT_PUBLIC') return failure(submissionId, start, 0, 'FAILED', 'TARGET_NOT_PUBLIC');
     return failure(submissionId, start, 0, 'FAILED', 'URL_INVALID');
@@ -175,9 +199,13 @@ export async function verifyPublicUrl(
       if (redirects >= MAX_REDIRECTS) return failure(submissionId, start, redirects, 'FAILED', 'REDIRECT_LIMIT', {final_url: current.url.href, http_status: hop.status});
       let next: URL;
       try { next = new URL(hop.location, current.url); } catch { return failure(submissionId, start, redirects, 'FAILED', 'REDIRECT_INVALID'); }
-      try { current = await resolveSafeTarget(next, resolver); }
-      catch (error) {
+      const remainingForDns = TOTAL_TIMEOUT_MS - (performance.now() - start);
+      if (remainingForDns <= 0) return failure(submissionId, start, redirects + 1, 'UNAVAILABLE', 'TIMEOUT');
+      try {
+        current = await resolveSafeTarget(next, resolver, remainingForDns);
+      } catch (error) {
         const code = error instanceof Error ? error.message : 'URL_INVALID';
+        if (code === 'TIMEOUT') return failure(submissionId, start, redirects + 1, 'UNAVAILABLE', 'TIMEOUT');
         if (code === 'DNS_FAILURE') return failure(submissionId, start, redirects + 1, 'UNAVAILABLE', 'DNS_FAILURE');
         if (code === 'TARGET_NOT_PUBLIC') return failure(submissionId, start, redirects + 1, 'FAILED', 'TARGET_NOT_PUBLIC');
         return failure(submissionId, start, redirects + 1, 'FAILED', 'REDIRECT_INVALID');
