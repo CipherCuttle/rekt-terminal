@@ -58,6 +58,20 @@ jobs:
       - name: Install
         run: npm ci --no-audit --no-fund
 
+      - name: Normalize exported stack vocabulary name
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/scripts/phase4_stack_observation.py')
+          text = p.read_text()
+          text = text.replace('export const DETECTED_STACKS = [', 'export const DETECTED_STACK_VALUES = [', 1)
+          text = text.replace('(typeof DETECTED_STACKS)[number]', '(typeof DETECTED_STACK_VALUES)[number]', 1)
+          text = text.replace('new Set<string>(DETECTED_STACKS)', 'new Set<string>(DETECTED_STACK_VALUES)', 1)
+          p.write_text(text)
+          PY
+
       - name: Apply bounded stack observation wiring
         run: python3 .github/scripts/phase4_stack_observation.py
 
