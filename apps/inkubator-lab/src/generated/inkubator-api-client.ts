@@ -56,8 +56,8 @@ export interface PublicProject {
   mission_id: string;
   mission_state: "DECLARED";
   source_connected: boolean;
-  source_visibility: string;
-  observation_state: string;
+  source_visibility: "NONE" | "PUBLIC" | "PRIVATE";
+  observation_state: "UNKNOWN" | "OBSERVED";
 }
 
 export interface PrivateProject {
@@ -72,8 +72,8 @@ export interface PrivateProject {
   current_focus: string;
   next_move: string;
   source_connected: boolean;
-  source_visibility: string;
-  observation_state: string;
+  source_visibility: "NONE" | "PUBLIC" | "PRIVATE";
+  observation_state: "UNKNOWN" | "OBSERVED";
   repository_id?: string;
   repository_full_name?: string;
   repository_private?: boolean;
