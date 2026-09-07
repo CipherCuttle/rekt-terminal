@@ -54,6 +54,70 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Repair Fastify component-schema bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/inkubator-api/src/app.ts')
+          text = path.read_text()
+
+          build_anchor = "export function buildApp(options: BuildAppOptions) {\n"
+          helper = """const FASTIFY_SCHEMA_ID = 'inkubator-component-schemas-v1';
+
+          function rewriteFastifyRefs(value: unknown): unknown {
+            if (Array.isArray(value)) return value.map(rewriteFastifyRefs);
+            if (value === null || typeof value !== 'object') return value;
+            return Object.fromEntries(Object.entries(value).map(([key, child]) => [
+              key,
+              key === '$ref' && typeof child === 'string' && child.startsWith('#/components/schemas/')
+                ? child.replace('#/components/schemas/', `${FASTIFY_SCHEMA_ID}#/definitions/`)
+                : rewriteFastifyRefs(child),
+            ]));
+          }
+
+          const fastifyComponentSchemas = rewriteFastifyRefs(componentSchemas) as Record<string, object>;
+
+          function fastifyBodySchema(name: keyof typeof componentSchemas) {
+            return {$ref: `${FASTIFY_SCHEMA_ID}#/definitions/${name}`};
+          }
+
+          """
+          if helper not in text:
+              if text.count(build_anchor) != 1:
+                  raise SystemExit('buildApp anchor drifted')
+              text = text.replace(build_anchor, helper + build_anchor)
+
+          app_anchor = "  const app = Fastify({logger: false});\n"
+          app_registration = app_anchor + "\n  app.addSchema({$id: FASTIFY_SCHEMA_ID, definitions: fastifyComponentSchemas});\n"
+          if app_registration not in text:
+              if text.count(app_anchor) != 1:
+                  raise SystemExit('Fastify construction anchor drifted')
+              text = text.replace(app_anchor, app_registration)
+
+          schema_names = [
+              'DevSessionRequest',
+              'DevelopmentProjectRequest',
+              'PlayerProfileUpdateRequest',
+              'MissionCreateRequest',
+              'MissionUpdateRequest',
+              'MissionGateUpdateRequest',
+          ]
+          for name in schema_names:
+              old = f"schema: {{body: componentSchemas.{name}}}"
+              new = f"schema: {{body: fastifyBodySchema('{name}')}}"
+              if old in text:
+                  if text.count(old) != 1:
+                      raise SystemExit(f'{name} route schema anchor ambiguous')
+                  text = text.replace(old, new)
+              elif new not in text:
+                  raise SystemExit(f'{name} route schema anchor drifted')
+
+          path.write_text(text)
+          PY
+
       - name: Update graduated-route regressions
         shell: bash
         run: |
