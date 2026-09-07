@@ -3,7 +3,7 @@ import {fileURLToPath} from 'node:url';
 import {componentSchemas, openapiDocument} from './contract.js';
 
 type Schema = {
-  type?: string;
+  type?: string | string[];
   const?: string | number | boolean;
   enum?: Array<string | number | boolean>;
   $ref?: string;
@@ -41,8 +41,16 @@ const clientOperations = [
   ['/v1/dev/session', 'post'],
   ['/v1/session', 'delete'],
   ['/v1/me', 'get'],
+  ['/v1/me/profile', 'get'],
+  ['/v1/me/profile', 'patch'],
+  ['/v1/me/command', 'get'],
   ['/v1/players/{playerId}', 'get'],
   ['/v1/players/{playerId}/private', 'get'],
+  ['/v1/rounds', 'get'],
+  ['/v1/rounds/{roundId}/join', 'post'],
+  ['/v1/missions', 'post'],
+  ['/v1/missions/{missionId}', 'patch'],
+  ['/v1/missions/{missionId}/gates/{gateKey}', 'patch'],
   ['/v1/development/projects', 'post'],
   ['/v1/projects/{projectId}', 'get'],
   ['/v1/projects/{projectId}/private', 'get'],
@@ -50,15 +58,22 @@ const clientOperations = [
   ['/v1/github/install', 'post'],
 ] as const;
 
+function primitiveType(type: string): string {
+  if (type === 'string') return 'string';
+  if (type === 'number' || type === 'integer') return 'number';
+  if (type === 'boolean') return 'boolean';
+  if (type === 'null') return 'null';
+  if (type === 'object') return 'Record<string, unknown>';
+  return 'unknown';
+}
+
 function schemaType(schema: Schema): string {
   if (schema.$ref) return schema.$ref.split('/').at(-1) ?? 'unknown';
   if (schema.const !== undefined) return JSON.stringify(schema.const);
   if (schema.enum) return schema.enum.map((value) => JSON.stringify(value)).join(' | ');
-  if (schema.type === 'string') return 'string';
-  if (schema.type === 'number' || schema.type === 'integer') return 'number';
-  if (schema.type === 'boolean') return 'boolean';
+  if (Array.isArray(schema.type)) return schema.type.map(primitiveType).join(' | ');
   if (schema.type === 'array') return `${schema.items ? schemaType(schema.items) : 'unknown'}[]`;
-  if (schema.type === 'object') return 'Record<string, unknown>';
+  if (schema.type) return primitiveType(schema.type);
   return 'unknown';
 }
 
