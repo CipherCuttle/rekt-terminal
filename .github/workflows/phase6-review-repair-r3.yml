@@ -1,0 +1,192 @@
+name: Phase 6 Final Review Repair R3
+
+on:
+  push:
+    branches: [feature/inkubator-ship-verifier-receipt-v0]
+    paths:
+      - '.github/workflows/phase6-review-repair-r3.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_USER: rekt
+          POSTGRES_PASSWORD: rekt_test
+          POSTGRES_DB: rekt_inkubator
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U rekt -d rekt_inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://rekt:rekt_test@127.0.0.1:5432/rekt_inkubator
+      INKUBATOR_APP_ORIGIN: http://127.0.0.1:4175
+      INKUBATOR_DEV_AUTH: '1'
+      NODE_ENV: test
+
+    steps:
+      - name: Check out exact Phase 6 branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/inkubator-ship-verifier-receipt-v0
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Apply R2 repair plus truthful SUPERSEDED lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          r2 = Path('.github/workflows/phase6-review-repair-r2.yml').read_text().splitlines()
+          start = next(i for i, line in enumerate(r2) if line.strip() == "python - <<'PY'") + 1
+          end = next(i for i in range(start, len(r2)) if r2[i].strip() == 'PY')
+          script = textwrap.dedent('\n'.join(r2[start:end]))
+          exec(compile(script, 'phase6-review-repair-r2-extracted.py', 'exec'))
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, got {count}: {old[:100]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'apps/inkubator-api/src/database.ts',
+              "export type ShipSubmissionState = 'SUBMITTED' | 'OBSERVED' | 'ATTENTION';",
+              "export type ShipSubmissionState = 'SUBMITTED' | 'OBSERVED' | 'ATTENTION' | 'ACCEPTED' | 'REJECTED' | 'SUPERSEDED';",
+          )
+
+          migration = Path('apps/inkubator-api/src/migrations/016-phase6-review-repair.ts')
+          text = migration.read_text()
+          old = """      .addCheckConstraint('ship_receipt_assists_display_name', sql`char_length(display_name) between 1 and 80`)
+              .execute();
+            },
+            async down(db: Kysely<DatabaseSchema>) {
+              await db.schema.dropTable('ship_receipt_assists').execute();
+            },
+          };
+          """
+          new = """      .addCheckConstraint('ship_receipt_assists_display_name', sql`char_length(display_name) between 1 and 80`)
+              .execute();
+              await sql`alter table ship_submissions drop constraint ship_submissions_state`.execute(db);
+              await sql`alter table ship_submissions add constraint ship_submissions_state check (state in ('SUBMITTED','OBSERVED','ATTENTION','ACCEPTED','REJECTED','SUPERSEDED'))`.execute(db);
+            },
+            async down(db: Kysely<DatabaseSchema>) {
+              await sql`update ship_submissions set state = 'ATTENTION', updated_at = clock_timestamp() where state = 'SUPERSEDED'`.execute(db);
+              await sql`alter table ship_submissions drop constraint ship_submissions_state`.execute(db);
+              await sql`alter table ship_submissions add constraint ship_submissions_state check (state in ('SUBMITTED','OBSERVED','ATTENTION','ACCEPTED','REJECTED'))`.execute(db);
+              await db.schema.dropTable('ship_receipt_assists').execute();
+            },
+          };
+          """
+          if text.count(old) != 1:
+              raise SystemExit('migration 016 lifecycle anchor mismatch')
+          migration.write_text(text.replace(old, new, 1))
+
+          ship = Path('apps/inkubator-api/src/ship.ts')
+          text = ship.read_text()
+          old = """      if(active.state!=='ATTENTION'||activeObservation?.outcome!=='UNAVAILABLE')throw new Error('ship_submission_active');
+              }
+              const now=new Date();
+          """
+          new = """      if(active.state!=='ATTENTION'||activeObservation?.outcome!=='UNAVAILABLE')throw new Error('ship_submission_active');
+                const superseded=await tx.updateTable('ship_submissions').set({state:'SUPERSEDED',updated_at:new Date()}).where('submission_id','=',active.submission_id).where('state','=','ATTENTION').executeTakeFirst();
+                if(Number(superseded.numUpdatedRows)!==1)throw new Error('ship_submission_supersede_invariant');
+              }
+              const now=new Date();
+          """
+          if text.count(old) != 1:
+              raise SystemExit('ship.ts supersede anchor mismatch')
+          ship.write_text(text.replace(old, new, 1))
+
+          test = Path('apps/inkubator-api/test/integration/phase6-review-repair.test.mjs')
+          text = test.read_text()
+          old = """    const replacement = await submitShip(db, f.playerId, f.missionId, {requestId: randomUUID(), title: 'Retry artifact replacement', url: 'https://example.com/retry'});
+              assert.notEqual(replacement.submission_id, first.submission_id);
+          """
+          new = """    const replacement = await submitShip(db, f.playerId, f.missionId, {requestId: randomUUID(), title: 'Retry artifact replacement', url: 'https://example.com/retry'});
+              assert.notEqual(replacement.submission_id, first.submission_id);
+              assert.equal((await db.selectFrom('ship_submissions').select('state').where('submission_id', '=', first.submission_id).executeTakeFirstOrThrow()).state, 'SUPERSEDED');
+              assert.equal((await db.selectFrom('ship_submissions').select('state').where('submission_id', '=', replacement.submission_id).executeTakeFirstOrThrow()).state, 'SUBMITTED');
+          """
+          if text.count(old) != 1:
+              raise SystemExit('review repair test supersede anchor mismatch')
+          test.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify isolated verifier
+        run: |
+          npm run typecheck -w @rekt-ink/inkubator-verifier
+          npm run test -w @rekt-ink/inkubator-verifier
+
+      - name: Verify API contract and generated client
+        run: |
+          npm run typecheck -w @rekt-ink/inkubator-api
+          npm run build -w @rekt-ink/inkubator-api
+          npm run generate:client -w @rekt-ink/inkubator-api
+          npm run verify:client -w @rekt-ink/inkubator-api
+          npm run test -w @rekt-ink/inkubator-api
+          npm run test -w @rekt-ink/inkubator-protocol
+          npm run build -w @rekt-ink/inkubator-lab
+
+      - name: Apply migrations
+        run: npm run migrate -w @rekt-ink/inkubator-api
+
+      - name: Focused Phase 6 review falsification
+        run: >-
+          timeout 180s node --test --test-concurrency=1
+          apps/inkubator-api/test/integration/phase6-review-repair.test.mjs
+          apps/inkubator-api/test/integration/phase6-ship-artifact-attribution.test.mjs
+          apps/inkubator-api/test/integration/phase6-ship-acceptance-receipt.test.mjs
+          apps/inkubator-api/test/integration/phase6-ship-unavailable-truth.test.mjs
+          apps/inkubator-api/test/integration/phase6-ship-reconciliation-starvation.test.mjs
+
+      - name: Full Postgres integration
+        run: timeout 300s npm run test:integration -w @rekt-ink/inkubator-api
+
+      - name: Publish verified product-only repair and remove harnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm \
+            .github/workflows/phase6-review-repair.yml \
+            .github/workflows/phase6-review-repair-r2.yml \
+            .github/workflows/phase6-review-repair-r3.yml
+          git add \
+            apps/inkubator-api/src/database.ts \
+            apps/inkubator-api/src/ship.ts \
+            apps/inkubator-api/src/jobs.ts \
+            apps/inkubator-api/src/contract-phase6c.ts \
+            apps/inkubator-api/src/migrations.ts \
+            apps/inkubator-api/src/migrations/016-phase6-review-repair.ts \
+            apps/inkubator-api/src/ship-artifact.ts \
+            apps/inkubator-api/test/integration/phase6-review-repair.test.mjs \
+            apps/inkubator-api/test/integration/phase6-ship-artifact-attribution.test.mjs \
+            apps/inkubator-verifier/src/policy.ts \
+            apps/inkubator-verifier/test/policy.test.mjs \
+            apps/inkubator-lab/src/generated/inkubator-api-client.ts
+          git diff --cached --check
+          git config user.name 'phase6-review-repair[bot]'
+          git config user.email 'phase6-review-repair[bot]@users.noreply.github.com'
+          git commit -m 'fix(inkubator): close final Phase 6 review findings'
+          git push origin HEAD:feature/inkubator-ship-verifier-receipt-v0
