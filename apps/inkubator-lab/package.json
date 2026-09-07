@@ -7,16 +7,25 @@
     "dev": "vite --host 127.0.0.1 --port 5174",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
-    "test": "vitest run"
+    "test": "vitest run",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@base-ui/react": "1.8.0",
     "@react-three/fiber": "^9.7.0",
+    "lucide-react": "1.41.0",
     "next-themes": "^0.4.6",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.62.1",
+    "@storybook/addon-a11y": "10.6.0",
+    "@storybook/react-vite": "10.6.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@types/react": "19.1.0",
@@ -24,6 +33,7 @@
     "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "4.7.0",
     "jsdom": "^26.0.0",
+    "storybook": "10.6.0",
     "typescript": "5.8.3",
     "vite": "7.0.0",
     "vitest": "3.2.0"
