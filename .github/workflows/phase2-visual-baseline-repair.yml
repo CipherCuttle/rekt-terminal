@@ -1,5 +1,6 @@
 name: Phase 2 visual baseline repair
 
+# One-shot retry after strengthening screen-ready assertions.
 on:
   push:
     branches:
