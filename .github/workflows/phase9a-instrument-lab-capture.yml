@@ -1,0 +1,49 @@
+name: Phase 9A Instrument Lab Capture
+
+on:
+  push:
+    branches: [feature/inkubator-founding-cohort-rehearsal-v0]
+    paths:
+      - '.github/workflows/phase9a-instrument-lab-capture.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Start Inkubator Lab
+        run: |
+          npm run dev -w @rekt-ink/inkubator-lab -- --host 127.0.0.1 > /tmp/instrument-lab-vite.log 2>&1 &
+          for i in {1..30}; do curl -fsS http://127.0.0.1:5174/ >/dev/null && exit 0; sleep 1; done
+          cat /tmp/instrument-lab-vite.log
+          exit 1
+      - name: Capture desktop and mobile
+        run: |
+          node --input-type=module <<'NODE'
+          import { chromium } from '@playwright/test';
+          import fs from 'node:fs/promises';
+          await fs.mkdir('artifacts/instrument-lab', {recursive: true});
+          const browser = await chromium.launch();
+          const page = await browser.newPage({viewport: {width: 1440, height: 900}, reducedMotion: 'reduce'});
+          await page.goto('http://127.0.0.1:5174/?lab=instrument');
+          await page.screenshot({path: 'artifacts/instrument-lab/desktop.png', fullPage: true});
+          await page.setViewportSize({width: 390, height: 844});
+          await page.screenshot({path: 'artifacts/instrument-lab/mobile.png', fullPage: true});
+          await browser.close();
+          NODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase9a-instrument-lab-capture
+          path: artifacts/instrument-lab/*.png
+          if-no-files-found: error
