@@ -1,0 +1,47 @@
+name: Phase 9 GitHack Preview
+
+on:
+  push:
+    branches:
+      - feature/inkubator-founding-cohort-rehearsal-v0
+    paths:
+      - .github/workflows/phase9-githack-preview.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/inkubator-founding-cohort-rehearsal-v0
+          fetch-depth: 0
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build Inkubator static preview
+        run: npm run build -w @rekt-ink/inkubator-lab
+
+      - name: Publish built preview to branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f inkubator
+          if git diff --cached --quiet; then
+            echo "Preview already current"
+            exit 0
+          fi
+          git commit -m "chore(inkubator): publish GitHack preview"
+          git push origin HEAD:feature/inkubator-founding-cohort-rehearsal-v0
