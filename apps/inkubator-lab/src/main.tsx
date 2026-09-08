@@ -12,11 +12,13 @@ const AppV3 = lazy(() => import('./AppV3'));
 const SignalSystemLab = lazy(() => import('./signal-system/GoldenScreens'));
 const InstrumentLab = lazy(() => import('./instrument-os/InstrumentLab'));
 const LiveCommand = lazy(() => import('./command/LiveCommand'));
+const CommandPreview = lazy(() => import('./command/CommandPreview'));
 const LiveProject = lazy(() => import('./project/LiveProject'));
 const LiveWorld = lazy(() => import('./world/LiveWorld'));
 const params = new URLSearchParams(window.location.search);
 const lab = params.get('lab');
 const mode = params.get('mode');
+const preview = params.get('preview');
 
 const instrumentQueryClient = new QueryClient({
   defaultOptions: {
@@ -34,13 +36,15 @@ createRoot(document.getElementById('root')!).render(
         ? <InstrumentLab />
         : lab === 'signals'
           ? <SignalSystemLab />
-          : mode === 'command'
-            ? <QueryClientProvider client={instrumentQueryClient}><LiveCommand /></QueryClientProvider>
-            : mode === 'project'
-              ? <QueryClientProvider client={instrumentQueryClient}><LiveProject /></QueryClientProvider>
-              : mode === 'world'
-                ? <QueryClientProvider client={instrumentQueryClient}><LiveWorld /></QueryClientProvider>
-                : <AppV3 />}
+          : preview === 'command'
+            ? <QueryClientProvider client={instrumentQueryClient}><CommandPreview /></QueryClientProvider>
+            : mode === 'command'
+              ? <QueryClientProvider client={instrumentQueryClient}><LiveCommand /></QueryClientProvider>
+              : mode === 'project'
+                ? <QueryClientProvider client={instrumentQueryClient}><LiveProject /></QueryClientProvider>
+                : mode === 'world'
+                  ? <QueryClientProvider client={instrumentQueryClient}><LiveWorld /></QueryClientProvider>
+                  : <AppV3 />}
     </Suspense>
   </StrictMode>
 );
