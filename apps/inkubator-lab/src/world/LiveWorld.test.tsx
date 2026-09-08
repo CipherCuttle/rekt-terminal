@@ -56,8 +56,8 @@ describe('Live World', () => {
     const {container} = renderWorld();
 
     expect(await screen.findByRole('heading', {name: 'UNDERGROUND BUILD NETWORK'})).toBeTruthy();
+    expect(await screen.findByText('Need an external tester.')).toBeTruthy();
     expect(screen.getAllByText('WEIRD LITTLE THING').length).toBeGreaterThan(0);
-    expect(screen.getByText('Need an external tester.')).toBeTruthy();
     expect(screen.getAllByText('Relay Kid').length).toBeGreaterThan(0);
     expect(screen.getByText('EXTERNAL TEST RECORDED')).toBeTruthy();
     expect(screen.getByRole('img', {name: 'Public Inkubator project and signal radar'})).toBeTruthy();
