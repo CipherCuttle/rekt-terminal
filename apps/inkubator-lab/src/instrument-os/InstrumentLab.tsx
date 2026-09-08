@@ -1,5 +1,10 @@
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
+import {useGSAP} from '@gsap/react';
+import gsap from 'gsap';
+import {Application, Graphics} from 'pixi.js';
 import './instrument-os.css';
+
+gsap.registerPlugin(useGSAP);
 
 type LabState = 'IDLE' | 'INPUT' | 'ACTIVE' | 'SUCCESS' | 'ERROR';
 type InstrumentZone = 'mission' | 'signal' | 'scope' | 'readout' | 'thread' | 'verifier' | 'rotary' | 'mode' | 'rekt' | 'crt';
@@ -14,13 +19,36 @@ const readoutByState: Record<LabState, string> = {
   ERROR: 'ERR.4',
 };
 
-const scopePathByState: Record<LabState, string> = {
-  IDLE: 'M0 40 L240 40',
-  INPUT: 'M0 40 L28 40 L42 28 L58 52 L74 40 L240 40',
-  ACTIVE: 'M0 40 L22 40 L38 12 L54 66 L70 25 L90 54 L108 18 L128 62 L148 30 L166 48 L186 20 L204 58 L222 40 L240 40',
-  SUCCESS: 'M0 40 L42 40 L58 24 L76 54 L96 30 L118 48 L140 22 L164 40 L240 40',
-  ERROR: 'M0 40 L54 40 L68 10 L82 70 L96 14 L112 66 L128 40 L240 40',
+const scopeValuesByState: Record<LabState, number[]> = {
+  IDLE: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+  INPUT: [0.5, 0.5, 0.28, 0.7, 0.5, 0.5, 0.5, 0.5],
+  ACTIVE: [0.5, 0.16, 0.82, 0.24, 0.76, 0.2, 0.7, 0.3, 0.62, 0.18, 0.76, 0.5],
+  SUCCESS: [0.5, 0.5, 0.3, 0.68, 0.38, 0.6, 0.26, 0.5, 0.5],
+  ERROR: [0.5, 0.5, 0.12, 0.9, 0.18, 0.84, 0.5, 0.5],
 };
+
+const scopeColorByState: Record<LabState, number> = {
+  IDLE: 0x65dcff,
+  INPUT: 0xffb24a,
+  ACTIVE: 0x65dcff,
+  SUCCESS: 0xb9ff3d,
+  ERROR: 0xff625f,
+};
+
+function useReducedMotion() {
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const sync = () => setReducedMotion(media.matches);
+    sync();
+    media.addEventListener?.('change', sync);
+    return () => media.removeEventListener?.('change', sync);
+  }, []);
+
+  return reducedMotion;
+}
 
 function Frame({title, code, zone, children}: {title: string; code: string; zone: InstrumentZone; children: React.ReactNode}) {
   return (
@@ -48,7 +76,14 @@ function RektSprite({state}: {state: LabState}) {
 }
 
 function SignalPath({state}: {state: LabState}) {
-  return <svg className="ios-signal" data-state={state.toLowerCase()} viewBox="0 0 260 86" aria-label={`Signal path ${state.toLowerCase()}`}><path d="M8 58 H64 L84 28 H150 L172 58 H252"/><circle cx="8" cy="58" r="4"/><circle cx="252" cy="58" r="4"/><circle className="ios-signal-pulse" cx="84" cy="28" r="5"/></svg>;
+  return (
+    <svg className="ios-signal" data-state={state.toLowerCase()} data-motion="gsap" viewBox="0 0 260 86" aria-label={`Signal path ${state.toLowerCase()}`}>
+      <path d="M8 58 H64 L84 28 H150 L172 58 H252" />
+      <circle cx="8" cy="58" r="4" />
+      <circle cx="252" cy="58" r="4" />
+      <circle className="ios-signal-pulse" cx="8" cy="58" r="5" />
+    </svg>
+  );
 }
 
 function Rotary({state}: {state: LabState}) {
@@ -56,8 +91,80 @@ function Rotary({state}: {state: LabState}) {
   return <div className="ios-rotary" style={{'--angle': `${angle}deg`} as React.CSSProperties}><div className="ios-rotary-ring"><div className="ios-rotary-knob"><i /></div></div><span>GAIN / {state}</span></div>;
 }
 
-function Scope({state}: {state: LabState}) {
-  return <svg className="ios-scope" viewBox="0 0 240 80" aria-label={`Oscilloscope ${state.toLowerCase()}`}><g className="grid"><path d="M0 20H240M0 40H240M0 60H240M40 0V80M80 0V80M120 0V80M160 0V80M200 0V80"/></g><path className="trace" d={scopePathByState[state]}/></svg>;
+function PixiScope({state, reducedMotion}: {state: LabState; reducedMotion: boolean}) {
+  const hostRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host || typeof navigator === 'undefined' || /jsdom/i.test(navigator.userAgent)) return;
+
+    let cancelled = false;
+    let app: Application | null = null;
+
+    const boot = async () => {
+      const bounds = host.getBoundingClientRect();
+      const width = Math.max(240, Math.round(bounds.width || 320));
+      const height = Math.max(88, Math.round(bounds.height || 104));
+      const next = new Application();
+      await next.init({width, height, backgroundAlpha: 0, antialias: true, preference: 'webgl'});
+
+      if (cancelled) {
+        next.destroy(true, {children: true});
+        return;
+      }
+
+      app = next;
+      next.canvas.className = 'ios-pixi-canvas';
+      next.canvas.setAttribute('aria-hidden', 'true');
+      host.replaceChildren(next.canvas);
+
+      const grid = new Graphics();
+      for (let x = 0; x <= width; x += Math.max(36, Math.round(width / 6))) grid.moveTo(x, 0).lineTo(x, height);
+      for (let y = 0; y <= height; y += Math.max(22, Math.round(height / 4))) grid.moveTo(0, y).lineTo(width, y);
+      grid.stroke({color: 0x9d78ff, alpha: 0.12, pixelLine: true});
+
+      const values = scopeValuesByState[state];
+      const trace = new Graphics();
+      values.forEach((value, index) => {
+        const x = values.length === 1 ? 0 : (index / (values.length - 1)) * width;
+        const y = Math.max(5, Math.min(height - 5, value * height));
+        if (index === 0) trace.moveTo(x, y);
+        else trace.lineTo(x, y);
+      });
+      trace.stroke({color: scopeColorByState[state], width: 1.5});
+
+      const scanner = new Graphics().circle(0, 0, 2.5).fill(scopeColorByState[state]);
+      scanner.position.set(width * 0.68, height * 0.5);
+      scanner.alpha = reducedMotion ? 0.42 : 0.88;
+
+      next.stage.addChild(grid, trace, scanner);
+
+      if (!reducedMotion) {
+        next.ticker.add((ticker) => {
+          scanner.x = (scanner.x + ticker.deltaTime * 1.35) % width;
+        });
+      }
+    };
+
+    void boot();
+
+    return () => {
+      cancelled = true;
+      if (app) app.destroy(true, {children: true});
+      host.replaceChildren();
+    };
+  }, [state, reducedMotion]);
+
+  return (
+    <div
+      ref={hostRef}
+      className="ios-pixi-host"
+      role="img"
+      aria-label={`Pixi oscilloscope ${state.toLowerCase()}`}
+      data-renderer="pixi"
+      data-motion-policy={reducedMotion ? 'reduced' : 'full'}
+    />
+  );
 }
 
 function ThreadNode({state}: {state: LabState}) {
@@ -75,15 +182,57 @@ function MissionMachine({state}: {state: LabState}) {
 export default function InstrumentLab() {
   const [state, setState] = useState<LabState>('ACTIVE');
   const [mode, setMode] = useState('COMMAND');
+  const reducedMotion = useReducedMotion();
+  const rootRef = useRef<HTMLElement>(null);
   const stateIndex = useMemo(() => STATES.indexOf(state), [state]);
 
+  useGSAP(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const pulse = root.querySelector<SVGCircleElement>('.ios-signal-pulse');
+    const thread = root.querySelector<HTMLElement>('.ios-thread-node');
+    const mission = root.querySelector<HTMLElement>('.ios-mission-core');
+    const verifier = root.querySelector<HTMLElement>('.ios-verifier-core');
+    if (!pulse || !thread || !mission || !verifier) return;
+
+    gsap.set([thread, mission, verifier], {clearProps: 'transform,opacity,filter'});
+    gsap.set(pulse, {attr: {cx: 8, cy: 58}, opacity: reducedMotion ? 0.6 : 0.22});
+
+    if (reducedMotion) return;
+
+    const timeline = gsap.timeline({defaults: {ease: 'power2.out'}});
+    timeline
+      .to(pulse, {attr: {cx: 84, cy: 28}, opacity: 1, duration: 0.18})
+      .to(pulse, {attr: {cx: 172, cy: 58}, duration: 0.18})
+      .to(pulse, {attr: {cx: 252, cy: 58}, opacity: 0.7, duration: 0.18})
+      .fromTo(thread, {scale: 0.84, opacity: 0.45}, {scale: 1, opacity: 1, duration: 0.14}, '-=0.12')
+      .fromTo(mission, {filter: 'brightness(0.78)'}, {filter: 'brightness(1)', duration: 0.24}, '-=0.04')
+      .fromTo(verifier, {scale: 0.92}, {scale: 1, duration: 0.18}, '-=0.12');
+
+    if (state === 'SUCCESS') {
+      timeline.fromTo(mission, {boxShadow: '0 0 0 rgba(185,255,61,0)'}, {boxShadow: '0 0 24px rgba(185,255,61,.16)', duration: 0.36, yoyo: true, repeat: 1});
+    } else if (state === 'ERROR') {
+      timeline.fromTo(mission, {x: 0}, {x: 3, duration: 0.07, yoyo: true, repeat: 3, ease: 'steps(1)'}, '-=0.08');
+    }
+  }, {scope: rootRef, dependencies: [state, reducedMotion], revertOnUpdate: true});
+
   return (
-    <main className="ios-lab" data-state={state.toLowerCase()} data-mode={mode.toLowerCase()}>
+    <main
+      ref={rootRef}
+      className="ios-lab"
+      data-state={state.toLowerCase()}
+      data-mode={mode.toLowerCase()}
+      data-motion="gsap"
+      data-motion-policy={reducedMotion ? 'reduced' : 'full'}
+    >
       <div className="ios-crt" aria-hidden="true" />
       <header className="ios-lab-header">
         <div><small>REKT INK(CUBATOR) // 9A</small><h1>INSTRUMENT / MOTION LAB</h1><p>Calibration surface. Synthetic state only — never canonical product truth.</p></div>
         <div className="ios-state-bank" aria-label="Calibration state selector">{STATES.map((item) => <button key={item} type="button" aria-pressed={state === item} onClick={() => setState(item)}>{item}</button>)}</div>
       </header>
+
+      <div className="ios-event-status" aria-live="polite">EVENT // {state} // {reducedMotion ? 'STATIC ACCESSIBLE PROJECTION' : 'CAUSAL MOTION ACTIVE'}</div>
 
       <section className="ios-chassis">
         <nav className="ios-mode-rail" aria-label="Instrument mode selector">
@@ -95,11 +244,11 @@ export default function InstrumentLab() {
         <section className="ios-console" aria-label="Instrument primitives">
           <div className="ios-bus-label" aria-hidden="true">SIGNAL BUS // A</div>
           <Frame code="10" title="MISSION MACHINE" zone="mission"><MissionMachine state={state}/></Frame>
-          <Frame code="01" title="SIGNAL PATH" zone="signal"><SignalPath state={state}/><p>Input → relay → projection. Motion represents causality.</p></Frame>
+          <Frame code="01" title="SIGNAL PATH" zone="signal"><SignalPath state={state}/><p>Input → relay → projection. GSAP renders event causality.</p></Frame>
           <Frame code="04" title="NUMERIC READOUT" zone="readout"><div className="ios-readout"><small>TRUTH CONFIDENCE</small><strong>{readoutByState[state]}</strong><span>{state}</span></div></Frame>
           <Frame code="09" title="VERIFIER MACHINE" zone="verifier"><VerifierMachine state={state}/></Frame>
           <Frame code="06" title="THREAD NODE" zone="thread"><ThreadNode state={state}/></Frame>
-          <Frame code="03" title="OSCILLOSCOPE" zone="scope"><Scope state={state}/><div className="ios-caption"><span>RX TRACE</span><b>{stateIndex + 1}.0 kHz</b></div></Frame>
+          <Frame code="03" title="OSCILLOSCOPE" zone="scope"><PixiScope state={state} reducedMotion={reducedMotion}/><div className="ios-caption"><span>RX TRACE / PIXI</span><b>{stateIndex + 1}.0 kHz</b></div></Frame>
           <Frame code="07" title="REKT SPRITE" zone="rekt"><RektSprite state={state}/></Frame>
           <Frame code="02" title="ROTARY / GAUGE" zone="rotary"><Rotary state={state}/></Frame>
           <Frame code="05" title="MODE SWITCH" zone="mode"><div className="ios-mode-demo"><b>{mode}</b><span>one machine / five lenses</span></div></Frame>
@@ -107,7 +256,7 @@ export default function InstrumentLab() {
         </section>
       </section>
 
-      <footer className="ios-lab-footer"><span>RAW UI MUST WORK WITH CRT OFF</span><span>CLAIMED ≠ OBSERVED ≠ PROVEN</span><span>AMBIENT QUIET / EVENT PRECISE / PROOF RARE</span></footer>
+      <footer className="ios-lab-footer"><span>GSAP // EVENT CHOREOGRAPHY</span><span>PIXI // 2D INSTRUMENT DISPLAY</span><span>TANSTACK // LIVE COMMAND NEXT</span></footer>
     </main>
   );
 }
