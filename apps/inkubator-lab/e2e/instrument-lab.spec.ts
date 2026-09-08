@@ -25,7 +25,8 @@ test('Instrument Lab proves causal motion, retained Pixi and scarce proof green 
 
   await page.getByRole('button', {name: 'SUCCESS'}).click();
   await expect(page.getByText('PROOF RECEIVED / RELEASE')).toBeVisible();
-  await expect(page.getByText('PROVEN')).toBeVisible();
+  await expect(page.locator('.ios-thread').getByText('PROVEN')).toBeVisible();
+  await expect(page.locator('.ios-verifier').getByText('PROVEN')).toBeVisible();
   await expect(page.locator('[data-renderer="pixi"]')).toHaveAttribute('data-app-generation', generationBefore ?? '1');
 
   const colors = await page.evaluate(() => {
