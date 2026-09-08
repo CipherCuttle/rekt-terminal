@@ -58,7 +58,7 @@ async function routeProject(page: Page, override: Partial<Record<string, Respons
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.hostname === 'artifact.example') {
-      await route.fulfill({status: 200, contentType: 'text/html', body: '<!doctype html><title>Artifact</title><div>artifact preview</div>'});
+      await route.fulfill({status: 200, contentType: 'text/html', body: '<!doctype html><html lang="en"><title>Test artifact</title><body style="margin:0;background:#0b0b0e;color:#99959f;font:12px monospace;padding:24px"><main><p style="font-size:10px;letter-spacing:.12em">TEST ARTIFACT / SYNTHETIC</p><p style="color:#e8e4da;font:24px Arial">Weird Little Thing v1</p><p>Sandboxed preview response. No deployment proof.</p></main></body></html>'});
       return;
     }
     const response = responses[url.pathname];
@@ -68,6 +68,29 @@ async function routeProject(page: Page, override: Partial<Record<string, Respons
     }
     await route.fulfill({status: response.status, contentType: 'application/json', body: JSON.stringify(response.body)});
   });
+  return responses;
+}
+
+async function captureEvidence(page: Page, name: string) {
+  const preview = page.getByTitle('Weird Little Thing v1 artifact preview');
+  if (await preview.count()) {
+    await preview.scrollIntoViewIfNeeded();
+    await expect(page.frameLocator('iframe').getByText('TEST ARTIFACT / SYNTHETIC')).toBeVisible();
+    // Chromium can omit offscreen cross-origin frame pixels in a full-page
+    // capture. Keep a real viewport capture of the loaded artifact as well.
+    await page.screenshot({path: `/tmp/rekt-project-v1-evidence/${name}-artifact-detail.png`});
+    await page.evaluate(() => window.scrollTo({top: 0, behavior: 'instant'}));
+  }
+  // Evidence labeling belongs to the browser harness, never the live route.
+  await page.evaluate(() => {
+    const label = document.createElement('aside');
+    label.setAttribute('aria-label', 'Browser test evidence');
+    label.textContent = 'BROWSER TEST / SYNTHETIC API RESPONSES';
+    label.style.cssText = 'padding:6px 22px;background:#050506;color:#e7b16b;font:10px monospace;letter-spacing:.06em';
+    document.body.prepend(label);
+  });
+  await page.screenshot({path: `/tmp/rekt-project-v1-evidence/${name}-viewport.png`});
+  await page.screenshot({path: `/tmp/rekt-project-v1-evidence/${name}.png`, fullPage: true});
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -81,7 +104,12 @@ test('LIVE PROJECT renders canonical workstation projections without promoting o
 
   await page.goto('/?mode=project');
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
-  await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-mode', 'project');
+  await expect(page.getByRole('main', {name: 'Project instrument'})).toHaveCount(1);
+  await expect(page.getByRole('region', {name: 'Living Project Thread'})).toHaveCount(1);
+  await expect(page.getByRole('region', {name: 'Current locus'})).toHaveCount(1);
+  await expect(page.getByRole('region', {name: 'Current locus'})).toHaveAttribute('aria-current', 'step');
+  await expect(page.getByRole('region', {name: 'Next Move'})).toHaveCount(1);
+  await expect(page.getByRole('region', {name: 'Next Move'}).getByRole('heading')).toHaveText(project.next_move);
   await expect(page.getByText('CipherCuttle/weird-little-thing')).toBeVisible();
   await expect(page.getByText('Need one external tester.')).toBeVisible();
   await expect(page.getByText('Helper')).toBeVisible();
@@ -90,10 +118,16 @@ test('LIVE PROJECT renders canonical workstation projections without promoting o
   await expect(page.locator('.project-artifact iframe')).toBeVisible();
   await expect(page.locator('.project-artifact [data-truth="proven"]')).toHaveCount(0);
   await expect(page.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeVisible();
+  await expect(page.getByText('URL SUPPLIED / CLAIMED')).toBeVisible();
+  await expect(page.getByText('ACCEPTANCE NOT ESTABLISHED')).toBeVisible();
+  await expect(page.getByText('Verifier response ≠ accepted Ship.')).toBeVisible();
+  await expect(page.getByTitle('Weird Little Thing v1 artifact preview')).toHaveAttribute('sandbox', 'allow-scripts allow-forms allow-popups');
+  await expect(page.getByTitle('Weird Little Thing v1 artifact preview')).toHaveAttribute('referrerpolicy', 'no-referrer');
   await expectNoHorizontalOverflow(page);
 
   const results = await new AxeBuilder({page}).analyze();
   expect(results.violations).toEqual([]);
+  await captureEvidence(page, 'desktop-1440x900');
 });
 
 test('LIVE PROJECT keeps optional projection failures visible and usable on mobile', async ({page}) => {
@@ -112,4 +146,89 @@ test('LIVE PROJECT keeps optional projection failures visible and usable on mobi
   await expect(page.getByText('SHIP LINK UNAVAILABLE').first()).toBeVisible();
   await expect(page.getByText('CipherCuttle/weird-little-thing')).toBeVisible();
   await expectNoHorizontalOverflow(page);
+  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
+  await captureEvidence(page, 'mobile-unavailable-390x844');
+});
+
+test('mobile preserves identity, current locus, Next Move, and attached evidence ordering with reduced motion', async ({page}) => {
+  await page.setViewportSize({width: 390, height: 844});
+  await page.emulateMedia({reducedMotion: 'reduce'});
+  const responses = await routeProject(page);
+  await page.goto('/?mode=project');
+  const identity = page.getByRole('heading', {name: project.name});
+  const thread = page.getByRole('region', {name: 'Living Project Thread'});
+  const locus = page.getByRole('region', {name: 'Current locus'});
+  const next = page.getByRole('region', {name: 'Next Move'});
+  const artifact = page.getByRole('region', {name: 'Artifact and deployment'});
+  await expect(page.getByText('Core flow works.')).toBeVisible();
+  const boxes = await Promise.all([identity, thread, locus, next, artifact].map(locator => locator.boundingBox()));
+  for (let i = 1; i < boxes.length; i++) expect(boxes[i]!.y).toBeGreaterThan(boxes[i - 1]!.y);
+  expect(boxes[3]!.y).toBeLessThan(844);
+  await expect(page.getByRole('region', {name: 'Ship boundary'})).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
+  await captureEvidence(page, 'mobile-390x844');
+
+  const summary = next.locator('summary');
+  await summary.focus();
+  await page.keyboard.press('Enter');
+  await expect(next.getByText(/This control opens context/)).toBeVisible();
+  await expect(next.getByRole('list', {name: 'Mission gates'})).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(next.getByRole('list', {name: 'Mission gates'})).not.toBeVisible();
+  responses['/v1/projects/P-LIVE-001/private'] = {status: 200, body: {...project, current_focus: 'Inspect the returned test.', next_move: 'Review external feedback'}};
+  await expect(locus.getByRole('heading')).toHaveText('Inspect the returned test.');
+  await expect(next.getByRole('heading')).toHaveText('Review external feedback');
+  await expect(locus).toHaveCount(1);
+  await expect(page.getByText('ACCEPTED / PROVEN')).toHaveCount(0);
+});
+
+for (const endpoint of ['/v1/me/command', '/v1/projects/P-LIVE-001/private']) {
+  test(`core failure closes PROJECT after cached success: ${endpoint}`, async ({page}) => {
+    const responses = await routeProject(page);
+    await page.goto('/?mode=project');
+    await expect(page.getByRole('region', {name: 'Living Project Thread'})).toBeVisible();
+    responses[endpoint] = {status: 503, body: {error: 'core_unavailable'}};
+    await expect(page.getByRole('heading', {name: 'PROJECT LINK UNAVAILABLE'})).toBeVisible();
+    await expect(page.getByRole('region', {name: 'Living Project Thread'})).toHaveCount(0);
+    await expect(page.getByRole('region', {name: 'Next Move'})).toHaveCount(0);
+    await expect(page.locator('iframe')).toHaveCount(0);
+    await expect(page.getByText('No development fixture fallback is permitted.')).toBeVisible();
+  });
+}
+
+test('optional failures remove cached results and artifact throughout the instrument', async ({page}) => {
+  const responses = await routeProject(page);
+  await page.goto('/?mode=project');
+  await expect(page.getByText('Core flow works.')).toBeVisible();
+  for (const endpoint of ['help-loop', 'external-tests', 'ship']) {
+    responses[`/v1/projects/P-LIVE-001/${endpoint}`] = {status: 503, body: {error: 'link_unavailable'}};
+  }
+  await expect(page.getByText('SHIP LINK UNAVAILABLE', {exact: true})).toBeVisible();
+  await expect(page.getByText('HELP LINK UNAVAILABLE')).toBeVisible();
+  await expect(page.getByText('TEST LINK UNAVAILABLE')).toBeVisible();
+  await expect(page.getByText('Core flow works.')).toHaveCount(0);
+  await expect(page.getByText('Need one external tester.')).toHaveCount(0);
+  await expect(page.getByText('VERIFIER / PASS')).toHaveCount(0);
+  await expect(page.locator('iframe')).toHaveCount(0);
+  await expect(page.getByRole('status', {name: 'Latest recorded signal'})).not.toContainText('VERIFIER');
+  await expect(page.getByRole('region', {name: 'Next Move'}).getByRole('heading')).toHaveText(project.next_move);
+});
+
+test('a test request and a Ship request remain unproven during projection updates', async ({page}) => {
+  const responses = await routeProject(page, {
+    '/v1/projects/P-LIVE-001/external-tests': {status: 200, body: {...externalTests, results: [], requests: [{...externalTests.requests[0], state: 'OPEN'}]}},
+    '/v1/projects/P-LIVE-001/ship': {status: 200, body: {...ship, latest_submission: {...ship.latest_submission, state: 'SUBMITTED', verifier_observation: undefined}}},
+  });
+  await page.goto('/?mode=project');
+  await expect(page.getByText('REQUEST OPEN / NO RESULT')).toBeVisible();
+  await expect(page.getByRole('region', {name: 'Ship boundary'})).toContainText('SUBMITTED');
+  await expect(page.getByText('PASS / OBSERVED')).toHaveCount(0);
+  responses['/v1/projects/P-LIVE-001/external-tests'] = {status: 200, body: externalTests};
+  responses['/v1/projects/P-LIVE-001/ship'] = {status: 200, body: ship};
+  await expect(page.getByText('PASS / OBSERVED', {exact: true})).toBeVisible();
+  await expect(page.getByText('VERIFIER / PASS', {exact: true})).toBeVisible();
+  await expect(page.getByText('ACCEPTED / PROVEN')).toHaveCount(0);
+  await expect(page.getByRole('region', {name: 'Current locus'})).toHaveAttribute('aria-current', 'step');
+  await expect(page.getByRole('heading', {name: project.next_move})).toBeVisible();
 });

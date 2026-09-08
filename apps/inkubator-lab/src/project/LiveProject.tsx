@@ -1,5 +1,7 @@
-import {useMemo} from 'react';
+import {useMemo, useRef, type ReactNode} from 'react';
 import {useQuery} from '@tanstack/react-query';
+import {useGSAP} from '@gsap/react';
+import gsap from 'gsap';
 import type {
   CommandView,
   InkubatorApiClient,
@@ -9,8 +11,10 @@ import type {
   ProjectShipStateView,
 } from '../generated/inkubator-api-client';
 import {createInkubatorApiClient} from '../inkubator-api';
-import {TerminalShell} from '../shell/TerminalShell';
+import {MOTION_EASE, MOTION_SECONDS} from '../instrument-os/motion-tokens';
 import './live-project.css';
+
+gsap.registerPlugin(useGSAP);
 
 type ProjectClient = Pick<
   InkubatorApiClient,
@@ -32,44 +36,29 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-function ProjectSector({code, title, className = '', children}: {
-  code: string;
-  title: string;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className={`project-sector ${className}`.trim()}>
-      <header className="project-sector-head"><span>{code}</span><strong>{title}</strong><i aria-hidden="true" /></header>
-      <div className="project-sector-body">{children}</div>
-    </section>
-  );
+function ProjectFrame({children}: {children: ReactNode}) {
+  return <main className="project-live" aria-label="Project instrument">
+    <header className="project-header">
+      <a href="/" className="project-brand" aria-label="REKT home">REKT<span>INKUBATOR</span></a>
+      <nav aria-label="Mode"><a href="?mode=command">COMMAND</a><span aria-current="page">PROJECT</span></nav>
+    </header>
+    <div className="project-workstation">{children}</div>
+    <footer className="project-footer"><span>PROJECT / PRIVATE VIEW</span><span>CLAIMED ≠ OBSERVED ≠ PROVEN</span></footer>
+  </main>;
 }
 
 function LinkUnavailable({label, error}: {label: string; error: unknown}) {
-  return (
-    <div className="project-link-error" role="status">
-      <small>{label} LINK UNAVAILABLE</small>
-      <strong>{errorMessage(error, `${label.toLowerCase()}_projection_unavailable`)}</strong>
-    </div>
-  );
+  return <div className="project-link-error" role="status">
+    <strong>{label} LINK UNAVAILABLE</strong>
+    <p>{errorMessage(error, `${label.toLowerCase()}_projection_unavailable`)}</p>
+  </div>;
 }
 
 function latestExternalResult(tests: ProjectExternalTestsView | undefined) {
-  if (!tests?.results.length) return undefined;
-  return [...tests.results].sort((a, b) => b.observed_at.localeCompare(a.observed_at))[0];
+  return tests ? [...tests.results].sort((a, b) => b.observed_at.localeCompare(a.observed_at))[0] : undefined;
 }
 
-function ProjectProjection({
-  command,
-  project,
-  help,
-  helpError,
-  tests,
-  testsError,
-  ship,
-  shipError,
-}: {
+function ProjectProjection({command, project, help, helpError, tests, testsError, ship, shipError}: {
   command: CommandView;
   project: PrivateProject;
   help?: ProjectHelpLoopView;
@@ -79,134 +68,176 @@ function ProjectProjection({
   ship?: ProjectShipStateView;
   shipError?: unknown;
 }) {
-  const latestTest = latestExternalResult(tests);
-  const openTest = tests?.requests.find((request) => request.state === 'OPEN');
-  const latestShip = ship?.latest_submission;
+  // Query can retain cached data after a refetch error. Unavailable links cannot
+  // contribute an artifact, proof, or apparently current signal anywhere.
+  const currentHelp = helpError ? undefined : help;
+  const currentTests = testsError ? undefined : tests;
+  const currentShip = shipError ? undefined : ship;
+  const latestTest = latestExternalResult(currentTests);
+  const openTest = currentTests?.requests.find(request => request.state === 'OPEN');
+  const latestShip = currentShip?.latest_submission;
   const artifact = latestShip?.artifact;
   const artifactUrl = artifact?.demo_url ?? artifact?.url;
-  const shipTruth = latestShip?.state === 'PROVEN' ? 'proven' : 'unproven';
+  const accepted = latestShip?.state === 'PROVEN' && Boolean(latestShip.accepted_ship);
+  const shipTruth = accepted ? 'proven' : 'unproven';
+  const shipState = shipError ? 'UNAVAILABLE' : !ship ? 'CONNECTING' : latestShip?.state ?? 'NO SUBMISSION';
+  const source = command.github_evidence;
+  const sourceCurrent = source.source_state === 'AVAILABLE' && source.signal_state !== 'STALE';
+  const observation = sourceCurrent ? source.latest_observation : undefined;
+  const verifier = latestShip?.verifier_observation;
+  const latestSignal = [
+    ...(observation ? [{label: `SOURCE / ${observation.kind} / ${observation.outcome}`, at: observation.observed_at}] : []),
+    ...(latestTest ? [{label: `EXTERNAL TEST / ${latestTest.outcome} / OBSERVED`, at: latestTest.observed_at}] : []),
+    ...(latestShip ? [{label: 'SHIP REQUEST / CLAIMED', at: latestShip.submitted_at}] : []),
+    ...(verifier ? [{label: `VERIFIER / ${verifier.outcome} / OBSERVED`, at: verifier.observed_at}] : []),
+  ].sort((a, b) => b.at.localeCompare(a.at))[0];
+  const boundary = shipError ? 'Ship acceptance unavailable.'
+    : !ship ? 'Waiting for Ship state.'
+    : accepted ? 'Accepted Ship receipt recorded.'
+    : latestShip?.state === 'PROVEN' ? 'Acceptance receipt unavailable.'
+    : 'No accepted Ship receipt.';
+  const rootRef = useRef<HTMLDivElement>(null);
+  // A visual-change fingerprint only; canonical values remain in Query.
+  const signal = JSON.stringify([
+    project.project_id, project.current_focus, project.next_move, project.mission_state,
+    command.mission.blocker, project.observation_state, source,
+    currentHelp, currentTests, currentShip, Boolean(helpError), Boolean(testsError), Boolean(shipError),
+  ]);
+  const previousSignal = useRef(signal);
+  useGSAP(() => {
+    const changed = previousSignal.current !== signal;
+    previousSignal.current = signal;
+    if (!changed || typeof window.matchMedia !== 'function') return;
+    const media = gsap.matchMedia();
+    media.add('(prefers-reduced-motion: no-preference)', () => {
+      gsap.fromTo('[data-project-pulse]', {scale: 1.8}, {
+        scale: 1, duration: MOTION_SECONDS.signal, ease: MOTION_EASE.signal,
+      });
+    });
+    return () => media.revert();
+  }, {scope: rootRef, dependencies: [signal], revertOnUpdate: true});
 
-  return (
-    <TerminalShell
-      mode="PROJECT"
-      kicker="REKT INK(CUBATOR) // LIVE PROJECT"
-      title={project.name}
-      description="Canonical project workstation. Source, help, external test and ship instruments remain separate projections; this screen does not synthesize stronger truth."
-      readout={[
-        {label: 'PROJECT', value: project.project_id},
-        {label: 'MISSION', value: project.mission_id},
-        {label: 'VISIBILITY', value: project.source_visibility},
-      ]}
-      eventStatus={`PROJECT PROJECTION // ${command.mission.state} / ${project.observation_state}`}
-      workspaceClassName="project-workstation"
-      footerItems={[
-        'TANSTACK QUERY // GENERATED API CLIENT',
-        'CURRENT PROJECTION // NOT EVENT HISTORY',
-        'CLAIMED ≠ OBSERVED ≠ PROVEN',
-      ]}
-      className="project-live"
-    >
-      <ProjectSector code="10" title="ARTIFACT / DEPLOY" className="project-sector--artifact">
-        {artifact && artifactUrl ? (
-          <div className="project-artifact" data-truth={shipTruth}>
-            <div className="project-artifact-toolbar">
-              <div><small>LATEST SHIP</small><strong>{artifact.title}</strong></div>
-              <span data-truth={shipTruth}>{latestShip.state}</span>
-            </div>
+  return <ProjectFrame>
+    <div ref={rootRef}>
+      <header className="project-identity">
+        <span className="project-label">PROJECT / {project.project_id}</span>
+        <h1>{project.name}</h1>
+        <p>{project.goal}</p>
+        <span className="project-mission-state">{project.mission_state.replaceAll('_', ' ')}</span>
+      </header>
+
+      <section className="project-thread" aria-label="Living Project Thread">
+        <div className="project-thread-caption"><span className="project-label">LIVING PROJECT THREAD</span><span>CURRENT PROJECTION</span></div>
+        <div className="project-flow">
+          <section className="project-source" aria-label="Source">
+            <span className="project-label">01 / SOURCE</span>
+            <span className="project-socket" aria-hidden="true">⊙</span>
+            <strong>{project.repository_full_name ?? 'NO REPOSITORY LINKED'}</strong>
+            <span data-state={project.observation_state}>{project.observation_state}</span>
+            <small>{source.source_state === 'UNAVAILABLE' ? 'EVIDENCE UNAVAILABLE' : `EVIDENCE / ${source.signal_state}`}</small>
+          </section>
+          <section className="project-locus" aria-label="Current locus" aria-current="step">
+            <span className="project-label">YOU ARE HERE</span>
+            <span className="project-locus-mark" data-project-pulse="" aria-hidden="true">◆</span>
+            <h2>{project.current_focus}</h2>
+            <span className="project-label">CURRENT FOCUS</span>
+          </section>
+          <section className="project-boundary" aria-label="Ship boundary" data-truth={shipTruth}>
+            <span className="project-label">02 / SHIP</span>
+            <span className="project-socket" aria-hidden="true">⊣</span>
+            <strong>{shipState}</strong>
+            <span>{accepted ? 'ACCEPTED / PROVEN' : 'ACCEPTANCE NOT ESTABLISHED'}</span>
+            <small>{boundary}</small>
+          </section>
+        </div>
+        <div className="project-recent" role="status" aria-label="Latest recorded signal">
+          <span className="project-label">LAST SIGNAL</span>
+          {latestSignal ? <><span>{latestSignal.label}</span><time dateTime={latestSignal.at}>{latestSignal.at.replace('T', ' ').replace('Z', ' UTC')}</time></>
+            : <span>NO CURRENT TIMESTAMPED SIGNAL</span>}
+        </div>
+      </section>
+
+      <section className="project-next" aria-label="Next Move">
+        <span className="project-label">NEXT MOVE</span>
+        <details className="project-action">
+          <summary><h2>{project.next_move}</h2><span aria-hidden="true">↗</span></summary>
+          <div className="project-action-detail">
+            <p>Current project instruction. This control opens context; it does not submit or accept a Ship.</p>
+            <p>SHIP CONDITION / {project.ship_condition}</p>
+            <ul aria-label="Mission gates">{command.gates.map(gate => <li key={gate.key}>{gate.label} / {gate.state}</li>)}</ul>
+          </div>
+        </details>
+        <p className="project-ship-hold"><span>{accepted ? 'SHIP RECEIPT' : 'SHIP BOUNDARY'}</span> {command.mission.blocker ?? boundary}</p>
+        <p className="project-condition">REQUIRED / {project.ship_condition}</p>
+      </section>
+
+      <div className="project-evidence">
+        <section className="project-artifact" aria-label="Artifact and deployment" data-truth={shipTruth}>
+          <header><h2 className="project-label">ARTIFACT / DEPLOYMENT</h2><span>ATTACHED TO THREAD</span></header>
+          {artifact && artifactUrl ? <>
+            <div className="project-artifact-title"><strong>{artifact.title}</strong><span>URL SUPPLIED / CLAIMED</span></div>
+            <p className="project-preview-trust">Preview is not deployment verification or Ship acceptance.</p>
             <div className="project-artifact-viewport">
-              <iframe
-                src={artifactUrl}
-                title={`${artifact.title} artifact preview`}
-                loading="lazy"
-                sandbox="allow-scripts allow-forms allow-popups"
-                referrerPolicy="no-referrer"
-              />
+              <iframe src={artifactUrl} title={`${artifact.title} artifact preview`} loading="lazy"
+                sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer" />
             </div>
             <div className="project-artifact-links">
-              <a href={artifact.url} target="_blank" rel="noreferrer">OPEN ARTIFACT</a>
-              {artifact.demo_url ? <a href={artifact.demo_url} target="_blank" rel="noreferrer">OPEN DEMO</a> : null}
+              <a href={artifact.url} target="_blank" rel="noreferrer">OPEN ARTIFACT ↗</a>
+              {artifact.demo_url ? <a href={artifact.demo_url} target="_blank" rel="noreferrer">OPEN DEMO ↗</a> : null}
             </div>
-          </div>
-        ) : shipError ? <LinkUnavailable label="SHIP" error={shipError} /> : (
-          <div className="project-empty"><small>ARTIFACT SLOT</small><strong>NO SHIP ARTIFACT SUBMITTED</strong><p>The workstation will frame the canonical submitted artifact here; it does not invent a preview.</p></div>
-        )}
-      </ProjectSector>
+          </> : <div className="project-artifact-empty">
+            <span aria-hidden="true">[ ─ ]</span>
+            <strong>{shipError ? 'ARTIFACT UNAVAILABLE' : !ship ? 'CONNECTING ARTIFACT' : 'NO SHIP ARTIFACT SUBMITTED'}</strong>
+            <p>{shipError ? 'Ship link unavailable; cached previews are withheld.' : 'The submitted artifact will appear here.'}</p>
+          </div>}
+          <details className="project-provenance"><summary>Source provenance</summary>
+            <dl>
+              <div><dt>CONNECTED</dt><dd>{project.source_connected ? 'YES' : 'NO'}</dd></div>
+              <div><dt>VISIBILITY</dt><dd>{project.source_visibility}</dd></div>
+              <div><dt>ACTIVE</dt><dd>{project.repository_active === undefined ? 'UNKNOWN' : project.repository_active ? 'YES' : 'NO'}</dd></div>
+              <div><dt>LAST REF</dt><dd>{project.last_ref ?? 'NO CANONICAL DELIVERY'}</dd></div>
+              <div><dt>EVIDENCE</dt><dd>{source.reason_code}</dd></div>
+            </dl>
+          </details>
+        </section>
 
-      <ProjectSector code="01" title="SOURCE / RX" className="project-sector--source">
-        <div className="project-source" data-state={project.observation_state.toLowerCase()}>
-          <div><small>REPOSITORY</small><strong>{project.repository_full_name ?? 'NO REPOSITORY LINKED'}</strong></div>
-          <dl>
-            <div><dt>CONNECTED</dt><dd>{project.source_connected ? 'YES' : 'NO'}</dd></div>
-            <div><dt>VISIBILITY</dt><dd>{project.source_visibility}</dd></div>
-            <div><dt>OBSERVATION</dt><dd>{project.observation_state}</dd></div>
-            <div><dt>ACTIVE</dt><dd>{project.repository_active === undefined ? 'UNKNOWN' : project.repository_active ? 'YES' : 'NO'}</dd></div>
-          </dl>
-          {project.last_ref ? <p>LAST REF // {project.last_ref}</p> : <p>LAST REF // NO CANONICAL DELIVERY</p>}
-        </div>
-      </ProjectSector>
-
-      <ProjectSector code="07" title="SHIP / VERIFIER" className="project-sector--ship">
-        {shipError ? <LinkUnavailable label="SHIP" error={shipError} /> : latestShip ? (
-          <div className="project-ship" data-truth={shipTruth}>
-            <span data-truth={shipTruth}>{latestShip.state}</span>
-            <strong>{latestShip.artifact.title}</strong>
-            <p>SUBMITTED // {latestShip.submitted_at}</p>
-            {latestShip.verifier_observation ? (
-              <dl>
-                <div><dt>VERIFIER</dt><dd>{latestShip.verifier_observation.outcome}</dd></div>
-                <div><dt>REASON</dt><dd>{latestShip.verifier_observation.reason_code}</dd></div>
-              </dl>
-            ) : <p>VERIFIER // NO OBSERVATION</p>}
-            {latestShip.accepted_ship ? <p>RECEIPT // {latestShip.accepted_ship.receipt_id}</p> : null}
-          </div>
-        ) : <div className="project-empty project-empty--compact"><small>SHIP STATE</small><strong>NONE</strong></div>}
-      </ProjectSector>
-
-      <ProjectSector code="06" title="THREAD / CURRENT SIGNAL CHAIN" className="project-sector--thread">
-        <ol className="project-thread">
-          <li data-state="mission"><span>01</span><div><small>MISSION</small><strong>{command.mission.state}</strong></div></li>
-          <li data-state={project.observation_state.toLowerCase()}><span>02</span><div><small>SOURCE</small><strong>{project.observation_state}</strong></div></li>
-          <li data-state={latestTest ? 'observed' : openTest ? 'active' : 'unknown'}><span>03</span><div><small>EXTERNAL TEST</small><strong>{latestTest ? `${latestTest.outcome} / OBSERVED` : openTest ? `REQUEST ${openTest.state}` : 'NO TEST SIGNAL'}</strong></div></li>
-          <li data-state={latestShip?.state.toLowerCase() ?? 'unknown'} data-truth={shipTruth}><span>04</span><div><small>SHIP</small><strong>{latestShip?.state ?? 'NO SUBMISSION'}</strong></div></li>
-        </ol>
-      </ProjectSector>
-
-      <ProjectSector code="08" title="HELP / PARTY" className="project-sector--help">
-        {helpError ? <LinkUnavailable label="HELP" error={helpError} /> : help ? (
-          <div className="project-help">
-            <div className="project-owner"><small>OWNER</small><strong>{help.owner.display_name}</strong></div>
-            {help.open_help_beacon ? (
-              <div className="project-beacon"><small>OPEN HELP BEACON</small><strong>{help.open_help_beacon.summary}</strong><p>{help.open_help_beacon.skills_needed.join(' / ') || 'NO SKILL TAGS'}</p></div>
-            ) : <div className="project-empty project-empty--compact"><small>HELP BEACON</small><strong>NONE OPEN</strong></div>}
-            <ul aria-label="Project party">
-              {help.party_members.length ? help.party_members.map((member) => <li key={member.player_id}><span>{member.role}</span><strong>{member.display_name}</strong></li>) : <li><span>PARTY</span><strong>NO ACCEPTED ASSISTS</strong></li>}
-            </ul>
-          </div>
-        ) : <div className="project-empty project-empty--compact"><small>HELP BUS</small><strong>CONNECTING</strong></div>}
-      </ProjectSector>
-
-      <ProjectSector code="09" title="EXTERNAL TEST" className="project-sector--tests">
-        {testsError ? <LinkUnavailable label="TEST" error={testsError} /> : tests ? (
-          <div className="project-tests">
-            <div className="project-test-counts"><span>REQUESTS <b>{tests.requests.length}</b></span><span>RESULTS <b>{tests.results.length}</b></span></div>
-            {latestTest ? (
-              <div className="project-test-result" data-outcome={latestTest.outcome.toLowerCase()}>
-                <small>LATEST OBSERVED TEST</small>
-                <strong>{latestTest.outcome}</strong>
-                <p>{latestTest.summary}</p>
-                <span>{latestTest.tester.display_name} // {latestTest.observed_at}</span>
-              </div>
-            ) : openTest ? (
-              <div className="project-test-result" data-outcome="open"><small>OPEN TEST REQUEST</small><strong>{openTest.state}</strong><p>{openTest.prompt}</p></div>
-            ) : <div className="project-empty project-empty--compact"><small>TEST SIGNAL</small><strong>NONE</strong></div>}
-          </div>
-        ) : <div className="project-empty project-empty--compact"><small>TEST BUS</small><strong>CONNECTING</strong></div>}
-      </ProjectSector>
-    </TerminalShell>
-  );
+        <aside className="project-attachments" aria-label="Attached evidence">
+          <section aria-label="Help and party">
+            <h2 className="project-label">↳ HELP / PARTY</h2>
+            {helpError ? <LinkUnavailable label="HELP" error={helpError} /> : currentHelp ? <>
+              <strong>{currentHelp.open_help_beacon?.summary ?? 'NO HELP BEACON OPEN'}</strong>
+              <p>{currentHelp.open_help_beacon?.skills_needed.join(' / ')}</p>
+              <p>OWNER / {currentHelp.owner.display_name}</p>
+              <ul aria-label="Project party">{currentHelp.party_members.length
+                ? currentHelp.party_members.map(member => <li key={member.player_id}>{member.role} / <strong>{member.display_name}</strong></li>)
+                : <li>NO ACCEPTED ASSISTS</li>}</ul>
+            </> : <p>HELP CONNECTING</p>}
+          </section>
+          <section aria-label="External tests">
+            <h2 className="project-label">↳ EXTERNAL TEST</h2>
+            {testsError ? <LinkUnavailable label="TEST" error={testsError} /> : currentTests ? <>
+              <strong data-state={latestTest?.outcome}>{latestTest ? `${latestTest.outcome} / OBSERVED` : openTest ? 'REQUEST OPEN / NO RESULT' : 'NO TEST RESULT'}</strong>
+              <p>{latestTest?.summary ?? openTest?.prompt ?? 'Test presence does not establish PASS.'}</p>
+              {latestTest ? <p>{latestTest.tester.display_name} / <time dateTime={latestTest.observed_at}>{latestTest.observed_at}</time></p> : null}
+            </> : <p>TEST CONNECTING</p>}
+          </section>
+          <section aria-label="Verifier and receipt" data-truth={shipTruth}>
+            <h2 className="project-label">↳ VERIFIER / RECEIPT</h2>
+            {shipError ? <LinkUnavailable label="SHIP" error={shipError} /> : <>
+              <strong>{verifier ? `VERIFIER / ${verifier.outcome}` : 'NO VERIFIER OBSERVATION'}</strong>
+              <p>{verifier?.reason_code ?? 'No verifier result is available.'}</p>
+              <p>{accepted ? `ACCEPTED RECEIPT / ${latestShip?.accepted_ship?.receipt_id}` : boundary}</p>
+              {verifier && !accepted ? <p>Verifier response ≠ accepted Ship.</p> : null}
+            </>}
+          </section>
+        </aside>
+      </div>
+    </div>
+  </ProjectFrame>;
 }
 
-export default function LiveProject({client = createInkubatorApiClient(), refetchIntervalMs = 2500}: LiveProjectProps) {
+export default function LiveProject({client: suppliedClient, refetchIntervalMs = 2500}: LiveProjectProps) {
+  const client = useMemo(() => suppliedClient ?? createInkubatorApiClient(), [suppliedClient]);
   const commandQuery = useQuery({queryKey: commandKey, queryFn: () => client.getMyCommand(), refetchInterval: refetchIntervalMs, retry: 1});
   const projectId = commandQuery.data?.project.project_id;
 
@@ -242,26 +273,23 @@ export default function LiveProject({client = createInkubatorApiClient(), refetc
   const criticalError = commandQuery.error ?? projectQuery.error;
   const isCorePending = commandQuery.isPending || (Boolean(projectId) && projectQuery.isPending);
   const fallbackTitle = commandQuery.data?.project.name ?? 'PROJECT BUS';
-  const fallbackReadout = useMemo(() => projectId ? [{label: 'PROJECT', value: projectId}] : [], [projectId]);
-
-  if (isCorePending) {
-    return (
-      <TerminalShell mode="PROJECT" kicker="REKT INK(CUBATOR) // LIVE PROJECT" title={fallbackTitle} description="Connecting canonical project projection." readout={fallbackReadout} workspaceClassName="project-loading" className="project-live">
-        <div><small>PROJECT WORKSTATION</small><h2>CONNECTING PROJECT BUS</h2><p>Waiting for canonical current-project and private project projections.</p></div>
-      </TerminalShell>
-    );
+  if (criticalError || (!isCorePending && (!commandQuery.data || !projectQuery.data))) {
+    return <ProjectFrame><section className="project-loading project-loading--error" role="alert">
+      <span className="project-label">{fallbackTitle}</span><h1>PROJECT LINK UNAVAILABLE</h1>
+      <p>{errorMessage(criticalError, 'project_projection_unavailable')}</p><p>No development fixture fallback is permitted.</p>
+    </section></ProjectFrame>;
   }
 
-  if (criticalError || !commandQuery.data || !projectQuery.data) {
-    return (
-      <TerminalShell mode="PROJECT" kicker="REKT INK(CUBATOR) // LIVE PROJECT" title={fallbackTitle} description="Canonical project projection unavailable." readout={fallbackReadout} workspaceClassName="project-loading project-loading--error" className="project-live" role="alert">
-        <div><small>PROJECT WORKSTATION</small><h2>PROJECT LINK UNAVAILABLE</h2><p>{errorMessage(criticalError, 'project_projection_unavailable')}</p><p>No development fixture fallback is permitted.</p></div>
-      </TerminalShell>
-    );
+  if (isCorePending || !commandQuery.data || !projectQuery.data) {
+    return <ProjectFrame><section className="project-loading" role="status">
+      <span className="project-label">{fallbackTitle}</span><h1>CONNECTING PROJECT BUS</h1>
+      <p>Waiting for canonical current-project and private project projections.</p>
+    </section></ProjectFrame>;
   }
 
   return (
     <ProjectProjection
+      key={projectId}
       command={commandQuery.data}
       project={projectQuery.data}
       help={helpQuery.data}
