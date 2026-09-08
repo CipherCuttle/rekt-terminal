@@ -1,0 +1,1032 @@
+name: Phase 8 DevKit Bootstrap
+
+on:
+  push:
+    branches: [feature/inkubator-devkit-launch-surface-v0]
+    paths:
+      - '.github/workflows/phase8-devkit-bootstrap.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  implement-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_USER: rekt
+          POSTGRES_PASSWORD: rekt_test
+          POSTGRES_DB: rekt_inkubator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rekt -d rekt_inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://rekt:rekt_test@127.0.0.1:5432/rekt_inkubator
+      INKUBATOR_APP_ORIGIN: https://inkubator.test
+      INKUBATOR_DEV_AUTH: '1'
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/inkubator-devkit-launch-surface-v0
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Apply frozen Phase 8 implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('.')
+
+          # Root scripts: keep build:core byte-for-byte semantically unchanged; add a distinct DevKit contract.
+          package_path = root / 'package.json'
+          package = json.loads(package_path.read_text())
+          scripts = package['scripts']
+          scripts['test:protocol'] = 'npm run test -w @rekt-ink/protocol'
+          scripts['build:devkit'] = 'npm run build -w @rekt-ink/sdk && npm run build -w @rekt-ink/cli && npm run build -w @rekt-ink/mcp'
+          scripts['test:devkit'] = 'npm run test -w @rekt-ink/protocol && npm run test -w @rekt-ink/sdk && npm run test -w @rekt-ink/cli && npm run test -w @rekt-ink/mcp'
+          scripts['verify:devkit'] = 'npm run build:devkit && npm run test:devkit'
+          scripts['build:canonical'] = 'npm run build:core && npm run build:inkubator && npm run build:devkit'
+          package_path.write_text(json.dumps(package, indent=2) + '\n')
+
+          api_package_path = root / 'apps/inkubator-api/package.json'
+          api_package = json.loads(api_package_path.read_text())
+          api_package['scripts']['generate:client'] = 'node --import ./dist/contract-phase8.js ./dist/generate-client.js'
+          api_package['scripts']['verify:client'] = 'node --import ./dist/contract-phase8.js ./dist/generate-client.js --check'
+          api_package_path.write_text(json.dumps(api_package, indent=2) + '\n')
+
+          # Promote the existing protocol seed rather than copying it into a second definition.
+          protocol_package_path = root / 'packages/inkubator-protocol/package.json'
+          protocol_package = json.loads(protocol_package_path.read_text())
+          protocol_package.update({
+              'name': '@rekt-ink/protocol',
+              'private': False,
+              'version': '0.1.0',
+              'type': 'module',
+              'files': ['src', 'schema'],
+              'types': './src/constants.d.ts',
+              'exports': {
+                  '.': {'types': './src/constants.d.ts', 'import': './src/constants.mjs'},
+                  './server': './src/index.mjs',
+                  './schema/*': './schema/*'
+              },
+              'publishConfig': {'access': 'public'}
+          })
+          protocol_package_path.write_text(json.dumps(protocol_package, indent=2) + '\n')
+
+          # Database typing.
+          database_path = root / 'apps/inkubator-api/src/database.ts'
+          database = database_path.read_text()
+          session_needle = '''export interface SessionTable {
+            session_id: string;
+            player_id: string;
+            token_hash: string;
+            created_at: Generated<Date>;
+            expires_at: Date;
+            revoked_at: Date | null;
+          }
+          '''
+          devkit_types = session_needle + '''
+          export type DevkitCredentialClass = 'CLI' | 'MCP' | 'AUTOMATION';
+          export interface DevkitTokenTable {
+            token_id: string;
+            player_id: string;
+            creation_request_id: string;
+            credential_class: DevkitCredentialClass;
+            label: string;
+            token_hash: string;
+            scopes: unknown;
+            created_at: Generated<Date>;
+            expires_at: Date;
+            revoked_at: Date | null;
+            rate_window_started_at: Generated<Date>;
+            rate_count: Generated<number>;
+            last_used_at: Date | null;
+          }
+          '''
+          if session_needle not in database:
+              raise SystemExit('database SessionTable patch anchor missing')
+          database = database.replace(session_needle, devkit_types, 1)
+          schema_needle = '  sessions: SessionTable;\n'
+          if schema_needle not in database:
+              raise SystemExit('database schema patch anchor missing')
+          database = database.replace(schema_needle, schema_needle + '  devkit_tokens: DevkitTokenTable;\n', 1)
+          database_path.write_text(database)
+
+          # Migration registration.
+          migrations_path = root / 'apps/inkubator-api/src/migrations.ts'
+          migrations = migrations_path.read_text()
+          import_needle = "import {phase7CheevoReputationMigration} from './migrations/017-phase7-cheevo-reputation.js';\n"
+          migrations = migrations.replace(import_needle, import_needle + "import {phase8DevkitCredentialsMigration} from './migrations/018-phase8-devkit-credentials.js';\n", 1)
+          registry_needle = "      '017_phase7_cheevo_reputation': phase7CheevoReputationMigration,\n"
+          migrations = migrations.replace(registry_needle, registry_needle + "      '018_phase8_devkit_credentials': phase8DevkitCredentialsMigration,\n", 1)
+          migrations_path.write_text(migrations)
+
+          # App registration is deliberately tiny: browser cookie auth stays unchanged; /v1/devkit owns bearer policy.
+          app_path = root / 'apps/inkubator-api/src/app.ts'
+          app = app_path.read_text()
+          import_needle = "import {registerPhase7ReputationRoutes} from './reputation-api.js';\n"
+          app = app.replace(import_needle, import_needle + "import {registerPhase8DevkitRoutes} from './devkit-api.js';\n", 1)
+          prehandler_needle = "    if (request.url === '/v1/github/webhook') return;\n    if (request.headers.origin !== options.appOrigin) return error(reply, 403, 'origin_not_allowed');"
+          prehandler_replacement = "    if (request.url === '/v1/github/webhook') return;\n    if (request.url.startsWith('/v1/devkit/')) return;\n    if (request.headers.origin !== options.appOrigin) return error(reply, 403, 'origin_not_allowed');"
+          if prehandler_needle not in app:
+              raise SystemExit('app preHandler patch anchor missing')
+          app = app.replace(prehandler_needle, prehandler_replacement, 1)
+          register_needle = '  registerPhase7ReputationRoutes(app, options.db);\n'
+          if register_needle not in app:
+              raise SystemExit('app route registration anchor missing')
+          app = app.replace(register_needle, register_needle + '  registerPhase8DevkitRoutes(app, options.db, {appOrigin: options.appOrigin});\n', 1)
+          app_path.write_text(app)
+
+          # Generated transport: same OpenAPI source, two consumers, optional bearer injection.
+          generator_path = root / 'apps/inkubator-api/src/generate-client.ts'
+          generator = generator_path.read_text()
+          ops_anchor = "] as const;\n\nfunction primitiveType"
+          devkit_ops = """  ['/v1/devkit/tokens', 'post'],
+            ['/v1/devkit/tokens', 'get'],
+            ['/v1/devkit/tokens/{tokenId}/revoke', 'post'],
+            ['/v1/devkit/me', 'get'],
+            ['/v1/devkit/player/profile', 'get'],
+            ['/v1/devkit/mission/current', 'get'],
+            ['/v1/devkit/mission/current', 'patch'],
+            ['/v1/devkit/mission/current/claims/{gateKey}', 'post'],
+            ['/v1/devkit/project/current', 'get'],
+            ['/v1/devkit/project/current/help-beacons', 'get'],
+            ['/v1/devkit/project/current/help-beacons', 'post'],
+            ['/v1/devkit/help-beacons/{beaconId}/assists', 'post'],
+            ['/v1/devkit/project/current/activity', 'get'],
+            ['/v1/devkit/mission/current/ship', 'post'],
+          """
+          if ops_anchor not in generator:
+              raise SystemExit('generator operations anchor missing')
+          generator = generator.replace(ops_anchor, devkit_ops + '] as const;\n\nfunction primitiveType', 1)
+          ctor_anchor = """  constructor(
+              private readonly baseUrl = '',
+              private readonly fetchImpl: FetchLike = fetch,
+            ) {}
+          """
+          ctor_replacement = """  constructor(
+              private readonly baseUrl = '',
+              private readonly fetchImpl: FetchLike = fetch,
+              private readonly accessToken?: string,
+            ) {}
+          """
+          if ctor_anchor not in generator:
+              raise SystemExit('generator constructor anchor missing')
+          generator = generator.replace(ctor_anchor, ctor_replacement, 1)
+          header_anchor = "    if (init.body !== undefined) headers.set('content-type', 'application/json');\n"
+          generator = generator.replace(header_anchor, header_anchor + "    if (this.accessToken) headers.set('authorization', `Bearer ${this.accessToken}`);\n", 1)
+          tail_index = generator.find('const target = fileURLToPath')
+          if tail_index < 0:
+              raise SystemExit('generator target anchor missing')
+          generator = generator[:tail_index] + r'''const targets = [
+            fileURLToPath(new URL('../../inkubator-lab/src/generated/inkubator-api-client.ts', import.meta.url)),
+            fileURLToPath(new URL('../../../packages/sdk/src/generated/inkubator-api-client.ts', import.meta.url)),
+          ];
+          if (process.argv.includes('--check')) {
+            const stale = targets.filter((target) => !fs.existsSync(target) || fs.readFileSync(target, 'utf8') !== generated);
+            if (stale.length > 0) {
+              console.error(`Generated Inkubator API client is stale: ${stale.join(', ')}. Run npm run generate:client -w @rekt-ink/inkubator-api`);
+              process.exit(1);
+            }
+            console.log('Generated Inkubator API clients: PASS');
+          } else {
+            for (const target of targets) {
+              fs.mkdirSync(new URL('.', `file://${target}`), {recursive: true});
+              fs.writeFileSync(target, generated);
+              console.log(`Generated ${target}`);
+            }
+          }
+          '''
+          # fs.mkdirSync(URL('.', file://...)) is fragile for paths; normalize it after writing.
+          generator = generator.replace("fs.mkdirSync(new URL('.', `file://${target}`), {recursive: true});", "fs.mkdirSync(target.slice(0, target.lastIndexOf('/')), {recursive: true});")
+          generator_path.write_text(generator)
+          PY
+
+          mkdir -p packages/inkubator-protocol/src packages/sdk/src/generated packages/sdk/test packages/cli/src packages/cli/test packages/mcp/src packages/mcp/test apps/inkubator-api/src/migrations apps/inkubator-api/test/integration docs/inkubator
+
+          cat > packages/inkubator-protocol/src/constants.mjs <<'EOF'
+          export const PROTOCOL_VERSION = 'inkubator-devkit/0.1';
+          export const TRUTH_CLASSES = Object.freeze(['CLAIM', 'OBSERVATION', 'PROOF']);
+          export const DEVKIT_SCOPES = Object.freeze([
+            'player:read',
+            'project:read',
+            'mission:read',
+            'claim:write',
+            'update:write',
+            'beacon:write',
+            'assist:write',
+            'ship:prepare',
+          ]);
+          export const DEVKIT_FORBIDDEN_AUTHORITIES = Object.freeze([
+            'proof:write',
+            'achievement:grant',
+            'ship:approve',
+            'reputation:write',
+            'player:moderate',
+            'round:admin',
+          ]);
+          EOF
+
+          cat > packages/inkubator-protocol/src/constants.d.ts <<'EOF'
+          export declare const PROTOCOL_VERSION: 'inkubator-devkit/0.1';
+          export declare const TRUTH_CLASSES: readonly ['CLAIM', 'OBSERVATION', 'PROOF'];
+          export declare const DEVKIT_SCOPES: readonly ['player:read', 'project:read', 'mission:read', 'claim:write', 'update:write', 'beacon:write', 'assist:write', 'ship:prepare'];
+          export type DevkitScope = typeof DEVKIT_SCOPES[number];
+          export declare const DEVKIT_FORBIDDEN_AUTHORITIES: readonly ['proof:write', 'achievement:grant', 'ship:approve', 'reputation:write', 'player:moderate', 'round:admin'];
+          EOF
+
+          cat > apps/inkubator-api/src/migrations/018-phase8-devkit-credentials.ts <<'EOF'
+          import {sql} from 'kysely';
+          import type {Migration} from 'kysely/migration';
+
+          export const phase8DevkitCredentialsMigration: Migration = {
+            async up(db) {
+              await db.schema.createTable('devkit_tokens')
+                .addColumn('token_id', 'uuid', (column) => column.primaryKey())
+                .addColumn('player_id', 'uuid', (column) => column.notNull().references('players.player_id').onDelete('cascade'))
+                .addColumn('creation_request_id', 'uuid', (column) => column.notNull())
+                .addColumn('credential_class', 'text', (column) => column.notNull())
+                .addColumn('label', 'text', (column) => column.notNull())
+                .addColumn('token_hash', 'varchar(64)', (column) => column.notNull().unique())
+                .addColumn('scopes', 'jsonb', (column) => column.notNull())
+                .addColumn('created_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`clock_timestamp()`))
+                .addColumn('expires_at', 'timestamptz', (column) => column.notNull())
+                .addColumn('revoked_at', 'timestamptz')
+                .addColumn('rate_window_started_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`clock_timestamp()`))
+                .addColumn('rate_count', 'integer', (column) => column.notNull().defaultTo(0))
+                .addColumn('last_used_at', 'timestamptz')
+                .addUniqueConstraint('devkit_tokens_issue_request_once', ['player_id', 'creation_request_id'])
+                .addCheckConstraint('devkit_tokens_class', sql`credential_class in ('CLI', 'MCP', 'AUTOMATION')`)
+                .addCheckConstraint('devkit_tokens_label', sql`char_length(label) between 1 and 80`)
+                .addCheckConstraint('devkit_tokens_scopes_array', sql`jsonb_typeof(scopes) = 'array'`)
+                .addCheckConstraint('devkit_tokens_expiry', sql`expires_at > created_at`)
+                .addCheckConstraint('devkit_tokens_rate_count', sql`rate_count >= 0`)
+                .execute();
+
+              await db.schema.createIndex('devkit_tokens_player_idx').on('devkit_tokens').columns(['player_id', 'created_at']).execute();
+              await db.schema.createIndex('devkit_tokens_expiry_idx').on('devkit_tokens').columns(['expires_at', 'revoked_at']).execute();
+            },
+            async down(db) {
+              await db.schema.dropTable('devkit_tokens').execute();
+            },
+          };
+          EOF
+
+          cat > apps/inkubator-api/src/devkit.ts <<'EOF'
+          import {createHash, randomBytes, randomUUID} from 'node:crypto';
+          import {sql, type Kysely} from 'kysely';
+          import {readDatabaseNow, type DatabaseSchema, type DevkitCredentialClass} from './database.js';
+
+          export const DEVKIT_SCOPES = [
+            'player:read', 'project:read', 'mission:read', 'claim:write',
+            'update:write', 'beacon:write', 'assist:write', 'ship:prepare',
+          ] as const;
+          export type DevkitScope = typeof DEVKIT_SCOPES[number];
+          export const DEVKIT_RATE_LIMIT_PER_MINUTE = 60;
+          export const DEVKIT_TOKEN_MAX_TTL_SECONDS = 30 * 24 * 60 * 60;
+          const DEVKIT_TOKEN_MIN_TTL_SECONDS = 5 * 60;
+          const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          const SCOPE_SET = new Set<string>(DEVKIT_SCOPES);
+          const CLASS_SET = new Set<DevkitCredentialClass>(['CLI', 'MCP', 'AUTOMATION']);
+
+          export interface ResolvedDevkitCredential {
+            tokenId: string;
+            playerId: string;
+            credentialClass: DevkitCredentialClass;
+            scopes: DevkitScope[];
+            expiresAt: Date;
+          }
+
+          export interface IssueDevkitTokenInput {
+            requestId: string;
+            credentialClass: DevkitCredentialClass;
+            label: string;
+            scopes: string[];
+            expiresInSeconds: number;
+          }
+
+          function tokenHash(token: string): string {
+            return createHash('sha256').update(token, 'utf8').digest('hex');
+          }
+
+          function normalizeScopes(scopes: unknown): DevkitScope[] {
+            if (!Array.isArray(scopes) || scopes.length < 1 || scopes.length > DEVKIT_SCOPES.length) throw new Error('invalid_devkit_scopes');
+            const normalized = [...new Set(scopes.map((scope) => {
+              if (typeof scope !== 'string' || !SCOPE_SET.has(scope)) throw new Error('invalid_devkit_scope');
+              return scope as DevkitScope;
+            }))].sort();
+            return normalized;
+          }
+
+          function normalizeLabel(label: string): string {
+            if (typeof label !== 'string') throw new Error('invalid_devkit_label');
+            const normalized = label.trim().replace(/\s+/g, ' ');
+            if (normalized.length < 1 || normalized.length > 80) throw new Error('invalid_devkit_label');
+            return normalized;
+          }
+
+          export function readBearerToken(value: string | string[] | undefined): string | null {
+            const header = Array.isArray(value) ? value[0] : value;
+            if (!header) return null;
+            const match = /^Bearer\s+([^\s]+)$/i.exec(header.trim());
+            return match?.[1] ?? null;
+          }
+
+          export function hasDevkitScope(credential: ResolvedDevkitCredential, scope: DevkitScope): boolean {
+            return credential.scopes.includes(scope);
+          }
+
+          export async function issueDevkitToken(
+            db: Kysely<DatabaseSchema>,
+            playerId: string,
+            input: IssueDevkitTokenInput,
+          ) {
+            if (!UUID_PATTERN.test(input.requestId)) throw new Error('invalid_request_id');
+            if (!CLASS_SET.has(input.credentialClass)) throw new Error('invalid_devkit_credential_class');
+            const label = normalizeLabel(input.label);
+            const scopes = normalizeScopes(input.scopes);
+            if (!Number.isSafeInteger(input.expiresInSeconds) || input.expiresInSeconds < DEVKIT_TOKEN_MIN_TTL_SECONDS || input.expiresInSeconds > DEVKIT_TOKEN_MAX_TTL_SECONDS) {
+              throw new Error('invalid_devkit_token_ttl');
+            }
+            const rawToken = `rekt_dk_${randomBytes(32).toString('base64url')}`;
+            const tokenId = randomUUID();
+            const now = await readDatabaseNow(db);
+            const expiresAt = new Date(now.getTime() + input.expiresInSeconds * 1000);
+
+            await db.transaction().execute(async (tx) => {
+              await tx.selectFrom('players').select('player_id').where('player_id', '=', playerId).forUpdate().executeTakeFirstOrThrow();
+              const replay = await tx.selectFrom('devkit_tokens').select('token_id')
+                .where('player_id', '=', playerId)
+                .where('creation_request_id', '=', input.requestId.toLowerCase())
+                .executeTakeFirst();
+              if (replay) throw new Error('devkit_token_issue_replayed');
+              await tx.insertInto('devkit_tokens').values({
+                token_id: tokenId,
+                player_id: playerId,
+                creation_request_id: input.requestId.toLowerCase(),
+                credential_class: input.credentialClass,
+                label,
+                token_hash: tokenHash(rawToken),
+                scopes,
+                expires_at: expiresAt,
+                revoked_at: null,
+                last_used_at: null,
+              }).executeTakeFirstOrThrow();
+            });
+
+            return {
+              schema_version: 'devkit.token.issued.v1' as const,
+              token_id: tokenId,
+              credential_class: input.credentialClass,
+              label,
+              scopes,
+              token: rawToken,
+              expires_at: expiresAt.toISOString(),
+            };
+          }
+
+          export async function listDevkitTokens(db: Kysely<DatabaseSchema>, playerId: string) {
+            const rows = await db.selectFrom('devkit_tokens').select([
+              'token_id', 'credential_class', 'label', 'scopes', 'created_at', 'expires_at', 'revoked_at', 'last_used_at',
+            ]).where('player_id', '=', playerId).orderBy('created_at', 'desc').execute();
+            return rows.map((row) => ({
+              schema_version: 'devkit.token.summary.v1' as const,
+              token_id: row.token_id,
+              credential_class: row.credential_class,
+              label: row.label,
+              scopes: normalizeScopes(row.scopes),
+              created_at: row.created_at.toISOString(),
+              expires_at: row.expires_at.toISOString(),
+              revoked_at: row.revoked_at?.toISOString() ?? null,
+              last_used_at: row.last_used_at?.toISOString() ?? null,
+            }));
+          }
+
+          export async function revokeDevkitToken(db: Kysely<DatabaseSchema>, playerId: string, tokenId: string) {
+            if (!UUID_PATTERN.test(tokenId)) throw new Error('invalid_devkit_token_id');
+            const row = await db.updateTable('devkit_tokens')
+              .set({revoked_at: sql<Date>`coalesce(revoked_at, clock_timestamp())`})
+              .where('token_id', '=', tokenId.toLowerCase())
+              .where('player_id', '=', playerId)
+              .returning(['token_id', 'revoked_at'])
+              .executeTakeFirst();
+            if (!row) throw new Error('devkit_token_not_found');
+            return {schema_version: 'devkit.token.revoked.v1' as const, token_id: row.token_id, revoked_at: row.revoked_at!.toISOString()};
+          }
+
+          export async function resolveDevkitCredential(db: Kysely<DatabaseSchema>, token: string): Promise<ResolvedDevkitCredential | null> {
+            const row = await db.selectFrom('devkit_tokens').select(['token_id', 'player_id', 'credential_class', 'scopes', 'expires_at'])
+              .where('token_hash', '=', tokenHash(token))
+              .where('revoked_at', 'is', null)
+              .where('expires_at', '>', sql<Date>`clock_timestamp()`)
+              .executeTakeFirst();
+            if (!row) return null;
+            return {tokenId: row.token_id, playerId: row.player_id, credentialClass: row.credential_class, scopes: normalizeScopes(row.scopes), expiresAt: row.expires_at};
+          }
+
+          export async function consumeDevkitRateLimit(db: Kysely<DatabaseSchema>, tokenId: string) {
+            return db.transaction().execute(async (tx) => {
+              const row = await tx.selectFrom('devkit_tokens').select(['rate_window_started_at', 'rate_count', 'revoked_at', 'expires_at'])
+                .where('token_id', '=', tokenId).forUpdate().executeTakeFirst();
+              if (!row || row.revoked_at || row.expires_at.getTime() <= Date.now()) return {allowed: false as const, invalid: true as const, retryAfterSeconds: 0};
+              const now = await readDatabaseNow(tx);
+              const elapsedMs = now.getTime() - row.rate_window_started_at.getTime();
+              if (elapsedMs >= 60_000) {
+                await tx.updateTable('devkit_tokens').set({rate_window_started_at: now, rate_count: 1, last_used_at: now}).where('token_id', '=', tokenId).execute();
+                return {allowed: true as const, remaining: DEVKIT_RATE_LIMIT_PER_MINUTE - 1};
+              }
+              if (row.rate_count >= DEVKIT_RATE_LIMIT_PER_MINUTE) {
+                return {allowed: false as const, invalid: false as const, retryAfterSeconds: Math.max(1, Math.ceil((60_000 - elapsedMs) / 1000))};
+              }
+              await tx.updateTable('devkit_tokens').set({rate_count: row.rate_count + 1, last_used_at: now}).where('token_id', '=', tokenId).execute();
+              return {allowed: true as const, remaining: DEVKIT_RATE_LIMIT_PER_MINUTE - row.rate_count - 1};
+            });
+          }
+          EOF
+
+          cat > apps/inkubator-api/src/contract-phase8.ts <<'EOF'
+          import './contract-phase7.js';
+          import {componentSchemas, openapiDocument} from './contract.js';
+
+          const schemas = componentSchemas as unknown as Record<string, any>;
+          const paths = openapiDocument.paths as unknown as Record<string, any>;
+          const components = openapiDocument.components as unknown as Record<string, any>;
+          components.securitySchemes.devkitBearer = {type: 'http', scheme: 'bearer', bearerFormat: 'opaque'};
+          const ref = (name: string) => ({$ref: `#/components/schemas/${name}`});
+          const errorResponse = (description: string) => ({description, content: {'application/json': {schema: ref('Error')}}});
+          const bearer = (scope: string) => [{devkitBearer: []}, {'x-rekt-scope': scope}];
+
+          schemas.DevkitScope = {type: 'string', enum: ['player:read','project:read','mission:read','claim:write','update:write','beacon:write','assist:write','ship:prepare']};
+          schemas.DevkitCredentialClass = {type: 'string', enum: ['CLI','MCP','AUTOMATION']};
+          schemas.DevkitTokenIssueRequest = {type:'object',additionalProperties:false,required:['request_id','credential_class','label','scopes','expires_in_seconds'],properties:{request_id:ref('RequestId'),credential_class:ref('DevkitCredentialClass'),label:{type:'string',minLength:1,maxLength:80},scopes:{type:'array',minItems:1,maxItems:8,uniqueItems:true,items:ref('DevkitScope')},expires_in_seconds:{type:'integer',minimum:300,maximum:2592000}}};
+          schemas.DevkitTokenIssuedView = {type:'object',additionalProperties:false,required:['schema_version','token_id','credential_class','label','scopes','token','expires_at'],properties:{schema_version:{type:'string',const:'devkit.token.issued.v1'},token_id:{type:'string',format:'uuid'},credential_class:ref('DevkitCredentialClass'),label:{type:'string'},scopes:{type:'array',items:ref('DevkitScope')},token:{type:'string'},expires_at:{type:'string',format:'date-time'}}};
+          schemas.DevkitTokenSummaryView = {type:'object',additionalProperties:false,required:['schema_version','token_id','credential_class','label','scopes','created_at','expires_at','revoked_at','last_used_at'],properties:{schema_version:{type:'string',const:'devkit.token.summary.v1'},token_id:{type:'string',format:'uuid'},credential_class:ref('DevkitCredentialClass'),label:{type:'string'},scopes:{type:'array',items:ref('DevkitScope')},created_at:{type:'string',format:'date-time'},expires_at:{type:'string',format:'date-time'},revoked_at:{type:['string','null'],format:'date-time'},last_used_at:{type:['string','null'],format:'date-time'}}};
+          schemas.DevkitTokenList = {type:'array',items:ref('DevkitTokenSummaryView')};
+          schemas.DevkitTokenRevokedView = {type:'object',additionalProperties:false,required:['schema_version','token_id','revoked_at'],properties:{schema_version:{type:'string',const:'devkit.token.revoked.v1'},token_id:{type:'string',format:'uuid'},revoked_at:{type:'string',format:'date-time'}}};
+          schemas.DevkitMissionUpdateRequest = {type:'object',additionalProperties:false,required:['request_id'],minProperties:2,properties:{request_id:ref('RequestId'),current_focus:{type:'string',minLength:1,maxLength:240},next_move:{type:'string',minLength:1,maxLength:240},blocker:{type:['string','null'],maxLength:240},stack_labels:{type:'array',maxItems:8,items:{type:'string',minLength:1,maxLength:40}}}};
+          schemas.DevkitClaimRequest = {type:'object',additionalProperties:false,required:['request_id','state'],properties:{request_id:ref('RequestId'),state:ref('ParticipantMissionGateState')}};
+          schemas.DevkitActivityEventView = {type:'object',additionalProperties:false,required:['event_type','occurred_at'],properties:{event_type:{type:'string'},occurred_at:{type:'string',format:'date-time'}}};
+          schemas.DevkitActivityView = {type:'object',additionalProperties:false,required:['schema_version','project_id','events'],properties:{schema_version:{type:'string',const:'devkit.activity.v1'},project_id:ref('ProjectId'),events:{type:'array',maxItems:50,items:ref('DevkitActivityEventView')}}};
+          schemas.DevkitHelpBeaconList = {type:'object',additionalProperties:false,required:['schema_version','project_id','beacons'],properties:{schema_version:{type:'string',const:'devkit.help_beacons.v1'},project_id:ref('ProjectId'),beacons:{type:'array',maxItems:1,items:ref('HelpBeaconView')}}};
+
+          paths['/v1/devkit/tokens'] = {
+            post:{operationId:'issueDevkitToken',security:[{sessionCookie:[]}],requestBody:{required:true,content:{'application/json':{schema:ref('DevkitTokenIssueRequest')}}},responses:{'201':{description:'Issue one scoped DevKit Player credential; raw secret is returned once',content:{'application/json':{schema:ref('DevkitTokenIssuedView')}}},'400':errorResponse('Invalid credential request'),'401':errorResponse('Session required'),'403':errorResponse('Same-origin browser authority required'),'409':errorResponse('Credential issue request already consumed')}},
+            get:{operationId:'listDevkitTokens',security:[{sessionCookie:[]}],responses:{'200':{description:'List revocable credential metadata; never returns token hashes or secrets',content:{'application/json':{schema:ref('DevkitTokenList')}}},'401':errorResponse('Session required'),'403':errorResponse('Same-origin browser authority required')}}
+          };
+          paths['/v1/devkit/tokens/{tokenId}/revoke'] = {post:{operationId:'revokeDevkitToken',security:[{sessionCookie:[]}],parameters:[{name:'tokenId',in:'path',required:true,schema:{type:'string',format:'uuid'}}],responses:{'200':{description:'Revoke owned DevKit credential',content:{'application/json':{schema:ref('DevkitTokenRevokedView')}}},'401':errorResponse('Session required'),'403':errorResponse('Same-origin browser authority required'),'404':errorResponse('Token not found')}}};
+          paths['/v1/devkit/me'] = {get:{operationId:'getDevkitMe',security:bearer('player:read'),responses:{'200':{description:'Authenticated Player via scoped DevKit credential',content:{'application/json':{schema:ref('PrivatePlayer')}}},'401':errorResponse('Credential required'),'403':errorResponse('Scope denied'),'429':errorResponse('Rate limited')}}};
+          paths['/v1/devkit/player/profile'] = {get:{operationId:'getDevkitPlayerProfile',security:bearer('player:read'),responses:{'200':{description:'Authenticated Player profile',content:{'application/json':{schema:ref('PlayerProfileView')}}},'401':errorResponse('Credential required'),'403':errorResponse('Scope denied'),'429':errorResponse('Rate limited')}}};
+          paths['/v1/devkit/mission/current'] = {
+            get:{operationId:'getDevkitCurrentMission',security:bearer('mission:read'),responses:{'200':{description:'Same canonical Command projection used by Web',content:{'application/json':{schema:ref('CommandView')}}},'404':errorResponse('No active Mission'),'429':errorResponse('Rate limited')}},
+            patch:{operationId:'updateDevkitCurrentMission',security:bearer('update:write'),requestBody:{required:true,content:{'application/json':{schema:ref('DevkitMissionUpdateRequest')}}},responses:{'200':{description:'Participant Mission update through canonical domain mutation',content:{'application/json':{schema:ref('CommandView')}}},'400':errorResponse('Invalid update'),'403':errorResponse('Scope/authority denied'),'404':errorResponse('No active Mission'),'409':errorResponse('Idempotency conflict'),'429':errorResponse('Rate limited')}}
+          };
+          paths['/v1/devkit/mission/current/claims/{gateKey}'] = {post:{operationId:'claimDevkitMilestone',security:bearer('claim:write'),parameters:[{name:'gateKey',in:'path',required:true,schema:ref('MissionGateKey')}],requestBody:{required:true,content:{'application/json':{schema:ref('DevkitClaimRequest')}}},responses:{'200':{description:'Participant claim only; PROVEN is excluded by schema and server truth ceiling',content:{'application/json':{schema:ref('CommandView')}}},'400':errorResponse('Invalid claim'),'403':errorResponse('Truth ceiling/scope denied'),'404':errorResponse('No active Mission'),'409':errorResponse('Idempotency conflict'),'429':errorResponse('Rate limited')}}};
+          paths['/v1/devkit/project/current'] = {get:{operationId:'getDevkitCurrentProject',security:bearer('project:read'),responses:{'200':{description:'Current canonical Command Project projection',content:{'application/json':{schema:ref('CommandProject')}}},'404':errorResponse('No active Project'),'429':errorResponse('Rate limited')}}};
+          paths['/v1/devkit/project/current/help-beacons'] = {
+            get:{operationId:'listDevkitHelpBeacons',security:bearer('project:read'),responses:{'200':{description:'Current open Help Beacon',content:{'application/json':{schema:ref('DevkitHelpBeaconList')}}},'404':errorResponse('No active Project'),'429':errorResponse('Rate limited')}},
+            post:{operationId:'createDevkitHelpBeacon',security:bearer('beacon:write'),requestBody:{required:true,content:{'application/json':{schema:ref('HelpBeaconCreateRequest')}}},responses:{'201':{description:'Create bounded Help Beacon on current canonical Project',content:{'application/json':{schema:ref('HelpBeaconView')}}},'403':errorResponse('Scope/owner denied'),'404':errorResponse('No active Project'),'409':errorResponse('Idempotency/conflict'),'429':errorResponse('Rate limited')}}
+          };
+          paths['/v1/devkit/help-beacons/{beaconId}/assists'] = {post:{operationId:'offerDevkitAssist',security:bearer('assist:write'),parameters:[{name:'beaconId',in:'path',required:true,schema:{type:'string',format:'uuid'}}],requestBody:{required:true,content:{'application/json':{schema:ref('AssistOfferCreateRequest')}}},responses:{'201':{description:'Offer bounded Assist',content:{'application/json':{schema:ref('AssistView')}}},'403':errorResponse('Scope/authority denied'),'404':errorResponse('Beacon not found'),'409':errorResponse('Idempotency/conflict'),'429':errorResponse('Rate limited')}}};
+          paths['/v1/devkit/project/current/activity'] = {get:{operationId:'getDevkitActivity',security:bearer('project:read'),responses:{'200':{description:'Privacy-safe current Project activity summary',content:{'application/json':{schema:ref('DevkitActivityView')}}},'404':errorResponse('No active Project'),'429':errorResponse('Rate limited')}}};
+          paths['/v1/devkit/mission/current/ship'] = {post:{operationId:'prepareDevkitShip',security:bearer('ship:prepare'),requestBody:{required:true,content:{'application/json':{schema:ref('ShipSubmissionCreateRequest')}}},responses:{'201':{description:'Prepare/submit claimed Ship to existing verifier path; does not approve it',content:{'application/json':{schema:ref('ShipSubmissionPrivateView')}}},'400':errorResponse('Invalid Ship'),'403':errorResponse('Scope/owner denied'),'404':errorResponse('No active Mission'),'409':errorResponse('Ship conflict'),'429':errorResponse('Rate limited')}}};
+          EOF
+
+          cat > apps/inkubator-api/src/devkit-api.ts <<'EOF'
+          import type {FastifyInstance, FastifyReply, FastifyRequest} from 'fastify';
+          import type {Kysely} from 'kysely';
+          import './contract-phase8.js';
+          import type {DatabaseSchema, MissionGateRow} from './database.js';
+          import {consumeDevkitRateLimit, hasDevkitScope, issueDevkitToken, listDevkitTokens, readBearerToken, resolveDevkitCredential, revokeDevkitToken, type DevkitScope, type ResolvedDevkitCredential} from './devkit.js';
+          import {commandToPrivateView, getCurrentCommand, getPlayerProfile, updateMission, updateMissionGate} from './mission-command.js';
+          import {getPlayer} from './players.js';
+          import {toPrivatePlayer} from './projection.js';
+          import {createHelpBeacon, getProjectHelpLoop, offerAssist} from './social.js';
+          import {submitShip} from './ship.js';
+          import {readSessionToken, resolveSessionActor} from './session.js';
+
+          const GATE_KEYS = new Set<MissionGateRow['gate_key']>(['FOUNDATION','CORE_EXPERIENCE','QUALITY_TESTING','SHIPABILITY']);
+
+          function error(reply: FastifyReply, status: number, message: string) { return reply.code(status).send({error: message}); }
+
+          function domainError(reply: FastifyReply, cause: unknown) {
+            const message = cause instanceof Error ? cause.message : 'devkit_mutation_failed';
+            if (message === 'authorization_denied' || message.endsWith('_not_participant_authorized') || message === 'social_interaction_blocked') return error(reply, 403, message);
+            if (message.endsWith('_not_found') || message === 'project_not_found' || message === 'player_not_found' || message === 'active_mission_not_found') return error(reply, 404, message);
+            if (message.includes('idempotency_conflict') || message.includes('_conflict') || message.endsWith('_already_open') || message.endsWith('_already_offered') || message === 'ship_submission_active') return error(reply, 409, message);
+            if (message.startsWith('invalid_') || message.endsWith('_empty') || message === 'mission_transition_invalid') return error(reply, 400, message);
+            throw cause;
+          }
+
+          async function sessionPlayer(request: FastifyRequest, reply: FastifyReply, db: Kysely<DatabaseSchema>, appOrigin: string): Promise<string | null> {
+            if (request.headers.origin !== appOrigin) { error(reply, 403, 'origin_not_allowed'); return null; }
+            const token = readSessionToken(request.headers.cookie);
+            if (!token) { error(reply, 401, 'authentication_required'); return null; }
+            const actor = await resolveSessionActor(db, token);
+            if (!actor) { error(reply, 401, 'authentication_required'); return null; }
+            return actor.playerId;
+          }
+
+          async function credential(request: FastifyRequest, reply: FastifyReply, db: Kysely<DatabaseSchema>, scope: DevkitScope): Promise<ResolvedDevkitCredential | null> {
+            const token = readBearerToken(request.headers.authorization);
+            if (!token) { error(reply, 401, 'devkit_credential_required'); return null; }
+            const resolved = await resolveDevkitCredential(db, token);
+            if (!resolved) { error(reply, 401, 'devkit_credential_invalid'); return null; }
+            const rate = await consumeDevkitRateLimit(db, resolved.tokenId);
+            if (!rate.allowed) {
+              if (rate.invalid) { error(reply, 401, 'devkit_credential_invalid'); return null; }
+              reply.header('retry-after', String(rate.retryAfterSeconds));
+              reply.header('x-ratelimit-limit', '60');
+              error(reply, 429, 'devkit_rate_limited');
+              return null;
+            }
+            reply.header('x-ratelimit-limit', '60');
+            reply.header('x-ratelimit-remaining', String(rate.remaining));
+            if (!hasDevkitScope(resolved, scope)) { error(reply, 403, 'devkit_scope_denied'); return null; }
+            return resolved;
+          }
+
+          function profileView(playerId: string, profile: Awaited<ReturnType<typeof getPlayerProfile>>) {
+            const labels = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').slice(0, 8) : [];
+            return {schema_version:'player.profile.v2' as const,player_id:playerId,...(profile?.bio?{bio:profile.bio}:{}),...(profile?.character_name?{character_name:profile.character_name}:{}),...(profile?.character_archetype?{character_archetype:profile.character_archetype}:{}),skills_needed:labels(profile?.skills_needed),can_help_with:labels(profile?.can_help_with)};
+          }
+
+          async function currentCommand(db: Kysely<DatabaseSchema>, playerId: string) {
+            return getCurrentCommand(db, playerId);
+          }
+
+          export function registerPhase8DevkitRoutes(app: FastifyInstance, db: Kysely<DatabaseSchema>, options: {appOrigin: string}): void {
+            app.post('/v1/devkit/tokens', async (request, reply) => {
+              const playerId = await sessionPlayer(request, reply, db, options.appOrigin); if (!playerId) return;
+              const body = request.body as {request_id:string;credential_class:'CLI'|'MCP'|'AUTOMATION';label:string;scopes:string[];expires_in_seconds:number};
+              try { return reply.code(201).send(await issueDevkitToken(db, playerId, {requestId:body.request_id,credentialClass:body.credential_class,label:body.label,scopes:body.scopes,expiresInSeconds:body.expires_in_seconds})); }
+              catch (cause) { const message=cause instanceof Error?cause.message:'devkit_token_issue_failed'; if(message==='devkit_token_issue_replayed')return error(reply,409,message); if(message.startsWith('invalid_'))return error(reply,400,message); throw cause; }
+            });
+
+            app.get('/v1/devkit/tokens', async (request, reply) => {
+              const playerId = await sessionPlayer(request, reply, db, options.appOrigin); if (!playerId) return;
+              reply.header('cache-control','no-store'); return listDevkitTokens(db, playerId);
+            });
+
+            app.post('/v1/devkit/tokens/:tokenId/revoke', async (request, reply) => {
+              const playerId=await sessionPlayer(request,reply,db,options.appOrigin);if(!playerId)return;const {tokenId}=request.params as {tokenId:string};
+              try{return await revokeDevkitToken(db,playerId,tokenId);}catch(cause){const message=cause instanceof Error?cause.message:'devkit_token_revoke_failed';if(message==='devkit_token_not_found')return error(reply,404,message);if(message.startsWith('invalid_'))return error(reply,400,message);throw cause;}
+            });
+
+            app.get('/v1/devkit/me', async(request,reply)=>{const auth=await credential(request,reply,db,'player:read');if(!auth)return;const player=await getPlayer(db,auth.playerId);if(!player)return error(reply,401,'devkit_credential_invalid');reply.header('cache-control','no-store');return toPrivatePlayer(player);});
+            app.get('/v1/devkit/player/profile', async(request,reply)=>{const auth=await credential(request,reply,db,'player:read');if(!auth)return;reply.header('cache-control','no-store');return profileView(auth.playerId,await getPlayerProfile(db,auth.playerId));});
+
+            app.get('/v1/devkit/mission/current', async(request,reply)=>{const auth=await credential(request,reply,db,'mission:read');if(!auth)return;const command=await currentCommand(db,auth.playerId);if(!command)return error(reply,404,'active_mission_not_found');reply.header('cache-control','no-store');return commandToPrivateView(command);});
+
+            app.patch('/v1/devkit/mission/current', async(request,reply)=>{const auth=await credential(request,reply,db,'update:write');if(!auth)return;const current=await currentCommand(db,auth.playerId);if(!current)return error(reply,404,'active_mission_not_found');const body=request.body as {request_id:string;current_focus?:string;next_move?:string;blocker?:string|null;stack_labels?:string[]};try{const command=await updateMission(db,auth.playerId,current.mission.mission_id,{requestId:body.request_id,currentFocus:body.current_focus,nextMove:body.next_move,blocker:body.blocker,stackLabels:body.stack_labels});return commandToPrivateView(command);}catch(cause){return domainError(reply,cause);}});
+
+            app.post('/v1/devkit/mission/current/claims/:gateKey', async(request,reply)=>{const auth=await credential(request,reply,db,'claim:write');if(!auth)return;const current=await currentCommand(db,auth.playerId);if(!current)return error(reply,404,'active_mission_not_found');const {gateKey}=request.params as {gateKey:string};if(!GATE_KEYS.has(gateKey as MissionGateRow['gate_key']))return error(reply,400,'invalid_gate_key');const body=request.body as {request_id:string;state:any};try{const command=await updateMissionGate(db,auth.playerId,current.mission.mission_id,gateKey as MissionGateRow['gate_key'],{requestId:body.request_id,signalState:body.state});return commandToPrivateView(command);}catch(cause){return domainError(reply,cause);}});
+
+            app.get('/v1/devkit/project/current', async(request,reply)=>{const auth=await credential(request,reply,db,'project:read');if(!auth)return;const current=await currentCommand(db,auth.playerId);if(!current)return error(reply,404,'active_mission_not_found');return commandToPrivateView(current).project;});
+
+            app.get('/v1/devkit/project/current/help-beacons', async(request,reply)=>{const auth=await credential(request,reply,db,'project:read');if(!auth)return;const current=await currentCommand(db,auth.playerId);if(!current)return error(reply,404,'active_mission_not_found');try{const loop=await getProjectHelpLoop(db,current.project.project_id);return {schema_version:'devkit.help_beacons.v1',project_id:current.project.project_id,beacons:loop.open_help_beacon?[loop.open_help_beacon]:[]};}catch(cause){return domainError(reply,cause);}});
+
+            app.post('/v1/devkit/project/current/help-beacons', async(request,reply)=>{const auth=await credential(request,reply,db,'beacon:write');if(!auth)return;const current=await currentCommand(db,auth.playerId);if(!current)return error(reply,404,'active_mission_not_found');const body=request.body as {request_id:string;summary:string;skills_needed?:string[]};try{return reply.code(201).send(await createHelpBeacon(db,auth.playerId,current.project.project_id,{requestId:body.request_id,summary:body.summary,skillsNeeded:body.skills_needed}));}catch(cause){return domainError(reply,cause);}});
+
+            app.post('/v1/devkit/help-beacons/:beaconId/assists', async(request,reply)=>{const auth=await credential(request,reply,db,'assist:write');if(!auth)return;const {beaconId}=request.params as {beaconId:string};const body=request.body as {request_id:string;message:string};try{return reply.code(201).send(await offerAssist(db,auth.playerId,beaconId,{requestId:body.request_id,message:body.message}));}catch(cause){return domainError(reply,cause);}});
+
+            app.get('/v1/devkit/project/current/activity', async(request,reply)=>{const auth=await credential(request,reply,db,'project:read');if(!auth)return;const current=await currentCommand(db,auth.playerId);if(!current)return error(reply,404,'active_mission_not_found');const rows=await db.selectFrom('history_events').select(['event_type','occurred_at']).where('subject_type','=','project').where('subject_id','=',current.project.project_id).orderBy('occurred_at','desc').limit(50).execute();return {schema_version:'devkit.activity.v1',project_id:current.project.project_id,events:rows.map(row=>({event_type:row.event_type,occurred_at:row.occurred_at.toISOString()}))};});
+
+            app.post('/v1/devkit/mission/current/ship', async(request,reply)=>{const auth=await credential(request,reply,db,'ship:prepare');if(!auth)return;const current=await currentCommand(db,auth.playerId);if(!current)return error(reply,404,'active_mission_not_found');const body=request.body as {request_id:string;title:string;url:string;demo_url?:string;source_url?:string};try{return reply.code(201).send(await submitShip(db,auth.playerId,current.mission.mission_id,{requestId:body.request_id,title:body.title,url:body.url,...(body.demo_url?{demoUrl:body.demo_url}:{}),...(body.source_url?{sourceUrl:body.source_url}:{})}));}catch(cause){return domainError(reply,cause);}});
+          }
+          EOF
+
+          cat > packages/sdk/package.json <<'EOF'
+          {
+            "name": "@rekt-ink/sdk",
+            "version": "0.1.0",
+            "type": "module",
+            "files": ["dist"],
+            "exports": {
+              ".": {"types": "./dist/index.d.ts", "import": "./dist/index.js"},
+              "./server": {"types": "./dist/server.d.ts", "import": "./dist/server.js"}
+            },
+            "scripts": {
+              "build": "tsc -p tsconfig.json",
+              "typecheck": "tsc -p tsconfig.json --noEmit",
+              "test": "node --test test/*.test.mjs"
+            },
+            "devDependencies": {
+              "@types/node": "22.0.0",
+              "typescript": "5.8.3"
+            },
+            "publishConfig": {"access": "public"}
+          }
+          EOF
+
+          cat > packages/sdk/tsconfig.json <<'EOF'
+          {
+            "compilerOptions": {
+              "target": "ES2022",
+              "module": "NodeNext",
+              "moduleResolution": "NodeNext",
+              "lib": ["ES2022", "DOM", "DOM.Iterable"],
+              "strict": true,
+              "declaration": true,
+              "outDir": "dist",
+              "rootDir": "src",
+              "skipLibCheck": true,
+              "types": ["node"]
+            },
+            "include": ["src/**/*.ts"]
+          }
+          EOF
+
+          cat > packages/sdk/src/index.ts <<'EOF'
+          import {InkubatorApiClient, InkubatorApiError, type FetchLike} from './generated/inkubator-api-client.js';
+
+          export {InkubatorApiError};
+          export interface InkubatorClientOptions { baseUrl: string; accessToken: string; fetchImpl?: FetchLike; }
+          export interface MutationOptions { idempotencyKey?: string; }
+          const requestId = (value?: string) => value ?? crypto.randomUUID();
+
+          export function createInkubatorClient(options: InkubatorClientOptions) {
+            const transport = new InkubatorApiClient(options.baseUrl, options.fetchImpl ?? fetch, options.accessToken);
+            return {
+              player: {
+                me: () => transport.getDevkitMe(),
+                profile: () => transport.getDevkitPlayerProfile(),
+              },
+              mission: {
+                current: () => transport.getDevkitCurrentMission(),
+                status: () => transport.getDevkitCurrentMission(),
+                update: (input: {currentFocus?: string; nextMove?: string; blocker?: string | null; stackLabels?: string[]} & MutationOptions) => transport.updateDevkitCurrentMission({
+                  request_id: requestId(input.idempotencyKey),
+                  ...(input.currentFocus !== undefined ? {current_focus: input.currentFocus} : {}),
+                  ...(input.nextMove !== undefined ? {next_move: input.nextMove} : {}),
+                  ...(input.blocker !== undefined ? {blocker: input.blocker} : {}),
+                  ...(input.stackLabels !== undefined ? {stack_labels: input.stackLabels} : {}),
+                }),
+                claim: (input: {gateKey: 'FOUNDATION'|'CORE_EXPERIENCE'|'QUALITY_TESTING'|'SHIPABILITY'; state?: 'UNKNOWN'|'CLAIMED'|'ACTIVE'|'ATTENTION'|'BLOCKED'|'STALE'|'FAILED'} & MutationOptions) => transport.claimDevkitMilestone(input.gateKey, {request_id: requestId(input.idempotencyKey), state: input.state ?? 'CLAIMED'}),
+              },
+              project: {
+                current: () => transport.getDevkitCurrentProject(),
+                activity: () => transport.getDevkitActivity(),
+              },
+              beacon: {
+                list: () => transport.listDevkitHelpBeacons(),
+                create: (input: {summary: string; skillsNeeded?: string[]} & MutationOptions) => transport.createDevkitHelpBeacon({request_id: requestId(input.idempotencyKey), summary: input.summary, ...(input.skillsNeeded ? {skills_needed: input.skillsNeeded} : {})}),
+              },
+              assist: {
+                offer: (input: {beaconId: string; message: string} & MutationOptions) => transport.offerDevkitAssist(input.beaconId, {request_id: requestId(input.idempotencyKey), message: input.message}),
+              },
+              ship: {
+                prepare: (input: {title: string; url: string; demoUrl?: string; sourceUrl?: string} & MutationOptions) => transport.prepareDevkitShip({request_id: requestId(input.idempotencyKey), title: input.title, url: input.url, ...(input.demoUrl ? {demo_url: input.demoUrl} : {}), ...(input.sourceUrl ? {source_url: input.sourceUrl} : {})}),
+              },
+            };
+          }
+          EOF
+
+          cat > packages/sdk/src/server.ts <<'EOF'
+          import {createInkubatorClient} from './index.js';
+
+          export function createInkubatorServerClientFromEnv(env: NodeJS.ProcessEnv = process.env) {
+            const accessToken = env.REKT_DEVKIT_TOKEN;
+            if (!accessToken) throw new Error('REKT_DEVKIT_TOKEN is required');
+            const baseUrl = env.REKT_API_URL ?? 'http://127.0.0.1:8787';
+            return createInkubatorClient({baseUrl, accessToken});
+          }
+          EOF
+
+          cat > packages/sdk/test/sdk-authority.test.mjs <<'EOF'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import test from 'node:test';
+          import {createInkubatorClient, InkubatorApiError} from '../dist/index.js';
+
+          test('SDK-H03/H06/H09 browser entry is bounded, internals unexported, and 429 is not retried', async () => {
+            const entry = fs.readFileSync(new URL('../dist/index.js', import.meta.url), 'utf8');
+            assert.doesNotMatch(entry, /node:|process\.env|REKT_DEVKIT_TOKEN/);
+            const packageJson = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+            assert.deepEqual(Object.keys(packageJson.exports).sort(), ['.', './server']);
+            assert.equal(Object.keys(packageJson.exports).some((key) => key.includes('generated')), false);
+
+            let calls = 0;
+            const client = createInkubatorClient({baseUrl:'https://api.example.test',accessToken:'rekt_dk_test',fetchImpl:async()=>{calls += 1;return new Response(JSON.stringify({error:'devkit_rate_limited'}),{status:429,headers:{'content-type':'application/json','retry-after':'60'}});}});
+            await assert.rejects(client.mission.current(), (error) => error instanceof InkubatorApiError && error.status === 429);
+            assert.equal(calls, 1);
+            const publicShape = JSON.stringify(Object.keys(client)) + JSON.stringify(Object.keys(client.mission)) + JSON.stringify(Object.keys(client.ship));
+            assert.doesNotMatch(publicShape, /prove|proven|grant|achievement|approve|moderate/i);
+          });
+          EOF
+
+          cat > packages/cli/package.json <<'EOF'
+          {
+            "name": "@rekt-ink/cli",
+            "version": "0.1.0",
+            "type": "module",
+            "bin": {"rekt": "./dist/cli.js"},
+            "files": ["dist"],
+            "scripts": {"build":"tsc -p tsconfig.json","test":"node --test test/*.test.mjs"},
+            "dependencies": {"@rekt-ink/sdk":"*"},
+            "devDependencies": {"@types/node":"22.0.0","typescript":"5.8.3"},
+            "publishConfig": {"access":"public"}
+          }
+          EOF
+
+          cat > packages/cli/tsconfig.json <<'EOF'
+          {"compilerOptions":{"target":"ES2022","module":"NodeNext","moduleResolution":"NodeNext","strict":true,"declaration":true,"outDir":"dist","rootDir":"src","skipLibCheck":true,"types":["node"]},"include":["src/**/*.ts"]}
+          EOF
+
+          cat > packages/cli/src/cli.ts <<'EOF'
+          #!/usr/bin/env node
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import {pathToFileURL} from 'node:url';
+          import {createInkubatorClient} from '@rekt-ink/sdk';
+
+          type Io = {out:(value:string)=>void;err:(value:string)=>void};
+          type Config = {schema_version:'rekt.local.v1';api_url:string;project_id:string;mission_id:string};
+          const defaultIo: Io = {out:(value)=>process.stdout.write(`${value}\n`),err:(value)=>process.stderr.write(`${value}\n`)};
+          function parse(args:string[]){const values=new Map<string,string>();const positional:string[]=[];for(let i=0;i<args.length;i+=1){const item=args[i];if(item.startsWith('--')){const value=args[i+1];if(!value||value.startsWith('--'))throw new Error(`missing_value_${item.slice(2)}`);values.set(item.slice(2),value);i+=1;}else positional.push(item);}return {values,positional};}
+          function configPath(cwd:string){return path.join(cwd,'.rekt','config.json');}
+          function readConfig(cwd:string):Config{const value=JSON.parse(fs.readFileSync(configPath(cwd),'utf8'));if(value?.schema_version!=='rekt.local.v1')throw new Error('rekt_config_invalid');return value;}
+          function writeConfig(cwd:string,config:Config){fs.mkdirSync(path.dirname(configPath(cwd)),{recursive:true});fs.writeFileSync(configPath(cwd),JSON.stringify(config,null,2)+'\n',{mode:0o600});}
+          function clientFor(env:NodeJS.ProcessEnv,apiUrl:string){const accessToken=env.REKT_DEVKIT_TOKEN;if(!accessToken)throw new Error('REKT_DEVKIT_TOKEN is required');return createInkubatorClient({baseUrl:apiUrl,accessToken});}
+          function skills(value:string|undefined){return value?value.split(',').map((part)=>part.trim()).filter(Boolean):undefined;}
+
+          export async function main(argv=process.argv.slice(2),env:NodeJS.ProcessEnv=process.env,io:Io=defaultIo,cwd=process.cwd()):Promise<number>{
+            const [command,...rest]=argv; if(!command||command==='help'||command==='--help'){io.out('rekt init|status|next|update|beacon|claim|ship|doctor');return 0;}
+            try{
+              if(command==='init'){const parsed=parse(rest);const apiUrl=parsed.values.get('api')??env.REKT_API_URL??'http://127.0.0.1:8787';const state=await clientFor(env,apiUrl).mission.current();writeConfig(cwd,{schema_version:'rekt.local.v1',api_url:apiUrl,project_id:state.project.project_id,mission_id:state.mission.mission_id});io.out(`linked ${state.project.project_id} ${state.mission.mission_id}`);return 0;}
+              const config=readConfig(cwd);const client=clientFor(env,config.api_url);
+              if(command==='status'){io.out(JSON.stringify(await client.mission.status(),null,2));return 0;}
+              if(command==='next'){io.out((await client.mission.current()).mission.next_move);return 0;}
+              if(command==='update'){const {values}=parse(rest);await client.mission.update({currentFocus:values.get('focus'),nextMove:values.get('next'),blocker:values.has('blocker')?values.get('blocker')!:undefined,idempotencyKey:values.get('request-id')});io.out('updated');return 0;}
+              if(command==='beacon'){const {values,positional}=parse(rest);const summary=values.get('summary')??positional.join(' ');if(!summary)throw new Error('beacon_summary_required');const result=await client.beacon.create({summary,skillsNeeded:skills(values.get('skills')),idempotencyKey:values.get('request-id')});io.out(JSON.stringify(result,null,2));return 0;}
+              if(command==='claim'){const {values,positional}=parse(rest);const gateKey=positional[0] as 'FOUNDATION'|'CORE_EXPERIENCE'|'QUALITY_TESTING'|'SHIPABILITY'|undefined;if(!gateKey)throw new Error('gate_key_required');await client.mission.claim({gateKey,state:(values.get('state') as any)??'CLAIMED',idempotencyKey:values.get('request-id')});io.out(`claimed ${gateKey}`);return 0;}
+              if(command==='ship'){const {values}=parse(rest);const title=values.get('title'),url=values.get('url');if(!title||!url)throw new Error('ship_title_and_url_required');const result=await client.ship.prepare({title,url,demoUrl:values.get('demo'),sourceUrl:values.get('source'),idempotencyKey:values.get('request-id')});io.out(JSON.stringify(result,null,2));return 0;}
+              if(command==='doctor'){const health=await fetch(`${config.api_url.replace(/\/$/,'')}/health`);if(!health.ok)throw new Error(`health_${health.status}`);await client.player.me();await client.mission.current();io.out('doctor: PASS');return 0;}
+              throw new Error(`unknown_command_${command}`);
+            }catch(cause){io.err(cause instanceof Error?cause.message:String(cause));return 1;}
+          }
+          if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){process.exitCode=await main();}
+          EOF
+
+          cat > packages/cli/test/cli-local-state.test.mjs <<'EOF'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import os from 'node:os';
+          import path from 'node:path';
+          import test from 'node:test';
+          import {main} from '../dist/cli.js';
+
+          test('SDK-H10 deleting .rekt state causes no canonical mutation', async () => {
+            const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'rekt-cli-'));let mutations=0;
+            const previous=globalThis.fetch;
+            globalThis.fetch=async(_input,init={})=>{if((init.method??'GET')!=='GET')mutations+=1;return new Response(JSON.stringify({schema_version:'command.private.v2',project:{project_id:'11111111-1111-4111-8111-111111111111'},mission:{mission_id:'22222222-2222-4222-8222-222222222222',next_move:'ship it'},gates:[],github_evidence:{},daemon:{}}),{status:200,headers:{'content-type':'application/json'}});};
+            const io={out:()=>{},err:()=>{}};
+            try{assert.equal(await main(['init','--api','https://api.test'],{REKT_DEVKIT_TOKEN:'rekt_dk_test'},io,cwd),0);assert.equal(mutations,0);const config=JSON.parse(fs.readFileSync(path.join(cwd,'.rekt','config.json'),'utf8'));assert.equal('token' in config,false);fs.rmSync(path.join(cwd,'.rekt'),{recursive:true,force:true});assert.equal(mutations,0);}finally{globalThis.fetch=previous;fs.rmSync(cwd,{recursive:true,force:true});}
+          });
+          EOF
+
+          cat > packages/mcp/package.json <<'EOF'
+          {
+            "name":"@rekt-ink/mcp",
+            "version":"0.1.0",
+            "type":"module",
+            "bin":{"rekt-mcp":"./dist/stdio.js"},
+            "files":["dist"],
+            "exports":{".":{"types":"./dist/index.d.ts","import":"./dist/index.js"}},
+            "scripts":{"build":"tsc -p tsconfig.json","test":"node --test test/*.test.mjs"},
+            "dependencies":{"@modelcontextprotocol/server":"2.0.0","@rekt-ink/sdk":"*","zod":"4.5.4"},
+            "devDependencies":{"@types/node":"22.0.0","typescript":"5.8.3"},
+            "publishConfig":{"access":"public"}
+          }
+          EOF
+
+          cat > packages/mcp/tsconfig.json <<'EOF'
+          {"compilerOptions":{"target":"ES2022","module":"NodeNext","moduleResolution":"NodeNext","strict":true,"declaration":true,"outDir":"dist","rootDir":"src","skipLibCheck":true,"types":["node"]},"include":["src/**/*.ts"]}
+          EOF
+
+          cat > packages/mcp/src/index.ts <<'EOF'
+          import {McpServer} from '@modelcontextprotocol/server';
+          import * as z from 'zod/v4';
+          import type {ReturnTypeOfCreateInkubatorClient} from './types.js';
+
+          export const MCP_RESOURCE_URIS = ['inkubator://mission/current','inkubator://project/current','inkubator://mission/ship-condition','inkubator://project/activity','inkubator://player/profile'] as const;
+          export const MCP_TOOL_NAMES = ['get_mission_status','get_next_move','get_ship_condition','get_project_status','list_help_beacons','get_activity','claim_milestone','post_project_update','create_help_beacon','offer_assist','prepare_ship'] as const;
+          const text = (value: unknown) => ({content:[{type:'text' as const,text:typeof value==='string'?value:JSON.stringify(value)}]});
+
+          export function createInkubatorMcpServer({client}:{client:ReturnTypeOfCreateInkubatorClient}) {
+            const server=new McpServer({name:'rekt-inkubator',version:'0.1.0'});
+            server.registerResource('mission-current',MCP_RESOURCE_URIS[0],{mimeType:'application/json'},async(uri)=>({contents:[{uri:uri.href,mimeType:'application/json',text:JSON.stringify(await client.mission.current())}]}));
+            server.registerResource('project-current',MCP_RESOURCE_URIS[1],{mimeType:'application/json'},async(uri)=>({contents:[{uri:uri.href,mimeType:'application/json',text:JSON.stringify(await client.project.current())}]}));
+            server.registerResource('ship-condition',MCP_RESOURCE_URIS[2],{mimeType:'text/plain'},async(uri)=>({contents:[{uri:uri.href,mimeType:'text/plain',text:(await client.mission.current()).mission.ship_condition}]}));
+            server.registerResource('project-activity',MCP_RESOURCE_URIS[3],{mimeType:'application/json'},async(uri)=>({contents:[{uri:uri.href,mimeType:'application/json',text:JSON.stringify(await client.project.activity())}]}));
+            server.registerResource('player-profile',MCP_RESOURCE_URIS[4],{mimeType:'application/json'},async(uri)=>({contents:[{uri:uri.href,mimeType:'application/json',text:JSON.stringify(await client.player.profile())}]}));
+            server.registerTool('get_mission_status',{description:'Read canonical current Mission state'},async()=>text(await client.mission.status()));
+            server.registerTool('get_next_move',{description:'Read canonical next move'},async()=>text((await client.mission.current()).mission.next_move));
+            server.registerTool('get_ship_condition',{description:'Read canonical Ship condition'},async()=>text((await client.mission.current()).mission.ship_condition));
+            server.registerTool('get_project_status',{description:'Read canonical current Project'},async()=>text(await client.project.current()));
+            server.registerTool('list_help_beacons',{description:'List current Project Help Beacons'},async()=>text(await client.beacon.list()));
+            server.registerTool('get_activity',{description:'Read privacy-safe current Project activity'},async()=>text(await client.project.activity()));
+            server.registerTool('claim_milestone',{description:'Submit a participant CLAIM; never PROOF',inputSchema:z.object({gateKey:z.enum(['FOUNDATION','CORE_EXPERIENCE','QUALITY_TESTING','SHIPABILITY']),state:z.enum(['UNKNOWN','CLAIMED','ACTIVE','ATTENTION','BLOCKED','STALE','FAILED']).optional(),idempotencyKey:z.string().uuid().optional()})},async(args)=>text(await client.mission.claim(args)));
+            server.registerTool('post_project_update',{description:'Update participant-controlled Mission fields',inputSchema:z.object({currentFocus:z.string().optional(),nextMove:z.string().optional(),blocker:z.string().nullable().optional(),idempotencyKey:z.string().uuid().optional()})},async(args)=>text(await client.mission.update(args)));
+            server.registerTool('create_help_beacon',{description:'Create a bounded Help Beacon',inputSchema:z.object({summary:z.string().min(1),skillsNeeded:z.array(z.string()).max(8).optional(),idempotencyKey:z.string().uuid().optional()})},async(args)=>text(await client.beacon.create(args)));
+            server.registerTool('offer_assist',{description:'Offer bounded Assist',inputSchema:z.object({beaconId:z.string().uuid(),message:z.string().min(1),idempotencyKey:z.string().uuid().optional()})},async(args)=>text(await client.assist.offer(args)));
+            server.registerTool('prepare_ship',{description:'Submit claimed Ship material to canonical verifier path; does not approve Ship',inputSchema:z.object({title:z.string().min(1),url:z.string().url(),demoUrl:z.string().url().optional(),sourceUrl:z.string().url().optional(),idempotencyKey:z.string().uuid().optional()})},async(args)=>text(await client.ship.prepare(args)));
+            return server;
+          }
+          EOF
+
+          cat > packages/mcp/src/types.ts <<'EOF'
+          import {createInkubatorClient} from '@rekt-ink/sdk';
+          export type ReturnTypeOfCreateInkubatorClient = ReturnType<typeof createInkubatorClient>;
+          EOF
+
+          cat > packages/mcp/src/stdio.ts <<'EOF'
+          #!/usr/bin/env node
+          import {serveStdio} from '@modelcontextprotocol/server/stdio';
+          import {createInkubatorServerClientFromEnv} from '@rekt-ink/sdk/server';
+          import {createInkubatorMcpServer} from './index.js';
+          void serveStdio(() => createInkubatorMcpServer({client:createInkubatorServerClientFromEnv()}));
+          EOF
+
+          cat > packages/mcp/test/mcp-authority.test.mjs <<'EOF'
+          import assert from 'node:assert/strict';
+          import test from 'node:test';
+          import {MCP_RESOURCE_URIS,MCP_TOOL_NAMES} from '../dist/index.js';
+          test('SDK-H08 MCP discovery surface contains no operator/proof authority',()=>{assert.equal(MCP_RESOURCE_URIS.length,5);assert.equal(MCP_TOOL_NAMES.length,11);const surface=[...MCP_RESOURCE_URIS,...MCP_TOOL_NAMES].join(' ');assert.doesNotMatch(surface,/prove|proven|grant.*achievement|approve.*ship|moderate|round.*admin|operator/i);});
+          EOF
+
+          cat > apps/inkubator-api/test/integration/phase8-devkit-hostile.test.mjs <<'EOF'
+          import {randomUUID} from 'node:crypto';
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import {createDatabase} from '../../dist/database.js';
+          import {migrateToLatest} from '../../dist/migrations.js';
+          import {buildApp} from '../../dist/app.js';
+
+          const databaseUrl=process.env.DATABASE_URL;if(!databaseUrl)throw new Error('DATABASE_URL required');
+          const origin='https://inkubator.test';
+          const requestId=()=>randomUUID();
+          function cookieOf(response){const raw=response.headers['set-cookie'];if(typeof raw!=='string')throw new Error('cookie_missing');return raw.split(';')[0];}
+
+          test('Phase 8 DevKit keeps one canonical truth state behind bounded credentials',async()=>{
+            const db=createDatabase(databaseUrl);await migrateToLatest(db);const app=buildApp({db,appOrigin:origin,allowDevAuth:true,sessionTtlSeconds:3600});
+            try{
+              const session=await app.inject({method:'POST',url:'/v1/dev/session',headers:{origin},payload:{display_name:`DevKit ${randomUUID().slice(0,8)}`}});assert.equal(session.statusCode,201);const cookie=cookieOf(session);const playerId=session.json().player.player_id;
+              const roundId=randomUUID();await db.insertInto('rounds').values({round_id:roundId,schema_version:'round.current.v1',code:`DK_${randomUUID().replaceAll('-','').slice(0,10)}`,title:'DevKit Hostile Round',constraint_text:'Preserve truth boundary',state:'OPEN'}).execute();
+              assert.equal((await app.inject({method:'POST',url:`/v1/rounds/${roundId}/join`,headers:{origin,cookie}})).statusCode,200);
+              const created=await app.inject({method:'POST',url:'/v1/missions',headers:{origin,cookie},payload:{request_id:requestId(),round_id:roundId,project_name:'DevKit Project',goal:'One truth system',ship_condition:'Public HTTPS artifact',current_focus:'Build DevKit',next_move:'Verify scopes'}});assert.equal(created.statusCode,201);
+
+              const tokenRequest=requestId();const issued=await app.inject({method:'POST',url:'/v1/devkit/tokens',headers:{origin,cookie},payload:{request_id:tokenRequest,credential_class:'CLI',label:'Hostile test',scopes:['player:read','project:read','mission:read','claim:write','update:write','beacon:write','assist:write','ship:prepare'],expires_in_seconds:3600}});assert.equal(issued.statusCode,201,issued.body);const token=issued.json().token;const tokenId=issued.json().token_id;const bearer={authorization:`Bearer ${token}`};
+              const replay=await app.inject({method:'POST',url:'/v1/devkit/tokens',headers:{origin,cookie},payload:{request_id:tokenRequest,credential_class:'CLI',label:'Hostile test',scopes:['mission:read'],expires_in_seconds:3600}});assert.equal(replay.statusCode,409);assert.equal((await db.selectFrom('devkit_tokens').select('token_id').where('player_id','=',playerId).execute()).length,1);
+
+              const web=await app.inject({method:'GET',url:'/v1/me/command',headers:{cookie}});const devkit=await app.inject({method:'GET',url:'/v1/devkit/mission/current',headers:bearer});assert.equal(web.statusCode,200);assert.equal(devkit.statusCode,200);assert.deepEqual(devkit.json(),web.json());
+
+              const proven=await app.inject({method:'POST',url:'/v1/devkit/mission/current/claims/FOUNDATION',headers:bearer,payload:{request_id:requestId(),state:'PROVEN'}});assert.equal(proven.statusCode,403);const afterProven=await app.inject({method:'GET',url:'/v1/devkit/mission/current',headers:bearer});assert.notEqual(afterProven.json().gates.find((gate)=>gate.key==='FOUNDATION')?.state,'PROVEN');
+
+              const updateId=requestId();const payload={request_id:updateId,current_focus:'Same canonical update'};const first=await app.inject({method:'PATCH',url:'/v1/devkit/mission/current',headers:bearer,payload});const second=await app.inject({method:'PATCH',url:'/v1/devkit/mission/current',headers:bearer,payload});assert.equal(first.statusCode,200,first.body);assert.equal(second.statusCode,200,second.body);assert.deepEqual(second.json(),first.json());const events=await db.selectFrom('history_events').select('history_event_id').where('dedupe_key','like',`%${updateId}%`).execute();assert.equal(events.length,1);
+
+              const readOnly=await app.inject({method:'POST',url:'/v1/devkit/tokens',headers:{origin,cookie},payload:{request_id:requestId(),credential_class:'MCP',label:'Read only',scopes:['mission:read'],expires_in_seconds:3600}});const readBearer={authorization:`Bearer ${readOnly.json().token}`};assert.equal((await app.inject({method:'PATCH',url:'/v1/devkit/mission/current',headers:readBearer,payload:{request_id:requestId(),current_focus:'forbidden'}})).statusCode,403);
+
+              await db.updateTable('devkit_tokens').set({rate_count:60,rate_window_started_at:new Date()}).where('token_id','=',tokenId).execute();const limited=await app.inject({method:'GET',url:'/v1/devkit/mission/current',headers:bearer});assert.equal(limited.statusCode,429);assert.equal(limited.headers['retry-after']!==undefined,true);
+              await db.updateTable('devkit_tokens').set({rate_count:0,rate_window_started_at:new Date(0)}).where('token_id','=',tokenId).execute();
+
+              const revoked=await app.inject({method:'POST',url:`/v1/devkit/tokens/${tokenId}/revoke`,headers:{origin,cookie}});assert.equal(revoked.statusCode,200);assert.equal((await app.inject({method:'GET',url:'/v1/devkit/mission/current',headers:bearer})).statusCode,401);
+            } finally {await app.close();await db.destroy();}
+          });
+          EOF
+
+          cat > .github/workflows/publish-devkit.yml <<'EOF'
+          name: Publish DevKit
+          on:
+            workflow_dispatch:
+            release:
+              types: [published]
+          permissions:
+            contents: read
+            id-token: write
+          jobs:
+            publish:
+              runs-on: ubuntu-latest
+              environment: npm
+              steps:
+                - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+                - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+                  with:
+                    node-version: 24.20.0
+                    registry-url: https://registry.npmjs.org
+                    cache: npm
+                - run: npm ci --no-audit --no-fund
+                - run: npm run build:devkit
+                - run: npm run test:devkit
+                - run: npm publish -w @rekt-ink/protocol --access public --provenance
+                - run: npm publish -w @rekt-ink/sdk --access public --provenance
+                - run: npm publish -w @rekt-ink/cli --access public --provenance
+                - run: npm publish -w @rekt-ink/mcp --access public --provenance
+          EOF
+
+          cat > docs/inkubator/DEVKIT_QUICKSTART_V0.md <<'EOF'
+          # REKT INK(CUBATOR) DevKit Quickstart v0
+
+          The DevKit is another control surface over the same canonical Inkubator Player/Project/Mission state. It does not own proof, reputation, Cheevos or Ship approval.
+
+          ## Credential
+
+          Create a scoped credential from an authenticated same-origin web session through `POST /v1/devkit/tokens`. The raw token is returned once. Store it in your host secret store or shell environment, not in `.rekt/`:
+
+          ```bash
+          export REKT_API_URL=https://inkubator.example
+          export REKT_DEVKIT_TOKEN='rekt_dk_...'
+          ```
+
+          Recommended CLI scopes: `player:read project:read mission:read claim:write update:write beacon:write assist:write ship:prepare`.
+
+          ## CLI
+
+          ```bash
+          npx @rekt-ink/cli rekt init
+          rekt status
+          rekt next
+          rekt update --focus "Verifier polish" --next "Run hostile tests"
+          rekt claim QUALITY_TESTING
+          rekt beacon --summary "Need a mobile pass" --skills "mobile,ux"
+          rekt ship --title "Demo" --url "https://example.com/demo"
+          rekt doctor
+          ```
+
+          `rekt ship` creates a claimed submission for the existing verifier/acceptance path. It cannot approve the Ship.
+
+          ## SDK
+
+          ```ts
+          import {createInkubatorClient} from '@rekt-ink/sdk';
+          const ink = createInkubatorClient({baseUrl: process.env.REKT_API_URL!, accessToken: process.env.REKT_DEVKIT_TOKEN!});
+          const state = await ink.mission.current();
+          await ink.mission.update({currentFocus: 'Ship the integration'});
+          ```
+
+          The browser-safe root entry never reads environment credentials. Server-side environment loading is a deliberate `@rekt-ink/sdk/server` subpath.
+
+          ## MCP
+
+          ```json
+          {
+            "mcpServers": {
+              "rekt-inkubator": {
+                "command": "npx",
+                "args": ["@rekt-ink/mcp"],
+                "env": {
+                  "REKT_API_URL": "https://inkubator.example",
+                  "REKT_DEVKIT_TOKEN": "..."
+                }
+              }
+            }
+          }
+          ```
+
+          MCP v0 exposes only Player-level read/claim/update/help/assist/ship-preparation resources/tools. No proof/operator/verifier tools exist.
+          EOF
+
+      - name: Regenerate npm lock
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Install locked tree
+        run: npm ci --no-audit --no-fund
+      - name: Build API and generate transports
+        run: |
+          npm run typecheck -w @rekt-ink/inkubator-api
+          npm run build -w @rekt-ink/inkubator-api
+          npm run generate:client -w @rekt-ink/inkubator-api
+          npm run verify:client -w @rekt-ink/inkubator-api
+      - name: Verify database migration
+        run: npm run migrate -w @rekt-ink/inkubator-api
+      - name: Build DevKit packages
+        run: npm run build:devkit
+      - name: DevKit package hostile tests
+        run: npm run test:devkit
+      - name: Phase 8 API hostile test
+        run: timeout 180s node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase8-devkit-hostile.test.mjs
+      - name: Full API Postgres integration
+        run: timeout 420s npm run test:integration -w @rekt-ink/inkubator-api
+      - name: Commit verified candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'CipherCuttle'
+          git config user.email '97258089+CipherCuttle@users.noreply.github.com'
+          git add package.json package-lock.json apps/inkubator-api packages/inkubator-protocol packages/sdk packages/cli packages/mcp docs/inkubator/DEVKIT_QUICKSTART_V0.md .github/workflows/publish-devkit.yml
+          git commit -m 'feat(inkubator): add bounded DevKit launch surface'
+          git push origin HEAD:feature/inkubator-devkit-launch-surface-v0
