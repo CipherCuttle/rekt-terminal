@@ -77,17 +77,42 @@ function renderCommand(client: {getMyCommand: () => Promise<CommandView>}, query
 }
 
 describe('Live Command', () => {
+
+  it('does not promote participant ship-ready or advisory words into proof/help', async () => {
+    const first = commandView();
+    const client = {getMyCommand: async () => commandView({
+      mission: {...first.mission, state: 'SHIP_READY'},
+      gates: first.gates.map(gate => ({...gate, state: 'CLAIMED'})),
+      daemon: {...first.daemon, what_changed: 'PROVEN HELP ACTIVE', proposed_next_move: 'MINT PROOF'},
+    })};
+    const {container} = renderCommand(client);
+    await screen.findByRole('heading', {name: 'Make the thing real.'});
+    expect(container.querySelector('.command-live')?.getAttribute('data-state')).toBe('building');
+    expect(container.querySelectorAll('[data-truth="proven"]')).toHaveLength(0);
+    expect(container.querySelector('.command-ship')?.getAttribute('data-proven')).toBe('false');
+    expect(screen.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeTruthy();
+  });
+
+  it('removes a previously rendered projection after refetch failure', async () => {
+    const client = {getMyCommand: vi.fn().mockResolvedValueOnce(commandView()).mockRejectedValue(new Error('session_expired'))};
+    const {queryClient} = renderCommand(client);
+    await screen.findByRole('heading', {name: 'Make the thing real.'});
+    await queryClient.refetchQueries({queryKey: ['inkubator', 'command', 'me']});
+    await screen.findByRole('heading', {name: 'COMMAND LINK UNAVAILABLE'});
+    expect(screen.queryByRole('heading', {name: 'Make the thing real.'})).toBeNull();
+  });
   it('renders canonical CommandView data without development fixture fallback', async () => {
     const client = {getMyCommand: vi.fn().mockResolvedValue(commandView())};
     const {container} = renderCommand(client);
 
-    expect(await screen.findByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeTruthy();
+    expect(await screen.findByRole('heading', {name: 'Make the thing real.'})).toBeTruthy();
     expect(screen.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeTruthy();
     expect(screen.getByText('PRIVATE')).toBeTruthy();
     expect(screen.getByText('ADVISORY ONLY')).toBeTruthy();
     expect(screen.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeTruthy();
-    expect(container.querySelector('[data-renderer="pixi"]')?.getAttribute('data-renderer-lifecycle')).toBe('retained');
-    expect(container.querySelectorAll('[data-truth="proven"]')).toHaveLength(1);
+    expect(container.querySelector('.command-trace time')?.textContent).toBe('2026-09-08T13:00:00Z');
+    expect(container.querySelectorAll('.command-gates [data-truth="proven"]')).toHaveLength(1);
+    expect(container.querySelector('.command-ship')?.getAttribute('data-proven')).toBe('false');
     expect(screen.queryByText(/development fixture/i)).toBeNull();
   });
 

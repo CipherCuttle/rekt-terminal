@@ -48,6 +48,28 @@ function command(): CommandView {
 }
 
 describe('command projection deltas', () => {
+
+  it('permits reception only for a new current available observation', () => {
+    const previous = command();
+    const current = structuredClone(previous);
+    current.project.observation_state = 'OBSERVED';
+    current.github_evidence = {...current.github_evidence, signal_state: 'OBSERVED', reason_code: 'latest_observation_current',
+      latest_observation: {observation_id: 'NEW', kind: 'WORKFLOW', outcome: 'SUCCEEDED', observed_at: '2026-09-08T13:00:00Z'}};
+    expect(diffCommandProjection(previous, current)).toContainEqual({kind: 'SOURCE', received: true});
+    current.github_evidence.signal_state = 'STALE';
+    expect(diffCommandProjection(previous, current)).toEqual([{kind: 'SOURCE'}]);
+    current.github_evidence.signal_state = 'OBSERVED';
+    current.github_evidence.source_state = 'UNAVAILABLE';
+    expect(diffCommandProjection(previous, current)).toEqual([{kind: 'SOURCE'}]);
+  });
+
+  it('reports removed gates and help closure without minting a gate', () => {
+    const previous = command();
+    const current = structuredClone(previous);
+    current.gates.pop();
+    const help = {schema_version: 'help_beacon.public.v1' as const, beacon_id: 'B', project_id: 'P-001', summary: 'Help', skills_needed: [], state: 'OPEN' as const};
+    expect(diffCommandProjection(previous, current, help)).toEqual([{kind: 'GATE', gateKey: 'SHIPABILITY'}, {kind: 'HELP'}]);
+  });
   it('returns no synthetic event when the canonical projection is unchanged', () => {
     const current = command();
     expect(diffCommandProjection(current, structuredClone(current))).toEqual([]);

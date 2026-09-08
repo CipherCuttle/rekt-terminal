@@ -2,6 +2,45 @@ import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page} from '@playwright/test';
 import type {CommandView} from '../src/generated/inkubator-api-client';
 
+test('mobile keeps CLAIMED, OBSERVED and intermediate PROVEN readable without color', async ({page}) => {
+  await page.setViewportSize({width: 390, height: 844});
+  const base = commandView();
+  const current = {...base, gates: base.gates.map(gate => gate.key === 'QUALITY_TESTING' ? {...gate, state: 'CLAIMED' as const} : gate)};
+  await routeCommand(page, () => ({status: 200, body: current}));
+  await page.goto('/?mode=command');
+  for (const state of ['claimed', 'observed', 'proven']) {
+    const label = page.locator(`.command-gates [data-truth="${state}"] small`);
+    await expect(label).toBeVisible();
+    await expect(label).toHaveText(state.toUpperCase());
+    await expect(label).toHaveCSS('clip-path', 'none');
+    const box = await label.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(12);
+    expect(box!.width).toBeGreaterThan(40);
+  }
+  await expect(page.locator('.command-ship')).toHaveAttribute('data-proven', 'false');
+  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
+  await page.locator('.command-live').evaluate(el => (el as HTMLElement).style.filter = 'grayscale(1)');
+  await page.screenshot({path: '/tmp/rekt-command-v11-evidence/review-mobile-truth-grayscale.png', fullPage: true});
+});
+
+test('advisory, unavailable and stale changes cannot send reception packets or mint proof', async ({page}) => {
+  let current = commandView();
+  await routeCommand(page, () => ({status: 200, body: current}));
+  await page.goto('/?mode=command');
+  await expect(page.locator('.command-live')).toHaveAttribute('data-event-sequence', '0');
+  current = {...current, daemon: {...current.daemon, what_changed: 'PROVEN HELP ACTIVE', proposed_next_move: 'MINT SHIP'}};
+  await expect(page.locator('.command-live')).toHaveAttribute('data-event-sequence', '1', {timeout: 7000});
+  await expect(page.locator('.command-live')).not.toHaveAttribute('data-effect', 'packet');
+  await expect(page.locator('.command-ship')).toHaveAttribute('data-proven', 'false');
+  await expect(page.locator('.command-action h2')).toHaveText('CONNECT THE LIVE COMMAND BUS');
+  current = {...current, project: {...current.project, observation_state: 'STALE'}, github_evidence: {...current.github_evidence,
+    signal_state: 'STALE', reason_code: 'latest_observation_stale', latest_observation: {...current.github_evidence.latest_observation!, observation_id: 'STALE-NEW'}}};
+  await expect(page.locator('.command-source')).toHaveAttribute('data-current', 'false', {timeout: 7000});
+  await expect(page.locator('.command-trace')).toContainText('NOT CURRENT');
+  await expect(page.locator('.command-packet')).toHaveCSS('opacity', '0');
+  await expect(page.locator('.command-live')).not.toHaveAttribute('data-effect', 'packet');
+});
+
 function commandView(overrides: Partial<CommandView> = {}): CommandView {
   return {
     schema_version: 'command.private.v2',
@@ -80,19 +119,20 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
 }
 
-test('LIVE COMMAND renders canonical backend state and ripples projection deltas without recreating Pixi', async ({page}) => {
+test('LIVE COMMAND renders canonical backend state and updates the persistent Thread', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
   let current = commandView();
   await routeCommand(page, () => ({status: 200, body: current}));
 
   await page.goto('/?mode=command');
-  await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Ship one real working thing.'})).toBeVisible();
   await expect(page.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeVisible();
   await expect(page.getByText('PRIVATE', {exact: true})).toBeVisible();
+  await page.getByText('Context / provenance', {exact: true}).click();
   await expect(page.getByText('ADVISORY ONLY')).toBeVisible();
   await expect(page.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeVisible();
-  await expect(page.locator('[data-renderer="pixi"] canvas')).toBeVisible();
-  await expect(page.locator('[data-renderer="pixi"]')).toHaveAttribute('data-app-generation', '1');
+  await expect(page.locator('.command-trace time')).toHaveText('2026-09-08T13:00:00Z');
+  await page.locator('.command-rail').evaluate(el => el.setAttribute('data-retained-check', 'same'));
 
   const provenGate = page.locator('.command-gates [data-truth="proven"]');
   await expect(provenGate).toHaveCount(1);
@@ -113,7 +153,7 @@ test('LIVE COMMAND renders canonical backend state and ripples projection deltas
   await expect(page.getByText(/EVENT \/\/ GATE:QUALITY_TESTING → BLOCKER → MISSION → DAEMON/i)).toBeVisible();
   await expect(page.getByText('Need an external tester before ship.')).toBeVisible();
   await expect(page.getByText('ADVISORY ONLY')).toBeVisible();
-  await expect(page.locator('[data-renderer="pixi"]')).toHaveAttribute('data-app-generation', '1');
+  await expect(page.locator('.command-rail')).toHaveAttribute('data-retained-check', 'same');
 
   const results = await new AxeBuilder({page}).analyze();
   expect(results.violations).toEqual([]);
@@ -137,9 +177,9 @@ test('LIVE COMMAND ship-ready projection stays readable on mobile and reduced mo
   await page.goto('/?mode=command');
   await expect(page.getByRole('heading', {name: 'OPEN SHIP REVIEW'})).toBeVisible();
   await expect(page.locator('.command-live')).toHaveAttribute('data-motion-policy', 'reduced');
-  await expect(page.locator('[data-renderer="pixi"]')).toHaveAttribute('data-motion-policy', 'reduced');
+  await expect(page.locator('.command-ship')).toHaveAttribute('data-proven', 'false');
   await expect(page.locator('.command-gates [data-truth="proven"]')).toHaveCount(4);
-  await expect(page.locator('[data-renderer="pixi"] canvas')).toBeVisible();
+  await expect(page.locator('.command-rail')).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 

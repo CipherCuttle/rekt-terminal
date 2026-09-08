@@ -1,453 +1,226 @@
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useEffect, useMemo, useRef, useState, type CSSProperties} from 'react';
 import {useGSAP} from '@gsap/react';
 import {useQuery} from '@tanstack/react-query';
 import gsap from 'gsap';
-import {Application, Graphics} from 'pixi.js';
-import type {
-  CommandView,
-  InkubatorApiClient,
-  MissionGateState,
-  MissionGateView,
-} from '../generated/inkubator-api-client';
+import type {CommandView, InkubatorApiClient, HelpBeaconView} from '../generated/inkubator-api-client';
 import {createInkubatorApiClient} from '../inkubator-api';
 import {MOTION_EASE, MOTION_SECONDS} from '../instrument-os/motion-tokens';
-import {TerminalShell} from '../shell/TerminalShell';
-import {diffCommandProjection, summarizeCommandDeltas, type CommandProjectionDelta} from './projection-delta';
-import '../instrument-os/instrument-os.css';
+import {diffCommandProjection, hasCurrentCommandSource, summarizeCommandDeltas, type CommandProjectionDelta} from './projection-delta';
 import './live-command.css';
 
 gsap.registerPlugin(useGSAP);
-
-type CommandClient = Pick<InkubatorApiClient, 'getMyCommand'>;
-
-export type LiveCommandProps = {
-  client?: CommandClient;
-  refetchIntervalMs?: number | false;
-};
-
+type CommandClient = Pick<InkubatorApiClient, 'getMyCommand'> & Partial<Pick<InkubatorApiClient, 'getProjectHelpLoop'>>;
+export type LiveCommandProps = {client?: CommandClient; refetchIntervalMs?: number | false};
 const QUERY_KEY = ['inkubator', 'command', 'me'] as const;
-
-const gateTone: Record<MissionGateState, 'neutral' | 'signal' | 'proven' | 'danger' | 'stale'> = {
-  UNKNOWN: 'neutral',
-  CLAIMED: 'signal',
-  ACTIVE: 'signal',
-  OBSERVED: 'signal',
-  PROVEN: 'proven',
-  ATTENTION: 'danger',
-  BLOCKED: 'danger',
-  STALE: 'stale',
-  FAILED: 'danger',
-};
-
-const gateSignalValue: Record<MissionGateState, number> = {
-  UNKNOWN: 0.18,
-  CLAIMED: 0.34,
-  ACTIVE: 0.52,
-  OBSERVED: 0.66,
-  PROVEN: 0.86,
-  ATTENTION: 0.42,
-  BLOCKED: 0.25,
-  STALE: 0.32,
-  FAILED: 0.14,
-};
+const isBreak = (state: string) => ['BLOCKED', 'FAILED', 'ATTENTION'].includes(state);
 
 function useReducedMotion() {
-  const [reducedMotion, setReducedMotion] = useState(false);
-
+  const [reduced, setReduced] = useState(() => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
   useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const sync = () => setReducedMotion(media.matches);
-    sync();
+    if (typeof matchMedia !== 'function') return;
+    const media = matchMedia('(prefers-reduced-motion: reduce)');
+    const sync = () => setReduced(media.matches);
     media.addEventListener?.('change', sync);
     return () => media.removeEventListener?.('change', sync);
   }, []);
-
-  return reducedMotion;
+  return reduced;
 }
 
-function Sector({
-  code,
-  title,
-  className = '',
-  delta,
-  children,
-}: {
-  code: string;
-  title: string;
-  className?: string;
-  delta?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className={`command-sector ${className}`} data-delta={delta}>
-      <header className="command-sector-head">
-        <span>{code}</span>
-        <strong>{title}</strong>
-        <i aria-hidden="true" />
-      </header>
-      <div className="command-sector-body">{children}</div>
-    </section>
-  );
+function CommandHeader() {
+  return <header className="command-header"><a href="/" className="command-brand" aria-label="REKT home">REKT<span>INKUBATOR</span></a>
+    <nav aria-label="Mode"><span aria-current="page">COMMAND</span><details><summary>Explore</summary><a href="?mode=world">World</a><a href="?mode=project">Project</a></details></nav>
+  </header>;
 }
 
-function activeGatePosition(gates: MissionGateView[]): number {
-  const touched = gates.filter((gate) => gate.state !== 'UNKNOWN');
-  if (touched.length === 0) return 0;
-  return Math.max(...touched.map((gate) => gate.position));
-}
-
-function MissionRatchet({command}: {command: CommandView}) {
-  const ordered = [...command.gates].sort((a, b) => a.position - b.position);
-  const maxPosition = Math.max(...ordered.map((gate) => gate.position), 1);
-  const activePosition = activeGatePosition(ordered);
-  const carriageX = 72 + (activePosition / maxPosition) * 500;
-  const blocker = command.mission.blocker;
-  const shipReady = command.mission.state === 'SHIP_READY' || command.mission.state === 'SHIPPED';
-
-  return (
-    <div className="command-mission" data-state={blocker ? 'blocked' : shipReady ? 'ready' : 'active'}>
-      <svg className="command-ratchet" viewBox="0 0 680 230" role="img" aria-label="Mission progress ratchet">
-        <path className="command-ratchet-spine" d="M46 142 C112 142 112 88 178 88 S244 160 310 160 S376 94 442 94 S508 142 602 142" />
-        <path className="command-ratchet-hook" d="M602 142 C636 142 648 120 634 103 C624 91 610 99 616 110 C620 117 629 112 627 106" />
-        {ordered.map((gate, index) => {
-          const x = 86 + (gate.position / maxPosition) * 488;
-          return (
-            <g
-              key={gate.key}
-              className="command-detent"
-              data-tone={gateTone[gate.state]}
-              data-delta={`GATE:${gate.key}`}
-              transform={`translate(${x} 0)`}
-            >
-              <path d="M0 116v52" />
-              <circle cx="0" cy="108" r="4" />
-              <text x="0" y="187" textAnchor="middle">{String(index + 1).padStart(2, '0')}</text>
-            </g>
-          );
-        })}
-        <g className="command-ratchet-carriage" transform={`translate(${carriageX} 0)`} data-delta="MISSION">
-          <path className="command-ratchet-claw" d="M-24 118 h48 v18 l-10 10 v18 h-28 v-18 l-10-10z" />
-          <path className="command-ratchet-jaw" d="M-10 136 l10 9 10-9" />
-        </g>
-        {blocker ? <path className="command-ratchet-break" d="M322 150 l10-17 10 18 10-17 10 16" /> : null}
-      </svg>
-
-      <div className="command-next-move" data-delta="NEXT_MOVE">
-        <small>NEXT MOVE // CANONICAL</small>
-        <h2>{command.mission.next_move}</h2>
-        <p>{command.mission.current_focus}</p>
-      </div>
-
-      <div className="command-mission-meta">
-        <span>{command.mission.state}</span>
-        <span>{command.mission.progress_model_version}</span>
-        <span>{command.mission.stack_source}</span>
-      </div>
-    </div>
-  );
-}
-
-function RetainedCommandScope({command, reducedMotion}: {command: CommandView; reducedMotion: boolean}) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const appRef = useRef<Application | null>(null);
-  const gridRef = useRef<Graphics | null>(null);
-  const traceRef = useRef<Graphics | null>(null);
-  const scannerRef = useRef<Graphics | null>(null);
-  const commandRef = useRef(command);
-  const reducedMotionRef = useRef(reducedMotion);
-  const widthRef = useRef(320);
-  const generationRef = useRef(0);
-
-  commandRef.current = command;
-  reducedMotionRef.current = reducedMotion;
-
-  const draw = () => {
-    const host = hostRef.current;
-    const app = appRef.current;
-    const grid = gridRef.current;
-    const trace = traceRef.current;
-    const scanner = scannerRef.current;
-    if (!host || !app || !grid || !trace || !scanner) return;
-
-    const bounds = host.getBoundingClientRect();
-    const width = Math.max(240, Math.round(bounds.width || 320));
-    const height = Math.max(92, Math.round(bounds.height || 112));
-    widthRef.current = width;
-    app.renderer.resize(width, height);
-
-    grid.clear();
-    for (let x = 0; x <= width; x += Math.max(40, Math.round(width / 6))) grid.moveTo(x, 0).lineTo(x, height);
-    for (let y = 0; y <= height; y += Math.max(22, Math.round(height / 4))) grid.moveTo(0, y).lineTo(width, y);
-    grid.stroke({color: 0x9d78ff, alpha: 0.12, pixelLine: true});
-
-    const sourceValue = {
-      UNKNOWN: 0.22,
-      ACTIVE: 0.54,
-      OBSERVED: 0.7,
-      STALE: 0.32,
-      FAILED: 0.14,
-    }[commandRef.current.project.observation_state];
-    const values = [sourceValue, ...commandRef.current.gates.map((gate) => gateSignalValue[gate.state])];
-
-    trace.clear();
-    values.forEach((value, index) => {
-      const x = values.length === 1 ? 0 : (index / (values.length - 1)) * width;
-      const y = height - Math.max(6, Math.min(height - 6, value * height));
-      if (index === 0) trace.moveTo(x, y);
-      else trace.lineTo(x, y);
-    });
-    trace.stroke({color: 0x65dcff, width: 1.5});
-
-    scanner.clear().circle(0, 0, 2.5).fill(0x65dcff);
-    scanner.alpha = reducedMotionRef.current ? 0.25 : 0.62;
-    scanner.y = height * 0.5;
-  };
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host || typeof navigator === 'undefined' || /jsdom/i.test(navigator.userAgent)) return;
-
-    let cancelled = false;
-    let resizeObserver: ResizeObserver | null = null;
-
-    const boot = async () => {
-      const app = new Application();
-      await app.init({width: 320, height: 112, backgroundAlpha: 0, antialias: true, preference: 'webgl'});
-      if (cancelled) {
-        app.destroy(true, {children: true});
-        return;
-      }
-
-      generationRef.current += 1;
-      const grid = new Graphics();
-      const trace = new Graphics();
-      const scanner = new Graphics();
-      appRef.current = app;
-      gridRef.current = grid;
-      traceRef.current = trace;
-      scannerRef.current = scanner;
-      app.stage.addChild(grid, trace, scanner);
-
-      app.canvas.className = 'command-pixi-canvas';
-      app.canvas.setAttribute('aria-hidden', 'true');
-      host.dataset.appGeneration = String(generationRef.current);
-      host.replaceChildren(app.canvas);
-      draw();
-
-      app.ticker.add((ticker) => {
-        if (reducedMotionRef.current) return;
-        scanner.x = (scanner.x + ticker.deltaTime * 0.55) % Math.max(widthRef.current, 1);
-      });
-
-      if (typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(draw);
-        resizeObserver.observe(host);
-      }
-    };
-
-    void boot();
-
-    return () => {
-      cancelled = true;
-      resizeObserver?.disconnect();
-      appRef.current?.destroy(true, {children: true});
-      appRef.current = null;
-      gridRef.current = null;
-      traceRef.current = null;
-      scannerRef.current = null;
-      host.replaceChildren();
-    };
-  }, []);
-
-  useEffect(draw, [command, reducedMotion]);
-
-  return (
-    <div
-      ref={hostRef}
-      className="command-pixi-host"
-      role="img"
-      aria-label="Live command signal trace"
-      data-renderer="pixi"
-      data-renderer-lifecycle="retained"
-      data-motion-policy={reducedMotion ? 'reduced' : 'full'}
-    />
-  );
-}
-
-function deltaSelector(delta: CommandProjectionDelta): string {
-  if (delta.kind === 'GATE') return `[data-delta="GATE:${delta.gateKey}"]`;
-  return `[data-delta="${delta.kind}"]`;
-}
-
-function LiveProjection({command, deltas, eventSequence}: {
-  command: CommandView;
-  deltas: CommandProjectionDelta[];
-  eventSequence: number;
+function LiveProjection({command, help, deltas, eventSequence}: {
+  command: CommandView; help?: HelpBeaconView; deltas: CommandProjectionDelta[]; eventSequence: number;
 }) {
   const rootRef = useRef<HTMLElement>(null);
-  const reducedMotion = useReducedMotion();
-  const latest = command.github_evidence.latest_observation;
+  const lastPlayedRef = useRef(0);
+  const threadRef = useRef<HTMLDivElement>(null);
+  const [railWidth, setRailWidth] = useState(1000);
+  useEffect(() => {
+    if (!threadRef.current || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => setRailWidth(entry.contentRect.width));
+    observer.observe(threadRef.current);
+    return () => observer.disconnect();
+  }, []);
+  const reduced = useReducedMotion();
+  const gates = [...command.gates].sort((a, b) => a.position - b.position);
+  const breakIndex = gates.findIndex(g => isBreak(g.state));
+  const blocked = Boolean(command.mission.blocker) || command.mission.state === 'BLOCKED' || breakIndex >= 0;
+  const proven = !blocked && command.mission.state === 'SHIPPED' && gates.some(g => g.key === 'SHIPABILITY' && g.state === 'PROVEN');
+  const beacon = blocked && help?.state === 'OPEN' && help.project_id === command.project.project_id;
+  const unresolvedIndex = gates.findIndex(g => !['OBSERVED', 'PROVEN'].includes(g.state));
+  const activeIndex = Math.max(0, breakIndex >= 0 ? breakIndex : proven || unresolvedIndex < 0 ? gates.length - 1 : unresolvedIndex);
+  const xAt = (index: number) => railWidth * (gates.length <= 1 ? .5 : .14 + index * .72 / (gates.length - 1));
+  const locus = gates.length ? xAt(activeIndex) : 0;
+  // A single silhouette, with one shallow detent between each canonical gate.
+  const railTo = (end: number) => {
+    let path = 'M0 50';
+    for (let i = 0; i < gates.length - 1; i++) {
+      const middle = (xAt(i) + xAt(i + 1)) / 2;
+      if (middle + 20 < end) path += `H${middle - 20}l6 -4h14l6 4`;
+    }
+    return path + `H${end}`;
+  };
+  const state = proven ? 'proven' : beacon ? 'help' : blocked ? 'blocked' : 'building';
+  const evidence = command.github_evidence;
+  const currentSource = hasCurrentCommandSource(command);
+  const latest = evidence.latest_observation;
+  const rektState = proven ? 'PROVEN' : beacon ? 'BEACON' : blocked ? 'BLOCKED' : command.mission.state === 'CLOSED_NOT_SHIPPED' ? 'FAILED' : command.mission.state === 'SUBMITTED' ? 'VERIFYING' : command.mission.state === 'BUILDING' ? 'WORKING' : 'IDLE';
+  const received = deltas.some(d => d.kind === 'SOURCE' && d.received);
+  const changedGate = deltas.find(d => d.kind === 'GATE');
+  const receivedIndex = changedGate?.kind === 'GATE' ? gates.findIndex(g => g.key === changedGate.gateKey) : activeIndex;
+  const eventLocus = Math.min(xAt(receivedIndex < 0 ? activeIndex : receivedIndex), blocked ? locus : railWidth);
 
   useGSAP(() => {
-    if (eventSequence === 0 || reducedMotion) return;
+    if (!eventSequence || lastPlayedRef.current === eventSequence) return;
+    lastPlayedRef.current = eventSequence;
+    if (reduced || !rootRef.current) return;
     const root = rootRef.current;
-    if (!root) return;
+    const select = (selector: string) => root.querySelectorAll(selector);
+    const timeline = gsap.timeline({defaults: {ease: MOTION_EASE.relay}});
+    const has = (kind: CommandProjectionDelta['kind']) => deltas.some(d => d.kind === kind);
+    // No generic pulse for polling, advisory changes, stale data or first paint.
+    if (received && currentSource) {
+      const path = root.querySelector<SVGPathElement>('.command-packet-route');
+      const packet = root.querySelector('.command-packet');
+      timeline.set(root, {attr: {'data-effect': 'source-wake'}}, 0)
+        .fromTo(select('.command-source .command-socket'), {opacity: .35}, {opacity: 1, duration: MOTION_SECONDS.snap}, 0);
+      if (path && packet && typeof path.getTotalLength === 'function') {
+        const length = path.getTotalLength();
+        const travel = {progress: 0};
+        timeline.set(packet, {opacity: 1}, MOTION_SECONDS.snap)
+          .set(root, {attr: {'data-effect': 'packet'}}, MOTION_SECONDS.snap)
+          .to(travel, {progress: 1, duration: MOTION_SECONDS.relay, ease: 'none', onUpdate: () => {
+            const point = path.getPointAtLength(length * travel.progress);
+            gsap.set(packet, {attr: {cx: point.x, cy: point.y}});
+          }}, MOTION_SECONDS.snap)
+          .set(packet, {opacity: 0}, .25);
+      }
+      timeline.set(root, {attr: {'data-effect': 'received'}}, .25)
+        .fromTo(select(`[data-delta="GATE:${gates[receivedIndex]?.key ?? gates[activeIndex]?.key}"]`),
+          {opacity: .4}, {opacity: 1, duration: MOTION_SECONDS.relay}, .25)
+        .fromTo(select('.command-ripple'), {opacity: .55, scale: .65}, {opacity: 0, scale: 1.2, duration: MOTION_SECONDS.signal}, .33)
+        .set(root, {attr: {'data-effect': 'settling'}}, .43);
+    }
+    if (has('BLOCKER') || has('GATE')) {
+      if (blocked) timeline.fromTo(select('.command-break'), {opacity: .35}, {opacity: 1, duration: MOTION_SECONDS.snap}, 0);
+      if (proven) timeline.fromTo(select('.command-proof-segment'), {opacity: .25}, {opacity: 1, duration: MOTION_SECONDS.ceremony}, .07)
+        .fromTo(select('.command-ripple'), {opacity: .65, scale: .8}, {opacity: 0, scale: 1.3, duration: MOTION_SECONDS.ceremony}, .18);
+    }
+    if (has('HELP') && beacon) timeline.fromTo(select('.command-beacon-ring'), {opacity: .8, scale: .5}, {opacity: 0, scale: 1.5, duration: MOTION_SECONDS.signal}, .07);
+    if (has('NEXT_MOVE')) timeline.fromTo(select('.command-action summary'), {opacity: .7}, {opacity: 1, duration: MOTION_SECONDS.switch}, received ? .43 : .12);
+    if (timeline.duration()) timeline.set(root, {attr: {'data-effect': 'settled'}});
+  }, {scope: rootRef, dependencies: [eventSequence, reduced], revertOnUpdate: true});
 
-    const targets = deltas.flatMap((delta) => Array.from(root.querySelectorAll<HTMLElement | SVGElement>(deltaSelector(delta))));
-    const uniqueTargets = [...new Set(targets)];
-    if (uniqueTargets.length === 0) return;
-
-    gsap.timeline({defaults: {ease: MOTION_EASE.relay}})
-      .fromTo(uniqueTargets, {filter: 'brightness(1.65)', opacity: 0.62}, {filter: 'brightness(1)', opacity: 1, duration: MOTION_SECONDS.relay, stagger: 0.045});
-  }, {scope: rootRef, dependencies: [eventSequence, reducedMotion], revertOnUpdate: true});
-
-  return (
-    <TerminalShell
-      rootRef={rootRef}
-      mode="COMMAND"
-      kicker="REKT INK(CUBATOR) // LIVE COMMAND"
-      title={command.project.name}
-      description="Canonical private command projection. Backend observations move the instrument; the frontend does not mint truth."
-      readout={[
-        {label: 'PROJECT', value: command.project.project_id},
-        {label: 'MISSION', value: command.mission.mission_id},
-      ]}
-      eventStatus={<>EVENT // {eventSequence === 0 ? 'LIVE PROJECTION LOADED' : summarizeCommandDeltas(deltas)}</>}
-      workspaceClassName="command-console"
-      className="command-live"
-      motion="gsap"
-      motionPolicy={reducedMotion ? 'reduced' : 'full'}
-      crt="off"
-      eventSequence={eventSequence}
-      footerItems={[
-        'TANSTACK QUERY // GENERATED API CLIENT',
-        'GSAP // PROJECTION DELTAS ONLY',
-        'PIXI // RETAINED SIGNAL TRACE',
-        'CLAIMED ≠ OBSERVED ≠ PROVEN',
-      ]}
-    >
-      <Sector code="10" title="MISSION / NEXT MOVE" className="command-sector--mission" delta="MISSION">
-        <MissionRatchet command={command} />
-      </Sector>
-
-      <Sector code="01" title="SOURCE / OBSERVATION" className="command-sector--source" delta="SOURCE">
-        <div className="command-source">
-          <div><small>VISIBILITY</small><strong>{command.project.source_visibility}</strong></div>
-          <div><small>OBSERVATION</small><strong>{command.project.observation_state}</strong></div>
-          <div><small>SIGNAL</small><strong>{command.github_evidence.signal_state}</strong></div>
-          <p>{command.github_evidence.reason_code}</p>
-          {latest ? <p>LAST // {latest.kind} / {latest.outcome} / {latest.observed_at}</p> : <p>LAST // NO VALID OBSERVATION</p>}
+  return <main ref={rootRef} className="command-live" data-state={state} data-motion-policy={reduced ? 'reduced' : 'full'} data-event-sequence={eventSequence}>
+    <CommandHeader />
+    <section className="command-content">
+      <section className="command-mission-copy" data-delta="MISSION" aria-labelledby="command-mission-title">
+        <span className="command-kicker">MISSION</span>
+        <h1 id="command-mission-title">{command.mission.goal}</h1>
+        <p>{command.project.name} <span aria-hidden="true"> / </span> <span>{command.mission.state.replaceAll('_', ' ')}</span></p>
+      </section>
+      <section className="command-instrument" aria-label="Living Thread">
+        <div className="command-flow">
+          <div className="command-endpoint command-source" data-delta="SOURCE" data-current={currentSource}>
+            <span className="command-kicker">SOURCE</span><strong><svg className="command-socket" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5H2v14h3M5 8h9v8H5zM14 10h5v4h-5M19 12h5M8 10v4" /></svg>GitHub</strong>
+            <span>{currentSource ? 'OBSERVED' : evidence.signal_state === 'OBSERVED' ? 'UNAVAILABLE' : evidence.signal_state}</span>
+            <small>{command.project.source_visibility}</small>
+          </div>
+          <div ref={threadRef} className="command-thread" style={{'--locus': `${locus / railWidth * 100}%`, '--event-locus': `${(proven ? locus : eventLocus) / railWidth * 100}%`} as CSSProperties}>
+            <svg className="command-rail" viewBox={`0 0 ${railWidth} 100`} preserveAspectRatio="none" aria-hidden="true">
+              <path className="command-rail-rest" d={blocked ? `M${locus + 16} 50H${railWidth}` : railTo(railWidth)} />
+              <path className="command-rail-active" d={railTo(blocked ? Math.max(0, locus - 14) : locus)} />
+              <path className="command-source-lead" data-current={currentSource} d="M0 46v8M0 50h24" />
+              {proven ? <path className="command-proof-segment" d={`M${locus} 50H${railWidth}`} /> : null}
+              {gates.map((gate, index) => <g key={gate.key} transform={`translate(${xAt(index)} 50)`} data-delta={`GATE:${gate.key}`} data-truth={gate.state.toLowerCase()} className="command-node">
+                <circle r={index === activeIndex ? 6 : 4} />
+                {index === activeIndex ? <path className="command-locus-bracket" d="M-12-5v-6h6M6-11h6v6M-12 5v6h6M6 11h6V5" /> : null}
+                {isBreak(gate.state) ? <path className="command-break" d="M-7-7 7 7M-7 7 7-7" /> : null}
+              </g>)}
+              {blocked && breakIndex < 0 ? <path className="command-break" d={`M${locus - 7} 43l14 14m-14 0 14-14`} /> : null}
+              <path className="command-packet-route" d={railTo(blocked ? Math.min(eventLocus, locus - 14) : eventLocus)} />
+              <circle className="command-packet" cx="0" cy="50" r="3" />
+            </svg>
+            <ol className="command-gates" aria-label="Mission gates">
+              {gates.map((gate, index) => <li key={gate.key} style={{left: `${xAt(index) / railWidth * 100}%`}} data-truth={gate.state.toLowerCase()}>
+                <span>{gate.label}</span><small>{gate.state}</small>
+              </li>)}
+            </ol>
+            <div className="command-locus" data-delta="BLOCKER"><span>↑</span><b>NOW</b>
+              {blocked ? <strong>{beacon ? 'HELP ACTIVE' : 'BLOCKED'}</strong> : proven ? <strong>PROVEN</strong> : null}
+              {beacon ? <i className="command-beacon-ring" data-delta="HELP" aria-hidden="true" /> : null}
+            </div>
+            <pre className="command-ripple" aria-hidden="true">{'   · : ·\n · : + : ·\n   · : ·'}</pre>
+          </div>
+          <div className="command-endpoint command-ship" data-proven={proven}><span className="command-kicker">SHIP</span><svg className="command-socket" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 12h8m-3-7h3v14H5M11 8h7v8h-7M21 5h2v14h-2M11 12h4" /></svg><strong>{proven ? 'PROVEN' : blocked ? 'LOCKED' : 'NOT PROVEN'}</strong></div>
         </div>
-      </Sector>
-
-      <Sector code="03" title="GATE TRACE" className="command-sector--scope">
-        <RetainedCommandScope command={command} reducedMotion={reducedMotion} />
-        <div className="command-scope-caption"><span>RX → GATES</span><b>{command.github_evidence.rule_version}</b></div>
-      </Sector>
-
-      <Sector code="06" title="THREAD / GATES" className="command-sector--gates">
-        <ol className="command-gates">
-          {command.gates.slice().sort((a, b) => a.position - b.position).map((gate) => (
-            <li key={gate.key} data-tone={gateTone[gate.state]} data-truth={gate.state.toLowerCase()} data-delta={`GATE:${gate.key}`}>
-              <span>{String(gate.position).padStart(2, '0')}</span>
-              <div><b>{gate.label}</b><small>{gate.key}</small></div>
-              <strong>{gate.state}</strong>
-            </li>
-          ))}
-        </ol>
-      </Sector>
-
-      <Sector code="08" title="BLOCKER" className="command-sector--blocker" delta="BLOCKER">
-        <div className="command-blocker" data-present={command.mission.blocker ? 'true' : 'false'}>
-          <small>{command.mission.blocker ? 'MISSION BLOCKED' : 'NO DECLARED BLOCKER'}</small>
-          <strong>{command.mission.blocker ?? '—'}</strong>
+        <div className="command-trace" data-current={currentSource}>
+          {latest ? <><svg viewBox="0 0 160 16" aria-hidden="true"><path d="M0 8H72m0 0v-4h4v8h4V8h80" /></svg><span>{latest.kind} / {latest.outcome} · <time dateTime={latest.observed_at}>{latest.observed_at}</time>{!currentSource ? ' / NOT CURRENT' : ''}</span></> : <span>No valid source observation</span>}
         </div>
-      </Sector>
-
-      <Sector code="09" title="DAEMON / ADVISORY" className="command-sector--daemon" delta="DAEMON">
-        <div className="command-daemon">
-          <span>{command.daemon.authority.replace('_', ' ')}</span>
-          <b>{command.daemon.what_changed}</b>
-          {command.daemon.likely_blocker ? <p>LIKELY BLOCKER // {command.daemon.likely_blocker}</p> : null}
-          {command.daemon.scope_damage_warning ? <p>WARNING // {command.daemon.scope_damage_warning}</p> : null}
-          <p>PROPOSED NEXT MOVE // {command.daemon.proposed_next_move}</p>
+      </section>
+      <section className="command-next-move" data-delta="NEXT_MOVE" aria-labelledby="command-next-title">
+        <span className="command-kicker">NEXT MOVE</span>
+        <details className="command-action"><summary><h2 id="command-next-title">{command.mission.next_move}</h2><span className="command-action-line" aria-hidden="true">→</span></summary>
+          <div className="command-action-detail"><p>{command.mission.current_focus}</p><p>Ship condition: {command.mission.ship_condition}</p></div>
+        </details>
+        <p>{blocked ? command.mission.blocker ?? 'A mission gate needs attention.' : command.mission.current_focus}</p>
+      </section>
+      <div className="command-lower">
+        <details className="command-context"><summary>Context / provenance</summary><div>
+          <p>{evidence.reason_code} · {evidence.rule_version}</p>
+          <p>{command.mission.progress_model_version}</p>
+          <p>Ship condition: {command.mission.ship_condition}</p>
+          <div data-delta="DAEMON"><b>ADVISORY ONLY</b><p>{command.daemon.what_changed}</p><p>{command.daemon.proposed_next_move}</p></div>
+        </div></details>
+        <div className="command-rekt" aria-label={`REKT ${rektState} — canonical sprite placeholder`}>
+          <span className="command-rekt-slot" aria-hidden="true">R</span><span>REKT / <b data-rekt-state>{rektState}</b><b className="command-rekt-rx" aria-hidden="true">RX</b></span><small>SPRITE PLACEHOLDER</small>
         </div>
-      </Sector>
-
-      <Sector code="04" title="MISSION CONTRACT" className="command-sector--contract">
-        <dl className="command-contract">
-          <div><dt>GOAL</dt><dd>{command.mission.goal}</dd></div>
-          <div><dt>SHIP CONDITION</dt><dd>{command.mission.ship_condition}</dd></div>
-          {command.round ? <div><dt>ROUND</dt><dd>{command.round.code} // {command.round.constraint}</dd></div> : null}
-        </dl>
-      </Sector>
-    </TerminalShell>
-  );
+        <span className="command-state">{beacon ? 'HELP ACTIVE' : blocked ? 'BLOCKED' : command.mission.state.replaceAll('_', ' ')}</span>
+      </div>
+    </section>
+    <footer className="command-footer"><span role="status">{eventSequence ? `EVENT // ${summarizeCommandDeltas(deltas)}` : 'COMMAND / PRIVATE VIEW'}
+      <span className="command-sr-only">{deltas.some(d => d.kind === 'SOURCE') ? ' SOURCE CHANGED.' : ''}{deltas.some(d => d.kind === 'NEXT_MOVE') ? ' NEXT MOVE CHANGED.' : ''}{beacon ? ' HELP ACTIVE.' : blocked ? ' BLOCKED.' : proven ? ' PROVEN.' : ''}</span>
+    </span><span>CLAIMED ≠ OBSERVED ≠ PROVEN</span></footer>
+  </main>;
 }
 
 function CommandLoadingState({error}: {error?: string}) {
-  const failed = Boolean(error);
-  return (
-    <TerminalShell
-      mode="COMMAND"
-      kicker="REKT INK(CUBATOR) // LIVE COMMAND"
-      title={failed ? 'COMMAND LINK UNAVAILABLE' : 'CONNECTING COMMAND BUS'}
-      description={failed ? 'Canonical private command projection is unavailable; the machine remains fail-closed.' : 'Waiting for canonical `/v1/me/command` projection.'}
-      readout={[
-        {label: 'MODE', value: 'COMMAND'},
-        {label: 'LINK', value: failed ? 'OFFLINE' : 'CONNECTING'},
-      ]}
-      workspaceClassName="ios-shell-loading"
-      className="command-live"
-      role={failed ? 'alert' : undefined}
-      crt="off"
-      footerItems={['GENERATED API CLIENT', 'NO FIXTURE FALLBACK', 'CLAIMED ≠ OBSERVED ≠ PROVEN']}
-    >
-      <div className="ios-shell-loading-panel" data-state={failed ? 'error' : 'pending'}>
-        <small>{failed ? 'FAIL CLOSED // CANONICAL SOURCE UNAVAILABLE' : 'RX // WAITING FOR COMMAND PROJECTION'}</small>
-        <h2>{failed ? 'CANONICAL SOURCE OFFLINE' : 'AWAITING PROJECTION'}</h2>
-        {failed ? <p>{error}</p> : null}
-        {failed ? <p>No development fixture fallback is permitted.</p> : null}
-      </div>
-    </TerminalShell>
-  );
+  return <main className="command-live"><CommandHeader /><section className="command-content command-loading" role={error ? 'alert' : 'status'}>
+    <span className="command-kicker">COMMAND</span><h1>{error ? 'COMMAND LINK UNAVAILABLE' : 'CONNECTING COMMAND'}</h1>
+    <p>{error ?? 'Waiting for the canonical command projection.'}</p>
+    {error ? <p>No development fixture fallback is permitted.</p> : null}
+  </section></main>;
 }
 
-export default function LiveCommand({
-  client = createInkubatorApiClient(),
-  refetchIntervalMs = 2500,
-}: LiveCommandProps) {
-  const previousRef = useRef<CommandView | null>(null);
+export default function LiveCommand({client: suppliedClient, refetchIntervalMs = 2500}: LiveCommandProps) {
+  const client = useMemo(() => suppliedClient ?? createInkubatorApiClient(), [suppliedClient]);
+  const previousRef = useRef<{command: CommandView; help?: HelpBeaconView} | null>(null);
   const [deltas, setDeltas] = useState<CommandProjectionDelta[]>([]);
   const [eventSequence, setEventSequence] = useState(0);
-
-  const query = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: () => client.getMyCommand(),
-    refetchInterval: refetchIntervalMs,
-    retry: 1,
+  const query = useQuery({queryKey: QUERY_KEY, queryFn: () => client.getMyCommand(), refetchInterval: refetchIntervalMs, retry: 1});
+  const projectId = query.data?.project.project_id;
+  const helpQuery = useQuery({
+    queryKey: ['inkubator', 'command-help', projectId],
+    queryFn: () => client.getProjectHelpLoop!(projectId!),
+    enabled: Boolean(projectId && !query.isError && client.getProjectHelpLoop),
+    refetchInterval: refetchIntervalMs, retry: false,
   });
-
+  const help = !helpQuery.isError && helpQuery.data?.project_id === projectId ? helpQuery.data?.open_help_beacon : undefined;
   useEffect(() => {
-    if (!query.data) return;
+    if (!query.data || query.isError) { previousRef.current = null; return; }
     const previous = previousRef.current;
-    previousRef.current = query.data;
-    if (!previous) return;
-
-    const nextDeltas = diffCommandProjection(previous, query.data);
-    if (nextDeltas.length === 0) return;
-    setDeltas(nextDeltas);
-    setEventSequence((value) => value + 1);
-  }, [query.data, query.dataUpdatedAt]);
-
-  const errorMessage = useMemo(() => {
-    if (!(query.error instanceof Error)) return 'command_projection_unavailable';
-    return query.error.message;
-  }, [query.error]);
-
+    previousRef.current = {command: query.data, help};
+    if (!previous || previous.command.mission.mission_id !== query.data.mission.mission_id) return;
+    const next = diffCommandProjection(previous.command, query.data, previous.help, help);
+    if (!next.length) return;
+    setDeltas(next);
+    setEventSequence(value => value + 1);
+  }, [query.data, query.dataUpdatedAt, query.isError, help]);
   if (query.isPending) return <CommandLoadingState />;
-  if (query.isError || !query.data) return <CommandLoadingState error={errorMessage} />;
-
-  return <LiveProjection command={query.data} deltas={deltas} eventSequence={eventSequence} />;
+  if (query.isError || !query.data) return <CommandLoadingState error={query.error instanceof Error ? query.error.message : 'command_projection_unavailable'} />;
+  return <LiveProjection key={query.data.mission.mission_id} command={query.data} help={help} deltas={deltas} eventSequence={eventSequence} />;
 }

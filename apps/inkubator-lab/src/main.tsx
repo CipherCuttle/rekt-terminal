@@ -13,6 +13,7 @@ const InstrumentLab = lazy(() => import('./instrument-os/InstrumentLab'));
 const LiveCommand = lazy(() => import('./command/LiveCommand'));
 const LiveProject = lazy(() => import('./project/LiveProject'));
 const LiveWorld = lazy(() => import('./world/LiveWorld'));
+const CommandPreview = import.meta.env.DEV ? lazy(() => import('./command/CommandPreview')) : null;
 const params = new URLSearchParams(window.location.search);
 const lab = params.get('lab');
 const mode = params.get('mode');
@@ -29,7 +30,9 @@ const instrumentQueryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Suspense fallback={<div role="status">Loading REKT…</div>}>
-      {lab === 'instrument'
+      {CommandPreview && params.get('preview') === 'command'
+        ? <CommandPreview />
+        : lab === 'instrument'
         ? <InstrumentLab />
         : lab === 'signals'
           ? <SignalSystemLab />
