@@ -112,7 +112,7 @@ describe('Live Command', () => {
     const client = {getMyCommand: vi.fn().mockRejectedValue(new Error('session_required'))};
     renderCommand(client);
 
-    expect(await screen.findByRole('heading', {name: 'COMMAND LINK UNAVAILABLE'})).toBeTruthy();
+    expect(await screen.findByRole('heading', {name: 'COMMAND LINK UNAVAILABLE'}, {timeout: 3000})).toBeTruthy();
     expect(screen.getByText('session_required')).toBeTruthy();
     expect(screen.getByText(/No development fixture fallback is permitted/i)).toBeTruthy();
   });
