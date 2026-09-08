@@ -1,2 +1,2 @@
-import {createInkubatorClient} from '@rekt-ink/sdk';
-export type ReturnTypeOfCreateInkubatorClient = ReturnType<typeof createInkubatorClient>;
+import {createInkubatorServerClient} from '@rekt-ink/sdk/server';
+export type ReturnTypeOfCreateInkubatorClient = ReturnType<typeof createInkubatorServerClient>;
