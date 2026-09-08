@@ -75,19 +75,6 @@ async function routeCommand(page: Page, respond: () => CommandRouteResponse) {
   });
 }
 
-function traceCommandRequests(page: Page) {
-  page.on('request', (request) => {
-    if (request.url().includes('/v1/') || request.url().includes('command')) {
-      console.log(`[live-command request] ${request.method()} ${request.url()}`);
-    }
-  });
-}
-
-async function logCommandAlert(page: Page) {
-  const alert = page.getByRole('alert');
-  if (await alert.count()) console.log(`[live-command alert] ${await alert.innerText()}`);
-}
-
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => ({scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth}));
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
@@ -96,12 +83,9 @@ async function expectNoHorizontalOverflow(page: Page) {
 test('LIVE COMMAND renders canonical backend state and ripples projection deltas without recreating Pixi', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
   let current = commandView();
-  traceCommandRequests(page);
   await routeCommand(page, () => ({status: 200, body: current}));
 
   await page.goto('/?mode=command');
-  await page.waitForTimeout(1500);
-  await logCommandAlert(page);
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
   await expect(page.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeVisible();
   await expect(page.getByText('PRIVATE')).toBeVisible();
