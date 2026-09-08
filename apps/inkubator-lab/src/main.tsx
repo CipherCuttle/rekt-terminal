@@ -4,6 +4,7 @@ import './base-v3.css';
 import './comeback-v3.css';
 import './protocol-v0.css';
 import './signal-system/phase9-rehearsal.css';
+import './instrument-os/motion-runtime.css';
 
 const AppV3 = lazy(() => import('./AppV3'));
 const SignalSystemLab = lazy(() => import('./signal-system/GoldenScreens'));
