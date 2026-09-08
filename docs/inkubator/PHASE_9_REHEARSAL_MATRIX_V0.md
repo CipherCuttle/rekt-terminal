@@ -2,63 +2,106 @@
 
 **Phase:** PHASE 9 — FOUNDING-COHORT REHEARSAL
 
-**Status:** ACTIVE / AUTOMATED REHEARSAL
+**Status:** AUTOMATED REHEARSAL PASS / BLOCKED BY DEPLOYMENT-ROLLBACK EVIDENCE
 
 **Base:** `272668120ab351ddbcc1447e4ae732c92d2c495e`
 
-This matrix distinguishes inherited proof from Phase-9 composition proof. An inherited passing test is useful evidence, but it does not replace the full-journey and human rehearsal requirements.
+**Clean automated evidence head:** `41dd1e15ebe5045f541f705547d955c97f6afce3`
+
+**Clean bounded verifier:** run `34222341516` — PASS
+
+**Canonical Signal System verifier:** run `34222346180` — PASS
+
+This matrix distinguishes inherited proof, Phase-9 composition proof, controlled OPS proof and the still-required human/deployment evidence. Synthetic actors do not satisfy the human rehearsal requirement.
 
 ## Automated drill matrix
 
-| Drill | Risk | Current evidence | Phase-9 disposition |
+| Drill | Risk | Current evidence | Disposition |
 |---|---|---|---|
-| P9-H01 | duplicate GitHub webhook creates duplicate authority | `github.test.mjs`; new `phase9-founding-rehearsal.test.mjs` sends same delivery twice and requires one Project observation | REHEARSAL TEST ADDED / RUN PENDING |
-| P9-H02 | rename/transfer/private/revoked repository retains stale authority | existing GitHub repository authority, setup-state and webhook control tests | INHERITED COVERAGE / FULL REGRESSION PENDING |
-| P9-H03 | worker crashes after DB commit and duplicates/loss occur | existing outbox lease/retry and Phase-4 retry recovery tests | INHERITED COVERAGE / FULL REGRESSION PENDING |
-| P9-H04 | out-of-order webhook rewrites current truth | `phase4-github-evidence-daemon.test.mjs` delayed/out-of-order evidence ordering | INHERITED COVERAGE / FULL REGRESSION PENDING |
-| P9-H05 | private README/commit prompt injection or secret-like content becomes instruction/public data | Phase-4 hostile push fixture plus new Phase-9 composition push | REHEARSAL TEST ADDED / RUN PENDING |
-| P9-H06 | browser bundle imports server-only DevKit credential path | Phase-8 proves root SDK has no bearer path; explicit browser-bundle import drill still required | GAP — ADD BUNDLER FALSIFICATION |
-| P9-H07 | verifier follows localhost/private-IP/unsafe redirect | `apps/inkubator-verifier/test/policy.test.mjs` rejects literals/private DNS/mixed DNS and re-resolves redirects | INHERITED COVERAGE / CURRENT RUN PENDING |
-| P9-H08 | Assist/Ship retries duplicate logical action | Phase-5/6 idempotency tests plus new Phase-9 journey retries Assist accept and Ship submit | REHEARSAL TEST ADDED / RUN PENDING |
-| P9-H09 | old protocol fixture becomes unreadable under launch DevKit | protocol compatibility/fixture tests in DevKit suite | INHERITED COVERAGE / CURRENT RUN PENDING |
-| P9-H10 | achievement rule-version change silently reinterprets historical grant | Phase-7 stores a rule version and makes awards immutable; frozen product contract says historical grants are never silently reinterpreted | PARTIAL — DEDICATED VERSION-CHANGE FALSIFICATION REQUIRED |
-| P9-H11 | deployment rollback cannot restore known-good Inkubator | no controlled Phase-9 rollback run yet; Vercel free deployment-rate exhaustion currently affects rehearsal environment | OPS / ENVIRONMENT EVIDENCE REQUIRED |
-| P9-H12 | Mission closed without Ship creates Ship/reputation facts or destroys prior history | new Phase-9 journey creates second Mission, closes `CLOSED_NOT_SHIPPED`, requires zero new receipts and prior reputation unchanged | REHEARSAL TEST ADDED / RUN PENDING |
-| P9-H13 | mobile journey loses Mission/Next Move/blocker/Ship meaning | new `founding-rehearsal.spec.ts` at 390×844; existing mobile Command test | REHEARSAL TEST ADDED / FIRST PLAYWRIGHT PASS OBSERVED |
-| P9-H14 | desktop five-screen journey has divergent/unclear hierarchy | new `founding-rehearsal.spec.ts` at 1440×900 | REHEARSAL TEST ADDED / FIRST PLAYWRIGHT PASS OBSERVED |
-| P9-H15 | keyboard-only critical path is unreachable | existing golden keyboard test plus new Phase-9 keyboard journey | REHEARSAL TEST ADDED / FIRST PLAYWRIGHT PASS OBSERVED |
-| P9-H16 | reduced-motion mode removes meaning/critical affordances | existing orbit test plus new Phase-9 reduced-motion journey | REHEARSAL TEST ADDED / FIRST PLAYWRIGHT PASS OBSERVED |
-| P9-H17 | 2–3 Player activity creates duplicate authoritative history | new OWNER/HELPER/TESTER composition test checks exactly-one push/Assist/test/Ship facts | REHEARSAL TEST ADDED / RUN PENDING |
-| P9-H18 | stuck/retry recovery requires direct DB surgery | existing outbox/worker retry seams exist, but one supported operator recovery/rollback rehearsal is still required | OPS EVIDENCE REQUIRED |
+| P9-H01 | duplicate GitHub webhook creates duplicate authority | `phase9-founding-rehearsal.test.mjs` sends the same delivery twice and requires one observation; clean verifier PASS | PASS |
+| P9-H02 | rename/transfer/private/revoked repository retains stale authority | inherited GitHub authority/setup-state/control tests exercised by full Postgres regression | PASS |
+| P9-H03 | worker crash after DB commit duplicates or loses work | existing outbox lease/retry coverage plus H18 real crash/reclaim rehearsal | PASS |
+| P9-H04 | out-of-order webhook rewrites current truth | Phase-4 delayed/out-of-order evidence ordering coverage in full regression | PASS |
+| P9-H05 | private README/commit prompt injection becomes instruction/public data | Phase-4 hostile fixtures plus Phase-9 composition path | PASS |
+| P9-H06 | browser bundle imports server-only SDK credential path | explicit bundler falsification; browser cannot resolve `@rekt-ink/sdk/server` | PASS |
+| P9-H07 | verifier follows localhost/private IP/unsafe redirect | verifier policy suite rejects private/local targets and unsafe redirects | PASS |
+| P9-H08 | Assist/Ship retries duplicate logical actions | Phase-9 journey retries Assist accept and Ship submit and requires exactly-once history | PASS |
+| P9-H09 | old protocol fixture unreadable under launch DevKit | protocol/SDK compatibility tests in DevKit hostile suite | PASS |
+| P9-H10 | rule-version change silently hides historical Cheevo | dedicated historical rule-version falsification + projection repair | PASS |
+| P9-H11 | deployment rollback cannot restore known-good Inkubator | connected Vercel team has zero projects; deployment connector currently exposes an unusable schema, so no truthful rollback run exists yet | BLOCKED — REAL DEPLOYMENT TARGET REQUIRED |
+| P9-H12 | Mission closed without Ship creates Ship/reputation facts | Phase-9 second-Mission `CLOSED_NOT_SHIPPED` rehearsal requires zero new receipts and unchanged prior reputation | PASS |
+| P9-H13 | mobile loses Mission/Next Move/blocker/Ship meaning | 390×844 Playwright journey | PASS |
+| P9-H14 | desktop five-screen journey has divergent hierarchy | 1440×900 Playwright journey + Ship hierarchy repair | PASS |
+| P9-H15 | keyboard-only critical path unreachable | Phase-9 keyboard journey + existing golden keyboard coverage | PASS |
+| P9-H16 | reduced-motion removes meaning/critical affordances | Phase-9 reduced-motion journey | PASS |
+| P9-H17 | 2–3 actor activity duplicates authoritative history | OWNER/HELPER/TESTER composition test requires exactly-one push/Assist/test/Ship facts | PASS |
+| P9-H18 | stuck/retry recovery requires direct DB surgery | supported `npm run ops:recover -w @rekt-ink/inkubator-api`; rehearsal kills process after real lease claim and recovers after expiry without editing canonical rows | PASS |
 
-## First Playwright falsification
+## Ship visual acceptance
 
-The first Phase-9-triggered Signal-System run passed source invariants, unit/semantic tests, typecheck/build, bundle budgets and Storybook, then ran 20 Playwright tests.
+The original Ship golden exposed a genuine hierarchy defect rather than harmless snapshot drift: the artifact column was vertically centered inside the much taller receipt row, leaving a large dead first-viewport field.
 
-Result:
+The Phase-9 repair anchors the artifact at the desktop viewport, keeps receipt/history readable, and returns to normal document flow on mobile. The resulting candidate was visually inspected before acceptance.
 
-- 19 / 20 Playwright tests passed;
-- Phase-9 desktop/mobile/keyboard/reduced-motion journey assertions passed;
-- the only failure was the pre-existing `ship.png` visual baseline;
-- stored Ship baseline: 1280×1107;
-- current stable Ship render: 1280×1514;
-- pixel difference: approximately 31%.
+Accepted golden commit: `866747b16a4f10f3025c5e37fb95115b2444736f`.
 
-This baseline is not being auto-accepted. Phase 9 must inspect the current Ship candidate before replacing the frozen golden image because the user-facing UX coherence of the newer screens is itself a launch criterion.
+The one-shot golden writer was subsequently removed. Clean verifier run `34222341516` then reproduced the committed `ship.png` **without** `--update-snapshots`, and the canonical Signal System run `34222346180` passed its full Playwright/axe/mobile/visual-snapshot gate.
 
-## Known unrelated/pre-existing CI blockers
+## Automated rehearsal verdict
 
-Current broad workflows also stop before their substantive test phases on historical repository verification gates:
+Clean verifier `34222341516` passed:
 
-- `Inkubator Verification` stops at `Verify public-source trust boundary`;
-- root `CI` stops at `Inkubator foundation invariants`.
+- API typecheck/build and generated-client freshness;
+- migrations from clean Postgres;
+- P9-H10 historical Cheevo continuity;
+- DevKit build/hostile tests;
+- P9-H06 browser/server SDK boundary;
+- three-Player OWNER/HELPER/TESTER composition journey;
+- P9-H18 supported OPS crash/reclaim recovery;
+- full API Postgres integration regression;
+- verifier hostile policy;
+- Signal System build/semantics;
+- desktop/mobile/keyboard/reduced-motion journeys;
+- Ship hierarchy assertions;
+- committed Ship golden reproduction.
 
-Phase 9 uses a bounded rehearsal verification workflow to execute the canonical current API/DevKit/verifier/Signal tests directly. These legacy gate mismatches are tracked as repository debt unless they invalidate a Phase-9 objective or current product truth.
+`AUTOMATED_PHASE_9_VERDICT = PASS`
+
+## Known inherited CI debt
+
+Root `CI` / older Inkubator verification workflows still contain historical repository-wide trust/invariant mismatches unrelated to the bounded Phase-9 product evidence. They remain repository debt unless they invalidate the current phase objective or a frozen authority boundary.
+
+The canonical Signal System workflow itself is green on the clean automated head.
+
+## Deployment / OPS
+
+P9-H18 is closed: supported worker recovery is proven without database surgery.
+
+P9-H11 is not closed. The connected Vercel team `swirkybuilds` currently has zero projects. The available Vercel deployment connector also rejects invocation because its exposed tool schema does not provide the internally required `target`, `name`, and `files` arguments. Phase 9 therefore has no truthful real deployment/rollback receipt yet.
+
+Required H11 evidence remains:
+
+1. provision/link one real Inkubator rehearsal deployment target;
+2. deploy a known-good candidate;
+3. deploy a controlled successor revision;
+4. restore the known-good deployment using the provider-supported rollback/promote path;
+5. verify the public Inkubator journey and canonical state after rollback;
+6. record deployment IDs/URLs and rollback result without direct DB mutation.
 
 ## Human rehearsal
 
-Synthetic OWNER / HELPER / TESTER actors do **not** satisfy the human requirement.
-
 Human status: `NOT STARTED`.
 
-Phase 9 may advance to `READY_FOR_HUMAN_REHEARSAL` only after automated Critical/High defects are repaired and the rehearsal verification set is green.
+Synthetic OWNER / HELPER / TESTER actors do not satisfy the required 2–3 real friendly/internal Player rehearsal.
+
+Phase 9 may close only after H11 and human rehearsal evidence exist, followed by the one bounded independent hostile review.
+
+## Current phase state
+
+`PHASE_STATE = AUTOMATED_REHEARSAL_PASS / BLOCKED_BY_H11_DEPLOYMENT_TARGET`
+
+`HOSTILE_REVIEW = 0 / 1 USED`
+
+`SAFE_TO_CLOSE = NO`
+
+`SAFE_TO_MERGE = NO`
