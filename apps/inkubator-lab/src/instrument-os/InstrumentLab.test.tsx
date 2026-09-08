@@ -12,19 +12,33 @@ describe('REKT Instrument OS calibration lab', () => {
     expect(container.querySelectorAll('[data-testid="instrument-primitive"]')).toHaveLength(10);
     expect(screen.getByText('MISSION MACHINE')).toBeTruthy();
     expect(screen.getByText('VERIFIER MACHINE')).toBeTruthy();
+    expect(screen.getByText('LAST RX AGE')).toBeTruthy();
+    expect(screen.getByText(/CANONICAL PIXEL SPRITE NOT FROZEN/i)).toBeTruthy();
     expect(container.querySelector('.ios-lab')?.getAttribute('data-motion')).toBe('gsap');
-    expect(container.querySelector('[data-renderer="pixi"]')).toBeTruthy();
+    expect(container.querySelector('.ios-lab')?.getAttribute('data-crt')).toBe('off');
+    expect(container.querySelector('[data-renderer="pixi"]')?.getAttribute('data-renderer-lifecycle')).toBe('retained');
   });
 
-  it('drives every primitive and the event projection from one explicit calibration state selector', () => {
+  it('drives every primitive from one explicit calibration event without globally promoting truth color', () => {
     const {container} = render(<InstrumentLab />);
     fireEvent.click(screen.getByRole('button', {name: 'ERROR'}));
     expect(container.querySelector('.ios-lab')?.getAttribute('data-state')).toBe('error');
-    expect(screen.getByText('BLOCKER DETECTED')).toBeTruthy();
-    expect(screen.getByText(/EVENT \/\/ ERROR/i)).toBeTruthy();
+    expect(screen.getByText('RATCHET JAMMED / BLOCKER')).toBeTruthy();
+    expect(screen.getByText(/FAILED OBSERVATION RECEIVED/i)).toBeTruthy();
+
     fireEvent.click(screen.getByRole('button', {name: 'SUCCESS'}));
     expect(container.querySelector('.ios-lab')?.getAttribute('data-state')).toBe('success');
-    expect(screen.getByText('READY TO SHIP')).toBeTruthy();
-    expect(screen.getByText(/EVENT \/\/ SUCCESS/i)).toBeTruthy();
+    expect(screen.getByText('PROOF RECEIVED / RELEASE')).toBeTruthy();
+    expect(screen.getByText(/EVENT \/\/ PROOF RECEIVED/i)).toBeTruthy();
+    expect(screen.getByText('PROVEN')).toBeTruthy();
+  });
+
+  it('keeps CRT as an opt-in prototype material toggle', () => {
+    const {container} = render(<InstrumentLab />);
+    const toggle = screen.getByRole('button', {name: 'CRT PROTOTYPE OFF'});
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(toggle);
+    expect(container.querySelector('.ios-lab')?.getAttribute('data-crt')).toBe('on');
+    expect(screen.getByRole('button', {name: 'CRT PROTOTYPE ON'}).getAttribute('aria-pressed')).toBe('true');
   });
 });
