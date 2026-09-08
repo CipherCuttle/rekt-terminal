@@ -12,6 +12,7 @@ const SignalSystemLab = lazy(() => import('./signal-system/GoldenScreens'));
 const InstrumentLab = lazy(() => import('./instrument-os/InstrumentLab'));
 const LiveCommand = lazy(() => import('./command/LiveCommand'));
 const LiveProject = lazy(() => import('./project/LiveProject'));
+const LiveWorld = lazy(() => import('./world/LiveWorld'));
 const params = new URLSearchParams(window.location.search);
 const lab = params.get('lab');
 const mode = params.get('mode');
@@ -36,7 +37,9 @@ createRoot(document.getElementById('root')!).render(
             ? <QueryClientProvider client={instrumentQueryClient}><LiveCommand /></QueryClientProvider>
             : mode === 'project'
               ? <QueryClientProvider client={instrumentQueryClient}><LiveProject /></QueryClientProvider>
-              : <AppV3 />}
+              : mode === 'world'
+                ? <QueryClientProvider client={instrumentQueryClient}><LiveWorld /></QueryClientProvider>
+                : <AppV3 />}
     </Suspense>
   </StrictMode>
 );
