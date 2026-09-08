@@ -88,7 +88,7 @@ test('LIVE COMMAND renders canonical backend state and ripples projection deltas
   await page.goto('/?mode=command');
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
   await expect(page.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeVisible();
-  await expect(page.getByText('PRIVATE')).toBeVisible();
+  await expect(page.getByText('PRIVATE', {exact: true})).toBeVisible();
   await expect(page.getByText('ADVISORY ONLY')).toBeVisible();
   await expect(page.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeVisible();
   await expect(page.locator('[data-renderer="pixi"] canvas')).toBeVisible();
