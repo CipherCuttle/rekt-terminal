@@ -1,0 +1,41 @@
+name: Phase 9 Accept Ship Golden
+
+on:
+  push:
+    branches: [feature/inkubator-founding-cohort-rehearsal-v0]
+    paths:
+      - '.github/workflows/phase9-accept-ship-golden.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  accept:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/inkubator-founding-cohort-rehearsal-v0
+          fetch-depth: 1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build -w @rekt-ink/inkubator-lab
+      - run: npx playwright install --with-deps chromium
+      - name: Regenerate inspected Ship golden only
+        run: cd apps/inkubator-lab && npx playwright test e2e/golden-screens.spec.ts --grep 'ship visual baseline' --update-snapshots
+      - name: Commit reviewed golden
+        run: |
+          set -euo pipefail
+          git status --short
+          test -n "$(git status --short -- apps/inkubator-lab/e2e/__screenshots__/ship.png)"
+          test -z "$(git status --short | grep -v '^ M apps/inkubator-lab/e2e/__screenshots__/ship.png$' || true)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/inkubator-lab/e2e/__screenshots__/ship.png
+          git commit -m 'test(inkubator): accept reviewed Ship hierarchy golden'
+          git push origin HEAD:feature/inkubator-founding-cohort-rehearsal-v0
