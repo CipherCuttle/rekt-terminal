@@ -70,6 +70,9 @@ jobs:
       - name: P9-H01/H08/H12/H17 founding rehearsal composition
         run: timeout 180s node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase9-founding-rehearsal.test.mjs
 
+      - name: Phase 9 PLAYER durable history projection
+        run: node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase9-player-history-projection.test.mjs
+
       - name: P9-H18 supported crash/reclaim recovery
         run: timeout 180s node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase9-ops-recovery.test.mjs
 
