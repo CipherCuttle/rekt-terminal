@@ -8,7 +8,7 @@
 <style>
   html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#010201;color:#9aff92;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;-webkit-tap-highlight-color:transparent}
   body{display:grid;place-items:center;min-height:100dvh}
-  #shell{position:relative;width:min(100vw,56.25vh);height:min(100dvh,177.78vw);max-width:100vw;max-height:100dvh;background:#000;overflow:hidden;touch-action:manipulation}
+  #shell{position:relative;width:min(100vw,46.154vh);height:min(100dvh,216.667vw);max-width:100vw;max-height:100dvh;background:#000;overflow:hidden;touch-action:manipulation}
   #crt{display:block;width:100%;height:100%}
   .tap{position:absolute;border:0;background:transparent;color:transparent;appearance:none;-webkit-appearance:none;touch-action:manipulation;cursor:pointer}
   .tap:focus-visible{outline:1px solid rgba(160,255,160,.55);outline-offset:-2px}
@@ -288,7 +288,6 @@
     c.fillStyle='#000'; c.fillRect(0,0,src.width,src.height);
     c.save();
 
-    // outer machine frame
     box(20,22,680,1515,.24);
     box(32,34,656,1491,.12);
 
@@ -298,13 +297,11 @@
     txt('CLAIMED ≠ OBSERVED ≠ PROVEN',670,108,12,.38,600,'right');
     line(48,128,624,.42);
 
-    // mission header
     txt('MISSION // 006',48,175,16,.55,700);
     txt('SHIP A WORKING BUILDER PILOT',48,214,30,.98,800);
     txt('Ship condition:',48,249,15,.42,600);
     txt('1 external test + public artifact',196,249,15,.78,600);
 
-    // primary state
     box(48,284,624,170,.23);
     txt('CURRENT STATE',68,319,14,.42,700);
     txt(state.ship==='SHIPPED'?'SHIPPED':state.ship.replace('_',' '),68,368,38,.98,850);
@@ -313,7 +310,6 @@
     txt('TRUTH',68,438,14,.42,700);
     txt(state.ship==='SHIPPED'?'PROVEN':state.tester?'OBSERVED':'CLAIMED + OBSERVED',160,438,16,state.ship==='SHIPPED'?.98:.72,700);
 
-    // thread
     txt('THE THREAD',48,502,14,.45,700);
     const nodes=[['DECLARE',true],['BUILD',true],['TEST',state.tester],['SHIP',state.ship==='SHIPPED']];
     const nx=[72,245,418,591];
@@ -326,7 +322,6 @@
       const p=(Math.sin(now/120)+1)/2; c.globalAlpha=state.pulse*(.22+.28*p); c.fillStyle='#fff'; c.fillRect(74,553,520,12); c.globalAlpha=1; state.pulse=Math.max(0,state.pulse-.035);
     }
 
-    // next move
     box(48,635,624,196,.30);
     txt('NEXT MOVE',68,670,14,.48,800);
     let next='OPEN HELP BEACON';
@@ -339,7 +334,6 @@
     txt(detail,68,769,16,.60,600);
     txt(state.beacon?'HELP BEACON // OPEN':'HELP BEACON // CLOSED',68,807,14,state.beacon?.82:.34,700);
 
-    // live signal log
     txt('SIGNAL BUS',48,884,14,.45,700);
     box(48,904,624,306,.18);
     let ly=942;
@@ -350,7 +344,6 @@
       ly+=37;
     });
 
-    // evidence rail
     txt('EVIDENCE',48,1260,14,.45,700);
     chip('GITHUB',48,1280,134,true);
     chip('TEST',194,1280,116,state.tester);
@@ -360,7 +353,6 @@
     txt('DEMO DATA // NO AUTHORITATIVE REPUTATION',48,1368,13,.34,700);
     txt('Swordfish90 cool-retro-term shader-derived display',48,1395,12,.28,600);
 
-    // bottom controls
     line(48,1433,624,.25);
     const controls=[['STATUS',126],['SOURCE',294],['BEACON',462],['SHIP',630]];
     controls.forEach(([label,x],i)=>{
@@ -387,7 +379,7 @@
     drawSource(now);
     gl.useProgram(program);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,tex);
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,src);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,src);
     const p=profiles[profileIndex];
     gl.uniform2f(U.uResolution,view.width,view.height);
     gl.uniform1f(U.uTime,(now-start)/1000);
