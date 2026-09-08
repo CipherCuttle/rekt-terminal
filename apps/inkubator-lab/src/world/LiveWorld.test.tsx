@@ -55,12 +55,23 @@ describe('Live World', () => {
   it('renders only canonical public project, builder, beacon and signal projections', async () => {
     const {container} = renderWorld();
 
-    expect(await screen.findByRole('heading', {name: 'UNDERGROUND BUILD NETWORK'})).toBeTruthy();
+    expect(await screen.findByRole('heading', {name: 'LIVING PUBLIC NETWORK'})).toBeTruthy();
     expect(await screen.findByText('Need an external tester.')).toBeTruthy();
     expect(screen.getAllByText('WEIRD LITTLE THING').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Relay Kid').length).toBeGreaterThan(0);
     expect(screen.getByText('EXTERNAL TEST RECORDED')).toBeTruthy();
-    expect(screen.getByRole('img', {name: 'Public Inkubator project and signal radar'})).toBeTruthy();
+    expect(container.querySelectorAll('.world-instrument')).toHaveLength(1);
+    expect(screen.getByRole('img', {name: /Public Inkubator network field/})).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'NETWORK FIELD'})).toBeTruthy();
+    expect(container.querySelectorAll('.world-network-field')).toHaveLength(1);
+    expect(container.querySelector('.world-instrument')?.getAttribute('data-field-count')).toBe('1');
+    expect(container.querySelectorAll('.world-current-signal')).toHaveLength(1);
+    expect(container.querySelector('.world-signals li[data-truth="claimed"]')).toBeTruthy();
+    expect(container.querySelector('.world-current-signal[data-truth="observed"]')).toBeTruthy();
+    expect(screen.getByText('POSITIONS = LAYOUT ONLY // NO PROGRESS, CATEGORY, RELATIONSHIP OR IMPORTANCE')).toBeTruthy();
+    expect(screen.getByText('PUBLIC SELF-DESCRIPTION // NOT MATCHING')).toBeTruthy();
+    expect(screen.queryByText(/BUILDING|BLOCKED/)).toBeNull();
+    expect(screen.queryByText(/BEST MATCH|RECOMMENDATION|COMPATIBILITY/i)).toBeNull();
     expect(container.querySelectorAll('[data-truth="proven"]')).toHaveLength(0);
     expect(screen.queryByText(/repository_full_name|refs\/heads/i)).toBeNull();
     expect(screen.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeTruthy();
@@ -74,7 +85,7 @@ describe('Live World', () => {
 
     expect(await screen.findByText('Need an external tester.')).toBeTruthy();
     expect(await screen.findByText('PLAYER FEED UNAVAILABLE', {}, {timeout: 3000})).toBeTruthy();
-    expect(screen.getByText('SIGNAL FEED UNAVAILABLE')).toBeTruthy();
+    expect(screen.getAllByText('SIGNAL FEED UNAVAILABLE')).toHaveLength(2);
   });
 
   it('increments world event sequence only when a newly returned canonical signal appears', async () => {
@@ -90,7 +101,7 @@ describe('Live World', () => {
     await queryClient.refetchQueries({queryKey: ['inkubator', 'world', 'signals']});
 
     await waitFor(() => expect(container.querySelector('[data-shell="terminal"]')?.getAttribute('data-event-sequence')).toBe('1'));
-    expect(screen.getByText('ASSIST ACCEPTED')).toBeTruthy();
+    expect(screen.getAllByText('ASSIST ACCEPTED').length).toBeGreaterThan(0);
   });
 
   it('fails closed when every canonical public feed is unavailable', async () => {
