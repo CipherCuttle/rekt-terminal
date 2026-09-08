@@ -598,6 +598,78 @@ export interface WorldBoardsView {
   boards: ContextualBoardView[];
 }
 
+export type DevkitScope = "player:read" | "project:read" | "mission:read" | "claim:write" | "update:write" | "beacon:write" | "assist:write" | "ship:prepare";
+
+export type DevkitCredentialClass = "CLI" | "MCP" | "AUTOMATION";
+
+export interface DevkitTokenIssueRequest {
+  request_id: RequestId;
+  credential_class: DevkitCredentialClass;
+  label: string;
+  scopes: DevkitScope[];
+  expires_in_seconds: number;
+}
+
+export interface DevkitTokenIssuedView {
+  schema_version: "devkit.token.issued.v1";
+  token_id: string;
+  credential_class: DevkitCredentialClass;
+  label: string;
+  scopes: DevkitScope[];
+  token: string;
+  expires_at: string;
+}
+
+export interface DevkitTokenSummaryView {
+  schema_version: "devkit.token.summary.v1";
+  token_id: string;
+  credential_class: DevkitCredentialClass;
+  label: string;
+  scopes: DevkitScope[];
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  last_used_at: string | null;
+}
+
+export type DevkitTokenList = DevkitTokenSummaryView[];
+
+export interface DevkitTokenRevokedView {
+  schema_version: "devkit.token.revoked.v1";
+  token_id: string;
+  revoked_at: string;
+}
+
+export interface DevkitMissionUpdateRequest {
+  request_id: RequestId;
+  current_focus?: string;
+  next_move?: string;
+  blocker?: string | null;
+  stack_labels?: string[];
+}
+
+export interface DevkitClaimRequest {
+  request_id: RequestId;
+  state: ParticipantMissionGateState;
+}
+
+export interface DevkitActivityEventView {
+  event_type: string;
+  occurred_at: string;
+}
+
+export interface DevkitActivityView {
+  schema_version: "devkit.activity.v1";
+  project_id: ProjectId;
+  events: DevkitActivityEventView[];
+}
+
+export interface DevkitHelpBeaconList {
+  schema_version: "devkit.help_beacons.v1";
+  project_id: ProjectId;
+  beacons: HelpBeaconView[];
+}
+
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export class InkubatorApiError extends Error {
@@ -611,11 +683,13 @@ export class InkubatorApiClient {
   constructor(
     private readonly baseUrl = '',
     private readonly fetchImpl: FetchLike = fetch,
+    private readonly accessToken?: string,
   ) {}
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {
     const headers = new Headers(init.headers);
     if (init.body !== undefined) headers.set('content-type', 'application/json');
+    if (this.accessToken) headers.set('authorization', 'Bearer ' + this.accessToken);
     const response = await this.fetchImpl(`${this.baseUrl.replace(/\/$/, '')}${path}`, {
       ...init,
       headers,
@@ -796,5 +870,61 @@ export class InkubatorApiClient {
 
   getProjectExternalTests(projectId: ProjectId): Promise<ProjectExternalTestsView> {
     return this.request<ProjectExternalTestsView>(`/v1/projects/${encodeURIComponent(projectId)}/external-tests`, {method: 'GET'});
+  }
+
+  issueDevkitToken(body: DevkitTokenIssueRequest): Promise<DevkitTokenIssuedView> {
+    return this.request<DevkitTokenIssuedView>("/v1/devkit/tokens", {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  listDevkitTokens(): Promise<DevkitTokenList> {
+    return this.request<DevkitTokenList>("/v1/devkit/tokens", {method: 'GET'});
+  }
+
+  revokeDevkitToken(tokenId: string): Promise<DevkitTokenRevokedView> {
+    return this.request<DevkitTokenRevokedView>(`/v1/devkit/tokens/${encodeURIComponent(tokenId)}/revoke`, {method: 'POST'});
+  }
+
+  getDevkitMe(): Promise<PrivatePlayer> {
+    return this.request<PrivatePlayer>("/v1/devkit/me", {method: 'GET'});
+  }
+
+  getDevkitPlayerProfile(): Promise<PlayerProfileView> {
+    return this.request<PlayerProfileView>("/v1/devkit/player/profile", {method: 'GET'});
+  }
+
+  getDevkitCurrentMission(): Promise<CommandView> {
+    return this.request<CommandView>("/v1/devkit/mission/current", {method: 'GET'});
+  }
+
+  updateDevkitCurrentMission(body: DevkitMissionUpdateRequest): Promise<CommandView> {
+    return this.request<CommandView>("/v1/devkit/mission/current", {method: 'PATCH', body: JSON.stringify(body)});
+  }
+
+  claimDevkitMilestone(gateKey: MissionGateKey, body: DevkitClaimRequest): Promise<CommandView> {
+    return this.request<CommandView>(`/v1/devkit/mission/current/claims/${encodeURIComponent(gateKey)}`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  getDevkitCurrentProject(): Promise<CommandProject> {
+    return this.request<CommandProject>("/v1/devkit/project/current", {method: 'GET'});
+  }
+
+  listDevkitHelpBeacons(): Promise<DevkitHelpBeaconList> {
+    return this.request<DevkitHelpBeaconList>("/v1/devkit/project/current/help-beacons", {method: 'GET'});
+  }
+
+  createDevkitHelpBeacon(body: HelpBeaconCreateRequest): Promise<HelpBeaconView> {
+    return this.request<HelpBeaconView>("/v1/devkit/project/current/help-beacons", {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  offerDevkitAssist(beaconId: string, body: AssistOfferCreateRequest): Promise<AssistView> {
+    return this.request<AssistView>(`/v1/devkit/help-beacons/${encodeURIComponent(beaconId)}/assists`, {method: 'POST', body: JSON.stringify(body)});
+  }
+
+  getDevkitActivity(): Promise<DevkitActivityView> {
+    return this.request<DevkitActivityView>("/v1/devkit/project/current/activity", {method: 'GET'});
+  }
+
+  prepareDevkitShip(body: ShipSubmissionCreateRequest): Promise<ShipSubmissionPrivateView> {
+    return this.request<ShipSubmissionPrivateView>("/v1/devkit/mission/current/ship", {method: 'POST', body: JSON.stringify(body)});
   }
 }
