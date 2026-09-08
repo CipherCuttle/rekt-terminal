@@ -1,4 +1,4 @@
-# Phase 9 bounded verification evidence after H18 isolation repair.
+# Phase 9 bounded verification evidence after H18 and Ship hierarchy repairs.
 name: Phase 9 Rehearsal Verify
 
 on:
@@ -82,8 +82,8 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Focused Phase 9 desktop/mobile/keyboard/reduced-motion journey
-        run: cd apps/inkubator-lab && npx playwright test e2e/founding-rehearsal.spec.ts
+      - name: Focused Phase 9 desktop/mobile/keyboard/reduced-motion and Ship hierarchy journeys
+        run: cd apps/inkubator-lab && npx playwright test e2e/founding-rehearsal.spec.ts e2e/ship-hierarchy.spec.ts
 
       - name: Render current Ship candidate without accepting the golden
         run: cd apps/inkubator-lab && npx playwright test e2e/golden-screens.spec.ts --grep 'ship visual baseline' --update-snapshots
