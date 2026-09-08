@@ -58,7 +58,7 @@ async function routeProject(page: Page, override: Partial<Record<string, Respons
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.hostname === 'artifact.example') {
-      await route.fulfill({status: 200, contentType: 'text/html', body: '<!doctype html><title>Artifact</title><main>artifact preview</main>'});
+      await route.fulfill({status: 200, contentType: 'text/html', body: '<!doctype html><title>Artifact</title><div>artifact preview</div>'});
       return;
     }
     const response = responses[url.pathname];
