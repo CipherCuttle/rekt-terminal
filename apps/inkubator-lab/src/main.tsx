@@ -7,13 +7,14 @@ import './signal-system/phase9-rehearsal.css';
 
 const AppV3 = lazy(() => import('./AppV3'));
 const SignalSystemLab = lazy(() => import('./signal-system/GoldenScreens'));
+const InstrumentLab = lazy(() => import('./instrument-os/InstrumentLab'));
 const params = new URLSearchParams(window.location.search);
-const signalLab = params.get('lab') === 'signals';
+const lab = params.get('lab');
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Suspense fallback={<div role="status">Loading REKT…</div>}>
-      {signalLab ? <SignalSystemLab /> : <AppV3 />}
+      {lab === 'instrument' ? <InstrumentLab /> : lab === 'signals' ? <SignalSystemLab /> : <AppV3 />}
     </Suspense>
   </StrictMode>
 );
