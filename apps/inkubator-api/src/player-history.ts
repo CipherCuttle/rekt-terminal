@@ -83,6 +83,14 @@ export async function getPlayerHistory(dbInput: Kysely<DatabaseSchema>, playerId
   const player = await db.selectFrom('players').select('player_id').where('player_id', '=', playerId).executeTakeFirst();
   if (!player) return null;
 
+  const ownedMissions = await db.selectFrom('missions')
+    .innerJoin('projects', 'projects.project_id', 'missions.project_id')
+    .select(['missions.mission_id', 'projects.project_id', 'projects.name as project_name'])
+    .where('missions.owner_player_id', '=', playerId)
+    .execute();
+  const missionById = new Map(ownedMissions.map((mission) => [mission.mission_id, mission]));
+  const missionIds = ownedMissions.map((mission) => mission.mission_id);
+
   const [ships, assists, tests, awards, missionEvents] = await Promise.all([
     db.selectFrom('ship_receipt_attributions')
       .innerJoin('ship_receipts', 'ship_receipts.receipt_id', 'ship_receipt_attributions.receipt_id')
@@ -120,23 +128,16 @@ export async function getPlayerHistory(dbInput: Kysely<DatabaseSchema>, playerId
       .select(['award_id', 'cheevo_key', 'earned_at'])
       .where('player_id', '=', playerId)
       .execute(),
-    db.selectFrom('history_events')
-      .innerJoin('missions', 'missions.mission_id', 'history_events.subject_id')
-      .innerJoin('projects', 'projects.project_id', 'missions.project_id')
-      .select([
-        'history_events.history_event_id',
-        'history_events.payload',
-        'history_events.occurred_at',
-        'missions.mission_id',
-        'projects.project_id',
-        'projects.name as project_name',
-      ])
-      .where('missions.owner_player_id', '=', playerId)
-      .where('history_events.subject_type', '=', 'mission')
-      .where('history_events.event_type', '=', 'mission.updated')
-      .orderBy('history_events.occurred_at', 'asc')
-      .orderBy('history_events.history_event_id', 'asc')
-      .execute(),
+    missionIds.length === 0
+      ? Promise.resolve([])
+      : db.selectFrom('history_events')
+          .select(['history_event_id', 'subject_id', 'payload', 'occurred_at'])
+          .where('subject_type', '=', 'mission')
+          .where('event_type', '=', 'mission.updated')
+          .where('subject_id', 'in', missionIds)
+          .orderBy('occurred_at', 'asc')
+          .orderBy('history_event_id', 'asc')
+          .execute(),
   ]);
 
   const entries: PlayerHistoryEntry[] = [];
@@ -195,39 +196,41 @@ export async function getPlayerHistory(dbInput: Kysely<DatabaseSchema>, playerId
 
   const blockedMissions = new Set<string>();
   for (const event of missionEvents) {
+    const mission = missionById.get(event.subject_id);
+    if (!mission) continue;
     const state = missionState(event.payload);
     if (state === 'BLOCKED') {
-      blockedMissions.add(event.mission_id);
+      blockedMissions.add(mission.mission_id);
       entries.push({
         entry_id: `mission-blocked:${event.history_event_id}`,
         kind: 'MISSION_BLOCKED',
         truth_state: 'CLAIMED',
         occurred_at: event.occurred_at.toISOString(),
-        project_id: event.project_id,
-        project_name: event.project_name,
-        mission_id: event.mission_id,
+        project_id: mission.project_id,
+        project_name: mission.project_name,
+        mission_id: mission.mission_id,
       });
-    } else if (state === 'BUILDING' && blockedMissions.has(event.mission_id)) {
-      blockedMissions.delete(event.mission_id);
+    } else if (state === 'BUILDING' && blockedMissions.has(mission.mission_id)) {
+      blockedMissions.delete(mission.mission_id);
       entries.push({
         entry_id: `mission-recovered:${event.history_event_id}`,
         kind: 'MISSION_RECOVERED',
         truth_state: 'CLAIMED',
         occurred_at: event.occurred_at.toISOString(),
-        project_id: event.project_id,
-        project_name: event.project_name,
-        mission_id: event.mission_id,
+        project_id: mission.project_id,
+        project_name: mission.project_name,
+        mission_id: mission.mission_id,
       });
     } else if (state === 'CLOSED_NOT_SHIPPED') {
-      blockedMissions.delete(event.mission_id);
+      blockedMissions.delete(mission.mission_id);
       entries.push({
         entry_id: `mission-closed:${event.history_event_id}`,
         kind: 'MISSION_CLOSED_NOT_SHIPPED',
         truth_state: 'CLAIMED',
         occurred_at: event.occurred_at.toISOString(),
-        project_id: event.project_id,
-        project_name: event.project_name,
-        mission_id: event.mission_id,
+        project_id: mission.project_id,
+        project_name: mission.project_name,
+        mission_id: mission.mission_id,
       });
     }
   }
