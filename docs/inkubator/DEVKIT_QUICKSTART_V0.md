@@ -30,14 +30,24 @@ rekt doctor
 
 ## SDK
 
+Browser code uses the cookie-authenticated root entry. It has no bearer-token option and therefore preserves the web origin/CSRF boundary:
+
 ```ts
 import {createInkubatorClient} from '@rekt-ink/sdk';
-const ink = createInkubatorClient({baseUrl: process.env.REKT_API_URL!, accessToken: process.env.REKT_DEVKIT_TOKEN!});
+const ink = createInkubatorClient({baseUrl: 'https://inkubator.example'});
 const state = await ink.mission.current();
 await ink.mission.update({currentFocus: 'Ship the integration'});
 ```
 
-The browser-safe root entry never reads environment credentials. Server-side environment loading is a deliberate `@rekt-ink/sdk/server` subpath.
+Server, CLI and agent processes use the deliberate server-only credential entry:
+
+```ts
+import {createInkubatorServerClientFromEnv} from '@rekt-ink/sdk/server';
+const ink = createInkubatorServerClientFromEnv();
+const state = await ink.mission.current();
+```
+
+Never bundle `REKT_DEVKIT_TOKEN` or `@rekt-ink/sdk/server` into browser code.
 
 ## MCP
 
