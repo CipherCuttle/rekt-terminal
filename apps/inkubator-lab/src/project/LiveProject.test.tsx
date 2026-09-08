@@ -107,6 +107,11 @@ describe('Live Project', () => {
     expect(screen.getAllByRole('region', {name: 'Living Project Thread'})).toHaveLength(1);
     expect(screen.getAllByRole('region', {name: 'Current locus'})).toHaveLength(1);
     expect(screen.getByRole('region', {name: 'Current locus'}).getAttribute('aria-current')).toBe('step');
+    const locus = within(screen.getByRole('region', {name: 'Current locus'}));
+    expect(locus.getByText('CURRENT PROJECT')).toBeTruthy();
+    expect(locus.getByText(project.mission_state)).toBeTruthy();
+    expect(locus.getByRole('heading', {name: project.current_focus})).toBeTruthy();
+    expect(locus.getByRole('status', {name: 'Latest recorded signal'}).textContent).toContain('VERIFIER / PASS / OBSERVED');
     expect(screen.getAllByRole('region', {name: 'Next Move'})).toHaveLength(1);
     expect(within(screen.getByRole('region', {name: 'Next Move'})).getByRole('heading', {name: project.next_move})).toBeTruthy();
     expect(screen.getByText('URL SUPPLIED / CLAIMED')).toBeTruthy();

@@ -78,7 +78,7 @@ async function captureEvidence(page: Page, name: string) {
     await expect(page.frameLocator('iframe').getByText('TEST ARTIFACT / SYNTHETIC')).toBeVisible();
     // Chromium can omit offscreen cross-origin frame pixels in a full-page
     // capture. Keep a real viewport capture of the loaded artifact as well.
-    await page.screenshot({path: `/tmp/rekt-project-v1-evidence/${name}-artifact-detail.png`});
+    await page.screenshot({path: `/tmp/rekt-project-v1.1-evidence/${name}-artifact-detail.png`});
     await page.evaluate(() => window.scrollTo({top: 0, behavior: 'instant'}));
   }
   // Evidence labeling belongs to the browser harness, never the live route.
@@ -89,8 +89,8 @@ async function captureEvidence(page: Page, name: string) {
     label.style.cssText = 'padding:6px 22px;background:#050506;color:#e7b16b;font:10px monospace;letter-spacing:.06em';
     document.body.prepend(label);
   });
-  await page.screenshot({path: `/tmp/rekt-project-v1-evidence/${name}-viewport.png`});
-  await page.screenshot({path: `/tmp/rekt-project-v1-evidence/${name}.png`, fullPage: true});
+  await page.screenshot({path: `/tmp/rekt-project-v1.1-evidence/${name}-viewport.png`});
+  await page.screenshot({path: `/tmp/rekt-project-v1.1-evidence/${name}.png`, fullPage: true});
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -123,6 +123,16 @@ test('LIVE PROJECT renders canonical workstation projections without promoting o
   await expect(page.getByText('Verifier response ≠ accepted Ship.')).toBeVisible();
   await expect(page.getByTitle('Weird Little Thing v1 artifact preview')).toHaveAttribute('sandbox', 'allow-scripts allow-forms allow-popups');
   await expect(page.getByTitle('Weird Little Thing v1 artifact preview')).toHaveAttribute('referrerpolicy', 'no-referrer');
+  const nextBox = await page.getByRole('region', {name: 'Next Move'}).boundingBox();
+  const previewBox = await page.locator('.project-artifact iframe').boundingBox();
+  // The build surface must be materially present in the first desktop viewport,
+  // while the dominant instruction precedes it in the reading order.
+  expect(previewBox!.y).toBeGreaterThan(nextBox!.y + nextBox!.height);
+  expect(previewBox!.y).toBeLessThanOrEqual(620);
+  expect(Math.min(900, previewBox!.y + previewBox!.height) - previewBox!.y).toBeGreaterThanOrEqual(240);
+  const disclosure = page.getByRole('region', {name: 'Next Move'}).locator('summary');
+  await expect(disclosure).toContainText('→');
+  await expect(disclosure).not.toContainText('↗');
   await expectNoHorizontalOverflow(page);
 
   const results = await new AxeBuilder({page}).analyze();
@@ -181,6 +191,9 @@ test('mobile preserves identity, current locus, Next Move, and attached evidence
   await expect(next.getByRole('heading')).toHaveText('Review external feedback');
   await expect(locus).toHaveCount(1);
   await expect(page.getByText('ACCEPTED / PROVEN')).toHaveCount(0);
+  expect(await locus.locator('[data-project-pulse]').evaluateAll(elements =>
+    elements.every(element => getComputedStyle(element).transform === 'none'))).toBe(true);
+  await expectNoHorizontalOverflow(page);
 });
 
 for (const endpoint of ['/v1/me/command', '/v1/projects/P-LIVE-001/private']) {

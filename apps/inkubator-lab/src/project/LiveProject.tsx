@@ -123,7 +123,6 @@ function ProjectProjection({command, project, help, helpError, tests, testsError
         <span className="project-label">PROJECT / {project.project_id}</span>
         <h1>{project.name}</h1>
         <p>{project.goal}</p>
-        <span className="project-mission-state">{project.mission_state.replaceAll('_', ' ')}</span>
       </header>
 
       <section className="project-thread" aria-label="Living Project Thread">
@@ -137,30 +136,32 @@ function ProjectProjection({command, project, help, helpError, tests, testsError
             <small>{source.source_state === 'UNAVAILABLE' ? 'EVIDENCE UNAVAILABLE' : `EVIDENCE / ${source.signal_state}`}</small>
           </section>
           <section className="project-locus" aria-label="Current locus" aria-current="step">
-            <span className="project-label">YOU ARE HERE</span>
-            <span className="project-locus-mark" data-project-pulse="" aria-hidden="true">◆</span>
-            <h2>{project.current_focus}</h2>
-            <span className="project-label">CURRENT FOCUS</span>
+            <div className="project-locus-header"><span className="project-label">CURRENT PROJECT</span><span className="project-mission-state">{project.mission_state.replaceAll('_', ' ')}</span></div>
+            <div className="project-locus-position">
+              <span className="project-locus-mark" data-project-pulse="" aria-hidden="true">◆</span>
+              <div><span className="project-label">YOU ARE HERE / CURRENT FOCUS</span><h2>{project.current_focus}</h2></div>
+            </div>
+            <div className="project-recent" role="status" aria-label="Latest recorded signal">
+              <span className="project-rx" data-project-pulse={latestSignal ? '' : undefined} aria-hidden="true">RX</span>
+              <span className="project-label">LAST SIGNAL</span>
+              {latestSignal ? <><span className="project-signal-label">{latestSignal.label}</span><time dateTime={latestSignal.at}>{latestSignal.at.replace('T', ' ').replace('Z', ' UTC')}</time></>
+                : <span className="project-signal-label">NO CURRENT TIMESTAMPED SIGNAL</span>}
+            </div>
           </section>
           <section className="project-boundary" aria-label="Ship boundary" data-truth={shipTruth}>
             <span className="project-label">02 / SHIP</span>
-            <span className="project-socket" aria-hidden="true">⊣</span>
+            <span className="project-socket project-receipt-gate" aria-hidden="true">{accepted ? '⊢' : '⊣'}</span>
             <strong>{shipState}</strong>
             <span>{accepted ? 'ACCEPTED / PROVEN' : 'ACCEPTANCE NOT ESTABLISHED'}</span>
             <small>{boundary}</small>
           </section>
-        </div>
-        <div className="project-recent" role="status" aria-label="Latest recorded signal">
-          <span className="project-label">LAST SIGNAL</span>
-          {latestSignal ? <><span>{latestSignal.label}</span><time dateTime={latestSignal.at}>{latestSignal.at.replace('T', ' ').replace('Z', ' UTC')}</time></>
-            : <span>NO CURRENT TIMESTAMPED SIGNAL</span>}
         </div>
       </section>
 
       <section className="project-next" aria-label="Next Move">
         <span className="project-label">NEXT MOVE</span>
         <details className="project-action">
-          <summary><h2>{project.next_move}</h2><span aria-hidden="true">↗</span></summary>
+          <summary><h2>{project.next_move}</h2><span aria-hidden="true">→</span></summary>
           <div className="project-action-detail">
             <p>Current project instruction. This control opens context; it does not submit or accept a Ship.</p>
             <p>SHIP CONDITION / {project.ship_condition}</p>
@@ -172,6 +173,7 @@ function ProjectProjection({command, project, help, helpError, tests, testsError
       </section>
 
       <div className="project-evidence">
+        <div className="project-attachment-rail"><span className="project-label">THREAD ATTACHMENTS</span><span>ARTIFACT / HELP / TEST / RECEIPT</span></div>
         <section className="project-artifact" aria-label="Artifact and deployment" data-truth={shipTruth}>
           <header><h2 className="project-label">ARTIFACT / DEPLOYMENT</h2><span>ATTACHED TO THREAD</span></header>
           {artifact && artifactUrl ? <>
@@ -202,8 +204,8 @@ function ProjectProjection({command, project, help, helpError, tests, testsError
         </section>
 
         <aside className="project-attachments" aria-label="Attached evidence">
-          <section aria-label="Help and party">
-            <h2 className="project-label">↳ HELP / PARTY</h2>
+          <section aria-label="Help and party" data-link={helpError ? 'unavailable' : currentHelp ? 'attached' : 'connecting'}>
+            <h2 className="project-label">HELP / PARTY</h2>
             {helpError ? <LinkUnavailable label="HELP" error={helpError} /> : currentHelp ? <>
               <strong>{currentHelp.open_help_beacon?.summary ?? 'NO HELP BEACON OPEN'}</strong>
               <p>{currentHelp.open_help_beacon?.skills_needed.join(' / ')}</p>
@@ -213,16 +215,16 @@ function ProjectProjection({command, project, help, helpError, tests, testsError
                 : <li>NO ACCEPTED ASSISTS</li>}</ul>
             </> : <p>HELP CONNECTING</p>}
           </section>
-          <section aria-label="External tests">
-            <h2 className="project-label">↳ EXTERNAL TEST</h2>
+          <section aria-label="External tests" data-link={testsError ? 'unavailable' : currentTests ? 'attached' : 'connecting'}>
+            <h2 className="project-label">EXTERNAL TEST</h2>
             {testsError ? <LinkUnavailable label="TEST" error={testsError} /> : currentTests ? <>
               <strong data-state={latestTest?.outcome}>{latestTest ? `${latestTest.outcome} / OBSERVED` : openTest ? 'REQUEST OPEN / NO RESULT' : 'NO TEST RESULT'}</strong>
               <p>{latestTest?.summary ?? openTest?.prompt ?? 'Test presence does not establish PASS.'}</p>
               {latestTest ? <p>{latestTest.tester.display_name} / <time dateTime={latestTest.observed_at}>{latestTest.observed_at}</time></p> : null}
             </> : <p>TEST CONNECTING</p>}
           </section>
-          <section aria-label="Verifier and receipt" data-truth={shipTruth}>
-            <h2 className="project-label">↳ VERIFIER / RECEIPT</h2>
+          <section aria-label="Verifier and receipt" data-truth={shipTruth} data-link={shipError ? 'unavailable' : currentShip ? 'attached' : 'connecting'}>
+            <h2 className="project-label">VERIFIER / RECEIPT</h2>
             {shipError ? <LinkUnavailable label="SHIP" error={shipError} /> : <>
               <strong>{verifier ? `VERIFIER / ${verifier.outcome}` : 'NO VERIFIER OBSERVATION'}</strong>
               <p>{verifier?.reason_code ?? 'No verifier result is available.'}</p>
