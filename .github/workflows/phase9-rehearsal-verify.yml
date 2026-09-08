@@ -1,4 +1,4 @@
-# Phase 9 bounded verification evidence after H18 and Ship hierarchy repairs.
+# Phase 9 clean-head bounded verification after automated rehearsal repairs.
 name: Phase 9 Rehearsal Verify
 
 on:
@@ -85,12 +85,5 @@ jobs:
       - name: Focused Phase 9 desktop/mobile/keyboard/reduced-motion and Ship hierarchy journeys
         run: cd apps/inkubator-lab && npx playwright test e2e/founding-rehearsal.spec.ts e2e/ship-hierarchy.spec.ts
 
-      - name: Render current Ship candidate without accepting the golden
-        run: cd apps/inkubator-lab && npx playwright test e2e/golden-screens.spec.ts --grep 'ship visual baseline' --update-snapshots
-
-      - name: Upload current Ship candidate
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: phase9-ship-golden-candidate
-          path: apps/inkubator-lab/e2e/__screenshots__/ship.png
-          if-no-files-found: error
+      - name: Verify committed Ship golden
+        run: cd apps/inkubator-lab && npx playwright test e2e/golden-screens.spec.ts --grep 'ship visual baseline'
