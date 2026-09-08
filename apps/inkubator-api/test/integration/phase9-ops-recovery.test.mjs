@@ -100,8 +100,18 @@ test('P9-H18 supported OPS recovery reclaims a crashed worker lease without outb
     assert.ok(recovered.completed_at instanceof Date);
     assert.equal(recovered.last_error, null);
 
+    // A shared integration database may contain unrelated due work. A second
+    // one-shot recovery is allowed to process that work; the invariant is that
+    // this already-succeeded job can never be reclaimed or replayed.
     const replay = await runOps({INKUBATOR_WORKER_LEASE_MS: '1000'});
-    assert.equal(replay.result.status, 'idle');
+    if (replay.result.jobId) assert.notEqual(replay.result.jobId, job.job_id);
+
+    const afterReplay = await db.selectFrom('outbox_jobs').select(['state', 'attempts', 'completed_at', 'last_error'])
+      .where('job_id', '=', job.job_id).executeTakeFirstOrThrow();
+    assert.equal(afterReplay.state, 'succeeded');
+    assert.equal(afterReplay.attempts, 2);
+    assert.ok(afterReplay.completed_at instanceof Date);
+    assert.equal(afterReplay.last_error, null);
   } finally {
     if (crashed && crashed.exitCode === null && crashed.signalCode === null) crashed.kill('SIGKILL');
     releaseLock?.();
