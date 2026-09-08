@@ -149,21 +149,58 @@ export async function resolveDevkitCredential(db: Kysely<DatabaseSchema>, token:
   return {tokenId: row.token_id, playerId: row.player_id, credentialClass: row.credential_class, scopes: normalizeScopes(row.scopes), expiresAt: row.expires_at};
 }
 
+/**
+ * Consume the Player-wide DevKit request budget.
+ *
+ * The token row is validated first, then every credential owned by the same Player
+ * serializes on one DB row in devkit_player_rate_limits. Rotating or parallelizing
+ * tokens therefore cannot multiply the 60/minute participant budget.
+ */
 export async function consumeDevkitRateLimit(db: Kysely<DatabaseSchema>, tokenId: string) {
   return db.transaction().execute(async (tx) => {
-    const row = await tx.selectFrom('devkit_tokens').select(['rate_window_started_at', 'rate_count', 'revoked_at', 'expires_at'])
+    const token = await tx.selectFrom('devkit_tokens').select(['player_id', 'revoked_at', 'expires_at'])
       .where('token_id', '=', tokenId).forUpdate().executeTakeFirst();
-    if (!row || row.revoked_at || row.expires_at.getTime() <= Date.now()) return {allowed: false as const, invalid: true as const, retryAfterSeconds: 0};
     const now = await readDatabaseNow(tx);
-    const elapsedMs = now.getTime() - row.rate_window_started_at.getTime();
+    if (!token || token.revoked_at || token.expires_at.getTime() <= now.getTime()) {
+      return {allowed: false as const, invalid: true as const, retryAfterSeconds: 0};
+    }
+
+    await sql`
+      insert into devkit_player_rate_limits (player_id, rate_window_started_at, rate_count, updated_at)
+      values (${token.player_id}::uuid, ${now}, 0, ${now})
+      on conflict (player_id) do nothing
+    `.execute(tx);
+
+    const result = await sql<{rate_window_started_at: Date; rate_count: number}>`
+      select rate_window_started_at, rate_count
+      from devkit_player_rate_limits
+      where player_id = ${token.player_id}::uuid
+      for update
+    `.execute(tx);
+    const rate = result.rows[0];
+    if (!rate) throw new Error('devkit_player_rate_limit_unavailable');
+
+    const elapsedMs = now.getTime() - rate.rate_window_started_at.getTime();
     if (elapsedMs >= 60_000) {
-      await tx.updateTable('devkit_tokens').set({rate_window_started_at: now, rate_count: 1, last_used_at: now}).where('token_id', '=', tokenId).execute();
+      await sql`
+        update devkit_player_rate_limits
+        set rate_window_started_at = ${now}, rate_count = 1, updated_at = ${now}
+        where player_id = ${token.player_id}::uuid
+      `.execute(tx);
+      await tx.updateTable('devkit_tokens').set({last_used_at: now}).where('token_id', '=', tokenId).execute();
       return {allowed: true as const, remaining: DEVKIT_RATE_LIMIT_PER_MINUTE - 1};
     }
-    if (row.rate_count >= DEVKIT_RATE_LIMIT_PER_MINUTE) {
+
+    if (rate.rate_count >= DEVKIT_RATE_LIMIT_PER_MINUTE) {
       return {allowed: false as const, invalid: false as const, retryAfterSeconds: Math.max(1, Math.ceil((60_000 - elapsedMs) / 1000))};
     }
-    await tx.updateTable('devkit_tokens').set({rate_count: row.rate_count + 1, last_used_at: now}).where('token_id', '=', tokenId).execute();
-    return {allowed: true as const, remaining: DEVKIT_RATE_LIMIT_PER_MINUTE - row.rate_count - 1};
+
+    await sql`
+      update devkit_player_rate_limits
+      set rate_count = rate_count + 1, updated_at = ${now}
+      where player_id = ${token.player_id}::uuid
+    `.execute(tx);
+    await tx.updateTable('devkit_tokens').set({last_used_at: now}).where('token_id', '=', tokenId).execute();
+    return {allowed: true as const, remaining: DEVKIT_RATE_LIMIT_PER_MINUTE - rate.rate_count - 1};
   });
 }
