@@ -1,48 +1,55 @@
-.command-live {
+main.command-live {
   --command-muted: #85818c;
   --command-muted-2: #85818c;
 }
 
-.command-live .ios-shell-readout b,
-.command-live .ios-shell-event,
-.command-live .ios-shell-footer,
-.command-live .command-mission-copy > span,
-.command-live .command-next-move > span,
-.command-live .command-source-endpoint small,
-.command-live .command-ship-endpoint small,
-.command-live .command-source-endpoint > i,
-.command-live .command-ship-endpoint > i,
-.command-live .command-source-endpoint > em,
-.command-live .command-rekt-slot > span,
-.command-live .command-advisory,
-.command-live .command-advisory span,
-.command-live .command-advisory p {
+main.command-live .ios-shell-header small,
+main.command-live .ios-shell-readout b,
+main.command-live .ios-shell-event,
+main.command-live .ios-shell-footer,
+main.command-live .ios-shell-footer span,
+main.command-live .command-mission-copy > span,
+main.command-live .command-next-move > span,
+main.command-live .command-source-endpoint small,
+main.command-live .command-ship-endpoint small,
+main.command-live .command-source-endpoint > i,
+main.command-live .command-ship-endpoint > i,
+main.command-live .command-source-endpoint > em,
+main.command-live .command-rekt-slot > span,
+main.command-live .command-advisory,
+main.command-live .command-advisory span,
+main.command-live .command-advisory p {
   color: #85818c;
 }
 
-.command-live .command-thread-gate small {
+main.command-live .command-thread-gate small {
   color: #85818c;
 }
 
-.command-live .command-thread-gate b {
+main.command-live .command-thread-gate b {
   color: #8d8994;
 }
 
-.command-live .command-thread-gate[data-current='true'] b {
+main.command-live .command-thread-gate[data-current='true'] b {
   color: #c8b8eb;
 }
 
-.command-live .command-thread-gate[data-tone='danger'] b,
-.command-live .command-thread-gate[data-tone='danger'] small {
+main.command-live .command-thread-gate[data-tone='danger'] b,
+main.command-live .command-thread-gate[data-tone='danger'] small {
   color: var(--command-red);
 }
 
-.command-live .command-thread-gate[data-tone='stale'] b,
-.command-live .command-thread-gate[data-tone='stale'] small {
+main.command-live .command-thread-gate[data-tone='stale'] b,
+main.command-live .command-thread-gate[data-tone='stale'] small {
   color: var(--command-amber);
 }
 
-.command-live .command-thread-gate[data-tone='proven'] b,
-.command-live .command-thread-gate[data-tone='proven'] small {
+main.command-live .command-thread-gate[data-tone='proven'] b,
+main.command-live .command-thread-gate[data-tone='proven'] small {
   color: var(--command-green);
+}
+
+main.command-live .command-thread-instrument[data-thread-state='blocked'] .command-thread-now span,
+main.command-live .command-thread-instrument[data-thread-state='proven'] .command-thread-now span {
+  background: transparent;
 }
