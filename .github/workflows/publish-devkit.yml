@@ -21,6 +21,11 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Verify canonical API transport freshness
+        run: |
+          npm run typecheck -w @rekt-ink/inkubator-api
+          npm run build -w @rekt-ink/inkubator-api
+          npm run verify:client -w @rekt-ink/inkubator-api
       - run: npm run build:devkit
       - run: npm run test:devkit
       - run: npm publish -w @rekt-ink/protocol --access public --provenance
