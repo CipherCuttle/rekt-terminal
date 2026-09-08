@@ -11,6 +11,7 @@ import type {
 } from '../generated/inkubator-api-client';
 import {createInkubatorApiClient} from '../inkubator-api';
 import {MOTION_EASE, MOTION_SECONDS} from '../instrument-os/motion-tokens';
+import {TerminalShell} from '../shell/TerminalShell';
 import {diffCommandProjection, summarizeCommandDeltas, type CommandProjectionDelta} from './projection-delta';
 import '../instrument-os/instrument-os.css';
 import './live-command.css';
@@ -302,109 +303,114 @@ function LiveProjection({command, deltas, eventSequence}: {
   }, {scope: rootRef, dependencies: [eventSequence, reducedMotion], revertOnUpdate: true});
 
   return (
-    <main
-      ref={rootRef}
-      className="ios-lab command-live"
-      data-motion="gsap"
-      data-motion-policy={reducedMotion ? 'reduced' : 'full'}
-      data-crt="off"
-      data-event-sequence={eventSequence}
+    <TerminalShell
+      rootRef={rootRef}
+      mode="COMMAND"
+      kicker="REKT INK(CUBATOR) // LIVE COMMAND"
+      title={command.project.name}
+      description="Canonical private command projection. Backend observations move the instrument; the frontend does not mint truth."
+      readout={[
+        {label: 'PROJECT', value: command.project.project_id},
+        {label: 'MISSION', value: command.mission.mission_id},
+      ]}
+      eventStatus={<>EVENT // {eventSequence === 0 ? 'LIVE PROJECTION LOADED' : summarizeCommandDeltas(deltas)}</>}
+      workspaceClassName="command-console"
+      className="command-live"
+      motion="gsap"
+      motionPolicy={reducedMotion ? 'reduced' : 'full'}
+      crt="off"
+      eventSequence={eventSequence}
+      footerItems={[
+        'TANSTACK QUERY // GENERATED API CLIENT',
+        'GSAP // PROJECTION DELTAS ONLY',
+        'PIXI // RETAINED SIGNAL TRACE',
+        'CLAIMED ≠ OBSERVED ≠ PROVEN',
+      ]}
     >
-      <div className="ios-crt" aria-hidden="true" />
+      <Sector code="10" title="MISSION / NEXT MOVE" className="command-sector--mission" delta="MISSION">
+        <MissionRatchet command={command} />
+      </Sector>
 
-      <header className="ios-lab-header command-header">
-        <div>
-          <small>REKT INK(CUBATOR) // LIVE COMMAND</small>
-          <h1>{command.project.name}</h1>
-          <p>Canonical private command projection. Backend observations move the instrument; the frontend does not mint truth.</p>
+      <Sector code="01" title="SOURCE / OBSERVATION" className="command-sector--source" delta="SOURCE">
+        <div className="command-source">
+          <div><small>VISIBILITY</small><strong>{command.project.source_visibility}</strong></div>
+          <div><small>OBSERVATION</small><strong>{command.project.observation_state}</strong></div>
+          <div><small>SIGNAL</small><strong>{command.github_evidence.signal_state}</strong></div>
+          <p>{command.github_evidence.reason_code}</p>
+          {latest ? <p>LAST // {latest.kind} / {latest.outcome} / {latest.observed_at}</p> : <p>LAST // NO VALID OBSERVATION</p>}
         </div>
-        <div className="command-header-readout">
-          <span>PROJECT</span><b>{command.project.project_id}</b>
-          <span>MISSION</span><b>{command.mission.mission_id}</b>
-        </div>
-      </header>
+      </Sector>
 
-      <div className="ios-event-status command-event" aria-live="polite">
-        EVENT // {eventSequence === 0 ? 'LIVE PROJECTION LOADED' : summarizeCommandDeltas(deltas)}
-      </div>
+      <Sector code="03" title="GATE TRACE" className="command-sector--scope">
+        <RetainedCommandScope command={command} reducedMotion={reducedMotion} />
+        <div className="command-scope-caption"><span>RX → GATES</span><b>{command.github_evidence.rule_version}</b></div>
+      </Sector>
 
-      <section className="command-chassis">
-        <nav className="ios-mode-rail command-mode-rail" aria-label="Instrument mode">
-          <span className="ios-rail-label">MODE</span>
-          {['WORLD', 'COMMAND', 'PROJECT', 'PLAYER', 'SHIP'].map((item) => (
-            <button key={item} type="button" aria-pressed={item === 'COMMAND'} disabled={item !== 'COMMAND'}>
-              <span>{item.slice(0, 1)}</span><b>{item}</b>
-            </button>
+      <Sector code="06" title="THREAD / GATES" className="command-sector--gates">
+        <ol className="command-gates">
+          {command.gates.slice().sort((a, b) => a.position - b.position).map((gate) => (
+            <li key={gate.key} data-tone={gateTone[gate.state]} data-truth={gate.state.toLowerCase()} data-delta={`GATE:${gate.key}`}>
+              <span>{String(gate.position).padStart(2, '0')}</span>
+              <div><b>{gate.label}</b><small>{gate.key}</small></div>
+              <strong>{gate.state}</strong>
+            </li>
           ))}
-          <span className="ios-rail-tail">OS/01</span>
-        </nav>
+        </ol>
+      </Sector>
 
-        <section className="command-console" aria-label="Live command instrument">
-          <Sector code="10" title="MISSION / NEXT MOVE" className="command-sector--mission" delta="MISSION">
-            <MissionRatchet command={command} />
-          </Sector>
+      <Sector code="08" title="BLOCKER" className="command-sector--blocker" delta="BLOCKER">
+        <div className="command-blocker" data-present={command.mission.blocker ? 'true' : 'false'}>
+          <small>{command.mission.blocker ? 'MISSION BLOCKED' : 'NO DECLARED BLOCKER'}</small>
+          <strong>{command.mission.blocker ?? '—'}</strong>
+        </div>
+      </Sector>
 
-          <Sector code="01" title="SOURCE / OBSERVATION" className="command-sector--source" delta="SOURCE">
-            <div className="command-source">
-              <div><small>VISIBILITY</small><strong>{command.project.source_visibility}</strong></div>
-              <div><small>OBSERVATION</small><strong>{command.project.observation_state}</strong></div>
-              <div><small>SIGNAL</small><strong>{command.github_evidence.signal_state}</strong></div>
-              <p>{command.github_evidence.reason_code}</p>
-              {latest ? <p>LAST // {latest.kind} / {latest.outcome} / {latest.observed_at}</p> : <p>LAST // NO VALID OBSERVATION</p>}
-            </div>
-          </Sector>
+      <Sector code="09" title="DAEMON / ADVISORY" className="command-sector--daemon" delta="DAEMON">
+        <div className="command-daemon">
+          <span>{command.daemon.authority.replace('_', ' ')}</span>
+          <b>{command.daemon.what_changed}</b>
+          {command.daemon.likely_blocker ? <p>LIKELY BLOCKER // {command.daemon.likely_blocker}</p> : null}
+          {command.daemon.scope_damage_warning ? <p>WARNING // {command.daemon.scope_damage_warning}</p> : null}
+          <p>PROPOSED NEXT MOVE // {command.daemon.proposed_next_move}</p>
+        </div>
+      </Sector>
 
-          <Sector code="03" title="GATE TRACE" className="command-sector--scope">
-            <RetainedCommandScope command={command} reducedMotion={reducedMotion} />
-            <div className="command-scope-caption"><span>RX → GATES</span><b>{command.github_evidence.rule_version}</b></div>
-          </Sector>
+      <Sector code="04" title="MISSION CONTRACT" className="command-sector--contract">
+        <dl className="command-contract">
+          <div><dt>GOAL</dt><dd>{command.mission.goal}</dd></div>
+          <div><dt>SHIP CONDITION</dt><dd>{command.mission.ship_condition}</dd></div>
+          {command.round ? <div><dt>ROUND</dt><dd>{command.round.code} // {command.round.constraint}</dd></div> : null}
+        </dl>
+      </Sector>
+    </TerminalShell>
+  );
+}
 
-          <Sector code="06" title="THREAD / GATES" className="command-sector--gates">
-            <ol className="command-gates">
-              {command.gates.slice().sort((a, b) => a.position - b.position).map((gate) => (
-                <li key={gate.key} data-tone={gateTone[gate.state]} data-truth={gate.state.toLowerCase()} data-delta={`GATE:${gate.key}`}>
-                  <span>{String(gate.position).padStart(2, '0')}</span>
-                  <div><b>{gate.label}</b><small>{gate.key}</small></div>
-                  <strong>{gate.state}</strong>
-                </li>
-              ))}
-            </ol>
-          </Sector>
-
-          <Sector code="08" title="BLOCKER" className="command-sector--blocker" delta="BLOCKER">
-            <div className="command-blocker" data-present={command.mission.blocker ? 'true' : 'false'}>
-              <small>{command.mission.blocker ? 'MISSION BLOCKED' : 'NO DECLARED BLOCKER'}</small>
-              <strong>{command.mission.blocker ?? '—'}</strong>
-            </div>
-          </Sector>
-
-          <Sector code="09" title="DAEMON / ADVISORY" className="command-sector--daemon" delta="DAEMON">
-            <div className="command-daemon">
-              <span>{command.daemon.authority.replace('_', ' ')}</span>
-              <b>{command.daemon.what_changed}</b>
-              {command.daemon.likely_blocker ? <p>LIKELY BLOCKER // {command.daemon.likely_blocker}</p> : null}
-              {command.daemon.scope_damage_warning ? <p>WARNING // {command.daemon.scope_damage_warning}</p> : null}
-              <p>PROPOSED NEXT MOVE // {command.daemon.proposed_next_move}</p>
-            </div>
-          </Sector>
-
-          <Sector code="04" title="MISSION CONTRACT" className="command-sector--contract">
-            <dl className="command-contract">
-              <div><dt>GOAL</dt><dd>{command.mission.goal}</dd></div>
-              <div><dt>SHIP CONDITION</dt><dd>{command.mission.ship_condition}</dd></div>
-              {command.round ? <div><dt>ROUND</dt><dd>{command.round.code} // {command.round.constraint}</dd></div> : null}
-            </dl>
-          </Sector>
-        </section>
-      </section>
-
-      <footer className="ios-lab-footer command-footer">
-        <span>TANSTACK QUERY // GENERATED API CLIENT</span>
-        <span>GSAP // PROJECTION DELTAS ONLY</span>
-        <span>PIXI // RETAINED SIGNAL TRACE</span>
-        <span>CLAIMED ≠ OBSERVED ≠ PROVEN</span>
-      </footer>
-    </main>
+function CommandLoadingState({error}: {error?: string}) {
+  const failed = Boolean(error);
+  return (
+    <TerminalShell
+      mode="COMMAND"
+      kicker="REKT INK(CUBATOR) // LIVE COMMAND"
+      title={failed ? 'COMMAND LINK UNAVAILABLE' : 'CONNECTING COMMAND BUS'}
+      description={failed ? 'Canonical private command projection is unavailable; the machine remains fail-closed.' : 'Waiting for canonical `/v1/me/command` projection.'}
+      readout={[
+        {label: 'MODE', value: 'COMMAND'},
+        {label: 'LINK', value: failed ? 'OFFLINE' : 'CONNECTING'},
+      ]}
+      workspaceClassName="ios-shell-loading"
+      className="command-live"
+      role={failed ? 'alert' : undefined}
+      crt="off"
+      footerItems={['GENERATED API CLIENT', 'NO FIXTURE FALLBACK', 'CLAIMED ≠ OBSERVED ≠ PROVEN']}
+    >
+      <div className="ios-shell-loading-panel" data-state={failed ? 'error' : 'pending'}>
+        <small>{failed ? 'FAIL CLOSED // CANONICAL SOURCE UNAVAILABLE' : 'RX // WAITING FOR COMMAND PROJECTION'}</small>
+        <h2>{failed ? 'CANONICAL SOURCE OFFLINE' : 'AWAITING PROJECTION'}</h2>
+        {failed ? <p>{error}</p> : null}
+        {failed ? <p>No development fixture fallback is permitted.</p> : null}
+      </div>
+    </TerminalShell>
   );
 }
 
@@ -440,21 +446,8 @@ export default function LiveCommand({
     return query.error.message;
   }, [query.error]);
 
-  if (query.isPending) {
-    return (
-      <main className="ios-lab command-live command-loading" data-crt="off">
-        <div><small>REKT INK(CUBATOR) // LIVE COMMAND</small><h1>CONNECTING COMMAND BUS</h1><p>Waiting for canonical `/v1/me/command` projection.</p></div>
-      </main>
-    );
-  }
-
-  if (query.isError || !query.data) {
-    return (
-      <main className="ios-lab command-live command-loading command-loading--error" data-crt="off" role="alert">
-        <div><small>REKT INK(CUBATOR) // LIVE COMMAND</small><h1>COMMAND LINK UNAVAILABLE</h1><p>{errorMessage}</p><p>No development fixture fallback is permitted.</p></div>
-      </main>
-    );
-  }
+  if (query.isPending) return <CommandLoadingState />;
+  if (query.isError || !query.data) return <CommandLoadingState error={errorMessage} />;
 
   return <LiveProjection command={query.data} deltas={deltas} eventSequence={eventSequence} />;
 }
