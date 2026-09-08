@@ -94,7 +94,7 @@ describe('Live Project', () => {
     const {container} = renderProject();
 
     expect(await screen.findByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeTruthy();
-    expect(screen.getByText('CipherCuttle/weird-little-thing')).toBeTruthy();
+    expect(await screen.findByText('CipherCuttle/weird-little-thing')).toBeTruthy();
     expect(screen.getByText('Need one external tester.')).toBeTruthy();
     expect(screen.getByText('Helper')).toBeTruthy();
     expect(screen.getByText('Core flow works.')).toBeTruthy();
