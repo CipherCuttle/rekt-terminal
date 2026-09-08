@@ -61,8 +61,10 @@ function commandView(overrides: Partial<CommandView> = {}): CommandView {
   };
 }
 
+const commandEndpoint = /\/v1\/me\/command(?:\?.*)?$/;
+
 async function routeCommand(page: Page, read: () => CommandView) {
-  await page.route('**/v1/me/command', async (route) => {
+  await page.route(commandEndpoint, async (route) => {
     await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(read())});
   });
 }
@@ -136,7 +138,7 @@ test('LIVE COMMAND ship-ready projection stays readable on mobile and reduced mo
 });
 
 test('LIVE COMMAND fails closed when the canonical command endpoint is unavailable', async ({page}) => {
-  await page.route('**/v1/me/command', async (route) => {
+  await page.route(commandEndpoint, async (route) => {
     await route.fulfill({status: 401, contentType: 'application/json', body: JSON.stringify({error: 'session_required'})});
   });
 
