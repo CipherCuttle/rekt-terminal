@@ -1,0 +1,38 @@
+name: Phase 9 Client Regenerator
+
+on:
+  push:
+    branches: [agent/inkubator-phase9-backend-rehearsal-v0]
+    paths:
+      - '.github/workflows/phase9-client-regenerate.yml'
+      - 'apps/inkubator-api/src/contract-phase7.ts'
+      - 'apps/inkubator-api/src/generate-client.ts'
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build -w @rekt-ink/inkubator-api
+      - run: npm run generate:client -w @rekt-ink/inkubator-api
+      - name: Commit generated client surfaces
+        run: |
+          git add apps/inkubator-lab/src/generated/inkubator-api-client.ts packages/sdk/src/generated/inkubator-api-client.ts
+          if git diff --cached --quiet; then
+            echo 'Generated clients already current.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore(inkubator): regenerate Phase 9 player clients'
+          git push origin HEAD:${GITHUB_REF_NAME}

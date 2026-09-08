@@ -1,11 +1,24 @@
 import type {FastifyInstance} from 'fastify';
 import type {Kysely} from 'kysely';
 import type {DatabaseSchema} from './database.js';
+import {getPlayerHistory} from './player-history.js';
 import {getPlayerReputation, getWorldBoards, reconcilePlayerCheevos} from './reputation.js';
+import {readSessionToken, resolveSessionActor} from './session.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function registerPhase7ReputationRoutes(app: FastifyInstance, db: Kysely<DatabaseSchema>): void {
+  app.get('/v1/me/history', async (request, reply) => {
+    const token = readSessionToken(request.headers.cookie);
+    if (!token) return reply.code(401).send({error: 'authentication_required'});
+    const actor = await resolveSessionActor(db, token);
+    if (!actor) return reply.code(401).send({error: 'authentication_required'});
+    const history = await getPlayerHistory(db, actor.playerId);
+    if (!history) return reply.code(401).send({error: 'authentication_required'});
+    reply.header('cache-control', 'no-store');
+    return history;
+  });
+
   app.get('/v1/players/:playerId/reputation', async (request, reply) => {
     const {playerId} = request.params as {playerId: string};
     if (!UUID_PATTERN.test(playerId)) return reply.code(400).send({error: 'invalid_player_id'});

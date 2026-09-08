@@ -98,6 +98,55 @@ schemas.WorldBoardsView = {
   },
 };
 
+schemas.PlayerHistoryEntryView = {
+  type: 'object', additionalProperties: false,
+  required: ['entry_id', 'kind', 'truth_state', 'occurred_at'],
+  properties: {
+    entry_id: {type: 'string'},
+    kind: {type: 'string', enum: [
+      'SHIP_ACCEPTED',
+      'ASSIST_ACCEPTED',
+      'EXTERNAL_TEST_RECORDED',
+      'CHEEVO_AWARDED',
+      'MISSION_BLOCKED',
+      'MISSION_RECOVERED',
+      'MISSION_CLOSED_NOT_SHIPPED',
+    ]},
+    truth_state: {type: 'string', enum: ['CLAIMED', 'OBSERVED', 'PROVEN']},
+    occurred_at: {type: 'string', format: 'date-time'},
+    project_id: {$ref: '#/components/schemas/ProjectId'},
+    project_name: {type: 'string'},
+    mission_id: {$ref: '#/components/schemas/MissionId'},
+    receipt_id: {type: 'string'},
+    artifact_title: {type: 'string'},
+    role: {type: 'string', enum: ['OWNER', 'PARTY']},
+    assist_id: {type: 'string'},
+    test_result_id: {type: 'string'},
+    outcome: {type: 'string', enum: ['PASS', 'ISSUE_FOUND', 'BLOCKED']},
+    cheevo_award_id: {type: 'string'},
+    cheevo_key: {type: 'string'},
+  },
+};
+
+schemas.PlayerHistoryView = {
+  type: 'object', additionalProperties: false, required: ['schema_version', 'player_id', 'entries'],
+  properties: {
+    schema_version: {type: 'string', const: 'player.history.private.v1'},
+    player_id: {$ref: '#/components/schemas/PlayerId'},
+    entries: {type: 'array', maxItems: 100, items: {$ref: '#/components/schemas/PlayerHistoryEntryView'}},
+  },
+};
+
+paths['/v1/me/history'] = {
+  get: {
+    operationId: 'getMyHistory',
+    responses: {
+      '200': {description: 'Authenticated durable Player history projection over canonical facts', content: {'application/json': {schema: {$ref: '#/components/schemas/PlayerHistoryView'}}}},
+      '401': {description: 'Authentication required', content: {'application/json': {schema: {$ref: '#/components/schemas/Error'}}}},
+    },
+  },
+};
+
 paths['/v1/players/{playerId}/reputation'] = {
   get: {
     operationId: 'getPlayerReputation',
