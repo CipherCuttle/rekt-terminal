@@ -4,6 +4,7 @@ export {InkubatorApiError};
 export interface InkubatorClientOptions { baseUrl: string; fetchImpl?: FetchLike; }
 export interface MutationOptions { idempotencyKey?: string; }
 const requestId = (value?: string) => value ?? crypto.randomUUID();
+const platformFetch: FetchLike = (input, init) => globalThis.fetch(input, init);
 
 /**
  * Browser/cookie-session client.
@@ -13,7 +14,7 @@ const requestId = (value?: string) => value ?? crypto.randomUUID();
  * Credential-bearing CLI/MCP clients live only under `@rekt-ink/sdk/server`.
  */
 export function createInkubatorClient(options: InkubatorClientOptions) {
-  const transport = new InkubatorApiClient(options.baseUrl, options.fetchImpl ?? fetch);
+  const transport = new InkubatorApiClient(options.baseUrl, options.fetchImpl ?? platformFetch);
   const current = () => transport.getMyCommand();
 
   return {

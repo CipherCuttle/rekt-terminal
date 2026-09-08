@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/server.js",
     "worker": "node dist/worker.js",
+    "ops:recover": "node dist/ops-recover-cli.js",
     "migrate": "node dist/migrate-cli.js",
     "generate:client": "node --import ./dist/contract-phase8.js ./dist/generate-client.js",
     "verify:client": "node --import ./dist/contract-phase8.js ./dist/generate-client.js --check",

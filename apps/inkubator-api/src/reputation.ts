@@ -27,7 +27,7 @@ interface PlayerCheevoTable {
   award_id: string;
   player_id: string;
   cheevo_key: CheevoKey;
-  rule_version: typeof CHEEVO_RULE_VERSION;
+  rule_version: string;
   source_type: CheevoSourceType;
   source_id: string;
   earned_at: Date;
@@ -353,9 +353,8 @@ export async function getPlayerReputation(dbInput: Kysely<DatabaseSchema>, playe
   if (!metric) throw new Error('reputation_metrics_missing');
 
   const awards = await db.selectFrom('player_cheevos')
-    .select(['cheevo_key', 'source_type', 'source_id', 'earned_at'])
+    .select(['cheevo_key', 'rule_version', 'source_type', 'source_id', 'earned_at'])
     .where('player_id', '=', playerId)
-    .where('rule_version', '=', CHEEVO_RULE_VERSION)
     .orderBy('earned_at', 'asc')
     .orderBy('cheevo_key', 'asc')
     .execute();
@@ -377,7 +376,7 @@ export async function getPlayerReputation(dbInput: Kysely<DatabaseSchema>, playe
         key: award.cheevo_key,
         label: definition.label,
         description: definition.description,
-        rule_version: CHEEVO_RULE_VERSION,
+        rule_version: award.rule_version,
         truth_state: 'PROVEN' as const,
         earned_at: award.earned_at.toISOString(),
         evidence: {source_type: award.source_type, source_id: award.source_id},

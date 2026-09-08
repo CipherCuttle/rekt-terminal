@@ -1,0 +1,21 @@
+/* Phase 9 rehearsal-only hierarchy repair.
+ * Keep artifact truth semantics untouched; this only prevents the taller
+ * receipt rail from vertically centering the shipped artifact off-screen.
+ */
+@media (min-width: 901px) {
+  [data-ink-mode="artifact"] [aria-label="Accepted shipped artifact"] {
+    position: sticky;
+    top: 58px;
+    align-self: start;
+    height: calc(100vh - 58px);
+    min-height: calc(100vh - 58px);
+  }
+
+  [data-ink-mode="artifact"] [aria-label="Accepted shipped artifact"] > div {
+    width: min(82%, 860px);
+  }
+
+  [data-ink-mode="artifact"] [aria-label="Accepted shipped artifact"] + aside {
+    justify-content: flex-start;
+  }
+}

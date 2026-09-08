@@ -1,0 +1,131 @@
+.ios-shell {
+  padding-bottom: 14px;
+}
+
+.ios-shell-header {
+  min-height: 92px;
+}
+
+.ios-shell-header h1 {
+  max-width: 900px;
+  text-transform: uppercase;
+}
+
+.ios-shell-readout {
+  min-width: 240px;
+  display: grid;
+  gap: 5px;
+  font-size: 7px;
+}
+
+.ios-shell-readout > div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+}
+
+.ios-shell-readout span {
+  color: var(--ios-violet);
+  letter-spacing: .14em;
+}
+
+.ios-shell-readout b {
+  overflow: hidden;
+  color: var(--ios-muted);
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ios-shell-event {
+  margin-top: 10px;
+  border: 1px solid var(--ios-line);
+  border-bottom: 0;
+}
+
+.ios-shell-chassis {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  min-height: 720px;
+  border: 1px solid var(--ios-line);
+  background: var(--ios-bed);
+}
+
+.ios-shell-mode-rail {
+  min-height: 100%;
+}
+
+.ios-shell-mode-rail button:disabled {
+  cursor: default;
+  opacity: .44;
+}
+
+.ios-shell-mode-rail button[aria-pressed='true'] {
+  opacity: 1;
+}
+
+.ios-shell-workspace {
+  min-width: 0;
+}
+
+.ios-shell-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+.ios-shell-loading {
+  min-height: 640px;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.ios-shell-loading-panel {
+  width: min(760px, 100%);
+  padding: 30px;
+  border: 1px solid var(--ios-line);
+}
+
+.ios-shell-loading-panel p {
+  margin-bottom: 0;
+  color: var(--ios-muted);
+  font-size: 9px;
+}
+
+.ios-shell-loading-panel[data-state='error'] h2,
+.ios-shell-loading-panel[data-state='error'] p:first-of-type {
+  color: var(--ios-red);
+}
+
+@media (max-width: 860px) {
+  .ios-shell {
+    padding: 10px;
+  }
+
+  .ios-shell-header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .ios-shell-readout {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .ios-shell-chassis {
+    grid-template-columns: 54px minmax(0, 1fr);
+  }
+
+  .ios-shell-mode-rail button {
+    min-height: 54px;
+    padding: 5px;
+  }
+
+  .ios-shell-loading {
+    min-height: 520px;
+    padding: 12px;
+  }
+}
