@@ -30,7 +30,7 @@ describe('REKT Instrument OS calibration lab', () => {
     expect(container.querySelector('.ios-lab')?.getAttribute('data-state')).toBe('success');
     expect(screen.getByText('PROOF RECEIVED / RELEASE')).toBeTruthy();
     expect(screen.getByText(/EVENT \/\/ PROOF RECEIVED/i)).toBeTruthy();
-    expect(screen.getByText('PROVEN')).toBeTruthy();
+    expect(screen.getAllByText('PROVEN')).toHaveLength(2);
   });
 
   it('keeps CRT as an opt-in prototype material toggle', () => {
