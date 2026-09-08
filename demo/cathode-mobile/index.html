@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<meta name="theme-color" content="#020503" />
+<title>REKT INK(CUBATOR) // Cathode Pilot</title>
+<style>
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#010201;color:#9aff92;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;-webkit-tap-highlight-color:transparent}
+  body{display:grid;place-items:center;min-height:100dvh}
+  #shell{position:relative;width:min(100vw,56.25vh);height:min(100dvh,177.78vw);max-width:100vw;max-height:100dvh;background:#000;overflow:hidden;touch-action:manipulation}
+  #crt{display:block;width:100%;height:100%}
+  .tap{position:absolute;border:0;background:transparent;color:transparent;appearance:none;-webkit-appearance:none;touch-action:manipulation;cursor:pointer}
+  .tap:focus-visible{outline:1px solid rgba(160,255,160,.55);outline-offset:-2px}
+  #statusTap{left:4%;bottom:3%;width:21%;height:8%}
+  #sourceTap{left:27%;bottom:3%;width:21%;height:8%}
+  #beaconTap{left:51%;bottom:3%;width:21%;height:8%}
+  #shipTap{left:75%;bottom:3%;width:21%;height:8%}
+  #profileTap{right:2%;top:2%;width:20%;height:8%}
+  #fallback{display:none;position:absolute;inset:0;padding:24px;box-sizing:border-box;background:#030603;color:#a8ff9e;font-size:13px;line-height:1.6}
+</style>
+</head>
+<body>
+<div id="shell">
+  <canvas id="crt" aria-label="REKT Inkubator cathode pilot"></canvas>
+  <button class="tap" id="statusTap" aria-label="Show mission status">STATUS</button>
+  <button class="tap" id="sourceTap" aria-label="Simulate GitHub observation">SOURCE</button>
+  <button class="tap" id="beaconTap" aria-label="Open help beacon">BEACON</button>
+  <button class="tap" id="shipTap" aria-label="Prepare or verify ship">SHIP</button>
+  <button class="tap" id="profileTap" aria-label="Change cathode profile">PROFILE</button>
+  <div id="fallback"></div>
+</div>
+<script>
+/*
+  REKT INK(CUBATOR) cathode mobile pilot.
+
+  CRT post-processing in this file is a WebGL2 adaptation of the rendering
+  equations in Swordfish90/cool-retro-term, especially:
+    app/shaders/terminal_dynamic.frag
+    app/shaders/terminal_static.frag
+
+  Copyright (c) 2013-2026 Filippo Scognamiglio and cool-retro-term contributors.
+  Upstream: https://github.com/Swordfish90/cool-retro-term
+  Upstream shader files are GPL-3.0-or-later.
+
+  This isolated demo is distributed under GPL-3.0-or-later for the GPL-derived
+  rendering portion. It is intentionally NOT part of the canonical Inkubator
+  production frontend and must not be merged into a differently licensed
+  product without a licensing review / separate permission where required.
+*/
+(() => {
+  'use strict';
+
+  const view = document.getElementById('crt');
+  const shell = document.getElementById('shell');
+  const fallback = document.getElementById('fallback');
+  const gl = view.getContext('webgl2', {alpha:false, antialias:false, powerPreference:'high-performance'});
+  if (!gl) {
+    fallback.style.display='block';
+    fallback.innerHTML='<b>WEBGL2 UNAVAILABLE</b><br><br>This pilot needs WebGL2. Try current Chrome/Firefox/Safari.';
+    return;
+  }
+
+  const src = document.createElement('canvas');
+  src.width = 720;
+  src.height = 1560;
+  const c = src.getContext('2d', {alpha:false});
+
+  const vertexSource = `#version 300 es
+    precision highp float;
+    in vec2 aPosition;
+    out vec2 vUv;
+    void main(){
+      vUv = aPosition * 0.5 + 0.5;
+      gl_Position = vec4(aPosition, 0.0, 1.0);
+    }`;
+
+  /*
+    GPL-derived CRT pass. The coordinate distortion, RGB channel weighting,
+    pseudo-random noise function, rasterization response and moving glow pass
+    preserve the upstream cool-retro-term shader equations, adapted from
+    Qt GLSL 440 uniforms/multipass textures to WebGL2 GLSL ES 300.
+  */
+  const fragmentSource = `#version 300 es
+    precision highp float;
+    uniform sampler2D uSource;
+    uniform vec2 uResolution;
+    uniform float uTime;
+    uniform float uCurvature;
+    uniform float uRgbShift;
+    uniform float uNoise;
+    uniform float uFlicker;
+    uniform float uRaster;
+    uniform float uBloom;
+    uniform float uFrameSize;
+    uniform vec3 uTint;
+    in vec2 vUv;
+    out vec4 fragColor;
+
+    float min2(vec2 v){ return min(v.x,v.y); }
+    float max2(vec2 v){ return max(v.x,v.y); }
+    float rand2(vec2 v){ return fract(sin(dot(v,vec2(12.9898,78.233))) * 43758.5453); }
+
+    vec2 distortCoordinates(vec2 coords){
+      vec2 paddedCoords = coords * (vec2(1.0) + uFrameSize * 2.0) - uFrameSize;
+      vec2 cc = paddedCoords - vec2(0.5);
+      float dist = dot(cc,cc) * uCurvature;
+      return paddedCoords + cc * (1.0 + dist) * dist;
+    }
+
+    vec3 applyRasterization(vec2 screenCoords, vec3 texel, vec2 virtualRes, float intensity){
+      if(intensity <= 0.0) return texel;
+      const float INTENSITY = 0.30;
+      const float BRIGHTBOOST = 0.30;
+      vec3 pixelHigh = ((1.0 + BRIGHTBOOST) - (0.2 * texel)) * texel;
+      vec3 pixelLow  = ((1.0 - INTENSITY) + (0.1 * texel)) * texel;
+      vec2 coords = fract(screenCoords * virtualRes) * 2.0 - vec2(1.0);
+      float mask = 1.0 - abs(coords.y);
+      vec3 rasterizationColor = mix(pixelLow,pixelHigh,mask);
+      return mix(texel,rasterizationColor,intensity);
+    }
+
+    float randomPass(vec2 coords){
+      return fract(smoothstep(-120.0,0.0,coords.y - (uResolution.y + 120.0) * fract(uTime * 0.15)));
+    }
+
+    vec3 sampleBloom(vec2 uv){
+      vec2 p = 1.5 / uResolution;
+      vec3 s = texture(uSource,uv).rgb * 0.30;
+      s += texture(uSource,uv + vec2( p.x,0.0)).rgb * 0.14;
+      s += texture(uSource,uv + vec2(-p.x,0.0)).rgb * 0.14;
+      s += texture(uSource,uv + vec2(0.0, p.y)).rgb * 0.14;
+      s += texture(uSource,uv + vec2(0.0,-p.y)).rgb * 0.14;
+      s += texture(uSource,uv + p).rgb * 0.07;
+      s += texture(uSource,uv - p).rgb * 0.07;
+      return s;
+    }
+
+    void main(){
+      vec2 curvatureCoords = distortCoordinates(vUv);
+      float shownDraw = max2(step(vec2(0.0),curvatureCoords) - step(vec2(1.0),curvatureCoords));
+      float isScreen = min2(step(vec2(0.0),curvatureCoords) - step(vec2(1.0),curvatureCoords));
+      vec2 uv = clamp(curvatureCoords,0.0,1.0);
+
+      float jitter = (rand2(vec2(floor(uTime*23.0),floor(uv.y*uResolution.y))) - 0.5) * 0.0018;
+      uv.x += jitter * (0.45 + uNoise);
+
+      vec3 txt = texture(uSource,uv).rgb;
+
+      vec2 displacement = vec2(uRgbShift,0.0);
+      vec3 rightColor = texture(uSource,uv + displacement).rgb;
+      vec3 leftColor  = texture(uSource,uv - displacement).rgb;
+      txt.r = leftColor.r * 0.10 + rightColor.r * 0.30 + txt.r * 0.60;
+      txt.g = leftColor.g * 0.20 + rightColor.g * 0.20 + txt.g * 0.60;
+      txt.b = leftColor.b * 0.30 + rightColor.b * 0.10 + txt.b * 0.60;
+
+      float grey = dot(txt,vec3(0.21,0.72,0.04));
+      vec3 finalColor = mix(vec3(0.0015,0.003,0.0018),uTint,grey);
+
+      vec3 bloomRaw = sampleBloom(uv);
+      float bloomGrey = dot(bloomRaw,vec3(0.21,0.72,0.04));
+      finalColor += uTint * bloomGrey * uBloom * 0.52;
+
+      float distanceFromCenter = length(vec2(0.5) - vUv);
+      float n = rand2(vUv * uResolution + fract(uTime*17.0));
+      finalColor += vec3((n - 0.5) * 0.055 * uNoise * (1.0 - distanceFromCenter*0.65));
+      finalColor += uTint * randomPass(uv*uResolution) * 0.035;
+
+      finalColor = applyRasterization(uv,finalColor,uResolution/vec2(1.4,3.0),uRaster);
+
+      float vignette = smoothstep(0.88,0.26,length((vUv-0.5)*vec2(1.0,0.88)));
+      finalColor *= mix(0.48,1.0,vignette);
+
+      float flicker = 1.0 + sin(uTime*47.0 + sin(uTime*7.0)*3.0) * 0.018 * uFlicker;
+      finalColor *= flicker;
+
+      float edge = smoothstep(0.02,0.055,min(min(uv.x,1.0-uv.x),min(uv.y,1.0-uv.y)));
+      finalColor *= edge * shownDraw * isScreen;
+
+      float fineNoise = rand2(vUv*uResolution*0.73) - 0.5;
+      finalColor = clamp(finalColor + vec3(fineNoise*0.025),0.0,1.0);
+      fragColor = vec4(finalColor,1.0);
+    }`;
+
+  function compile(type, source){
+    const sh=gl.createShader(type); gl.shaderSource(sh,source); gl.compileShader(sh);
+    if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+    return sh;
+  }
+  let program;
+  try {
+    program=gl.createProgram();
+    gl.attachShader(program,compile(gl.VERTEX_SHADER,vertexSource));
+    gl.attachShader(program,compile(gl.FRAGMENT_SHADER,fragmentSource));
+    gl.linkProgram(program);
+    if(!gl.getProgramParameter(program,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+  } catch(err){
+    fallback.style.display='block'; fallback.textContent='CRT SHADER ERROR\n\n'+err.message; return;
+  }
+
+  const quad=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,quad);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]),gl.STATIC_DRAW);
+  gl.useProgram(program);
+  const apos=gl.getAttribLocation(program,'aPosition');
+  gl.enableVertexAttribArray(apos); gl.vertexAttribPointer(apos,2,gl.FLOAT,false,0,0);
+
+  const tex=gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,tex);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+
+  const U={};
+  ['uSource','uResolution','uTime','uCurvature','uRgbShift','uNoise','uFlicker','uRaster','uBloom','uFrameSize','uTint'].forEach(n=>U[n]=gl.getUniformLocation(program,n));
+  gl.uniform1i(U.uSource,0);
+
+  const profiles=[
+    {name:'DEFAULT GREEN', tint:[0.50,1.00,0.47], curvature:0.32, rgb:0.00115, noise:0.44, flicker:0.55, raster:0.88, bloom:0.46, frame:0.018},
+    {name:'AMBER', tint:[1.00,0.64,0.25], curvature:0.35, rgb:0.0009, noise:0.38, flicker:0.42, raster:0.92, bloom:0.52, frame:0.020},
+    {name:'REKT PHOSPHOR', tint:[0.82,0.38,1.00], curvature:0.30, rgb:0.0015, noise:0.48, flicker:0.64, raster:0.82, bloom:0.62, frame:0.018}
+  ];
+  let profileIndex=0;
+
+  const state={
+    sourceRev:17,
+    beacon:false,
+    tester:false,
+    ship:'BUILDING',
+    receipt:null,
+    pulse:0,
+    logs:[
+      ['SYS','INKUBATOR FIELD NODE ONLINE'],
+      ['AUTH','PLAYER // VIKTOR'],
+      ['OBS','GITHUB SOURCE // CONNECTED'],
+      ['STATE','MISSION // BUILDING']
+    ]
+  };
+
+  function addLog(kind,msg){
+    state.logs.push([kind,msg]);
+    if(state.logs.length>7) state.logs.shift();
+    state.pulse=1;
+  }
+
+  const $=id=>document.getElementById(id);
+  $('statusTap').onclick=()=>{
+    addLog('STATUS',`BUILDING // REV ${state.sourceRev} // ${state.tester?'TEST OBSERVED':'TEST NEEDED'}`);
+  };
+  $('sourceTap').onclick=()=>{
+    state.sourceRev++;
+    addLog('RX',`GITHUB PUSH OBSERVED // r${state.sourceRev}`);
+  };
+  $('beaconTap').onclick=()=>{
+    if(state.beacon){ addLog('BEACON',state.tester?'TESTER LINK // ACTIVE':'HELP REQUEST // OPEN'); return; }
+    state.beacon=true;
+    addLog('TX','HELP BEACON // EXTERNAL TESTER');
+    setTimeout(()=>{ state.tester=true; addLog('RX','ALICE // TEST ASSIST OFFERED'); },700);
+    setTimeout(()=>{ addLog('OBS','EXTERNAL TEST // OBSERVED'); },1450);
+  };
+  $('shipTap').onclick=()=>{
+    if(state.ship==='SHIPPED'){ addLog('RECEIPT',state.receipt); return; }
+    if(!state.tester){ addLog('BLOCKED','SHIP REQUIRES EXTERNAL TEST'); return; }
+    if(state.ship==='BUILDING'){
+      state.ship='SHIP_READY'; addLog('STATE','SHIP READY // EVIDENCE SUFFICIENT'); return;
+    }
+    if(state.ship==='SHIP_READY'){
+      state.ship='VERIFYING'; addLog('VERIFY','PUBLIC ARTIFACT // CHECKING');
+      setTimeout(()=>{
+        state.ship='SHIPPED'; state.receipt='RKT-R000-006-DEMO'; addLog('PROVEN',`SHIP ACCEPTED // ${state.receipt}`);
+      },1300);
+    }
+  };
+  $('profileTap').onclick=()=>{ profileIndex=(profileIndex+1)%profiles.length; addLog('CRT',profiles[profileIndex].name); };
+
+  function line(x,y,w,alpha=1){ c.globalAlpha=alpha; c.fillStyle='#fff'; c.fillRect(x,y,w,2); c.globalAlpha=1; }
+  function txt(text,x,y,size=22,alpha=1,weight=500,align='left'){
+    c.globalAlpha=alpha; c.fillStyle='#fff'; c.font=`${weight} ${size}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`; c.textAlign=align; c.textBaseline='alphabetic'; c.fillText(text,x,y); c.globalAlpha=1;
+  }
+  function box(x,y,w,h,a=.28){ c.globalAlpha=a; c.strokeStyle='#fff'; c.lineWidth=2; c.strokeRect(x,y,w,h); c.globalAlpha=1; }
+  function chip(label,x,y,w,on=false){
+    c.globalAlpha=on?.95:.38; c.strokeStyle='#fff'; c.lineWidth=2; c.strokeRect(x,y,w,44); c.globalAlpha=on?.18:.05; c.fillStyle='#fff'; c.fillRect(x,y,w,44); c.globalAlpha=1; txt(label,x+w/2,y+29,16,on?.95:.62,700,'center');
+  }
+
+  function drawSource(now){
+    c.fillStyle='#000'; c.fillRect(0,0,src.width,src.height);
+    c.save();
+
+    // outer machine frame
+    box(20,22,680,1515,.24);
+    box(32,34,656,1491,.12);
+
+    txt('REKT INK(CUBATOR)',48,78,25,.96,800);
+    txt('FIELD NODE // DEMO',48,108,16,.52,700);
+    txt(profiles[profileIndex].name,670,79,14,.52,700,'right');
+    txt('CLAIMED ≠ OBSERVED ≠ PROVEN',670,108,12,.38,600,'right');
+    line(48,128,624,.42);
+
+    // mission header
+    txt('MISSION // 006',48,175,16,.55,700);
+    txt('SHIP A WORKING BUILDER PILOT',48,214,30,.98,800);
+    txt('Ship condition:',48,249,15,.42,600);
+    txt('1 external test + public artifact',196,249,15,.78,600);
+
+    // primary state
+    box(48,284,624,170,.23);
+    txt('CURRENT STATE',68,319,14,.42,700);
+    txt(state.ship==='SHIPPED'?'SHIPPED':state.ship.replace('_',' '),68,368,38,.98,850);
+    txt('SOURCE',68,410,14,.42,700);
+    txt(`GITHUB // OBSERVED // r${state.sourceRev}`,160,410,16,.82,700);
+    txt('TRUTH',68,438,14,.42,700);
+    txt(state.ship==='SHIPPED'?'PROVEN':state.tester?'OBSERVED':'CLAIMED + OBSERVED',160,438,16,state.ship==='SHIPPED'?.98:.72,700);
+
+    // thread
+    txt('THE THREAD',48,502,14,.45,700);
+    const nodes=[['DECLARE',true],['BUILD',true],['TEST',state.tester],['SHIP',state.ship==='SHIPPED']];
+    const nx=[72,245,418,591];
+    line(83,559,510,.18);
+    nodes.forEach((n,i)=>{
+      c.globalAlpha=n[1]?.95:.24; c.fillStyle='#fff'; c.beginPath(); c.arc(nx[i],559,n[1]?8:6,0,Math.PI*2); c.fill(); c.globalAlpha=1;
+      txt(n[0],nx[i],596,13,n[1]?.82:.32,700,'center');
+    });
+    if(state.pulse>0){
+      const p=(Math.sin(now/120)+1)/2; c.globalAlpha=state.pulse*(.22+.28*p); c.fillStyle='#fff'; c.fillRect(74,553,520,12); c.globalAlpha=1; state.pulse=Math.max(0,state.pulse-.035);
+    }
+
+    // next move
+    box(48,635,624,196,.30);
+    txt('NEXT MOVE',68,670,14,.48,800);
+    let next='OPEN HELP BEACON';
+    let detail='Need one external tester before Ship can advance.';
+    if(state.tester && state.ship==='BUILDING'){ next='PREPARE SHIP'; detail='External test observed. Evidence can be prepared.'; }
+    if(state.ship==='SHIP_READY'){ next='VERIFY PUBLIC ARTIFACT'; detail='Ship is ready. Run bounded verification.'; }
+    if(state.ship==='VERIFYING'){ next='VERIFYING…'; detail='Public artifact check in progress.'; }
+    if(state.ship==='SHIPPED'){ next='RECEIPT ACCEPTED'; detail=state.receipt; }
+    txt('> '+next,68,727,28,.98,850);
+    txt(detail,68,769,16,.60,600);
+    txt(state.beacon?'HELP BEACON // OPEN':'HELP BEACON // CLOSED',68,807,14,state.beacon?.82:.34,700);
+
+    // live signal log
+    txt('SIGNAL BUS',48,884,14,.45,700);
+    box(48,904,624,306,.18);
+    let ly=942;
+    state.logs.forEach(([k,m],idx)=>{
+      const a=.34 + (idx/state.logs.length)*.55;
+      txt(k.padEnd(7,' '),68,ly,14,a,700);
+      txt(m,158,ly,14,a+.06,600);
+      ly+=37;
+    });
+
+    // evidence rail
+    txt('EVIDENCE',48,1260,14,.45,700);
+    chip('GITHUB',48,1280,134,true);
+    chip('TEST',194,1280,116,state.tester);
+    chip('ARTIFACT',322,1280,142,state.ship!=='BUILDING');
+    chip('RECEIPT',476,1280,146,state.ship==='SHIPPED');
+
+    txt('DEMO DATA // NO AUTHORITATIVE REPUTATION',48,1368,13,.34,700);
+    txt('Swordfish90 cool-retro-term shader-derived display',48,1395,12,.28,600);
+
+    // bottom controls
+    line(48,1433,624,.25);
+    const controls=[['STATUS',126],['SOURCE',294],['BEACON',462],['SHIP',630]];
+    controls.forEach(([label,x],i)=>{
+      const active=(label==='BEACON'&&state.beacon)||(label==='SHIP'&&state.ship!=='BUILDING');
+      txt(label,x,1488,15,active?.98:.58,800,'right');
+      if(i<3) txt('·',x+21,1488,17,.26,700);
+    });
+    txt('TAP CONTROLS // TAP TOP-RIGHT FOR CRT PROFILE',360,1520,11,.28,600,'center');
+
+    c.restore();
+  }
+
+  function resize(){
+    const r=shell.getBoundingClientRect();
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    const w=Math.max(2,Math.round(r.width*dpr));
+    const h=Math.max(2,Math.round(r.height*dpr));
+    if(view.width!==w||view.height!==h){ view.width=w; view.height=h; gl.viewport(0,0,w,h); }
+  }
+  window.addEventListener('resize',resize,{passive:true}); resize();
+
+  const start=performance.now();
+  function frame(now){
+    drawSource(now);
+    gl.useProgram(program);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,tex);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,src);
+    const p=profiles[profileIndex];
+    gl.uniform2f(U.uResolution,view.width,view.height);
+    gl.uniform1f(U.uTime,(now-start)/1000);
+    gl.uniform1f(U.uCurvature,p.curvature);
+    gl.uniform1f(U.uRgbShift,p.rgb);
+    gl.uniform1f(U.uNoise,p.noise);
+    gl.uniform1f(U.uFlicker,p.flicker);
+    gl.uniform1f(U.uRaster,p.raster);
+    gl.uniform1f(U.uBloom,p.bloom);
+    gl.uniform1f(U.uFrameSize,p.frame);
+    gl.uniform3f(U.uTint,p.tint[0],p.tint[1],p.tint[2]);
+    gl.drawArrays(gl.TRIANGLES,0,6);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
