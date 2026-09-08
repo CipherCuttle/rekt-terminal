@@ -37,8 +37,10 @@ jobs:
           const browser = await chromium.launch();
           const page = await browser.newPage({viewport: {width: 1440, height: 900}, reducedMotion: 'reduce'});
           await page.goto('http://127.0.0.1:5174/?lab=instrument');
+          await page.getByRole('heading', {name: 'INSTRUMENT / MOTION LAB'}).waitFor({state: 'visible'});
           await page.screenshot({path: 'artifacts/instrument-lab/desktop.png', fullPage: true});
           await page.setViewportSize({width: 390, height: 844});
+          await page.getByRole('heading', {name: 'INSTRUMENT / MOTION LAB'}).waitFor({state: 'visible'});
           await page.screenshot({path: 'artifacts/instrument-lab/mobile.png', fullPage: true});
           await browser.close();
           NODE
