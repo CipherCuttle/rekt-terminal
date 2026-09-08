@@ -2,6 +2,8 @@ import {useMemo, useState} from 'react';
 import './instrument-os.css';
 
 type LabState = 'IDLE' | 'INPUT' | 'ACTIVE' | 'SUCCESS' | 'ERROR';
+type InstrumentZone = 'mission' | 'signal' | 'scope' | 'readout' | 'thread' | 'verifier' | 'rotary' | 'mode' | 'rekt' | 'crt';
+
 const STATES: LabState[] = ['IDLE', 'INPUT', 'ACTIVE', 'SUCCESS', 'ERROR'];
 
 const readoutByState: Record<LabState, string> = {
@@ -20,9 +22,9 @@ const scopePathByState: Record<LabState, string> = {
   ERROR: 'M0 40 L54 40 L68 10 L82 70 L96 14 L112 66 L128 40 L240 40',
 };
 
-function Frame({title, code, children}: {title: string; code: string; children: React.ReactNode}) {
+function Frame({title, code, zone, children}: {title: string; code: string; zone: InstrumentZone; children: React.ReactNode}) {
   return (
-    <section className="ios-frame" data-testid="instrument-primitive">
+    <section className={`ios-frame ios-frame--${zone}`} data-zone={zone} data-testid="instrument-primitive">
       <header><span>{code}</span><strong>{title}</strong><i aria-hidden="true" /></header>
       <div className="ios-frame-body">{children}</div>
     </section>
@@ -46,7 +48,7 @@ function RektSprite({state}: {state: LabState}) {
 }
 
 function SignalPath({state}: {state: LabState}) {
-  return <svg className="ios-signal" viewBox="0 0 260 86" aria-label={`Signal path ${state.toLowerCase()}`}><path d="M8 58 H64 L84 28 H150 L172 58 H252"/><circle cx="8" cy="58" r="4"/><circle cx="252" cy="58" r="4"/><circle className="ios-signal-pulse" cx="84" cy="28" r="5"/></svg>;
+  return <svg className="ios-signal" data-state={state.toLowerCase()} viewBox="0 0 260 86" aria-label={`Signal path ${state.toLowerCase()}`}><path d="M8 58 H64 L84 28 H150 L172 58 H252"/><circle cx="8" cy="58" r="4"/><circle cx="252" cy="58" r="4"/><circle className="ios-signal-pulse" cx="84" cy="28" r="5"/></svg>;
 }
 
 function Rotary({state}: {state: LabState}) {
@@ -83,19 +85,26 @@ export default function InstrumentLab() {
         <div className="ios-state-bank" aria-label="Calibration state selector">{STATES.map((item) => <button key={item} type="button" aria-pressed={state === item} onClick={() => setState(item)}>{item}</button>)}</div>
       </header>
 
-      <nav className="ios-mode-rail" aria-label="Instrument mode selector">{['WORLD','COMMAND','PROJECT','PLAYER','SHIP'].map((item) => <button key={item} type="button" aria-pressed={mode === item} onClick={() => setMode(item)}>{item}</button>)}</nav>
+      <section className="ios-chassis">
+        <nav className="ios-mode-rail" aria-label="Instrument mode selector">
+          <span className="ios-rail-label">MODE</span>
+          {['WORLD','COMMAND','PROJECT','PLAYER','SHIP'].map((item) => <button key={item} type="button" aria-pressed={mode === item} onClick={() => setMode(item)}><span>{item.slice(0, 1)}</span><b>{item}</b></button>)}
+          <span className="ios-rail-tail">OS/01</span>
+        </nav>
 
-      <section className="ios-grid" aria-label="Instrument primitives">
-        <Frame code="01" title="SIGNAL PATH"><SignalPath state={state}/><p>Input → relay → projection. Motion must represent causality.</p></Frame>
-        <Frame code="02" title="ROTARY / GAUGE"><Rotary state={state}/></Frame>
-        <Frame code="03" title="OSCILLOSCOPE"><Scope state={state}/><div className="ios-caption"><span>RX TRACE</span><b>{stateIndex + 1}.0 kHz</b></div></Frame>
-        <Frame code="04" title="NUMERIC READOUT"><div className="ios-readout"><small>TRUTH CONFIDENCE</small><strong>{readoutByState[state]}</strong><span>{state}</span></div></Frame>
-        <Frame code="05" title="MODE SWITCH"><div className="ios-mode-demo"><b>{mode}</b><span>one machine / five lenses</span></div></Frame>
-        <Frame code="06" title="THREAD NODE"><ThreadNode state={state}/></Frame>
-        <Frame code="07" title="REKT SPRITE"><RektSprite state={state}/></Frame>
-        <Frame code="08" title="CRT MATERIAL"><div className="ios-crt-demo"><div className="ios-crt-raw">RAW SIGNAL</div><div className="ios-crt-treated">DISPLAY SIGNAL</div></div></Frame>
-        <Frame code="09" title="VERIFIER MACHINE"><VerifierMachine state={state}/></Frame>
-        <Frame code="10" title="MISSION MACHINE"><MissionMachine state={state}/></Frame>
+        <section className="ios-console" aria-label="Instrument primitives">
+          <div className="ios-bus-label" aria-hidden="true">SIGNAL BUS // A</div>
+          <Frame code="10" title="MISSION MACHINE" zone="mission"><MissionMachine state={state}/></Frame>
+          <Frame code="01" title="SIGNAL PATH" zone="signal"><SignalPath state={state}/><p>Input → relay → projection. Motion represents causality.</p></Frame>
+          <Frame code="04" title="NUMERIC READOUT" zone="readout"><div className="ios-readout"><small>TRUTH CONFIDENCE</small><strong>{readoutByState[state]}</strong><span>{state}</span></div></Frame>
+          <Frame code="09" title="VERIFIER MACHINE" zone="verifier"><VerifierMachine state={state}/></Frame>
+          <Frame code="06" title="THREAD NODE" zone="thread"><ThreadNode state={state}/></Frame>
+          <Frame code="03" title="OSCILLOSCOPE" zone="scope"><Scope state={state}/><div className="ios-caption"><span>RX TRACE</span><b>{stateIndex + 1}.0 kHz</b></div></Frame>
+          <Frame code="07" title="REKT SPRITE" zone="rekt"><RektSprite state={state}/></Frame>
+          <Frame code="02" title="ROTARY / GAUGE" zone="rotary"><Rotary state={state}/></Frame>
+          <Frame code="05" title="MODE SWITCH" zone="mode"><div className="ios-mode-demo"><b>{mode}</b><span>one machine / five lenses</span></div></Frame>
+          <Frame code="08" title="CRT MATERIAL" zone="crt"><div className="ios-crt-demo"><div className="ios-crt-raw">RAW SIGNAL</div><div className="ios-crt-treated">DISPLAY SIGNAL</div></div></Frame>
+        </section>
       </section>
 
       <footer className="ios-lab-footer"><span>RAW UI MUST WORK WITH CRT OFF</span><span>CLAIMED ≠ OBSERVED ≠ PROVEN</span><span>AMBIENT QUIET / EVENT PRECISE / PROOF RARE</span></footer>
