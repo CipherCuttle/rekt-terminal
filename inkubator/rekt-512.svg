@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="REKT INK">
+  <rect width="512" height="512" rx="72" fill="#08070e"/>
+  <rect x="48" y="48" width="416" height="416" rx="54" fill="#0d0b18" stroke="#362c5c" stroke-width="10"/>
+  <path d="M122 154h101l33 65 33-65h101v203h-64V245l-43 80h-54l-43-80v112h-64z" fill="#e8e5f0"/>
+  <path d="M118 386h278" stroke="#8bff58" stroke-width="22" stroke-linecap="square"/>
+</svg>
