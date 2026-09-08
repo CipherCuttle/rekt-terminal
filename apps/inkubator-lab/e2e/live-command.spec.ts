@@ -61,11 +61,17 @@ function commandView(overrides: Partial<CommandView> = {}): CommandView {
   };
 }
 
-const commandEndpoint = /\/v1\/me\/command(?:\?.*)?$/;
+type CommandRouteResponse = {status: number; body: unknown};
 
-async function routeCommand(page: Page, read: () => CommandView) {
-  await page.route(commandEndpoint, async (route) => {
-    await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(read())});
+async function routeCommand(page: Page, respond: () => CommandRouteResponse) {
+  await page.route('**/*', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname !== '/v1/me/command') {
+      await route.continue();
+      return;
+    }
+    const response = respond();
+    await route.fulfill({status: response.status, contentType: 'application/json', body: JSON.stringify(response.body)});
   });
 }
 
@@ -77,7 +83,7 @@ async function expectNoHorizontalOverflow(page: Page) {
 test('LIVE COMMAND renders canonical backend state and ripples projection deltas without recreating Pixi', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
   let current = commandView();
-  await routeCommand(page, () => current);
+  await routeCommand(page, () => ({status: 200, body: current}));
 
   await page.goto('/?mode=command');
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
@@ -126,7 +132,7 @@ test('LIVE COMMAND ship-ready projection stays readable on mobile and reduced mo
     },
     gates: base.gates.map((gate) => ({...gate, state: 'PROVEN'})),
   });
-  await routeCommand(page, () => shipReady);
+  await routeCommand(page, () => ({status: 200, body: shipReady}));
 
   await page.goto('/?mode=command');
   await expect(page.getByRole('heading', {name: 'OPEN SHIP REVIEW'})).toBeVisible();
@@ -138,9 +144,7 @@ test('LIVE COMMAND ship-ready projection stays readable on mobile and reduced mo
 });
 
 test('LIVE COMMAND fails closed when the canonical command endpoint is unavailable', async ({page}) => {
-  await page.route(commandEndpoint, async (route) => {
-    await route.fulfill({status: 401, contentType: 'application/json', body: JSON.stringify({error: 'session_required'})});
-  });
+  await routeCommand(page, () => ({status: 401, body: {error: 'session_required'}}));
 
   await page.goto('/?mode=command');
   await expect(page.getByRole('heading', {name: 'COMMAND LINK UNAVAILABLE'})).toBeVisible({timeout: 6000});
