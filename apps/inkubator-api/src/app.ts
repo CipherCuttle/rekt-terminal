@@ -36,6 +36,7 @@ import {
 } from './projects.js';
 import {toPrivatePlayer, toPublicPlayer} from './projection.js';
 import {registerPhase7ReputationRoutes} from './reputation-api.js';
+import {registerPhase8DevkitRoutes} from './devkit-api.js';
 import {getAcceptedShipArtifactByReceiptId} from './ship-artifact.js';
 import {getProjectShipState, submitShip} from './ship.js';
 import {acceptAssist, blockPlayer, closeHelpBeacon, createExternalTestRequest, createHelpBeacon, createProjectComment, deleteOwnProjectComment, followPlayer, getProjectExternalTests, getProjectHelpLoop, listDiscoverablePlayers, listDiscoverableProjects, listProjectComments, listWorldSignals, offerAssist, reactUsefulToComment, recordExternalTestResult, reportProjectComment, setProjectDiscussionLock, unblockPlayer, watchProject} from './social.js';
@@ -193,12 +194,14 @@ export function buildApp(options: BuildAppOptions) {
   app.addHook('preHandler', async (request, reply) => {
     if (!MUTATING_METHODS.has(request.method)) return;
     if (request.url === '/v1/github/webhook') return;
+    if (request.url.startsWith('/v1/devkit/')) return;
     if (request.headers.origin !== options.appOrigin) return error(reply, 403, 'origin_not_allowed');
   });
 
   app.get('/health', async () => ({status: 'ok', service: 'inkubator-api'}));
   app.get('/openapi.json', async () => openapiDocument);
   registerPhase7ReputationRoutes(app, options.db);
+  registerPhase8DevkitRoutes(app, options.db, {appOrigin: options.appOrigin});
 
   if (options.allowDevAuth) {
     app.post('/v1/dev/session', {schema: {body: fastifyBodySchema('DevSessionRequest')}}, async (request, reply) => {

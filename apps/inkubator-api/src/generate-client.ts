@@ -80,6 +80,20 @@ const clientOperations = [
   ['/v1/projects/{projectId}/tester-requests', 'post'],
   ['/v1/tester-requests/{testRequestId}/results', 'post'],
   ['/v1/projects/{projectId}/external-tests', 'get'],
+  ['/v1/devkit/tokens', 'post'],
+  ['/v1/devkit/tokens', 'get'],
+  ['/v1/devkit/tokens/{tokenId}/revoke', 'post'],
+  ['/v1/devkit/me', 'get'],
+  ['/v1/devkit/player/profile', 'get'],
+  ['/v1/devkit/mission/current', 'get'],
+  ['/v1/devkit/mission/current', 'patch'],
+  ['/v1/devkit/mission/current/claims/{gateKey}', 'post'],
+  ['/v1/devkit/project/current', 'get'],
+  ['/v1/devkit/project/current/help-beacons', 'get'],
+  ['/v1/devkit/project/current/help-beacons', 'post'],
+  ['/v1/devkit/help-beacons/{beaconId}/assists', 'post'],
+  ['/v1/devkit/project/current/activity', 'get'],
+  ['/v1/devkit/mission/current/ship', 'post'],
 ] as const;
 
 function primitiveType(type: string): string {
@@ -240,11 +254,13 @@ export class InkubatorApiClient {
   constructor(
     private readonly baseUrl = '',
     private readonly fetchImpl: FetchLike = fetch,
+    private readonly accessToken?: string,
   ) {}
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {
     const headers = new Headers(init.headers);
     if (init.body !== undefined) headers.set('content-type', 'application/json');
+    if (this.accessToken) headers.set('authorization', 'Bearer ' + this.accessToken);
     const response = await this.fetchImpl(\`${'${this.baseUrl.replace(/\\/$/, \'\')}'}${'${path}'}\`, {
       ...init,
       headers,
@@ -263,15 +279,21 @@ ${methods}
 }
 `;
 
-const target = fileURLToPath(new URL('../../inkubator-lab/src/generated/inkubator-api-client.ts', import.meta.url));
+const targets = [
+  fileURLToPath(new URL('../../inkubator-lab/src/generated/inkubator-api-client.ts', import.meta.url)),
+  fileURLToPath(new URL('../../../packages/sdk/src/generated/inkubator-api-client.ts', import.meta.url)),
+];
 if (process.argv.includes('--check')) {
-  if (!fs.existsSync(target) || fs.readFileSync(target, 'utf8') !== generated) {
-    console.error('Generated Inkubator API client is stale. Run npm run generate:client -w @rekt-ink/inkubator-api');
+  const stale = targets.filter((target) => !fs.existsSync(target) || fs.readFileSync(target, 'utf8') !== generated);
+  if (stale.length > 0) {
+    console.error(`Generated Inkubator API client is stale: ${stale.join(', ')}. Run npm run generate:client -w @rekt-ink/inkubator-api`);
     process.exit(1);
   }
-  console.log('Generated Inkubator API client: PASS');
+  console.log('Generated Inkubator API clients: PASS');
 } else {
-  fs.mkdirSync(new URL('../../inkubator-lab/src/generated/', import.meta.url), {recursive: true});
-  fs.writeFileSync(target, generated);
-  console.log(`Generated ${target}`);
+  for (const target of targets) {
+    fs.mkdirSync(target.slice(0, target.lastIndexOf('/')), {recursive: true});
+    fs.writeFileSync(target, generated);
+    console.log(`Generated ${target}`);
+  }
 }

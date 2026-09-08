@@ -4,7 +4,9 @@
 
 **Locked:** 2026-09-06
 
-**Implementation baseline:** `feature/inkubator-protocol-v0` @ `623e73ebeb8bab22533b8c38362fe9c2c84b2147` (PR #29, draft)
+**Current implementation checkpoint:** PHASE 8 CLOSED / PASS
+
+**Next canonical phase:** PHASE 9 — FOUNDING-COHORT REHEARSAL
 
 ## Purpose
 
@@ -16,7 +18,7 @@ The central scope decision is:
 >
 > A Player enters a Round, creates a persistent identity, declares a Mission, connects a Project, receives a truthful Command Center, sees progress and the next move, collaborates through Assists and Help Beacons, earns meaningful Cheevos, Ships with evidence, accumulates reputation/history, and can enter another Mission. The SDK/CLI/MCP developer surface is part of the launch scope because it connects the builder's actual work to the world.
 
-The current codebase does **not** yet implement all of that. PR #29 is the first protocol-backed slice. `CURRENT_STATE_AND_GAP_V0.md` is the canonical gap map.
+Phases 0–8 of the canonical roadmap are now implemented/closed under the bounded completion policy. `CURRENT_STATE_AND_GAP_V0.md` is the canonical current-state map; do not use the historical PR-#29 implementation snapshot as present-tense authority.
 
 ## Authority order
 
@@ -31,13 +33,23 @@ When documents disagree, use this order:
 7. `IMPLEMENTATION_ROADMAP_MVP_V0.md` — bounded implementation order and phase exit gates.
 8. `DECISION_REGISTER_V0.md` — frozen decisions, explicit deferrals and reopen criteria.
 
-Older repository documents remain historical evidence unless this index explicitly promotes them. In particular, `docs/INKUBATOR_REACT_BITS_REBUILD_PLAN.md` and `docs/REACT_BITS_PRO_SWAP.md` describe earlier visual/build phases and are not product-scope authority.
+Phase closure receipts, including `PHASE_8_CLOSURE_V0.md`, record evidence/status for completed phases but do not outrank the authorities above.
 
-## Latest continuation checkpoint
+Older repository documents remain historical evidence unless this index explicitly promotes them. In particular, historical React Bits rebuild/swap documents describe earlier visual/build phases and are not product-scope authority.
 
-`SESSION_HANDOFF_V3_2_2026-09-06.md` is the current **v3.2 orchestrator handoff checkpoint**. It is not higher authority than the eight documents above; it exists to preserve current Git/PR state, phase status, permissions, review budget, exact next action, risks and receiver-bootstrap instructions between sessions.
+## Current continuation checkpoint
 
-A receiving orchestrator must read the handoff **and** hydrate from this authority set before proposing mutation. Volatile Git/PR facts in the handoff must be reconciled read-only against live state.
+Current execution state is determined by the canonical authority set plus live Git/PR truth.
+
+For Phase 8:
+
+- reviewed repair candidate: `a3eeffba1ee9a3955af5c7e6372820acf136e709`;
+- closure: `PHASE_8_CLOSURE_V0.md`;
+- PR #43 remains draft/open/unmerged;
+- merge authority has not been granted;
+- next phase is Phase 9 rehearsal.
+
+A receiving orchestrator must hydrate from this authority set and reconcile volatile Git/PR facts read-only before mutation.
 
 ## Scope-change rule
 

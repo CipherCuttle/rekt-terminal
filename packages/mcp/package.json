@@ -1,0 +1,12 @@
+{
+  "name":"@rekt-ink/mcp",
+  "version":"0.1.0",
+  "type":"module",
+  "bin":{"rekt-mcp":"./dist/stdio.js"},
+  "files":["dist"],
+  "exports":{".":{"types":"./dist/index.d.ts","import":"./dist/index.js"}},
+  "scripts":{"build":"tsc -p tsconfig.json","test":"node --test test/*.test.mjs"},
+  "dependencies":{"@modelcontextprotocol/server":"2.0.0","@rekt-ink/sdk":"*","zod":"4.5.4"},
+  "devDependencies":{"@types/node":"22.0.0","typescript":"5.8.3"},
+  "publishConfig":{"access":"public"}
+}
