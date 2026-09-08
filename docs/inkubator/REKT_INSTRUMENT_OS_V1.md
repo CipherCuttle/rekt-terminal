@@ -6,6 +6,8 @@
 
 **Scope change:** explicit user-authorized visual-direction change. This document supersedes the implementation/aesthetic direction in `REKT_SIGNAL_SYSTEM_V0.md` where the two conflict, while preserving its truth semantics, Thread concept, three intensity modes, accessibility requirements and anti-gamification constraints.
 
+**2026-09-08 constitutional amendment:** [Surface Purpose V1](REKT_SURFACE_PURPOSE_V1.md) and [Signal Grammar V1](REKT_SIGNAL_GRAMMAR_V1.md) now govern surface ownership and presentation constraints where older wording here conflicts. Compatible material/atmosphere guidance remains authoritative. See [Decision Register G1–G3](DECISION_REGISTER_V0.md#surface-purpose--signal-grammar-amendments--2026-09-08). Surface concepts do not mandate equal navigation prominence or authorize PLAYER/SHIP builds. Renderer selection, event eligibility and motion classes must satisfy the new grammar; historical rebuild sequencing is not permission to resume production work.
+
 ## 1. Product-level visual thesis
 
 REKT Inkubator is not a dark SaaS dashboard and not a marketing microsite with terminal decoration.
@@ -29,7 +31,7 @@ Do not design five pages independently.
 
 Build one visual operating system and expose it through five lenses:
 
-- `WORLD` — public network/radar/broadcast view;
+- `WORLD` — peripheral public awareness through temporal/event semantics; final topology unresolved (G1);
 - `COMMAND` — primary logged-in mission instrument;
 - `PROJECT` — shared project workstation;
 - `PLAYER` — persistent builder record/save-file;
@@ -78,7 +80,7 @@ Do not lead with KPI tiles, generic charts, bento grids, universal XP, follower 
 
 ## 5. The interface renders causality
 
-A backend fact should ripple consistently through every relevant surface.
+A backend fact should ripple consistently through every relevant surface only when that surface's actual authorized projection changes. The example below does not add GitHub push or Ship event kinds to the current WORLD contract (G1; Signal Grammar §15).
 
 Example:
 
@@ -137,7 +139,7 @@ Recommended direction:
 - `signal.proven` — acid phosphor green;
 - `signal.stale` — muted grey/lilac.
 
-Acid green remains scarce. It is not ambient cyberpunk decoration.
+ACID GREEN = PROVEN ONLY (G2). Current/actionable states use hierarchy, locus, typography, glyphs or focus/affordance. Earlier green-for-current/actionable usage is superseded; a future scoped implementation sweep is required. It is not ambient decoration.
 
 Color is never the only state carrier; combine glyph, label, shape, motion and provenance.
 
@@ -163,9 +165,9 @@ The v0 primitives evolve into instrument primitives:
 - `SignalLamp` — sourced status indicator;
 - `SignalPath` — causal route;
 - `Scope` — realtime activity trace;
-- `Radar` — World/network visualization;
+- `Radar` — superseded for production WORLD without canonical spatial/relationship semantics (G1);
 - `Dial` / `Meter` / `NumericReadout` — truthful bounded state only;
-- `ThreadRail` — meaningful progression/history;
+- `ThreadRail` — one optional rendering of durable causal/temporal continuity, not a mandatory literal rail (G3);
 - `SourceNode` — provenance-bearing input;
 - `RektSprite` — small state micro-animation;
 - `MissionMachine` — COMMAND's central visual object;
@@ -299,7 +301,7 @@ A workstation, not tabs + cards. Real artifact/deploy preview, shared Thread, He
 
 ### WORLD
 
-A live underground network/radar. Projects/builders/help beacons and Proven Ships manifest as meaningful signals rather than equal dashboard tiles.
+Peripheral public awareness, grounded in the actual public project/Player discovery and WORLD event projections. Semantic-free network/radar direction is superseded (G1). The current WORLD event kinds are HELP_BEACON_OPENED (CLAIMED), ASSIST_ACCEPTED (OBSERVED) and EXTERNAL_TEST_RECORDED (OBSERVED); Proven Ships are not a current WorldSignalView event form. Final topology remains open among PURE SIGNAL TAPE, NOW / DISPATCH + SIGNAL TAPE, and RECEIVER / EXPRESSIVE ARRIVAL + SIGNAL TAPE. No candidate is frozen as winner; blackwater remains experiment evidence only.
 
 ### PLAYER
 
@@ -410,7 +412,7 @@ Do not call the rebuild successful unless:
 - PROVEN is rare and unmistakable;
 - source stale/unavailable states fail visibly closed;
 - production routes contain no fixture imports;
-- one accepted Ship ripples to Ship/Project/Player/World/Command from canonical backend truth;
+- an accepted Ship is reflected only through each surface's available authorized projection; no Ship event is invented for the current WORLD event contract (G1);
 - COMMAND remains usable for long sessions;
 - keyboard/focus/reduced-motion/mobile behavior remains intentional;
 - no generic card/gradient/icon language silently re-enters as the dominant visual model.
