@@ -62,6 +62,9 @@ jobs:
       - name: Focused three-Player founding rehearsal
         run: timeout 180s node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase9-founding-rehearsal.test.mjs
 
+      - name: P9-H18 supported OPS crash/reclaim recovery
+        run: timeout 180s node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase9-ops-recovery.test.mjs
+
       - name: Full API Postgres regression
         run: timeout 480s npm run test:integration -w @rekt-ink/inkubator-api
 
