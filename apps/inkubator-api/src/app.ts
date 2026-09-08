@@ -35,6 +35,7 @@ import {
   toPublicDevelopmentProject,
 } from './projects.js';
 import {toPrivatePlayer, toPublicPlayer} from './projection.js';
+import {registerPhase7ReputationRoutes} from './reputation-api.js';
 import {getAcceptedShipArtifactByReceiptId} from './ship-artifact.js';
 import {getProjectShipState, submitShip} from './ship.js';
 import {acceptAssist, blockPlayer, closeHelpBeacon, createExternalTestRequest, createHelpBeacon, createProjectComment, deleteOwnProjectComment, followPlayer, getProjectExternalTests, getProjectHelpLoop, listDiscoverablePlayers, listDiscoverableProjects, listProjectComments, listWorldSignals, offerAssist, reactUsefulToComment, recordExternalTestResult, reportProjectComment, setProjectDiscussionLock, unblockPlayer, watchProject} from './social.js';
@@ -197,6 +198,7 @@ export function buildApp(options: BuildAppOptions) {
 
   app.get('/health', async () => ({status: 'ok', service: 'inkubator-api'}));
   app.get('/openapi.json', async () => openapiDocument);
+  registerPhase7ReputationRoutes(app, options.db);
 
   if (options.allowDevAuth) {
     app.post('/v1/dev/session', {schema: {body: fastifyBodySchema('DevSessionRequest')}}, async (request, reply) => {

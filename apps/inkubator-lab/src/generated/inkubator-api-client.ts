@@ -542,6 +542,62 @@ export interface ShipSubmissionPublicView {
   accepted_ship?: AcceptedShipArtifactView;
 }
 
+export interface ReputationPlayerView {
+  player_id: PlayerId;
+  display_name: string;
+}
+
+export interface CheevoEvidenceView {
+  source_type: "RECEIPT" | "ASSIST" | "TEST_RESULT" | "MISSION";
+  source_id: string;
+}
+
+export interface CheevoView {
+  key: "FIRST_BLOOD" | "WORKING_URL_OR_GTFO" | "REPEAT_OFFENDER" | "ACTUALLY_HELPFUL" | "PARTY_UP" | "CREW_CHIEF" | "SHIPMATE" | "TOUCH_GRASS" | "TEST_PILOT" | "UNREKT";
+  label: string;
+  description: string;
+  rule_version: "cheevo.rules.v1";
+  truth_state: "PROVEN";
+  earned_at: string;
+  evidence: CheevoEvidenceView;
+}
+
+export interface ReputationMetricsView {
+  ships: number;
+  shipped_assists: number;
+  shipped_projects_assisted: number;
+  collaborative_ships: number;
+  tested_shipped_projects: number;
+}
+
+export interface PlayerReputationView {
+  schema_version: "player.reputation.public.v1";
+  rule_version: "reputation.rules.v1";
+  player: ReputationPlayerView;
+  metrics: ReputationMetricsView;
+  cheevos: CheevoView[];
+}
+
+export interface BoardRowView {
+  rank: number;
+  player_id: PlayerId;
+  display_name: string;
+  metric_count: number;
+}
+
+export interface ContextualBoardView {
+  key: "SHIPPERS" | "ASSISTS" | "COLLABORATION";
+  label: string;
+  metric: "accepted_ships" | "distinct_shipped_projects_assisted" | "collaborative_ships";
+  rows: BoardRowView[];
+}
+
+export interface WorldBoardsView {
+  schema_version: "world.boards.public.v1";
+  rule_version: "boards.rules.v1";
+  boards: ContextualBoardView[];
+}
+
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export class InkubatorApiError extends Error {
