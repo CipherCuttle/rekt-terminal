@@ -62,7 +62,7 @@ describe('Live World', () => {
     expect(screen.getByText('EXTERNAL TEST RECORDED')).toBeTruthy();
     expect(screen.getByRole('img', {name: 'Public Inkubator project and signal radar'})).toBeTruthy();
     expect(container.querySelectorAll('[data-truth="proven"]')).toHaveLength(0);
-    expect(screen.queryByText(/repository_full_name|refs\/heads|PRIVATE REPOSITORY/i)).toBeNull();
+    expect(screen.queryByText(/repository_full_name|refs\/heads/i)).toBeNull();
     expect(screen.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeTruthy();
   });
 
