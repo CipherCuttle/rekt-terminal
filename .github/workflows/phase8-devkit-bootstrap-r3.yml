@@ -1,0 +1,117 @@
+name: Phase 8 DevKit Bootstrap R3
+
+on:
+  push:
+    branches: [feature/inkubator-devkit-launch-surface-v0]
+    paths:
+      - '.github/workflows/phase8-devkit-bootstrap-r3.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  implement-verify-and-publish-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_USER: rekt
+          POSTGRES_PASSWORD: rekt_test
+          POSTGRES_DB: rekt_inkubator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rekt -d rekt_inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://rekt:rekt_test@127.0.0.1:5432/rekt_inkubator
+      INKUBATOR_APP_ORIGIN: https://inkubator.test
+      INKUBATOR_DEV_AUTH: '1'
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/inkubator-devkit-launch-surface-v0
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Apply frozen Phase 8 implementation plus bounded repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          source = Path('.github/workflows/phase8-devkit-bootstrap.yml').read_text()
+          start_marker = "      - name: Apply frozen Phase 8 implementation\n        shell: bash\n        run: |\n"
+          end_marker = "\n      - name: Regenerate npm lock\n"
+          start = source.index(start_marker) + len(start_marker)
+          end = source.index(end_marker, start)
+          lines = source[start:end].splitlines()
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+          bad_generator = "headers.set('authorization', `Bearer ${this.accessToken}`)"
+          fixed_generator = "headers.set('authorization', 'Bearer ' + this.accessToken)"
+          if bad_generator not in script:
+              raise SystemExit('bootstrap generator escaping anchor missing')
+          Path('/tmp/phase8-apply.sh').write_text(script.replace(bad_generator, fixed_generator, 1))
+          PY
+          bash /tmp/phase8-apply.sh
+          python3 <<'PY'
+          from pathlib import Path
+          contract = Path('apps/inkubator-api/src/contract-phase8.ts')
+          text = contract.read_text()
+          bad = "const bearer = (scope: string) => [{devkitBearer: []}, {'x-rekt-scope': scope}];"
+          fixed = "const bearer = (_scope: string) => [{devkitBearer: []}];"
+          if bad not in text:
+              raise SystemExit('phase8 bearer OpenAPI anchor missing')
+          contract.write_text(text.replace(bad, fixed, 1))
+
+          quickstart = Path('docs/inkubator/DEVKIT_QUICKSTART_V0.md')
+          quickstart.write_text(quickstart.read_text().replace('npx @rekt-ink/cli rekt init', 'npx @rekt-ink/cli init'))
+          PY
+
+      - name: Regenerate npm lock
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Install locked tree
+        run: npm ci --no-audit --no-fund
+      - name: Build API and generate transports
+        run: |
+          npm run typecheck -w @rekt-ink/inkubator-api
+          npm run build -w @rekt-ink/inkubator-api
+          npm run generate:client -w @rekt-ink/inkubator-api
+          npm run verify:client -w @rekt-ink/inkubator-api
+      - name: Verify database migration
+        run: npm run migrate -w @rekt-ink/inkubator-api
+      - name: Build DevKit packages
+        run: npm run build:devkit
+      - name: DevKit package hostile tests
+        run: npm run test:devkit
+      - name: Phase 8 API hostile test
+        run: timeout 180s node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase8-devkit-hostile.test.mjs
+      - name: H02/H07 authority and release provenance gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R -E "operationId:.*(proof|achievement|approve|moderate|roundAdmin|reputationWrite)" apps/inkubator-api/src/contract-phase8.ts
+          ! grep -R -E "(grantAchievement|approveShip|createProof|moderatePlayer|roundAdmin)" packages/sdk/src packages/mcp/src
+          grep -F "id-token: write" .github/workflows/publish-devkit.yml
+          grep -F -- "--provenance" .github/workflows/publish-devkit.yml
+          ! grep -E "NPM_TOKEN|NODE_AUTH_TOKEN|npm_[A-Za-z0-9]" .github/workflows/publish-devkit.yml
+      - name: Full API Postgres integration
+        run: timeout 420s npm run test:integration -w @rekt-ink/inkubator-api
+      - name: Commit and push verified source candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'CipherCuttle'
+          git config user.email '97258089+CipherCuttle@users.noreply.github.com'
+          git add package.json package-lock.json apps/inkubator-api packages/inkubator-protocol packages/sdk packages/cli packages/mcp docs/inkubator/DEVKIT_QUICKSTART_V0.md
+          git commit -m 'feat(inkubator): add bounded DevKit launch surface'
+          git push origin HEAD:feature/inkubator-devkit-launch-surface-v0
