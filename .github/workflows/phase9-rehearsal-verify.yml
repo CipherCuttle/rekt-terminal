@@ -48,6 +48,11 @@ jobs:
           npm run verify:client -w @rekt-ink/inkubator-api
           npm run migrate -w @rekt-ink/inkubator-api
 
+      - name: P9-H10 historical Cheevo rule-version falsification
+        id: h10
+        continue-on-error: true
+        run: node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase9-cheevo-rule-version.test.mjs
+
       - name: Focused three-Player founding rehearsal
         run: timeout 180s node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase9-founding-rehearsal.test.mjs
 
@@ -61,6 +66,11 @@ jobs:
         run: |
           npm run build:devkit
           npm run test:devkit
+
+      - name: P9-H06 browser bundle server-entry falsification
+        id: h06
+        continue-on-error: true
+        run: node --test apps/inkubator-lab/e2e/server-sdk-browser-boundary.test.mjs
 
       - name: Signal System build and semantics
         run: |
@@ -84,3 +94,12 @@ jobs:
           name: phase9-ship-golden-candidate
           path: apps/inkubator-lab/e2e/__screenshots__/ship.png
           if-no-files-found: error
+
+      - name: Require H06 and H10 falsifications to pass
+        env:
+          H06: ${{ steps.h06.outcome }}
+          H10: ${{ steps.h10.outcome }}
+        run: |
+          echo "P9-H06=$H06 P9-H10=$H10"
+          test "$H06" = success
+          test "$H10" = success
