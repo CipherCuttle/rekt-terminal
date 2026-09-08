@@ -30,12 +30,10 @@ const BASE: CommandView = {
     state: 'OPEN',
   },
   gates: [
-    {key: 'DECLARE', label: 'DECLARE', state: 'PROVEN', position: 1},
-    {key: 'SOURCE', label: 'SOURCE', state: 'OBSERVED', position: 2},
-    {key: 'BUILD', label: 'BUILD', state: 'ACTIVE', position: 3},
-    {key: 'TEST', label: 'TEST', state: 'UNKNOWN', position: 4},
-    {key: 'VERIFY', label: 'VERIFY', state: 'UNKNOWN', position: 5},
-    {key: 'SHIP', label: 'SHIP', state: 'UNKNOWN', position: 6},
+    {key: 'FOUNDATION', label: 'DECLARE', state: 'PROVEN', position: 1},
+    {key: 'CORE_EXPERIENCE', label: 'BUILD', state: 'OBSERVED', position: 2},
+    {key: 'QUALITY_TESTING', label: 'TEST', state: 'ACTIVE', position: 3},
+    {key: 'SHIPABILITY', label: 'SHIP', state: 'UNKNOWN', position: 4},
   ],
   github_evidence: {
     rule_version: 'github-evidence.v1',
@@ -78,7 +76,7 @@ function targetFor(state: PreviewState): CommandView {
         next_move: 'INSPECT FAILING TEST',
         current_focus: 'Repair the verifier failure at the TEST gate.',
       },
-      gates: BASE.gates.map((gate) => gate.key === 'TEST' ? {...gate, state: 'BLOCKED'} : gate),
+      gates: BASE.gates.map((gate) => gate.key === 'QUALITY_TESTING' ? {...gate, state: 'BLOCKED'} : gate),
       daemon: {
         ...BASE.daemon,
         what_changed: 'Testing evidence stopped advancing.',
