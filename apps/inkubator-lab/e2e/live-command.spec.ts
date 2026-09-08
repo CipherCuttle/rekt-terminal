@@ -80,21 +80,25 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
 }
 
-test('LIVE COMMAND renders canonical backend state and ripples projection deltas without recreating Pixi', async ({page}) => {
+test('LIVE COMMAND renders one Living Thread and ripples canonical deltas without recreating Pixi', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
   let current = commandView();
   await routeCommand(page, () => ({status: 200, body: current}));
 
   await page.goto('/?mode=command');
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Ship one real working thing.'})).toBeVisible();
   await expect(page.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeVisible();
   await expect(page.getByText('PRIVATE', {exact: true})).toBeVisible();
   await expect(page.getByText('ADVISORY ONLY')).toBeVisible();
   await expect(page.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeVisible();
+  await expect(page.getByLabel('Living Thread mission instrument')).toBeVisible();
+  await expect(page.locator('.command-sector')).toHaveCount(0);
+  await expect(page.locator('.command-ratchet')).toHaveCount(0);
   await expect(page.locator('[data-renderer="pixi"] canvas')).toBeVisible();
   await expect(page.locator('[data-renderer="pixi"]')).toHaveAttribute('data-app-generation', '1');
 
-  const provenGate = page.locator('.command-gates [data-truth="proven"]');
+  const provenGate = page.locator('.command-thread-gates [data-truth="proven"]');
   await expect(provenGate).toHaveCount(1);
   await expect(provenGate.getByText('PROVEN')).toBeVisible();
 
@@ -112,14 +116,16 @@ test('LIVE COMMAND renders canonical backend state and ripples projection deltas
   await expect.poll(async () => page.locator('.command-live').getAttribute('data-event-sequence'), {timeout: 7000}).toBe('1');
   await expect(page.getByText(/EVENT \/\/ GATE:QUALITY_TESTING → BLOCKER → MISSION → DAEMON/i)).toBeVisible();
   await expect(page.getByText('Need an external tester before ship.')).toBeVisible();
+  await expect(page.locator('.command-thread-break')).toBeVisible();
   await expect(page.getByText('ADVISORY ONLY')).toBeVisible();
   await expect(page.locator('[data-renderer="pixi"]')).toHaveAttribute('data-app-generation', '1');
 
   const results = await new AxeBuilder({page}).analyze();
   expect(results.violations).toEqual([]);
+  await expectNoHorizontalOverflow(page);
 });
 
-test('LIVE COMMAND ship-ready projection stays readable on mobile and reduced motion', async ({page}) => {
+test('LIVE COMMAND proof projection stays readable on mobile and reduced motion', async ({page}) => {
   await page.setViewportSize({width: 390, height: 844});
   await page.emulateMedia({reducedMotion: 'reduce'});
   const base = commandView();
@@ -138,7 +144,8 @@ test('LIVE COMMAND ship-ready projection stays readable on mobile and reduced mo
   await expect(page.getByRole('heading', {name: 'OPEN SHIP REVIEW'})).toBeVisible();
   await expect(page.locator('.command-live')).toHaveAttribute('data-motion-policy', 'reduced');
   await expect(page.locator('[data-renderer="pixi"]')).toHaveAttribute('data-motion-policy', 'reduced');
-  await expect(page.locator('.command-gates [data-truth="proven"]')).toHaveCount(4);
+  await expect(page.locator('.command-thread-gates [data-truth="proven"]')).toHaveCount(4);
+  await expect(page.locator('.command-ship-endpoint')).toContainText('PROVEN');
   await expect(page.locator('[data-renderer="pixi"] canvas')).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });

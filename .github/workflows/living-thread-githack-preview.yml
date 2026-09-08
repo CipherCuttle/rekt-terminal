@@ -1,0 +1,53 @@
+name: Living Thread GitHack Preview
+
+on:
+  push:
+    branches:
+      - prototype/living-thread-command-production-v1
+    paths-ignore:
+      - 'inkubator/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: living-thread-githack-preview
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out candidate branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          ref: prototype/living-thread-command-production-v1
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build Inkubator static bundle
+        run: npm run build -w @rekt-ink/inkubator-lab
+
+      - name: Commit preview bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f inkubator
+          if git diff --cached --quiet; then
+            echo 'Preview bundle already current.'
+            exit 0
+          fi
+          git commit -m 'preview(inkubator): refresh Living Thread GitHack build'
+          git push origin HEAD:prototype/living-thread-command-production-v1

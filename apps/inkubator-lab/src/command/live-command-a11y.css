@@ -1,0 +1,65 @@
+main.command-live {
+  --command-muted: #85818c;
+  --command-muted-2: #85818c;
+}
+
+main.command-live .ios-shell-header small,
+main.command-live .ios-shell-readout b,
+main.command-live .ios-shell-event,
+main.command-live .ios-shell-footer,
+main.command-live .ios-shell-footer span,
+main.command-live .command-mission-copy > span,
+main.command-live .command-next-move > span,
+main.command-live .command-source-endpoint small,
+main.command-live .command-ship-endpoint small,
+main.command-live .command-source-endpoint > i,
+main.command-live .command-ship-endpoint > i,
+main.command-live .command-source-endpoint > em,
+main.command-live .command-rekt-slot > span,
+main.command-live .command-advisory,
+main.command-live .command-advisory span,
+main.command-live .command-advisory p {
+  color: #85818c;
+}
+
+main.command-live .ios-shell-readout,
+main.command-live .command-source-endpoint,
+main.command-live .command-thread-gate,
+main.command-live .command-thread-break,
+main.command-live .command-thread-now,
+main.command-live .command-next-move,
+main.command-live .command-advisory {
+  opacity: 1 !important;
+}
+
+main.command-live .command-thread-gate small {
+  color: #85818c;
+}
+
+main.command-live .command-thread-gate b {
+  color: #8d8994;
+}
+
+main.command-live .command-thread-gate[data-current='true'] b {
+  color: #c8b8eb;
+}
+
+main.command-live .command-thread-gate[data-tone='danger'] b,
+main.command-live .command-thread-gate[data-tone='danger'] small {
+  color: var(--command-red);
+}
+
+main.command-live .command-thread-gate[data-tone='stale'] b,
+main.command-live .command-thread-gate[data-tone='stale'] small {
+  color: var(--command-amber);
+}
+
+main.command-live .command-thread-gate[data-tone='proven'] b,
+main.command-live .command-thread-gate[data-tone='proven'] small {
+  color: var(--command-green);
+}
+
+main.command-live .command-thread-instrument[data-thread-state='blocked'] .command-thread-now span,
+main.command-live .command-thread-instrument[data-thread-state='proven'] .command-thread-now span {
+  background: transparent;
+}
