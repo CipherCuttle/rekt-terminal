@@ -11,11 +11,12 @@ const AppV3 = lazy(() => import('./AppV3'));
 const SignalSystemLab = lazy(() => import('./signal-system/GoldenScreens'));
 const InstrumentLab = lazy(() => import('./instrument-os/InstrumentLab'));
 const LiveCommand = lazy(() => import('./command/LiveCommand'));
+const LiveProject = lazy(() => import('./project/LiveProject'));
 const params = new URLSearchParams(window.location.search);
 const lab = params.get('lab');
 const mode = params.get('mode');
 
-const commandQueryClient = new QueryClient({
+const instrumentQueryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000,
@@ -32,8 +33,10 @@ createRoot(document.getElementById('root')!).render(
         : lab === 'signals'
           ? <SignalSystemLab />
           : mode === 'command'
-            ? <QueryClientProvider client={commandQueryClient}><LiveCommand /></QueryClientProvider>
-            : <AppV3 />}
+            ? <QueryClientProvider client={instrumentQueryClient}><LiveCommand /></QueryClientProvider>
+            : mode === 'project'
+              ? <QueryClientProvider client={instrumentQueryClient}><LiveProject /></QueryClientProvider>
+              : <AppV3 />}
     </Suspense>
   </StrictMode>
 );
