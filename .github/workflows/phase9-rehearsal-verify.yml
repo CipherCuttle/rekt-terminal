@@ -1,0 +1,86 @@
+name: Phase 9 Rehearsal Verify
+
+on:
+  push:
+    branches: [feature/inkubator-founding-cohort-rehearsal-v0]
+    paths:
+      - '.github/workflows/phase9-rehearsal-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_USER: rekt
+          POSTGRES_PASSWORD: rekt_test
+          POSTGRES_DB: rekt_inkubator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rekt -d rekt_inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://rekt:rekt_test@127.0.0.1:5432/rekt_inkubator
+      INKUBATOR_APP_ORIGIN: https://inkubator.test
+      INKUBATOR_DEV_AUTH: '1'
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+
+      - name: API contract and migration
+        run: |
+          npm run typecheck -w @rekt-ink/inkubator-api
+          npm run build -w @rekt-ink/inkubator-api
+          npm run verify:client -w @rekt-ink/inkubator-api
+          npm run migrate -w @rekt-ink/inkubator-api
+
+      - name: Focused three-Player founding rehearsal
+        run: timeout 180s node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase9-founding-rehearsal.test.mjs
+
+      - name: Full API Postgres regression
+        run: timeout 480s npm run test:integration -w @rekt-ink/inkubator-api
+
+      - name: Verifier hostile policy
+        run: npm run test -w @rekt-ink/inkubator-verifier
+
+      - name: Protocol and DevKit hostile surfaces
+        run: |
+          npm run build:devkit
+          npm run test:devkit
+
+      - name: Signal System build and semantics
+        run: |
+          npm run verify:inkubator-signal-system
+          npm run test -w @rekt-ink/inkubator-lab
+          npm run build -w @rekt-ink/inkubator-lab
+          npm run verify:inkubator-signal-system -- --dist
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Focused Phase 9 desktop/mobile/keyboard/reduced-motion journey
+        run: cd apps/inkubator-lab && npx playwright test e2e/founding-rehearsal.spec.ts
+
+      - name: Render current Ship golden candidate without accepting it
+        run: cd apps/inkubator-lab && npx playwright test e2e/golden-screens.spec.ts --grep 'ship visual baseline' --update-snapshots
+
+      - name: Upload current Ship golden candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase9-ship-golden-candidate
+          path: apps/inkubator-lab/e2e/__screenshots__/ship.png
+          if-no-files-found: error
