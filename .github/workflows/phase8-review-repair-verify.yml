@@ -1,0 +1,69 @@
+name: Phase 8 Review Repair Verify
+
+on:
+  push:
+    branches: [feature/inkubator-devkit-launch-surface-v0]
+    paths:
+      - '.github/workflows/phase8-review-repair-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_USER: rekt
+          POSTGRES_PASSWORD: rekt_test
+          POSTGRES_DB: rekt_inkubator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rekt -d rekt_inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://rekt:rekt_test@127.0.0.1:5432/rekt_inkubator
+      INKUBATOR_APP_ORIGIN: https://inkubator.test
+      INKUBATOR_DEV_AUTH: '1'
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: API and generated transport
+        run: |
+          npm run typecheck -w @rekt-ink/inkubator-api
+          npm run build -w @rekt-ink/inkubator-api
+          npm run verify:client -w @rekt-ink/inkubator-api
+      - name: Migration 018
+        run: npm run migrate -w @rekt-ink/inkubator-api
+      - name: DevKit packages and hostile tests
+        run: |
+          npm run build:devkit
+          npm run test:devkit
+      - name: Focused Phase 8 authority regression
+        run: timeout 180s node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase8-devkit-hostile.test.mjs
+      - name: Release freshness gate is before publish
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('.github/workflows/publish-devkit.yml').read_text()
+          assert 'npm run verify:client -w @rekt-ink/inkubator-api' in text
+          assert text.index('npm run verify:client -w @rekt-ink/inkubator-api') < text.index('npm publish -w @rekt-ink/protocol')
+          assert 'id-token: write' in text
+          assert '--provenance' in text
+          assert 'NPM_TOKEN' not in text and 'NODE_AUTH_TOKEN' not in text
+          print('Phase 8 release freshness/provenance gate: PASS')
+          PY
+      - name: Full API Postgres integration
+        run: timeout 420s npm run test:integration -w @rekt-ink/inkubator-api
