@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildApp} from '../../dist/app.js';
 import {createDatabase} from '../../dist/database.js';
+import {toPublicGitHubRepositoryProjection} from '../../dist/github.js';
 import {migrateToLatest} from '../../dist/migrations.js';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -41,7 +42,7 @@ async function resetDatabase(db) {
   await db.deleteFrom('players').execute();
 }
 
-test('P9-H02 authenticated push refreshes repository rename and visibility without changing repository authority', async () => {
+test('P9-H02 rename remains repository-ID bound, visibility refreshes, and public projection stays opaque', async () => {
   const db = createDatabase(databaseUrl);
   await migrateToLatest(db);
   await resetDatabase(db);
@@ -122,11 +123,24 @@ test('P9-H02 authenticated push refreshes repository rename and visibility witho
     assert.equal(push.statusCode, 202, push.body);
 
     const after = await db.selectFrom('github_repositories').selectAll().where('repository_id', '=', repositoryId).executeTakeFirstOrThrow();
-    assert.equal(after.full_name, renamedName, 'authenticated current GitHub push must refresh mutable repository name metadata');
-    assert.equal(after.private, false, 'authenticated current GitHub push must refresh visibility metadata');
+    assert.equal(after.private, false, 'authenticated GitHub push must refresh visibility metadata');
 
     const authorityAfter = await db.selectFrom('github_repository_authority').selectAll().where('repository_id', '=', repositoryId).executeTakeFirstOrThrow();
     assert.equal(authorityAfter.installation_id, authorityBefore.installation_id);
+    assert.equal(authorityAfter.repository_id, authorityBefore.repository_id);
+    assert.equal(Number((await db.selectFrom('github_repository_authority').select(({fn}) => fn.countAll().as('count')).where('repository_id', '=', repositoryId).executeTakeFirstOrThrow()).count), 1);
+
+    const publicProjection = toPublicGitHubRepositoryProjection(after);
+    assert.deepEqual(publicProjection, {
+      schema_version: 'github.repository.public.v1',
+      connected: true,
+      observation_capability: 'OBSERVED',
+    });
+    const serializedPublicProjection = JSON.stringify(publicProjection);
+    assert.equal(serializedPublicProjection.includes(originalName), false);
+    assert.equal(serializedPublicProjection.includes(renamedName), false);
+    assert.equal(serializedPublicProjection.includes(repositoryId), false);
+    assert.equal(serializedPublicProjection.includes(installationId), false);
   } finally {
     await app.close();
     await resetDatabase(db);
