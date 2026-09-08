@@ -13,6 +13,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'npm run dev',
+    env: {INKUBATOR_API_PROXY_TARGET: 'http://127.0.0.1:8799'},
     url: 'http://127.0.0.1:5174/?lab=signals&screen=command',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

@@ -6,7 +6,15 @@ export default defineConfig({
   base: './',
   plugins: [react()],
   resolve: {alias: {'@': fileURLToPath(new URL('./src', import.meta.url))}},
-  server: {host: '127.0.0.1', port: 5174},
+  server: {
+    host: '127.0.0.1',
+    port: 5174,
+    proxy: {
+      '/v1': {
+        target: process.env.INKUBATOR_API_PROXY_TARGET ?? 'http://127.0.0.1:8788',
+      },
+    },
+  },
   test: {environment: 'jsdom', include: ['src/**/*.test.{ts,tsx}']},
   build: {target: 'es2022', outDir: '../../inkubator', emptyOutDir: true}
 });
