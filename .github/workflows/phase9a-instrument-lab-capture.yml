@@ -1,4 +1,4 @@
-# Visual calibration capture for the current Phase 9A Instrument OS candidate.
+# Final static visual calibration capture before Instrument OS runtime promotion.
 name: Phase 9A Instrument Lab Capture
 
 on:
