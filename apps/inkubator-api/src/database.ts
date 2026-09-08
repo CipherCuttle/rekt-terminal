@@ -29,6 +29,23 @@ export interface SessionTable {
   revoked_at: Date | null;
 }
 
+export type DevkitCredentialClass = 'CLI' | 'MCP' | 'AUTOMATION';
+export interface DevkitTokenTable {
+  token_id: string;
+  player_id: string;
+  creation_request_id: string;
+  credential_class: DevkitCredentialClass;
+  label: string;
+  token_hash: string;
+  scopes: unknown;
+  created_at: Generated<Date>;
+  expires_at: Date;
+  revoked_at: Date | null;
+  rate_window_started_at: Generated<Date>;
+  rate_count: Generated<number>;
+  last_used_at: Date | null;
+}
+
 export type RoundState = 'OPEN' | 'CLOSED' | 'ARCHIVED';
 
 export interface RoundTable {
@@ -359,6 +376,7 @@ export interface DatabaseSchema {
   players: PlayerTable;
   player_profiles: PlayerProfileTable;
   sessions: SessionTable;
+  devkit_tokens: DevkitTokenTable;
   rounds: RoundTable;
   round_memberships: RoundMembershipTable;
   projects: ProjectTable;
