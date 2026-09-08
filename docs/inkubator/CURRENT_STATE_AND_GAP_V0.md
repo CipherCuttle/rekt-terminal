@@ -2,25 +2,31 @@
 
 **Status:** CANONICAL CURRENT IMPLEMENTATION MAP
 
-**Updated:** 2026-09-08
+**Updated:** 2026-09-08 — REKT Instrument OS amendment applied
 
-**Current completed phase:** PHASE 8 — DEVKIT LAUNCH SURFACE
+**Current completed product phase:** PHASE 8 — DEVKIT LAUNCH SURFACE
 
-**Next canonical phase:** PHASE 9 — FOUNDING-COHORT REHEARSAL
+**Current active branch/PR:** PHASE 9 / PR #44 — draft / open / unmerged
+
+**Current execution split:** PHASE 9A — REKT INSTRUMENT OS FRONTEND REBUILD → PHASE 9B — FOUNDING-COHORT REHEARSAL
+
+**Canonical frontend authority:** `REKT_INSTRUMENT_OS_V1.md`
 
 **Phase-8 reviewed product candidate:** `a3eeffba1ee9a3955af5c7e6372820acf136e709`
 
 **Phase-8 closure receipt:** `PHASE_8_CLOSURE_V0.md`
 
-**Phase-8 PR:** #43 — draft / open / unmerged
-
 ## 1. Critical distinction
 
-The implementation is no longer the original PR-#29 protocol slice described by the 2026-09-06 baseline.
+The backend/product capability is substantially ahead of the launch frontend.
 
-Phases 0 through 8 of `IMPLEMENTATION_ROADMAP_MVP_V0.md` have now been implemented and closed under the bounded completion policy. The remaining MVP work is rehearsal and founding-cohort launch validation, not another broad architecture build.
+Phases 0 through 8 of `IMPLEMENTATION_ROADMAP_MVP_V0.md` implemented the founding product loop, trust boundaries, Ship flow, reputation/Cheevos and DevKit under the bounded completion policy.
 
-Do not regress planning to Platform Foundation or treat historical PR #29 state as the current product state.
+Phase 9 originally began as rehearsal-only. On 2026-09-08 the user explicitly reopened **frontend implementation/aesthetic authority** after direct review of the current GitHack/V3/Golden-Screen experience showed that it materially undersold the product and solved the wrong visual problem.
+
+This does not reopen Phase-1..8 truth/security/domain work. It inserts a launch-frontend rebuild gate before founding rehearsal can close.
+
+Do not regress planning to the historical PR-#29 protocol slice. Do not treat the current V3/Golden-Screen composition as the final product merely because old browser tests pass.
 
 ## 2. What exists now
 
@@ -30,18 +36,18 @@ Do not regress planning to Platform Foundation or treat historical PR #29 state 
 - authenticated Inkubator API boundary;
 - Postgres-backed Player, Project, Mission and supporting state;
 - secure session/auth separation and deny-by-default resource authorization;
-- public/private projections;
+- explicit public/private projections;
 - versioned OpenAPI contract and generated clients;
 - append-oriented history/evidence + bounded outbox/worker foundation;
 - GitHub App installation/webhook ingestion, signature validation, delivery dedupe and repository authority controls.
 
 ### Product loop
 
-The implemented product now covers the core founding loop:
+Implemented product capability covers:
 
 `BECOME → DECLARE → BUILD → PROVE → HELP → SHIP → REMEMBER`
 
-Implemented capability includes:
+Including:
 
 - persistent Player/profile identity;
 - Round membership;
@@ -80,65 +86,125 @@ Phase 8 closed the public developer surface:
 
 Participant DevKit surfaces still cannot create PROVEN evidence, grant Cheevos/reputation, approve Ships, moderate Players or acquire operator/verifier authority.
 
-## 3. Verification state
+## 3. What is wrong with the current frontend
 
-The Phase-8 repair verifier run `34211195400` passed:
+The current launch-preview composition is not accepted as the final frontend.
 
-- API typecheck/build;
-- generated-client freshness;
-- migration 018;
-- SDK/CLI/MCP builds and hostile tests;
-- focused Phase-8 authority regression;
-- token-rotation rate-limit falsification;
-- release provenance/freshness gate;
-- full Postgres integration: 35/35 PASS.
+Confirmed issues from source/build review:
 
-The single targeted Codex rereview of exact `a3eeffba1e` reported no major issues. All three original Phase-8 P1 threads were repaired and resolved.
+- V3 remains structurally a scrolling marketing microsite;
+- Phase-2 Golden Screens are development-fixture views rather than production route projections;
+- major surfaces still read as cards/panels rather than one persistent instrument chassis;
+- the frontend often renders backend nouns/status instead of causal state flow;
+- actual React Bits Pro source is not the public runtime identity; fallback CSS gradients/noise stand in for several effects;
+- Inter/system typography and generic iconography weaken the intended terminal/instrument identity;
+- the rich generated API client exists, but the older Golden Screens do not represent the final real-data architecture;
+- the backend/product loop is more sophisticated than the current interface communicates.
 
-## 4. What is NOT proven yet
+The previous frontend is therefore **reference/archive, not launch authority**.
 
-The remaining gap is not feature inventory. It is whole-system rehearsal quality.
+## 4. New canonical frontend direction
 
-Before founding launch, the product still needs to prove with 2–3 friendly/internal Players that:
+`REKT_INSTRUMENT_OS_V1.md` now governs visual, motion and frontend-renderer decisions.
 
-- the complete user journey works without knowledge of the internal phase model;
-- the five core product screens are understandable as one coherent product family;
-- Mission, Next Move, blocker, evidence state and Ship condition are obvious enough in real use;
-- desktop and mobile journeys both work;
-- the product can be operated through supported OPS paths without database surgery;
-- failure recovery works under realistic GitHub, worker, verifier, deployment and retry faults;
-- private/untrusted repository content cannot escalate authority or leak secrets;
-- browser/server DevKit boundaries survive real packaging/bundling;
-- achievement/reputation history remains stable across rule-version changes;
-- deployment rollback is operationally usable;
-- closing a Mission without Ship behaves truthfully;
-- a real user can complete `BECOME → DECLARE → BUILD → PROVE → HELP → SHIP → REMEMBER` without an operator explaining the architecture.
+Thesis:
 
-This is PHASE 9, not a reopening of Phases 1–8.
+> **REKT Inkubator is a black software instrument for building: OP-1-class realtime graphical interaction philosophy + CRT terminal material + diegetic field-machine behavior + tiny REKT pixel-state identity.**
 
-## 5. Known rehearsal risks
+Core manifestation:
 
-### Whole-product UX coherence
+- persistent machine shell rather than scrolling-page composition;
+- one visual OS viewed through WORLD / COMMAND / PROJECT / PLAYER / SHIP;
+- `BROADCAST / COCKPIT / ARTIFACT` intensity grammar retained;
+- COMMAND is the first production-quality proof;
+- Mission Machine + graphical Thread + one dominant Next Move;
+- backend events visibly travel as truthful signals;
+- small REKT state sprites live inside instruments rather than acting as a giant mascot;
+- raw UI must already look high quality with CRT/postprocessing disabled;
+- CRT is a material/compositor layer, not a design crutch.
 
-Automated and phase-local evidence does not prove the current UI is understandable to a fresh founding user. Phase 9 must explicitly test the end-to-end information hierarchy and the REKT Signal System as a lived journey, especially the newer authenticated screens.
+## 5. Frontend stack direction
 
-A backend-green system that requires users to understand internal phase terminology is not launch-ready.
+Keep:
 
-### Deployment capacity / environment
+- React 19;
+- Vite 7;
+- Base UI;
+- Storybook;
+- Playwright/axe/visual snapshots;
+- Three + React Three Fiber for Broadcast/WORLD/rare ceremony.
 
-Recent PR deployments hit the connected Vercel account's free deployment-rate limit. This is not a Phase-8 authority defect, but Phase 9 needs a usable rehearsal environment and a tested rollback path before launch.
+Adopt for the rebuild:
 
-### Publication timing
+- TanStack Router — route/mode architecture;
+- TanStack Query — server state over the generated API client;
+- GSAP + `@gsap/react` — main choreography authority;
+- GSAP SVG/layout/text capabilities where justified;
+- PixiJS 8 — 2D instrument graphics, scopes, radar and REKT sprite sheets;
+- bespoke REKT domain glyphs + strict-grid pixel utility icons.
 
-The canonical npm provenance path is implemented and verified. Actual registry release timing is a launch operation; publishing from a developer laptop is not an accepted substitute.
+Selective only:
 
-### Stacked unmerged lineage
+- Rive for a very small number of stateful hero instruments if it outperforms SVG/Pixi in a real prototype;
+- xterm.js for actual CLI/log/dev-terminal content only;
+- React Bits Pro as compliant licensed atmospheric set pieces, not the core visual system.
 
-Phase branches/PRs remain intentionally stacked and unmerged unless the user grants merge authority. Rehearsal work must inherit the frozen Phase-8 closure base rather than silently rebuilding from `main` or historical PR #29.
+Do not introduce multiple competing general animation frameworks without a demonstrated missing capability.
 
-## 6. Phase 9 required drills
+## 6. Preserved hard invariants
 
-Per the canonical roadmap:
+The frontend change does not alter:
+
+- `CLAIMED != OBSERVED != PROVEN`;
+- private source stays private;
+- AI/Daemon remains advisory only;
+- participants cannot mint Ship/PROVEN/Cheevo/reputation authority;
+- one dominant Next Move remains core UX;
+- Thread remains the cross-product red thread;
+- missing/stale/unavailable evidence fails visibly closed;
+- accepted Ship authority remains trusted-server controlled;
+- backend domain state remains canonical; frontend animation cannot manufacture truth.
+
+## 7. Phase 9A — frontend rebuild gate
+
+Before whole-product founding rehearsal can close, execute:
+
+`FREEZE OLD V3 → INSTRUMENT SYSTEM → MOTION LAB → LIVE COMMAND → SHARED SHELL → PROJECT → WORLD → PLAYER → SHIP → BROADCAST ENTRY`
+
+### Instrument/Motion Lab minimum set
+
+- signal path;
+- rotary/gauge;
+- oscilloscope;
+- numeric readout;
+- mode switch;
+- Thread node;
+- REKT sprite states;
+- CRT treatment;
+- Verifier instrument;
+- Mission Machine.
+
+Where meaningful each demonstrates `IDLE / INPUT / ACTIVE / SUCCESS / ERROR`.
+
+This is a bounded calibration gate, not an endless design-system project.
+
+### COMMAND proof requirements
+
+The first live COMMAND must:
+
+- use canonical generated API state rather than development fixtures;
+- make Mission/current state/Next Move/Thread obvious;
+- distinguish Daemon advisory state from authoritative Mission state;
+- visibly manifest blocker/help/source/evidence status;
+- demonstrate at least healthy/building, blocked/help-needed and ship-ready/proven scenarios;
+- show coordinated causal response to at least one real or deterministic replayed backend event;
+- remain usable with CRT disabled and with reduced motion.
+
+## 8. Phase 9B — founding-cohort rehearsal
+
+Once the launch frontend is coherent enough to test honestly, resume/complete the whole-system rehearsal with 2–3 friendly/internal Players.
+
+Required product/recovery drills still include:
 
 - duplicate GitHub webhook;
 - repo renamed/transferred/private/revoked;
@@ -153,16 +219,52 @@ Per the canonical roadmap:
 - deployment rollback;
 - Mission closed without Ship.
 
-In addition, Phase 9 must run real desktop/mobile founding-user journeys across the complete product loop.
+Also require full desktop/mobile journeys through the rebuilt product.
 
-## 7. Next action
+Synthetic actors cannot replace the final human-rehearsal requirement.
 
-Start **PHASE 9 — FOUNDING-COHORT REHEARSAL** from the exact Phase-8 closure branch head.
+## 9. Frontend acceptance gates
 
-Phase 9 should add only the rehearsal harness, fixtures, OPS support and minimal Critical/High repairs required by observed failures. It must not become a new feature phase or visual redesign project.
+The launch frontend fails if:
 
-Use the same bounded completion rule:
+- removing the REKT logo leaves a generic crypto/SaaS dashboard;
+- raw UI only looks good because CRT/shaders hide weak composition;
+- user cannot identify Mission/current state/blocker/Next Move quickly;
+- production routes import fixture state;
+- CLAIMED visually reads like OBSERVED/PROVEN;
+- acid green becomes generic decoration;
+- every surface uses the same card grid;
+- REKT becomes a mascot layer rather than a small state language;
+- animations run without causal/state meaning;
+- Three/Pixi/Rive canvases proliferate without renderer boundaries;
+- the old V3 is merely reskinned rather than structurally replaced.
 
-`IMPLEMENT/REHEARSE → TEST → ONE independent hostile review → fix Critical/High → ONE targeted rereview only if needed → CLOSE → MOVE FORWARD`
+Aesthetic fit and perceived runtime quality outrank marginal Lighthouse-score gains, but input latency, motion smoothness, loading quality, mobile layout and accessibility are still quality requirements.
 
-Phase-9 exit requires no remaining Critical/High architecture/product-truth defect, successful core desktop/mobile journeys, and operation through supported OPS paths without database surgery.
+## 10. Operational/repository state
+
+At this amendment:
+
+- Phase-8 PR #43 remains draft/open/unmerged;
+- Phase-9 PR #44 remains draft/open/unmerged;
+- PR #44 is now titled `feat(inkubator): rebuild Instrument OS before founding rehearsal`;
+- no merge authority has been granted;
+- current frontend authority lives in `REKT_INSTRUMENT_OS_V1.md`;
+- `INDEX.md` records the precedence/supersession rules.
+
+Volatile SHA/CI/deployment state must still be reconciled from GitHub before any implementation mutation.
+
+## 11. Next action
+
+Proceed with **PHASE 9A — REKT INSTRUMENT OS FRONTEND REBUILD** on the active Phase-9 lineage.
+
+First implementation target:
+
+1. install/freeze the selected frontend stack and renderer boundaries;
+2. create the Instrument/Motion Lab;
+3. lock the raw visual grammar without relying on CRT;
+4. build one live production-quality COMMAND against the generated API client;
+5. test healthy/building, blocked/help-needed and ship-ready/proven states;
+6. only then propagate the shared machine shell to PROJECT/WORLD/PLAYER/SHIP/Broadcast.
+
+Use the bounded completion discipline. Do not spend another phase polishing the discarded V3 composition.
