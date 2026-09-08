@@ -598,6 +598,30 @@ export interface WorldBoardsView {
   boards: ContextualBoardView[];
 }
 
+export interface PlayerHistoryEntryView {
+  entry_id: string;
+  kind: "SHIP_ACCEPTED" | "ASSIST_ACCEPTED" | "EXTERNAL_TEST_RECORDED" | "CHEEVO_AWARDED" | "MISSION_BLOCKED" | "MISSION_RECOVERED" | "MISSION_CLOSED_NOT_SHIPPED";
+  truth_state: "CLAIMED" | "OBSERVED" | "PROVEN";
+  occurred_at: string;
+  project_id?: ProjectId;
+  project_name?: string;
+  mission_id?: MissionId;
+  receipt_id?: string;
+  artifact_title?: string;
+  role?: "OWNER" | "PARTY";
+  assist_id?: string;
+  test_result_id?: string;
+  outcome?: "PASS" | "ISSUE_FOUND" | "BLOCKED";
+  cheevo_award_id?: string;
+  cheevo_key?: string;
+}
+
+export interface PlayerHistoryView {
+  schema_version: "player.history.private.v1";
+  player_id: PlayerId;
+  entries: PlayerHistoryEntryView[];
+}
+
 export type DevkitScope = "player:read" | "project:read" | "mission:read" | "claim:write" | "update:write" | "beacon:write" | "assist:write" | "ship:prepare";
 
 export type DevkitCredentialClass = "CLI" | "MCP" | "AUTOMATION";
@@ -728,8 +752,16 @@ export class InkubatorApiClient {
     return this.request<CommandView>("/v1/me/command", {method: 'GET'});
   }
 
+  getMyHistory(): Promise<PlayerHistoryView> {
+    return this.request<PlayerHistoryView>("/v1/me/history", {method: 'GET'});
+  }
+
   getPublicPlayer(playerId: PlayerId): Promise<PublicPlayer> {
     return this.request<PublicPlayer>(`/v1/players/${encodeURIComponent(playerId)}`, {method: 'GET'});
+  }
+
+  getPlayerReputation(playerId: PlayerId): Promise<PlayerReputationView> {
+    return this.request<PlayerReputationView>(`/v1/players/${encodeURIComponent(playerId)}/reputation`, {method: 'GET'});
   }
 
   getPrivatePlayer(playerId: PlayerId): Promise<PrivatePlayer> {
