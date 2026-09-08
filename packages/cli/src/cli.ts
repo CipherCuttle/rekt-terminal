@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {createInkubatorClient} from '@rekt-ink/sdk';
+import {createInkubatorServerClient} from '@rekt-ink/sdk/server';
 
 type Io = {out:(value:string)=>void;err:(value:string)=>void};
 type Config = {schema_version:'rekt.local.v1';api_url:string;project_id:string;mission_id:string};
@@ -11,7 +11,7 @@ function parse(args:string[]){const values=new Map<string,string>();const positi
 function configPath(cwd:string){return path.join(cwd,'.rekt','config.json');}
 function readConfig(cwd:string):Config{const value=JSON.parse(fs.readFileSync(configPath(cwd),'utf8'));if(value?.schema_version!=='rekt.local.v1')throw new Error('rekt_config_invalid');return value;}
 function writeConfig(cwd:string,config:Config){fs.mkdirSync(path.dirname(configPath(cwd)),{recursive:true});fs.writeFileSync(configPath(cwd),JSON.stringify(config,null,2)+'\n',{mode:0o600});}
-function clientFor(env:NodeJS.ProcessEnv,apiUrl:string){const accessToken=env.REKT_DEVKIT_TOKEN;if(!accessToken)throw new Error('REKT_DEVKIT_TOKEN is required');return createInkubatorClient({baseUrl:apiUrl,accessToken});}
+function clientFor(env:NodeJS.ProcessEnv,apiUrl:string){const accessToken=env.REKT_DEVKIT_TOKEN;if(!accessToken)throw new Error('REKT_DEVKIT_TOKEN is required');return createInkubatorServerClient({baseUrl:apiUrl,accessToken});}
 function skills(value:string|undefined){return value?value.split(',').map((part)=>part.trim()).filter(Boolean):undefined;}
 
 export async function main(argv=process.argv.slice(2),env:NodeJS.ProcessEnv=process.env,io:Io=defaultIo,cwd=process.cwd()):Promise<number>{
