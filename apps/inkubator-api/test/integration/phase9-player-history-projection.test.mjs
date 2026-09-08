@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {sql} from 'kysely';
 import {buildApp} from '../../dist/app.js';
 import {createDatabase} from '../../dist/database.js';
 import {migrateToLatest} from '../../dist/migrations.js';
@@ -178,6 +179,10 @@ test('Phase 9 PLAYER history is authenticated, canonical, truth-labelled and raw
     assert.equal(openapi.json().paths['/v1/players/{playerId}/reputation'].get.operationId, 'getPlayerReputation');
   } finally {
     await app.close();
+    // Player Cheevos are deliberately immutable to normal DELETE/UPDATE. Test-only
+    // TRUNCATE follows the Phase-7 fixture-isolation pattern so this focused proof
+    // cannot poison the shared Postgres instance used by the full regression suite.
+    await sql`truncate table player_cheevos`.execute(db);
     await db.destroy();
   }
 });
