@@ -25,6 +25,91 @@ export const phase7CheevoReputationMigration: Migration = {
       on conflict (round_id) do nothing
     `.execute(db);
 
+    // Project history ordering is an authority fact. Wall-clock timestamps remain useful
+    // display/provenance metadata, but must never decide whether a concurrent external test
+    // happened before or after Ship. Existing equal-time rows fail closed: Ship sorts first.
+    await sql`create sequence phase7_project_boundary_order_seq as bigint`.execute(db);
+    await sql`alter table ship_receipts add column project_boundary_order bigint`.execute(db);
+    await sql`alter table external_test_results add column project_boundary_order bigint`.execute(db);
+
+    await sql`
+      with ordered as (
+        select event_type, event_id,
+          row_number() over (
+            partition by project_id
+            order by event_at asc, event_type_order asc, event_id asc
+          )::bigint as boundary_order
+        from (
+          select 'SHIP'::text as event_type, receipt_id::text as event_id,
+            project_id, shipped_at as event_at, 0::int as event_type_order
+          from ship_receipts
+          union all
+          select 'TEST'::text, test_result_id::text,
+            project_id, observed_at, 1::int
+          from external_test_results
+        ) events
+      )
+      update ship_receipts receipt
+      set project_boundary_order = ordered.boundary_order
+      from ordered
+      where ordered.event_type = 'SHIP'
+        and ordered.event_id = receipt.receipt_id::text
+    `.execute(db);
+
+    await sql`
+      with ordered as (
+        select event_type, event_id,
+          row_number() over (
+            partition by project_id
+            order by event_at asc, event_type_order asc, event_id asc
+          )::bigint as boundary_order
+        from (
+          select 'SHIP'::text as event_type, receipt_id::text as event_id,
+            project_id, shipped_at as event_at, 0::int as event_type_order
+          from ship_receipts
+          union all
+          select 'TEST'::text, test_result_id::text,
+            project_id, observed_at, 1::int
+          from external_test_results
+        ) events
+      )
+      update external_test_results test
+      set project_boundary_order = ordered.boundary_order
+      from ordered
+      where ordered.event_type = 'TEST'
+        and ordered.event_id = test.test_result_id::text
+    `.execute(db);
+
+    await sql`
+      select setval(
+        'phase7_project_boundary_order_seq',
+        coalesce((
+          select max(project_boundary_order)
+          from (
+            select project_boundary_order from ship_receipts
+            union all
+            select project_boundary_order from external_test_results
+          ) existing
+        ), 1),
+        exists (
+          select 1 from ship_receipts where project_boundary_order is not null
+          union all
+          select 1 from external_test_results where project_boundary_order is not null
+        )
+      )
+    `.execute(db);
+
+    await sql`alter table ship_receipts alter column project_boundary_order set not null`.execute(db);
+    await sql`alter table external_test_results alter column project_boundary_order set not null`.execute(db);
+    await sql`
+      create index phase7_ship_receipts_project_boundary_idx
+      on ship_receipts(project_id, project_boundary_order)
+    `.execute(db);
+    await sql`
+      create index phase7_external_tests_project_boundary_idx
+      on external_test_results(project_id, project_boundary_order)
+    `.execute(db);
+
     await db.schema.createTable('player_cheevos')
       .addColumn('award_id', 'uuid', (column) => column.primaryKey())
       .addColumn('player_id', 'uuid', (column) => column.notNull().references('players.player_id').onDelete('restrict'))
@@ -62,10 +147,9 @@ export const phase7CheevoReputationMigration: Migration = {
       .columns(['cheevo_key', 'earned_at'])
       .execute();
 
-    // Serialize same-Round accepted Ships before assigning shipped_at. This makes
-    // shipped_at reflect the canonical Round acceptance order and prevents a public
-    // reputation read from ever observing a later winner while an earlier winner is
-    // still uncommitted. The AFTER trigger persists the unique Round winner fact.
+    // Serialize accepted Ships at both the Round and Project boundaries. The Project row
+    // lock plus a DB-assigned monotonic order token is the authority for external-test
+    // history; shipped_at is metadata and cannot change that ordering.
     await sql`
       create function phase7_serialize_round_ship()
       returns trigger
@@ -77,8 +161,15 @@ export const phase7CheevoReputationMigration: Migration = {
           if not found then
             raise exception 'phase7_round_not_found' using errcode = '23503';
           end if;
-          new.shipped_at := clock_timestamp();
         end if;
+
+        perform 1 from projects where project_id = new.project_id for update;
+        if not found then
+          raise exception 'phase7_project_not_found' using errcode = '23503';
+        end if;
+
+        new.project_boundary_order := nextval('phase7_project_boundary_order_seq');
+        new.shipped_at := clock_timestamp();
         return new;
       end;
       $$
@@ -112,10 +203,9 @@ export const phase7CheevoReputationMigration: Migration = {
       for each row execute function phase7_record_first_round_ship()
     `.execute(db);
 
-    // External-test timestamps are only useful as a historical cutoff if they share
-    // the same Project serialization boundary as Ship attribution. A test result now
-    // locks its Project before observed_at is assigned, so it either commits before
-    // Ship snapshotting or waits until the Ship transaction has committed.
+    // External tests serialize on the exact same Project authority row before receiving
+    // their order token. A test is pre-Ship iff its order is strictly lower than the
+    // receipt order; timestamp equality or wall-clock rollback cannot change that fact.
     await sql`
       create function phase7_serialize_external_test()
       returns trigger
@@ -126,6 +216,7 @@ export const phase7CheevoReputationMigration: Migration = {
         if not found then
           raise exception 'phase7_project_not_found' using errcode = '23503';
         end if;
+        new.project_boundary_order := nextval('phase7_project_boundary_order_seq');
         new.observed_at := clock_timestamp();
         return new;
       end;
@@ -203,6 +294,11 @@ export const phase7CheevoReputationMigration: Migration = {
     await sql`drop function if exists phase7_record_first_round_ship()`.execute(db);
     await sql`drop trigger if exists phase7_ship_receipt_round_boundary on ship_receipts`.execute(db);
     await sql`drop function if exists phase7_serialize_round_ship()`.execute(db);
+    await sql`drop index if exists phase7_external_tests_project_boundary_idx`.execute(db);
+    await sql`drop index if exists phase7_ship_receipts_project_boundary_idx`.execute(db);
+    await sql`alter table external_test_results drop column project_boundary_order`.execute(db);
+    await sql`alter table ship_receipts drop column project_boundary_order`.execute(db);
+    await sql`drop sequence if exists phase7_project_boundary_order_seq`.execute(db);
     await db.schema.dropTable('player_cheevos').execute();
     await db.schema.dropTable('round_first_ship_receipts').execute();
   },

@@ -42,6 +42,7 @@ interface ShipReceiptTable {
   owner_player_id: string;
   round_id: string | null;
   shipped_at: Date;
+  project_boundary_order: string;
 }
 
 interface ShipReceiptAttributionTable {
@@ -72,6 +73,7 @@ interface ExternalTestResultTable {
   outcome: 'PASS' | 'ISSUE_FOUND' | 'BLOCKED';
   summary: string;
   observed_at: Date;
+  project_boundary_order: string;
 }
 
 type ReputationDatabaseSchema = DatabaseSchema & {
@@ -125,6 +127,7 @@ async function eligibleCheevos(db: ReputationDb, playerId: string): Promise<Chee
         project_id,
         round_id,
         shipped_at,
+        project_boundary_order,
         row_number() over (order by shipped_at asc, receipt_id asc) as owned_number
       from ship_receipts
       where owner_player_id = ${playerId}::uuid
@@ -153,11 +156,11 @@ async function eligibleCheevos(db: ReputationDb, playerId: string): Promise<Chee
       select
         test.project_id,
         min(receipt.shipped_at) as shipped_at,
-        (array_agg(test.test_result_id order by receipt.shipped_at asc, test.observed_at asc, test.test_result_id asc))[1]::text as source_id
+        (array_agg(test.test_result_id order by receipt.project_boundary_order asc, test.project_boundary_order asc, test.test_result_id asc))[1]::text as source_id
       from external_test_results test
       join ship_receipts receipt
         on receipt.project_id = test.project_id
-       and test.observed_at <= receipt.shipped_at
+       and test.project_boundary_order < receipt.project_boundary_order
       where test.tester_player_id = ${playerId}::uuid
       group by test.project_id
     ),
@@ -229,7 +232,7 @@ async function eligibleCheevos(db: ReputationDb, playerId: string): Promise<Chee
         from external_test_results test
         where test.project_id = owned.project_id
           and test.tester_player_id <> ${playerId}::uuid
-          and test.observed_at <= owned.shipped_at
+          and test.project_boundary_order < owned.project_boundary_order
       )
       order by owned.shipped_at asc, owned.receipt_id asc
       limit 1
@@ -305,7 +308,7 @@ export async function reconcileCheevosForAcceptedProject(dbInput: Kysely<Databas
       from external_test_results test
       join ship_receipts receipt
         on receipt.project_id = test.project_id
-       and test.observed_at <= receipt.shipped_at
+       and test.project_boundary_order < receipt.project_boundary_order
       where receipt.project_id = ${projectId}::uuid
     ) affected_players
   `.execute(db);
@@ -342,7 +345,7 @@ export async function getPlayerReputation(dbInput: Kysely<DatabaseSchema>, playe
         from external_test_results test
         join ship_receipts receipt
           on receipt.project_id = test.project_id
-         and test.observed_at <= receipt.shipped_at
+         and test.project_boundary_order < receipt.project_boundary_order
         where test.tester_player_id = ${playerId}::uuid
       ) as tested_shipped_projects
   `.execute(db);

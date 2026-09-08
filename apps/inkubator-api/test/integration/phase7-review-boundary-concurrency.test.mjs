@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {sql} from 'kysely';
 import {createDatabase} from '../../dist/database.js';
 import {migrateToLatest} from '../../dist/migrations.js';
-import {reconcilePlayerCheevos} from '../../dist/reputation.js';
+import {getPlayerReputation, reconcilePlayerCheevos} from '../../dist/reputation.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL required');
@@ -27,11 +27,6 @@ async function waitForDatabaseLock(db, pid) {
     await delay(10);
   }
   throw new Error(`backend_${pid}_did_not_wait_for_lock`);
-}
-
-async function databaseNow(db) {
-  const result = await sql`select clock_timestamp() as now`.execute(db);
-  return result.rows[0].now;
 }
 
 async function seedShipCandidate(db, roundId, label) {
@@ -114,7 +109,7 @@ async function seedShipCandidate(db, roundId, label) {
       artifact_title: `Boundary Artifact ${label}`,
       artifact_url: `https://example.com/${label}`,
       demo_url: null,
-      // Deliberately wrong/old. The Phase-7 trigger must assign the serialized boundary time.
+      // Deliberately wrong/old. The Phase-7 trigger must replace participant time/order.
       shipped_at: new Date(0),
     },
   };
@@ -151,6 +146,7 @@ test('Phase 7 serializes FIRST_BLOOD and external-test history at canonical DB b
 
     const firstReceipt = await firstInserted;
     assert.notEqual(firstReceipt.shipped_at.getTime(), 0, 'Ship trigger must assign canonical shipped_at');
+    assert.ok(Number(firstReceipt.project_boundary_order) > 0, 'Ship trigger must assign project boundary order');
 
     let secondPidResolve;
     const secondPidReady = new Promise((resolve) => { secondPidResolve = resolve; });
@@ -190,8 +186,8 @@ test('Phase 7 serializes FIRST_BLOOD and external-test history at canonical DB b
       .execute();
     assert.deepEqual(firstBloodAwards, [{player_id: first.playerId, source_id: first.receiptId}]);
 
-    // Now prove external-test observed_at is assigned only after the same Project lock
-    // used by Ship attribution is available.
+    // The second Project has already shipped. Hold its Project authority row, then prove
+    // a later external-test insert waits and receives a strictly later DB order token.
     const testerId = randomUUID();
     const testRequestId = randomUUID();
     await db.insertInto('players').values({player_id: testerId, display_name: 'Boundary Tester'}).execute();
@@ -228,17 +224,45 @@ test('Phase 7 serializes FIRST_BLOOD and external-test history at canonical DB b
         creation_request_id: randomUUID(),
         outcome: 'PASS',
         summary: 'Serialized result',
-        // Deliberately stale. The trigger must overwrite it after the Project lock.
+        // Deliberately stale. The trigger replaces timestamp and authoritative order.
         observed_at: new Date(0),
       }).returningAll().executeTakeFirstOrThrow();
     });
     const testPid = await testPidReady;
     await waitForDatabaseLock(db, testPid);
-    const beforeRelease = await databaseNow(db);
     releaseProject();
     await blocker;
     const committedTest = await testInsert;
-    assert.ok(committedTest.observed_at.getTime() >= beforeRelease.getTime());
+
+    assert.ok(
+      Number(committedTest.project_boundary_order) > Number(committedSecond.project_boundary_order),
+      'Post-Ship external test must receive a later Project boundary order',
+    );
+
+    // Reproduce the rereview attack directly: even if the wall-clock value is exactly tied
+    // with Ship, authority must still classify this committed-later result as post-Ship.
+    await db.updateTable('external_test_results')
+      .set({observed_at: committedSecond.shipped_at})
+      .where('test_result_id', '=', testResultId)
+      .execute();
+
+    await reconcilePlayerCheevos(db, second.playerId);
+    await reconcilePlayerCheevos(db, testerId);
+
+    const touchGrass = await db.selectFrom('player_cheevos')
+      .select('award_id')
+      .where('player_id', '=', second.playerId)
+      .where('cheevo_key', '=', 'TOUCH_GRASS')
+      .executeTakeFirst();
+    assert.equal(touchGrass, undefined, 'Post-Ship tied timestamp must not grant TOUCH_GRASS');
+
+    const testerReputation = await getPlayerReputation(db, testerId);
+    assert.ok(testerReputation);
+    assert.equal(
+      testerReputation.metrics.tested_shipped_projects,
+      0,
+      'Post-Ship tied timestamp must not count as a tested shipped Project',
+    );
   } finally {
     // The application cannot erase Cheevos; test isolation deliberately truncates only
     // synthetic awards before deleting the synthetic Round and letting FK cascades work.
