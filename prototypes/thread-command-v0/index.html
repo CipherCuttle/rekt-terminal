@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>REKT Inkubator — Living Thread COMMAND v0</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #050506;
+  --fg: #e8e4da;
+  --muted: #77747e;
+  --muted-2: #4e4c54;
+  --line: #26242a;
+  --line-soft: #16151a;
+  --violet: #a579ff;
+  --violet-dim: #6848a8;
+  --cyan: #73dfff;
+  --amber: #e7a552;
+  --red: #f06868;
+  --green: #b7ff45;
+  --panel: rgba(255,255,255,.018);
+  --snap: 70ms;
+  --switch: 120ms;
+  --relay: 180ms;
+  --mechanical: 240ms;
+  --signal: 380ms;
+  --mode: 480ms;
+  --ceremony: 900ms;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--fg); }
+body {
+  min-height: 100vh;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  letter-spacing: -.01em;
+  overflow-x: hidden;
+}
+button { font: inherit; }
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: 22px 28px 18px;
+  position: relative;
+  isolation: isolate;
+}
+
+.shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 52% 48%, rgba(165,121,255,.035), transparent 35%),
+    linear-gradient(180deg, rgba(255,255,255,.015), transparent 20%);
+}
+
+.topbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  min-height: 44px;
+}
+.brand {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.brand-mark {
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: -.04em;
+}
+.brand-sub,
+.micro,
+.kicker,
+.gate-label,
+.truth-tag,
+.state-meta,
+.footer,
+.demo-label {
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.brand-sub { color: var(--muted); }
+.mode-nav {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: .08em;
+}
+.mode-nav .active { color: var(--fg); position: relative; }
+.mode-nav .active::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -8px;
+  height: 1px;
+  background: var(--violet);
+}
+.status {
+  justify-self: end;
+  display: flex;
+  gap: 16px;
+  color: var(--muted);
+  font-size: 9px;
+}
+.status-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: var(--cyan);
+  margin-right: 6px;
+  box-shadow: 0 0 8px rgba(115,223,255,.3);
+}
+
+.main {
+  width: min(1500px, 100%);
+  margin: 0 auto;
+  padding: clamp(50px, 7vh, 88px) 12px 22px;
+  display: grid;
+  grid-template-rows: auto minmax(330px, 1fr) auto;
+  gap: 28px;
+}
+
+.mission-copy {
+  width: min(720px, 72vw);
+  display: grid;
+  gap: 8px;
+}
+.kicker { color: var(--muted); }
+.mission-copy h1 {
+  font-size: clamp(28px, 4vw, 54px);
+  line-height: .96;
+  letter-spacing: -.055em;
+  margin: 0;
+  max-width: 14ch;
+  font-weight: 560;
+}
+.mission-copy p {
+  margin: 0;
+  color: #aaa5ad;
+  font-size: clamp(11px, 1vw, 14px);
+  line-height: 1.5;
+  max-width: 54ch;
+}
+
+.instrument {
+  position: relative;
+  min-height: 360px;
+  display: grid;
+  align-content: center;
+}
+
+.ascii-wrap {
+  position: absolute;
+  inset: 50% 8% auto 8%;
+  transform: translateY(-50%);
+  height: 150px;
+  overflow: hidden;
+  pointer-events: none;
+  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+  opacity: .72;
+}
+.ascii-field {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--violet);
+  opacity: .13;
+  font-size: 8px;
+  line-height: 9px;
+  letter-spacing: 3px;
+  white-space: pre;
+  user-select: none;
+  transition: opacity var(--relay) ease;
+}
+[data-state="blocked"] .ascii-field { color: var(--red); }
+[data-state="help"] .ascii-field { color: var(--amber); }
+[data-state="proven"] .ascii-field { color: var(--green); }
+
+.flow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 130px;
+  align-items: center;
+  min-height: 200px;
+  z-index: 2;
+}
+.endpoint {
+  display: grid;
+  gap: 8px;
+  align-content: center;
+}
+.endpoint--ship { justify-items: end; text-align: right; }
+.endpoint-title { color: var(--muted); font-size: 9px; letter-spacing: .13em; }
+.endpoint-main {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+}
+.endpoint--ship .endpoint-main { flex-direction: row-reverse; }
+.source-glyph, .ship-glyph {
+  width: 20px; height: 20px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--fg);
+}
+.source-glyph svg, .ship-glyph svg { width: 100%; height: 100%; }
+.endpoint-sub { color: var(--muted); font-size: 9px; }
+.truth-tag { color: var(--cyan); }
+.ship-state { color: var(--muted); }
+[data-state="proven"] .ship-state { color: var(--green); }
+
+.rail-wrap {
+  min-width: 0;
+  position: relative;
+  height: 190px;
+  display: grid;
+  align-content: center;
+}
+.rail {
+  position: relative;
+  height: 1px;
+  background: linear-gradient(90deg, var(--cyan) 0 18%, var(--violet) 18% 57%, var(--line) 57% 100%);
+  box-shadow: 0 0 16px rgba(115,223,255,.05);
+}
+[data-state="blocked"] .rail {
+  background: linear-gradient(90deg, var(--cyan) 0 18%, var(--violet) 18% 50%, var(--red) 50% 51%, var(--line) 51% 100%);
+}
+[data-state="proven"] .rail {
+  background: linear-gradient(90deg, var(--cyan) 0 18%, var(--violet) 18% 76%, var(--green) 76% 100%);
+}
+.gates {
+  position: absolute;
+  inset: 0;
+}
+.gate {
+  --x: 0%;
+  position: absolute;
+  left: var(--x);
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 88px;
+  display: grid;
+  justify-items: center;
+  gap: 11px;
+}
+.gate-dot {
+  width: 9px;
+  height: 9px;
+  border: 1px solid #55515d;
+  border-radius: 999px;
+  background: var(--bg);
+  position: relative;
+}
+.gate.is-observed .gate-dot {
+  border-color: var(--cyan);
+  background: var(--cyan);
+  box-shadow: 0 0 0 4px rgba(115,223,255,.05);
+}
+.gate.is-active .gate-dot {
+  width: 13px; height: 13px;
+  border-color: var(--violet);
+  box-shadow: 0 0 0 5px rgba(165,121,255,.06);
+}
+.gate.is-proven .gate-dot {
+  border-color: var(--green);
+  background: var(--green);
+  box-shadow: 0 0 0 5px rgba(183,255,69,.05), 0 0 11px rgba(183,255,69,.2);
+}
+.gate-label { color: var(--muted); }
+.gate.is-observed .gate-label { color: var(--cyan); }
+.gate.is-active .gate-label { color: #c8b8eb; }
+.gate.is-proven .gate-label { color: var(--green); }
+.now-pin {
+  position: absolute;
+  left: 40%;
+  top: calc(50% + 24px);
+  transform: translateX(-50%);
+  font-size: 8px;
+  color: var(--violet);
+  letter-spacing: .12em;
+  transition: left var(--mechanical) cubic-bezier(.2,.9,.2,1), color var(--relay) ease;
+}
+.now-pin::before {
+  content: "";
+  position: absolute;
+  left: 50%; top: -19px;
+  height: 13px; width: 1px;
+  background: currentColor;
+}
+[data-state="blocked"] .now-pin { left: 58%; color: var(--red); }
+[data-state="help"] .now-pin { left: 58%; color: var(--amber); }
+[data-state="proven"] .now-pin { left: 92%; color: var(--green); }
+
+.packet {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: var(--cyan);
+  box-shadow: 0 0 10px rgba(115,223,255,.8);
+  transform: translate(-50%,-50%);
+  opacity: 0;
+  z-index: 4;
+}
+.packet.run { animation: packet-run var(--signal) cubic-bezier(.2,.72,.18,1) both; }
+@keyframes packet-run {
+  0% { left: 0%; opacity: 0; transform: translate(-50%,-50%) scale(.6); }
+  10% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { left: 58%; opacity: 0; transform: translate(-50%,-50%) scale(.9); }
+}
+
+.trace {
+  position: absolute;
+  left: 11%; right: 10%;
+  bottom: 18px;
+  height: 42px;
+  opacity: .7;
+}
+.trace svg { width: 100%; height: 100%; overflow: visible; }
+.trace path {
+  fill: none;
+  stroke: var(--cyan);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  opacity: .55;
+}
+.trace .baseline { stroke: var(--line); opacity: .8; }
+
+.break {
+  position: absolute;
+  left: 58%; top: 50%;
+  transform: translate(-50%,-50%);
+  color: var(--red);
+  opacity: 0;
+  transition: opacity var(--snap) linear;
+  z-index: 5;
+}
+.break::before, .break::after {
+  content: "";
+  position: absolute;
+  left: -7px; top: -1px;
+  width: 14px; height: 2px;
+  background: currentColor;
+}
+.break::before { transform: rotate(45deg); }
+.break::after { transform: rotate(-45deg); }
+[data-state="blocked"] .break,
+[data-state="help"] .break { opacity: 1; }
+
+.blocker-label, .help-beacon, .proof-label {
+  position: absolute;
+  opacity: 0;
+  transition: opacity var(--relay) ease, transform var(--mechanical) cubic-bezier(.2,.9,.2,1);
+  pointer-events: none;
+}
+.blocker-label {
+  left: 58%; top: calc(50% - 42px);
+  transform: translate(-50%, 8px);
+  color: var(--red);
+  font-size: 9px;
+  letter-spacing: .1em;
+}
+[data-state="blocked"] .blocker-label { opacity: 1; transform: translate(-50%,0); }
+.help-beacon {
+  left: 58%; top: calc(50% - 55px);
+  transform: translate(-50%, 12px);
+  color: var(--amber);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+.help-beacon i {
+  width: 4px; height: 19px;
+  border-left: 1px solid currentColor;
+  position: relative;
+}
+.help-beacon i::after {
+  content: "";
+  position: absolute;
+  left: -5px; top: -4px;
+  width: 9px; height: 9px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+.help-beacon span { font-size: 8px; letter-spacing: .12em; }
+[data-state="help"] .help-beacon { opacity: 1; transform: translate(-50%,0); }
+[data-state="help"] .help-beacon i::after { animation: beacon 1.4s ease-out infinite; }
+@keyframes beacon {
+  0% { box-shadow: 0 0 0 0 rgba(231,165,82,.28); }
+  75%,100% { box-shadow: 0 0 0 12px rgba(231,165,82,0); }
+}
+.proof-label {
+  right: 0; top: calc(50% - 39px);
+  color: var(--green);
+  font-size: 9px;
+  letter-spacing: .13em;
+  transform: translateY(6px);
+}
+[data-state="proven"] .proof-label { opacity: 1; transform: translateY(0); }
+
+.next {
+  width: min(860px, 72vw);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 16px;
+  margin: -16px auto 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.next .label { color: var(--muted); font-size: 9px; letter-spacing: .13em; }
+.next button {
+  all: unset;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  font-size: clamp(18px, 2.2vw, 31px);
+  letter-spacing: -.035em;
+  line-height: 1;
+  color: var(--fg);
+  padding: 1px 0 5px;
+}
+.next button::after {
+  content: "";
+  position: absolute;
+  inset: -20% -30%;
+  transform: translateX(-130%) skewX(-18deg);
+  background: linear-gradient(90deg, transparent 0 38%, rgba(255,255,255,.44) 50%, transparent 62% 100%);
+  pointer-events: none;
+}
+.next button.shine-once::after { animation: shine .75s ease-out 1; }
+@keyframes shine { to { transform: translateX(130%) skewX(-18deg); } }
+.next .arrow { color: var(--cyan); font-size: 18px; transition: transform var(--switch) ease, color var(--relay) ease; }
+.next:hover .arrow { transform: translateX(4px); }
+[data-state="blocked"] .next .arrow { color: var(--red); }
+[data-state="help"] .next .arrow { color: var(--amber); }
+[data-state="proven"] .next .arrow { color: var(--green); }
+.next-sub {
+  grid-column: 2 / -1;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: -8px;
+}
+
+.lower {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  margin-top: 32px;
+}
+.rekt {
+  justify-self: center;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.rekt svg { width: 34px; height: 34px; image-rendering: pixelated; overflow: visible; }
+.rekt .eye { fill: var(--fg); }
+.rekt .outline { fill: none; stroke: var(--violet); stroke-width: 1.5; shape-rendering: crispEdges; }
+.rekt .body { fill: #050506; stroke: var(--violet); stroke-width: 1.2; shape-rendering: crispEdges; }
+.rekt .tentacle { fill: none; stroke: var(--violet); stroke-width: 1.3; }
+.rekt-status { font-size: 8px; letter-spacing: .12em; text-transform: uppercase; }
+[data-state="blocked"] .rekt .outline,
+[data-state="blocked"] .rekt .body,
+[data-state="blocked"] .rekt .tentacle { stroke: var(--red); }
+[data-state="help"] .rekt .outline,
+[data-state="help"] .rekt .body,
+[data-state="help"] .rekt .tentacle { stroke: var(--amber); }
+[data-state="proven"] .rekt .outline,
+[data-state="proven"] .rekt .body,
+[data-state="proven"] .rekt .tentacle { stroke: var(--green); }
+[data-state="proven"] .rekt svg { animation: proof-nod .7s cubic-bezier(.2,.9,.2,1) 1; }
+@keyframes proof-nod { 35% { transform: translateY(-3px) rotate(-3deg); } 70% { transform: translateY(0) rotate(2deg); } }
+
+.source-meta, .system-meta {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.65;
+}
+.system-meta { justify-self: end; text-align: right; }
+.state-value { color: var(--fg); }
+
+.demo {
+  position: fixed;
+  right: 20px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px;
+  background: rgba(5,5,6,.84);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(8px);
+  z-index: 20;
+}
+.demo-label { color: var(--muted); padding: 0 8px 0 5px; }
+.demo button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 6px 8px;
+  font-size: 8px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.demo button[aria-pressed="true"] { color: var(--fg); background: rgba(255,255,255,.045); }
+.demo button[data-set="blocked"] { color: #a86666; }
+.demo button[data-set="help"] { color: #a77c45; }
+.demo button[data-set="proven"] { color: #789b45; }
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: #4d4a52;
+  padding: 0 12px;
+}
+.footer b { color: #77727d; font-weight: 500; }
+
+@media (max-width: 860px) {
+  .shell { padding: 16px 14px 76px; }
+  .topbar { grid-template-columns: 1fr auto; }
+  .mode-nav { display: none; }
+  .status { font-size: 8px; }
+  .main { padding-top: 46px; gap: 18px; }
+  .mission-copy { width: 100%; }
+  .mission-copy h1 { max-width: 100%; }
+  .flow { grid-template-columns: 74px minmax(0,1fr) 68px; min-height: 250px; }
+  .endpoint-main { font-size: 10px; }
+  .endpoint-sub, .truth-tag, .ship-state { font-size: 7px; }
+  .source-glyph, .ship-glyph { width: 16px; height: 16px; }
+  .gate { width: 46px; }
+  .gate-label { font-size: 6px; letter-spacing: .05em; transform: rotate(-44deg); transform-origin: top center; margin-top: 5px; }
+  .trace { left: 4%; right: 4%; }
+  .next { width: 92%; grid-template-columns: 1fr auto; }
+  .next .label { grid-column: 1 / -1; }
+  .next-sub { grid-column: 1 / -1; }
+  .lower { grid-template-columns: 1fr auto; }
+  .source-meta { display: none; }
+  .rekt { justify-self: start; }
+  .system-meta { grid-column: 2; }
+  .footer { display: none; }
+  .demo { left: 14px; right: 14px; bottom: 12px; justify-content: space-between; overflow-x: auto; }
+  .demo-label { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .001ms !important;
+  }
+}
+</style>
+</head>
+<body>
+<div class="shell" id="shell" data-state="building">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">REKT</div>
+      <div class="brand-sub">INKUBATOR / OS-01</div>
+    </div>
+    <nav class="mode-nav" aria-label="Mode">
+      <span>WORLD</span>
+      <span class="active">COMMAND</span>
+      <span>PROJECT</span>
+      <span>PLAYER</span>
+      <span>SHIP</span>
+    </nav>
+    <div class="status"><span><i class="status-dot"></i>LIVE</span><span>ART DIRECTION PROOF</span></div>
+  </header>
+
+  <main class="main">
+    <section class="mission-copy" aria-labelledby="mission-title">
+      <div class="kicker">MISSION / CURRENT</div>
+      <h1 id="mission-title">Build verifiers for open-source agents.</h1>
+      <p>Project Nebula · canonical Next Move is derived from Mission truth. Decorative telemetry is intentionally absent.</p>
+    </section>
+
+    <section class="instrument" aria-label="Living Thread command instrument">
+      <div class="ascii-wrap" aria-hidden="true"><pre class="ascii-field" id="ascii"></pre></div>
+
+      <div class="flow">
+        <div class="endpoint endpoint--source">
+          <div class="endpoint-title">SOURCE</div>
+          <div class="endpoint-main">
+            <span class="source-glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 2.4a9.6 9.6 0 0 0-3.03 18.71c.48.09.66-.2.66-.46v-1.69c-2.68.58-3.25-1.14-3.25-1.14-.44-1.12-1.07-1.42-1.07-1.42-.88-.6.07-.59.07-.59.97.07 1.48 1 1.48 1 .86 1.48 2.26 1.05 2.81.8.09-.63.34-1.05.61-1.29-2.14-.24-4.39-1.07-4.39-4.76 0-1.05.38-1.91 1-2.59-.1-.24-.43-1.22.1-2.55 0 0 .81-.26 2.64.99A9.2 9.2 0 0 1 12 7.08a9.2 9.2 0 0 1 2.41.33c1.83-1.25 2.64-.99 2.64-.99.53 1.33.2 2.31.1 2.55.62.68 1 1.54 1 2.59 0 3.7-2.26 4.51-4.41 4.75.35.3.65.88.65 1.77v2.57c0 .26.18.56.66.46A9.6 9.6 0 0 0 12 2.4Z" fill="currentColor"/></svg>
+            </span>
+            <span>GitHub</span>
+          </div>
+          <div class="truth-tag">OBSERVED</div>
+          <div class="endpoint-sub">last rx · 02s</div>
+        </div>
+
+        <div class="rail-wrap">
+          <div class="rail" aria-hidden="true"></div>
+          <div class="packet" id="packet" aria-hidden="true"></div>
+          <div class="break" aria-hidden="true"></div>
+          <div class="blocker-label">TEST FAILED</div>
+          <div class="help-beacon"><i aria-hidden="true"></i><span>HELP BEACON</span></div>
+          <div class="proof-label">PROVEN</div>
+
+          <div class="gates" aria-label="Mission gates">
+            <div class="gate is-observed" style="--x:8%"><span class="gate-dot"></span><span class="gate-label">DECLARE</span></div>
+            <div class="gate is-observed" style="--x:24%"><span class="gate-dot"></span><span class="gate-label">SOURCE</span></div>
+            <div class="gate is-active" style="--x:40%"><span class="gate-dot"></span><span class="gate-label">BUILD</span></div>
+            <div class="gate" id="gate-test" style="--x:58%"><span class="gate-dot"></span><span class="gate-label">TEST</span></div>
+            <div class="gate" id="gate-verify" style="--x:76%"><span class="gate-dot"></span><span class="gate-label">VERIFY</span></div>
+            <div class="gate" id="gate-ship" style="--x:92%"><span class="gate-dot"></span><span class="gate-label">SHIP</span></div>
+          </div>
+          <div class="now-pin" id="nowPin">NOW</div>
+
+          <div class="trace" aria-hidden="true">
+            <svg viewBox="0 0 1000 60" preserveAspectRatio="none">
+              <path class="baseline" d="M0 45 H1000" />
+              <path id="tracePath" d="M0 45 L80 45 110 32 142 45 250 45 280 40 310 45 405 45 430 23 458 45 590 45 620 38 646 45 760 45 785 41 812 45 1000 45" />
+            </svg>
+          </div>
+        </div>
+
+        <div class="endpoint endpoint--ship">
+          <div class="endpoint-title">SHIP</div>
+          <div class="endpoint-main">
+            <span class="ship-glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m12 2.8 8 4.4v9.6l-8 4.4-8-4.4V7.2l8-4.4Z"/><path d="m4.3 7.3 7.7 4.2 7.7-4.2M12 11.5v9.4"/></svg>
+            </span>
+            <span class="ship-state" id="shipState">NOT READY</span>
+          </div>
+          <div class="endpoint-sub" id="shipSub">3 gates remain</div>
+        </div>
+      </div>
+
+      <section class="next" aria-label="Canonical next move">
+        <span class="label">NEXT MOVE</span>
+        <button id="nextMove" type="button">Run verifier tests</button>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="next-sub" id="nextSub">Verify latest changes and review the first failing gate.</div>
+      </section>
+
+      <div class="lower">
+        <div class="source-meta">
+          SIGNAL / HEALTHY<br>
+          RULE / github-observation-v1
+        </div>
+
+        <div class="rekt" aria-label="REKT state indicator">
+          <svg viewBox="0 0 34 34" role="img" aria-label="REKT state sprite placeholder">
+            <path class="outline" d="M9 9 13 4h8l5 5 3 5-3 2v9l-4 5H12l-4-5v-9l-3-2 4-5Z"/>
+            <path class="body" d="M10 13h14v11l-4 4h-6l-4-4V13Z"/>
+            <path class="eye" d="m12 16 4 1-2 2-2-1zM22 16l-4 1 2 2 2-1z"/>
+            <path class="tentacle" d="M17 28c1 3 5 3 6 1 1-2-1-3-2-2"/>
+          </svg>
+          <rekt-status id="rektStatus">REKT / WORKING</rekt-status>
+        </div>
+
+        <div class="system-meta">
+          <span id="blockerState">NO BLOCKER</span><br>
+          <span class="state-value" id="truthState">OBSERVED → OPERATING</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span><b>THREAD</b> is the hero object · no card grid · CRT off</span>
+    <span>CLAIMED ≠ OBSERVED ≠ PROVEN</span>
+  </footer>
+
+  <div class="demo" role="group" aria-label="Prototype state selector">
+    <span class="demo-label">DEMO STATE</span>
+    <button aria-pressed="true" data-set="building">building</button>
+    <button aria-pressed="false" data-set="rx">rx</button>
+    <button aria-pressed="false" data-set="blocked">blocked</button>
+    <button aria-pressed="false" data-set="help">help</button>
+    <button aria-pressed="false" data-set="proven">proven</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const shell = document.getElementById('shell');
+  const packet = document.getElementById('packet');
+  const nextMove = document.getElementById('nextMove');
+  const nextSub = document.getElementById('nextSub');
+  const rektStatus = document.getElementById('rektStatus');
+  const blockerState = document.getElementById('blockerState');
+  const truthState = document.getElementById('truthState');
+  const shipState = document.getElementById('shipState');
+  const shipSub = document.getElementById('shipSub');
+  const gateTest = document.getElementById('gate-test');
+  const gateVerify = document.getElementById('gate-verify');
+  const gateShip = document.getElementById('gate-ship');
+  const ascii = document.getElementById('ascii');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const stateCopy = {
+    building: {
+      next: 'Run verifier tests',
+      sub: 'Verify latest changes and review the first failing gate.',
+      rekt: 'REKT / WORKING',
+      blocker: 'NO BLOCKER',
+      truth: 'OBSERVED → OPERATING',
+      ship: 'NOT READY',
+      shipSub: '3 gates remain'
+    },
+    rx: {
+      next: 'Inspect source observation',
+      sub: 'A trusted GitHub observation just changed the Thread.',
+      rekt: 'REKT / RX',
+      blocker: 'NO BLOCKER',
+      truth: 'OBSERVED',
+      ship: 'NOT READY',
+      shipSub: 'source updated'
+    },
+    blocked: {
+      next: 'Inspect failing test',
+      sub: 'The machine stops at the failed locus; unrelated UI stays quiet.',
+      rekt: 'REKT / BLOCKED',
+      blocker: 'BLOCKER / TEST FAILED',
+      truth: 'FAILURE / VISIBLE',
+      ship: 'LOCKED',
+      shipSub: 'test gate failed'
+    },
+    help: {
+      next: 'Review helper response',
+      sub: 'The help beacon is attached to the blocker, not shown as a global alert.',
+      rekt: 'REKT / BEACON',
+      blocker: 'HELP ACTIVE',
+      truth: 'OPERATING / ASSIST',
+      ship: 'LOCKED',
+      shipSub: 'waiting on test'
+    },
+    proven: {
+      next: 'Open ship receipt',
+      sub: 'Trusted proof exists. Green appears only at the proof locus.',
+      rekt: 'REKT / PROVEN',
+      blocker: 'NO BLOCKER',
+      truth: 'PROVEN',
+      ship: 'PROVEN',
+      shipSub: 'receipt ready'
+    }
+  };
+
+  function setGate(el, cls) {
+    el.className = 'gate' + (cls ? ' ' + cls : '');
+  }
+
+  function shine() {
+    nextMove.classList.remove('shine-once');
+    void nextMove.offsetWidth;
+    nextMove.classList.add('shine-once');
+  }
+
+  function runPacket() {
+    if (reduce) return;
+    packet.classList.remove('run');
+    void packet.offsetWidth;
+    packet.classList.add('run');
+    ripple(58, 6, 1.0);
+  }
+
+  function applyState(state) {
+    shell.dataset.state = state;
+    const copy = stateCopy[state];
+    nextMove.textContent = copy.next;
+    nextSub.textContent = copy.sub;
+    rektStatus.textContent = copy.rekt;
+    blockerState.textContent = copy.blocker;
+    truthState.textContent = copy.truth;
+    shipState.textContent = copy.ship;
+    shipSub.textContent = copy.shipSub;
+
+    setGate(gateTest, '');
+    setGate(gateVerify, '');
+    setGate(gateShip, '');
+
+    if (state === 'blocked' || state === 'help') {
+      setGate(gateTest, '');
+    } else if (state === 'proven') {
+      setGate(gateTest, 'is-observed');
+      setGate(gateVerify, 'is-observed');
+      setGate(gateShip, 'is-proven');
+    } else if (state === 'rx') {
+      runPacket();
+    }
+
+    if (state !== 'rx') ripple(state === 'proven' ? 92 : state === 'help' ? 58 : state === 'blocked' ? 58 : 40, 6, state === 'proven' ? 1.35 : .72);
+    shine();
+
+    document.querySelectorAll('.demo button').forEach(btn => {
+      btn.setAttribute('aria-pressed', String(btn.dataset.set === state));
+    });
+  }
+
+  document.querySelectorAll('.demo button').forEach(btn => {
+    btn.addEventListener('click', () => applyState(btn.dataset.set));
+  });
+  nextMove.addEventListener('click', () => applyState('rx'));
+
+  // Small custom ASCII ripple field. It is intentionally a visual prototype,
+  // not ReactBits source. Production may swap this for licensed ASCII Ripple.
+  const chars = '  ·.:;+*#';
+  let cols = 0, rows = 0, grid = [], waves = [];
+  function resizeAscii() {
+    const w = ascii.parentElement.clientWidth;
+    const h = ascii.parentElement.clientHeight;
+    cols = Math.max(28, Math.floor(w / 11));
+    rows = Math.max(8, Math.floor(h / 9));
+    grid = new Array(cols * rows).fill(0);
+  }
+  function ripple(xPercent, yRow, strength) {
+    waves.push({
+      x: (xPercent / 100) * cols,
+      y: Math.min(rows - 1, yRow),
+      born: performance.now(),
+      strength
+    });
+  }
+  function frame(now) {
+    if (!cols) resizeAscii();
+    const out = [];
+    waves = waves.filter(w => now - w.born < 1300);
+    for (let y = 0; y < rows; y++) {
+      let line = '';
+      for (let x = 0; x < cols; x++) {
+        let energy = 0;
+        for (const w of waves) {
+          const age = (now - w.born) / 1000;
+          const radius = age * 18;
+          const d = Math.hypot(x - w.x, (y - w.y) * 1.7);
+          const ring = Math.max(0, 1 - Math.abs(d - radius) / 2.2);
+          energy += ring * w.strength * Math.max(0, 1 - age / 1.3);
+        }
+        const ambient = ((x * 13 + y * 7) % 31 === 0) ? .08 : 0;
+        const idx = Math.min(chars.length - 1, Math.floor((energy + ambient) * 5));
+        line += chars[idx];
+      }
+      out.push(line);
+    }
+    ascii.textContent = out.join('\n');
+    requestAnimationFrame(frame);
+  }
+  resizeAscii();
+  addEventListener('resize', resizeAscii);
+  requestAnimationFrame(frame);
+  if (!reduce) setTimeout(() => ripple(24, 6, .55), 450);
+})();
+</script>
+</body>
+</html>
