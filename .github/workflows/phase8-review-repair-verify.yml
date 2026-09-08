@@ -7,7 +7,7 @@ on:
       - '.github/workflows/phase8-review-repair-verify.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
@@ -34,11 +34,16 @@ jobs:
       NODE_ENV: test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/inkubator-devkit-launch-surface-v0
+          fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 24.20.0
           cache: npm
           cache-dependency-path: package-lock.json
+      - name: Sync checked-in generated transports
+        run: cp packages/sdk/src/generated/inkubator-api-client.ts apps/inkubator-lab/src/generated/inkubator-api-client.ts
       - run: npm ci --no-audit --no-fund
       - name: API and generated transport
         run: |
@@ -58,8 +63,11 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           text = Path('.github/workflows/publish-devkit.yml').read_text()
-          assert 'npm run verify:client -w @rekt-ink/inkubator-api' in text
-          assert text.index('npm run verify:client -w @rekt-ink/inkubator-api') < text.index('npm publish -w @rekt-ink/protocol')
+          verify = 'npm run verify:client -w @rekt-ink/inkubator-api'
+          first_publish = 'npm publish -w @rekt-ink/protocol'
+          assert verify in text
+          assert text.index(verify) < text.index(first_publish)
+          assert 'npm run build -w @rekt-ink/inkubator-api' in text
           assert 'id-token: write' in text
           assert '--provenance' in text
           assert 'NPM_TOKEN' not in text and 'NODE_AUTH_TOKEN' not in text
@@ -67,3 +75,16 @@ jobs:
           PY
       - name: Full API Postgres integration
         run: timeout 420s npm run test:integration -w @rekt-ink/inkubator-api
+      - name: Persist generated web transport only after green verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- apps/inkubator-lab/src/generated/inkubator-api-client.ts; then
+            echo 'Generated web transport already fresh.'
+            exit 0
+          fi
+          git config user.name 'CipherCuttle'
+          git config user.email '97258089+CipherCuttle@users.noreply.github.com'
+          git add apps/inkubator-lab/src/generated/inkubator-api-client.ts
+          git commit -m 'fix(inkubator): sync web generated DevKit transport'
+          git push origin HEAD:feature/inkubator-devkit-launch-surface-v0
