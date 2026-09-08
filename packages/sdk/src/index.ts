@@ -38,7 +38,7 @@ export function createInkubatorClient(options: InkubatorClientOptions) {
         const command = await current();
         return transport.updateMissionGate(command.mission.mission_id, input.gateKey, {
           request_id: requestId(input.idempotencyKey),
-          signal_state: input.state ?? 'CLAIMED',
+          state: input.state ?? 'CLAIMED',
         });
       },
     },
