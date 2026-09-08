@@ -22,6 +22,16 @@ main.command-live .command-advisory p {
   color: #85818c;
 }
 
+main.command-live .ios-shell-readout,
+main.command-live .command-source-endpoint,
+main.command-live .command-thread-gate,
+main.command-live .command-thread-break,
+main.command-live .command-thread-now,
+main.command-live .command-next-move,
+main.command-live .command-advisory {
+  opacity: 1 !important;
+}
+
 main.command-live .command-thread-gate small {
   color: #85818c;
 }
