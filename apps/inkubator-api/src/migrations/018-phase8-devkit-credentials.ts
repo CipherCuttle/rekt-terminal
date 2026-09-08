@@ -27,8 +27,17 @@ export const phase8DevkitCredentialsMigration: Migration = {
 
     await db.schema.createIndex('devkit_tokens_player_idx').on('devkit_tokens').columns(['player_id', 'created_at']).execute();
     await db.schema.createIndex('devkit_tokens_expiry_idx').on('devkit_tokens').columns(['expires_at', 'revoked_at']).execute();
+
+    await db.schema.createTable('devkit_player_rate_limits')
+      .addColumn('player_id', 'uuid', (column) => column.primaryKey().references('players.player_id').onDelete('cascade'))
+      .addColumn('rate_window_started_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`clock_timestamp()`))
+      .addColumn('rate_count', 'integer', (column) => column.notNull().defaultTo(0))
+      .addColumn('updated_at', 'timestamptz', (column) => column.notNull().defaultTo(sql`clock_timestamp()`))
+      .addCheckConstraint('devkit_player_rate_count', sql`rate_count >= 0`)
+      .execute();
   },
   async down(db) {
+    await db.schema.dropTable('devkit_player_rate_limits').execute();
     await db.schema.dropTable('devkit_tokens').execute();
   },
 };
