@@ -1,0 +1,104 @@
+:root {
+  color-scheme: dark;
+  background: #07060c;
+  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  color: #f1edf8;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { min-width: 320px; min-height: 100%; }
+html { background: #07060c; }
+body { margin: 0; min-height: 100vh; overflow-x: hidden; background: #07060c; }
+button { font: inherit; color: inherit; }
+button:focus-visible { outline: 2px solid #a9ffef; outline-offset: 3px; }
+
+.signal-lab { --ink: #07060c; --panel: #0c0a13; --panel-2: #100d19; --line: rgba(169, 129, 255, .28); --line-soft: rgba(169, 129, 255, .13); --muted: #9189a4; --text: #f1edf8; --cyan: #8fffee; --violet: #ae8cff; --amber: #f1b75a; width: min(1240px, calc(100% - 40px)); margin: 0 auto; padding: 28px 0 48px; }
+.signal-lab-header { display: flex; justify-content: space-between; gap: 32px; align-items: end; padding: 0 0 26px; border-bottom: 1px solid var(--line); }
+.signal-lab-eyebrow, .signal-experiment-stamp, .control-label, .panel-kicker, .chamber-header > div > span, .chamber-header > small, .lab-telemetry, .signal-capsule-top, .signal-capsule-kind, .signal-now-event > div > span, .signal-now-event > div > small, .signal-ledger li > span, .signal-ledger time, .signal-ports small, .signal-ports .port-note, .chamber-footnote, .chamber-empty { font-size: 9px; letter-spacing: .11em; }
+.signal-lab-eyebrow { margin: 0 0 14px; color: var(--cyan); }
+.signal-lab h1 { margin: 0; font-size: clamp(42px, 7vw, 88px); line-height: .84; letter-spacing: -.075em; font-weight: 800; }
+.signal-lab h1 em { color: var(--violet); font-style: normal; }
+.signal-lab-deck { max-width: 55ch; margin: 18px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.signal-experiment-stamp { border: 1px solid rgba(241, 183, 90, .58); color: var(--amber); padding: 10px 12px; line-height: 1.6; text-align: right; white-space: nowrap; }
+.signal-experiment-stamp strong { font-size: 10px; letter-spacing: .07em; }
+.signal-controls { display: flex; justify-content: space-between; gap: 20px; align-items: end; padding: 18px 0; border-bottom: 1px solid var(--line-soft); }
+.control-block { display: grid; gap: 8px; }
+.control-block--actions { justify-items: end; }
+.control-label { color: var(--muted); }
+.mode-toggle, .playback-controls { display: flex; flex-wrap: wrap; gap: 6px; }
+.mode-toggle button, .playback-controls button { cursor: pointer; border: 1px solid var(--line); background: #0b0911; padding: 8px 10px; font-size: 10px; letter-spacing: .08em; }
+.mode-toggle button:hover, .playback-controls button:hover, .mode-toggle button.is-active { border-color: var(--cyan); color: var(--cyan); background: rgba(143, 255, 238, .06); }
+.mode-toggle button.is-active { box-shadow: inset 0 -2px 0 var(--cyan); }
+.signal-lab-grid { display: grid; grid-template-columns: 198px minmax(0, 1fr); gap: 20px; padding-top: 20px; }
+.signal-ports, .signal-now, .signal-chamber-panel, .signal-ledger { background: linear-gradient(145deg, rgba(17, 13, 28, .92), rgba(9, 8, 14, .96)); border: 1px solid var(--line); }
+.signal-ports { align-self: start; padding: 16px; }
+.panel-kicker { display: flex; justify-content: space-between; gap: 12px; color: var(--violet); }
+.panel-kicker small { color: var(--muted); font-size: 8px; }
+.port-note { color: var(--muted); line-height: 1.55; margin: 18px 0; }
+.signal-ports ol { display: grid; gap: 10px; list-style: none; padding: 0; margin: 0; }
+.signal-ports li { display: grid; grid-template-columns: 25px 1fr; gap: 8px; align-items: center; min-width: 0; }
+.port-node { width: 23px; height: 23px; display: grid; place-items: center; border: 1px solid var(--violet); color: var(--cyan); font-size: 8px; }
+.signal-ports strong, .signal-ports small { display: block; overflow-wrap: anywhere; }
+.signal-ports strong { font-size: 10px; letter-spacing: .04em; line-height: 1.35; }
+.signal-ports small { color: var(--muted); margin-top: 4px; font-size: 8px; }
+.signal-main-column { min-width: 0; display: grid; gap: 16px; }
+.signal-now { padding: 14px 16px; }
+.signal-now-event { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: center; margin-top: 14px; border-left: 2px solid var(--cyan); padding: 5px 0 5px 12px; }
+.signal-now-event[data-truth="claimed"] { border-color: var(--violet); }
+.signal-now-mark { color: var(--cyan); font-size: 11px; }
+.signal-now-event[data-truth="claimed"] .signal-now-mark { color: var(--violet); }
+.signal-now-event > div { min-width: 0; }
+.signal-now-event > div > span, .signal-now-event > div > small { display: block; color: var(--cyan); overflow-wrap: anywhere; }
+.signal-now-event[data-truth="claimed"] > div > span { color: var(--violet); }
+.signal-now-event strong { display: block; margin: 3px 0; font-size: clamp(15px, 2.2vw, 24px); letter-spacing: .04em; overflow-wrap: anywhere; }
+.signal-now-event > div > small { color: var(--muted); }
+.signal-empty { color: var(--muted); font-size: 10px; letter-spacing: .1em; margin: 18px 0 4px; }
+.chamber-header { display: flex; justify-content: space-between; align-items: end; gap: 16px; padding: 15px 16px 13px; border-bottom: 1px solid var(--line-soft); }
+.chamber-header h2 { margin: 5px 0 0; font-size: clamp(14px, 2vw, 20px); letter-spacing: .06em; }
+.chamber-header > small { color: var(--muted); text-align: right; }
+.signal-chamber { position: relative; isolation: isolate; height: clamp(320px, 39vw, 485px); min-height: 320px; overflow: hidden; background: #08070d; }
+.signal-chamber::before, .signal-chamber::after { content: ""; position: absolute; z-index: 1; pointer-events: none; opacity: .65; }
+.signal-chamber::before { inset: 12px; border: 1px solid var(--line-soft); }
+.signal-chamber::after { left: 0; top: 21%; width: 110px; border-top: 1px solid rgba(143, 255, 238, .34); box-shadow: 0 82px 0 rgba(143, 255, 238, .14), 0 164px 0 rgba(143, 255, 238, .12); }
+.chamber-grid { position: absolute; inset: 13px; opacity: .42; background: linear-gradient(rgba(174, 140, 255, .07) 1px, transparent 1px), linear-gradient(90deg, rgba(174, 140, 255, .07) 1px, transparent 1px); background-size: 48px 48px; mask-image: linear-gradient(90deg, black, transparent 88%); }
+.chamber-manifold { position: absolute; z-index: 2; left: 22px; top: 20%; width: 74px; display: grid; gap: 6px; color: var(--cyan); font-size: 9px; letter-spacing: .12em; }
+.chamber-manifold i { display: block; width: 38px; height: 38px; border: 1px solid var(--cyan); border-radius: 50%; position: relative; }
+.chamber-manifold i::before, .chamber-manifold i::after { content: ""; position: absolute; background: var(--cyan); opacity: .75; }
+.chamber-manifold i::before { width: 54px; height: 1px; left: -9px; top: 18px; }
+.chamber-manifold i::after { height: 54px; width: 1px; left: 18px; top: -9px; }
+.chamber-manifold b { color: var(--muted); font-size: 8px; font-weight: 400; }
+.chamber-current { position: absolute; z-index: 2; left: 78px; height: 1px; width: 28px; border-top: 1px dashed rgba(143, 255, 238, .48); transform: rotate(-14deg); transform-origin: left; }
+.chamber-current--one { top: 31%; }.chamber-current--two { top: 56%; transform: rotate(12deg); }
+.signal-capsules { position: absolute; z-index: 3; inset: 0; }
+.signal-capsule-shell { position: absolute; width: min(210px, 34%); min-width: 150px; will-change: transform; transform: translate(-50%, -50%); }
+.signal-capsule-shell::before { content: ""; position: absolute; z-index: -1; left: -65px; top: 50%; width: 64px; border-top: 1px solid rgba(143, 255, 238, .28); transform-origin: right; }
+.signal-capsule { min-height: 76px; padding: 10px 12px; border: 1px solid rgba(174, 140, 255, .62); border-left: 3px solid var(--violet); background: rgba(14, 11, 23, .95); box-shadow: 5px 5px 0 rgba(174, 140, 255, .06); }
+.signal-capsule[data-truth="observed"] { border-left-color: var(--cyan); }
+.signal-capsule-top { display: flex; justify-content: space-between; gap: 8px; color: var(--violet); }
+.signal-capsule-top small { color: var(--muted); font-size: 8px; }
+.signal-capsule[data-truth="observed"] .signal-capsule-top { color: var(--cyan); }
+.signal-capsule strong { display: block; margin: 7px 0 3px; color: var(--text); font-size: 11px; letter-spacing: .05em; overflow-wrap: anywhere; }
+.signal-capsule-kind { display: block; color: var(--muted); font-size: 8px; overflow-wrap: anywhere; }
+.signal-capsule time { display: block; margin-top: 5px; color: var(--muted); font-size: 8px; }
+.chamber-empty { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); text-align: center; }
+.chamber-empty strong { color: var(--cyan); font-size: 13px; letter-spacing: .1em; }
+.chamber-footnote { position: absolute; z-index: 2; right: 22px; bottom: 20px; color: var(--muted); line-height: 1.6; text-align: right; }
+.lab-telemetry { display: flex; flex-wrap: wrap; gap: 16px; padding: 10px 14px; border-top: 1px solid var(--line-soft); color: var(--muted); }
+.lab-telemetry b { color: var(--cyan); font-weight: 400; }
+.signal-ledger { padding: 15px 16px 0; }
+.signal-ledger ol { list-style: none; padding: 0; margin: 12px 0 0; }
+.signal-ledger li { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 0; border-top: 1px solid var(--line-soft); }
+.signal-ledger li > span { color: var(--violet); }.signal-ledger li[data-truth="observed"] > span { color: var(--cyan); }
+.signal-ledger li strong, .signal-ledger li small { display: block; overflow-wrap: anywhere; }.signal-ledger li strong { font-size: 11px; letter-spacing: .04em; }.signal-ledger li small { color: var(--muted); margin-top: 3px; font-size: 8px; }.signal-ledger time { color: var(--muted); text-align: right; white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .signal-lab { width: min(100% - 24px, 620px); padding-top: 18px; }
+  .signal-lab-header { align-items: start; flex-direction: column; gap: 18px; }.signal-experiment-stamp { align-self: stretch; text-align: left; }
+  .signal-controls { align-items: start; flex-direction: column; }.control-block--actions { justify-items: start; }
+  .signal-lab-grid { display: block; }.signal-ports { margin-bottom: 16px; }.signal-ports ol { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }.port-note { margin: 12px 0; }.signal-ports li { grid-template-columns: 24px minmax(0, 1fr); }.signal-ports strong { font-size: 9px; }
+  .chamber-header { align-items: start; flex-direction: column; gap: 8px; }.chamber-header > small { text-align: left; }.signal-chamber { height: 320px; min-height: 280px; }.signal-capsule-shell { width: min(195px, 57%); min-width: 142px; }.signal-capsule { min-height: 72px; padding: 8px 9px; }.signal-capsule strong { font-size: 10px; }.chamber-manifold { left: 16px; }.chamber-footnote { right: 16px; bottom: 14px; font-size: 8px; }.lab-telemetry { gap: 8px 13px; font-size: 8px; }.signal-ledger li { grid-template-columns: 64px minmax(0, 1fr); gap: 8px; }.signal-ledger time { grid-column: 2; text-align: left; }.signal-ledger li strong { font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+}
