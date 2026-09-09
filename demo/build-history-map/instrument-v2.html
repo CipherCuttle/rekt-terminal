@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#020203" />
+<title>INKUBATOR // BUILD LINEAGE V2</title>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020203}iframe{display:block;width:100%;height:100%;border:0;background:#020203}
+</style>
+</head>
+<body>
+<iframe id="base" src="./index.html" title="REKT Inkubator build lineage instrument"></iframe>
+<script>
+(() => {
+  const frame = document.getElementById('base');
+  frame.addEventListener('load', () => {
+    const w = frame.contentWindow;
+    const d = frame.contentDocument;
+    if (!w || !d) return;
+
+    const style = d.createElement('style');
+    style.textContent = `
+      :root{--focus:#d9c8ff;--void2:#050507}
+      .topbar{box-shadow:0 1px 0 rgba(170,131,255,.03)}
+      .topcopy strong{font-weight:560}.topcopy span{letter-spacing:.08em}
+      .stage{background:
+        linear-gradient(90deg,transparent 0 24px,rgba(170,131,255,.018) 24px 25px,transparent 25px),
+        var(--void)}
+      .commandline{position:relative;background:linear-gradient(180deg,rgba(10,9,13,.72),rgba(2,2,3,.2))}
+      .commandline:after{content:'SOURCE → THREAD → PROBE';position:absolute;right:16px;bottom:5px;color:#39333f;font-size:6px;letter-spacing:.15em;pointer-events:none}
+      .source-node{border-color:#2b2732;background:#050507}.source-node:before{content:'RX';position:absolute;right:7px;top:5px;color:#46404b;font-size:5px;letter-spacing:.12em}
+      .bayhead{background:linear-gradient(90deg,rgba(170,131,255,.018),transparent 52%)}
+      .bayhead h1{font-size:clamp(15px,1.6vw,22px);letter-spacing:-.02em}.bayhead p{max-width:720px}
+      .mapwrap{background:
+        linear-gradient(rgba(255,255,255,.011) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(255,255,255,.007) 1px,transparent 1px);
+        background-size:100% 24px,24px 100%}
+      .thread-spine{stroke:#352c40!important}.thread-live{filter:drop-shadow(0 0 3px rgba(170,131,255,.18))}
+      .project-branch{transition:opacity .18s,stroke .18s,stroke-width .18s}.nodehit{transition:opacity .18s}.nodehit .project-name{font-weight:500}
+      .nodehit.selected .project-name{fill:var(--focus)!important}.nodehit.selected .birth{stroke:var(--focus)!important;stroke-width:2}.nodehit.selected .endpoint{filter:drop-shadow(0 0 4px rgba(107,231,255,.65))}
+      #machine.focus-mode .nodehit:not(.selected){opacity:.15}
+      #machine.focus-mode .project-branch:not(.current){opacity:.13}
+      #machine.focus-mode .claim-link{opacity:.12}
+      .inspector{position:relative}.inspector:before{content:'';position:absolute;left:0;top:78px;bottom:0;width:1px;background:linear-gradient(var(--cyan),transparent 38%);opacity:.14;pointer-events:none}
+      .ins-head{position:relative;padding-right:54px}.ins-head:after{content:'◢';position:absolute;right:17px;top:18px;color:var(--violet);font-size:20px;line-height:1;transform:rotate(45deg);opacity:.75}
+      .instrument{background:linear-gradient(90deg,rgba(107,231,255,.012),transparent 50%)}
+      .scope{background:repeating-linear-gradient(0deg,transparent 0 17px,rgba(107,231,255,.025) 17px 18px)}
+      .fact b{font-variant-numeric:tabular-nums}.commit .msg{letter-spacing:.005em}
+      .v2-controls{display:flex;height:100%;align-items:center;border-left:1px solid var(--line)}
+      .v2-controls button{height:100%;border:0;border-right:1px solid var(--line);background:transparent;color:#655e6d;padding:0 11px;font-size:7px;letter-spacing:.11em;cursor:pointer}
+      .v2-controls button.on{color:var(--violet)}.v2-controls button:hover{color:var(--text)}
+      .truth-floor{position:fixed;right:10px;bottom:8px;z-index:35;color:#48424e;font-size:6px;letter-spacing:.12em;pointer-events:none}
+      .resident{position:fixed;left:68px;bottom:12px;z-index:35;width:34px;height:34px;opacity:.72;pointer-events:none;filter:drop-shadow(0 0 4px rgba(170,131,255,.08))}
+      .resident path{fill:none;stroke:var(--violet);stroke-width:1.1;shape-rendering:crispEdges}.resident .eye{fill:var(--text);stroke:none}.resident.rx path{stroke:var(--cyan)}
+      .resident-label{position:fixed;left:106px;bottom:18px;z-index:35;color:#4c4554;font-size:6px;letter-spacing:.12em;pointer-events:none}
+      @media(max-width:620px){.v2-controls button{padding:0 7px;font-size:6px}.resident{left:46px;bottom:8px;width:28px;height:28px}.resident-label{display:none}.truth-floor{display:none}.commandline:after{display:none}.ins-head:after{right:10px}.project-name{font-size:9px!important}}
+      @media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+    `;
+    d.head.appendChild(style);
+
+    const stateHost = d.querySelector('.topstate');
+    if (stateHost) {
+      const controls = d.createElement('div');
+      controls.className = 'v2-controls';
+      controls.innerHTML = '<button id="focusMode">FOCUS</button><button id="playThread">PLAY THREAD</button>';
+      stateHost.prepend(controls);
+    }
+
+    const truth = d.createElement('div');
+    truth.className = 'truth-floor';
+    truth.textContent = 'CLAIMED ≠ OBSERVED ≠ PROVEN';
+    d.body.appendChild(truth);
+
+    const ns = 'http://www.w3.org/2000/svg';
+    const sprite = d.createElementNS(ns, 'svg');
+    sprite.setAttribute('viewBox','0 0 34 34');
+    sprite.setAttribute('class','resident');
+    sprite.innerHTML = '<path d="M9 9 13 4h8l5 5 3 5-3 2v9l-4 5H12l-4-5v-9l-3-2 4-5Z"/><path d="M10 13h14v11l-4 4h-6l-4-4V13Z"/><path class="eye" d="m12 16 4 1-2 2-2-1zM22 16l-4 1 2 2 2-1z"/><path d="M17 28c1 3 5 3 6 1 1-2-1-3-2-2"/>';
+    d.body.appendChild(sprite);
+    const label = d.createElement('div');
+    label.className = 'resident-label';
+    label.textContent = 'REKT // OBSERVING';
+    d.body.appendChild(label);
+
+    const machine = d.getElementById('machine');
+    const focus = d.getElementById('focusMode');
+    const play = d.getElementById('playThread');
+
+    focus?.addEventListener('click', () => {
+      machine?.classList.toggle('focus-mode');
+      focus.classList.toggle('on');
+      focus.textContent = focus.classList.contains('on') ? 'FOCUS // ON' : 'FOCUS';
+    });
+
+    function projectNodes() {
+      return Array.from(d.querySelectorAll('.nodehit'));
+    }
+
+    play?.addEventListener('click', () => {
+      const nodes = projectNodes();
+      if (!nodes.length || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      play.classList.add('on');
+      play.textContent = 'PLAYING';
+      nodes.forEach(n => n.style.opacity = '.08');
+      const tl = gsap.timeline({onComplete:() => {
+        nodes.forEach(n => n.style.opacity = '');
+        play.classList.remove('on');
+        play.textContent = 'PLAY THREAD';
+      }});
+      nodes.forEach((node, i) => {
+        tl.to(node,{opacity:1,duration:.12,ease:'power1.out'},i*.055);
+        tl.fromTo(node,{filter:'drop-shadow(0 0 0 rgba(107,231,255,0))'},{filter:'drop-shadow(0 0 5px rgba(107,231,255,.28))',duration:.11,yoyo:true,repeat:1},i*.055);
+      });
+    });
+
+    const observer = new MutationObserver(() => {
+      const lamp = d.getElementById('sourceLamp');
+      const rx = lamp?.classList.contains('live');
+      sprite.classList.toggle('rx', !!rx);
+      label.textContent = rx ? 'REKT // RX' : 'REKT // OBSERVING';
+      const selected = d.querySelector('.nodehit.selected');
+      if (selected && focus?.classList.contains('on')) {
+        machine?.classList.add('focus-mode');
+      }
+    });
+    observer.observe(d.body,{subtree:true,attributes:true,attributeFilter:['class']});
+
+    d.addEventListener('click', e => {
+      const target = e.target.closest?.('.nodehit');
+      if (!target) return;
+      sprite.classList.add('rx');
+      gsap.fromTo(sprite,{scale:.92,opacity:.45},{scale:1,opacity:.85,duration:.24,ease:'back.out(2)'});
+      setTimeout(()=>sprite.classList.remove('rx'),500);
+      const probe = d.querySelector('.inspector');
+      if (probe) gsap.fromTo(probe,{opacity:.72},{opacity:1,duration:.22,ease:'power2.out'});
+    });
+  });
+})();
+</script>
+</body>
+</html>
