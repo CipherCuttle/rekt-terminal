@@ -1,0 +1,68 @@
+name: Partner Cartridge V0
+
+on:
+  push:
+    branches: [prototype/partner-cartridge-v0]
+    paths:
+      - '.github/workflows/partner-cartridge-v0.yml'
+      - 'prototypes/partner-cartridge-v0/**'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-partner-cartridge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_USER: rekt
+          POSTGRES_PASSWORD: rekt_test
+          POSTGRES_DB: rekt_inkubator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rekt -d rekt_inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://rekt:rekt_test@127.0.0.1:5432/rekt_inkubator
+      INKUBATOR_APP_ORIGIN: https://inkubator.test
+      INKUBATOR_DEV_AUTH: '1'
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+
+      - name: Apply isolated prototype patch
+        run: node prototypes/partner-cartridge-v0/apply-prototype.mjs
+
+      - name: Compile patched Inkubator API
+        run: |
+          npm run typecheck -w @rekt-ink/inkubator-api
+          npm run build -w @rekt-ink/inkubator-api
+          npm run migrate -w @rekt-ink/inkubator-api
+
+      - name: Partner Cartridge full vertical falsification
+        run: timeout 180s node --test --test-concurrency=1 prototypes/partner-cartridge-v0/partner-cartridge.integration.test.mjs
+
+      - name: Existing Mission idempotency regression
+        run: timeout 180s node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase3-player-mission-command.test.mjs
+
+      - name: Existing Ship authority regression
+        run: timeout 180s node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase6-ship-acceptance-receipt.test.mjs
+
+      - name: Prototype surface sanity
+        run: |
+          grep -q "APPLE INU" prototypes/partner-cartridge-v0/index.html
+          grep -q "CLAIMED ≠ OBSERVED ≠ PROVEN" prototypes/partner-cartridge-v0/index.html
+          grep -q "BUILD THIS" prototypes/partner-cartridge-v0/index.html
+          grep -q "SHIP AUTHORITY" prototypes/partner-cartridge-v0/index.html
