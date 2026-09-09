@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/><title>Lineage Bakeoff // phylotree.js</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/phylotree@2.6.0/dist/phylotree.css"/>
+<style>
+html,body{margin:0;height:100%;background:#08090b;color:#e8e5df;font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.app{min-height:100dvh;display:grid;grid-template-rows:auto auto 1fr}.head{padding:10px 12px;border-bottom:1px solid #272a31;display:flex;gap:12px;align-items:center;background:#0b0c0f}.head b{font-size:12px;letter-spacing:.08em}.head span{color:#888e9a;font-size:10px}.badge{margin-left:auto;color:#c0ff78;border:1px solid #42552d;padding:4px 6px}.note{padding:8px 12px;color:#9298a3;border-bottom:1px solid #20232a;line-height:1.5;font-size:10px}.wrap{overflow:auto;min-height:0}.tree{min-width:720px;height:calc(100dvh - 94px);padding:10px}.tree svg{background:#08090b!important}.tree svg text{fill:#dedad3!important;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace!important;font-size:11px!important}.tree svg path,.tree svg line{stroke:#858a95!important}.tree svg .branch{stroke:#858a95!important;stroke-width:2px!important}.error{padding:20px;color:#ff8a80;white-space:pre-wrap}
+</style>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/phylotree@2.6.0/dist/phylotree.js"></script>
+</head><body><div class="app"><header class="head"><b>CANDIDATE B // PHYLOTREE.JS 2.6</b><span>native scaled branch lengths + native zoom + native clade collapse</span><div class="badge">GEOMETRY TEST</div></header><div class="note">This view deliberately uses phylotree's actual scaled-tree renderer. Root→family length = calendar delay to the first repo in that group; family→project-birth length = delay to repo creation; project-birth→tip length = observed repo lifetime through last push. Groups are presentation only, not ancestry claims.</div><div class="wrap"><div class="tree" id="tree"></div></div></div>
+<script>
+try{
+const DAY=86400000, origin=Date.parse('2026-01-01T00:00:00Z');
+const groups=[
+ {name:'QNTY_SYSTEMS',projects:[
+  ['Qnty','2026-04-09T21:29:04Z','2026-08-16T21:46:51Z'],
+  ['QntyLab','2026-07-31T04:03:04Z','2026-09-08T14:25:11Z'],
+  ['QntyAgentEval','2026-08-10T21:11:39Z','2026-08-11T00:00:55Z'],
+  ['QntySpot','2026-08-24T04:32:18Z','2026-09-08T20:19:23Z'],
+  ['QntyAuthorityRoot','2026-09-02T20:10:38Z','2026-09-08T15:53:16Z']]},
+ {name:'REKT_SYSTEMS',projects:[
+  ['rekt-terminal','2026-08-27T23:40:44Z','2026-09-09T00:19:58Z'],
+  ['apple-inu-bite-night','2026-09-08T12:37:00Z','2026-09-08T22:17:27Z']]},
+ {name:'SIGNAL_FRONTIER',projects:[['frontier','2026-09-04T23:27:04Z','2026-09-08T22:48:18Z']]},
+ {name:'OTHER_BUILDS',projects:[['rugpull-tycoon','2026-07-01T23:35:31Z','2026-07-18T21:06:47Z'],['Smokestack','2026-08-23T21:24:56Z','2026-08-28T03:08:23Z']]}
+];
+const safe=s=>s.replace(/[^A-Za-z0-9_-]/g,'_');
+const days=(a,b)=>Math.max(.05,(Date.parse(b)-Date.parse(a))/DAY);
+const fromOrigin=d=>Math.max(.05,(Date.parse(d)-origin)/DAY);
+const groupNewicks=groups.map(g=>{
+ const first=g.projects.reduce((m,p)=>Date.parse(p[1])<Date.parse(m)?p[1]:m,g.projects[0][1]);
+ const children=g.projects.map(([name,birth,end])=>`(${safe(name)}:${days(birth,end).toFixed(3)})${safe(name)}_BIRTH:${days(first,birth).toFixed(3)}`).join(',');
+ return `(${children})${g.name}:${fromOrigin(first).toFixed(3)}`;
+});
+const newick=`(${groupNewicks.join(',')})PLAYER;`;
+const tree=new phylotree.phylotree(newick);
+tree.render({container:'#tree',width:Math.max(720,window.innerWidth-30),height:Math.max(560,window.innerHeight-120),zoom:true,collapsible:true,selectable:true,reroot:false,hide:true,'align-tips':false,'show-scale':true,'left-right-spacing':'fit-to-size','top-bottom-spacing':'fit-to-size','minimum-per-node-spacing':18,'minimum-per-level-spacing':25});
+}catch(err){document.getElementById('tree').innerHTML='<pre class="error">phylotree failed to initialize:\n'+String(err?.stack||err)+'</pre>';}
+</script></body></html>
