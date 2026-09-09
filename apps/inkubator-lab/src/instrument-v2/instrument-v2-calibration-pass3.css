@@ -1,0 +1,121 @@
+/* Pixel calibration pass 3: bounded final corrections from browser capture. */
+
+@media (min-width: 761px) {
+  /* Reference desktop header contains a recessed search instrument before
+     the identity puck. Reconstruct it without adding a new semantic control
+     to this calibration-only surface. */
+  body:has(.iv2-page) .iv2-wallet {
+    grid-template-columns: 190px 44px minmax(100px, 1fr) 18px;
+    gap: 8px 10px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  body:has(.iv2-page) .iv2-wallet .iv2-search {
+    grid-row: 1 / span 2;
+    width: 184px;
+    height: 36px;
+    align-self: center;
+    display: flex;
+    align-items: center;
+    padding-left: 36px;
+    border: 1px solid rgba(17,18,20,.045);
+    border-radius: 9px;
+    background: rgba(225,225,222,.72);
+    color: transparent;
+    font-size: 0;
+    transform: none;
+    position: relative;
+  }
+
+  body:has(.iv2-page) .iv2-wallet .iv2-search::before {
+    content: '⌕';
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-51%) rotate(-8deg);
+    color: #151617;
+    font: 500 21px/1 Arial, sans-serif;
+  }
+
+  body:has(.iv2-page) .iv2-wallet .iv2-search::after {
+    content: 'Search projects, threads, or wallets…';
+    color: #6a6a66;
+    white-space: nowrap;
+    font: 500 8px/1 Arial, sans-serif;
+  }
+
+  /* Let the swordfish violate its nominal grid cell like the approved art:
+     the bill reaches into the left diagnostic zone and the tail breathes
+     into the readout zone. */
+  body:has(.iv2-page) .iv2-fish {
+    position: relative;
+    left: -40px;
+    width: calc(100% + 80px);
+    transform: scaleY(1.78);
+    transform-origin: 50% 84%;
+    z-index: 1;
+  }
+
+  body:has(.iv2-page) .iv2-crt-left-copy,
+  body:has(.iv2-page) .iv2-crt-readouts {
+    position: relative;
+    z-index: 2;
+  }
+
+  body:has(.iv2-page) .iv2-cal-note {
+    display: none;
+  }
+
+  /* Match the measured monitor interiors at the 1672x941 golden viewport.
+     These are calibration offsets, not general layout semantics. */
+  body:has(.iv2-page) .iv2-network-crt {
+    transform: translate(4px, 3px);
+    width: calc(100% - 5px);
+    height: calc(100% - 1px);
+  }
+
+  body:has(.iv2-page) .iv2-analysis-crt {
+    transform: translate(-4px, 13px);
+    width: calc(100% + 1px);
+    height: calc(100% + 8px);
+    z-index: 3;
+  }
+
+  body:has(.iv2-page) .iv2-status-crt {
+    transform: translate(-3px, 22px);
+    width: calc(100% + 1px);
+    height: calc(100% - 3px);
+    z-index: 2;
+  }
+
+  body:has(.iv2-page) .iv2-right-stamp {
+    transform: translateY(25px);
+  }
+}
+
+@media (max-width: 760px) {
+  /* Four visible children remain after score/more controls are hidden:
+     avatar, copy, time, comments. Explicit columns prevent the copy from
+     accidentally occupying the old 40px avatar track. */
+  body:has(.iv2-page) .iv2-thread-list article {
+    grid-template-columns: 40px minmax(0, 1fr) 48px 34px;
+    gap: 8px;
+  }
+
+  body:has(.iv2-page) .iv2-thread-copy {
+    min-width: 0;
+  }
+
+  body:has(.iv2-page) .iv2-thread-copy p {
+    max-width: none;
+    white-space: normal;
+  }
+
+  body:has(.iv2-page) .iv2-fish {
+    left: -13px;
+    width: calc(100% + 26px);
+    transform: scaleY(1.48);
+    transform-origin: 50% 82%;
+  }
+}
