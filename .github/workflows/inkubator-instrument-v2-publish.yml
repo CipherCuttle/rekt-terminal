@@ -1,0 +1,63 @@
+name: Publish Instrument V2 GitHack Artifact
+
+on:
+  push:
+    branches:
+      - demo/inkubator-instrument-v2-calibration-v0
+    paths-ignore:
+      - 'demo/instrument-v2-calibration/dist/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-instrument-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: ${{ !contains(github.event.head_commit.message, '[skip instrument publish]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: demo/inkubator-instrument-v2-calibration-v0
+          fetch-depth: 0
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build Inkubator lab
+        run: npm run build -w @rekt-ink/inkubator-lab
+
+      - name: Stage static GitHack artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='demo/instrument-v2-calibration/dist'
+          rm -rf "$target"
+          mkdir -p "$target"
+          cp -R inkubator/. "$target/"
+
+      - name: Commit static artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add demo/instrument-v2-calibration/dist
+          if git diff --cached --quiet; then
+            echo 'Static artifact already current.'
+            exit 0
+          fi
+          git commit -m 'chore(demo): build instrument v2 calibration [skip instrument publish]'
+          git push origin HEAD:demo/inkubator-instrument-v2-calibration-v0
