@@ -4,10 +4,9 @@
 <style>
 html,body{margin:0;height:100%;background:#08090b;color:#e8e5df;font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.app{min-height:100dvh;display:grid;grid-template-rows:auto auto 1fr}.head{padding:10px 12px;border-bottom:1px solid #272a31;display:flex;gap:12px;align-items:center;background:#0b0c0f}.head b{font-size:12px;letter-spacing:.08em}.head span{color:#888e9a;font-size:10px}.badge{margin-left:auto;color:#c0ff78;border:1px solid #42552d;padding:4px 6px}.note{padding:8px 12px;color:#9298a3;border-bottom:1px solid #20232a;line-height:1.5;font-size:10px}.wrap{overflow:auto;min-height:0}.tree{min-width:720px;height:calc(100dvh - 94px);padding:10px}.tree svg{background:#08090b!important}.tree svg text{fill:#dedad3!important;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace!important;font-size:11px!important}.tree svg path,.tree svg line{stroke:#858a95!important}.tree svg .branch{stroke:#858a95!important;stroke-width:2px!important}.error{padding:20px;color:#ff8a80;white-space:pre-wrap}
 </style>
-<script src="https://d3js.org/d3.v7.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/phylotree@2.6.0/dist/phylotree.js"></script>
 </head><body><div class="app"><header class="head"><b>CANDIDATE B // PHYLOTREE.JS 2.6</b><span>native scaled branch lengths + native zoom + native clade collapse</span><div class="badge">GEOMETRY TEST</div></header><div class="note">This view deliberately uses phylotree's actual scaled-tree renderer. Root→family length = calendar delay to the first repo in that group; family→project-birth length = delay to repo creation; project-birth→tip length = observed repo lifetime through last push. Groups are presentation only, not ancestry claims.</div><div class="wrap"><div class="tree" id="tree"></div></div></div>
-<script>
+<script type="module">
+import { phylotree as Phylotree } from 'https://cdn.jsdelivr.net/npm/phylotree@2.6.0/+esm';
 try{
 const DAY=86400000, origin=Date.parse('2026-01-01T00:00:00Z');
 const groups=[
@@ -32,7 +31,7 @@ const groupNewicks=groups.map(g=>{
  return `(${children})${g.name}:${fromOrigin(first).toFixed(3)}`;
 });
 const newick=`(${groupNewicks.join(',')})PLAYER;`;
-const tree=new phylotree.phylotree(newick);
+const tree=new Phylotree(newick);
 tree.render({container:'#tree',width:Math.max(720,window.innerWidth-30),height:Math.max(560,window.innerHeight-120),zoom:true,collapsible:true,selectable:true,reroot:false,hide:true,'align-tips':false,'show-scale':true,'left-right-spacing':'fit-to-size','top-bottom-spacing':'fit-to-size','minimum-per-node-spacing':18,'minimum-per-level-spacing':25});
 }catch(err){document.getElementById('tree').innerHTML='<pre class="error">phylotree failed to initialize:\n'+String(err?.stack||err)+'</pre>';}
 </script></body></html>
