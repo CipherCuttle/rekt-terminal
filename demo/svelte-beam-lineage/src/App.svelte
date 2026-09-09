@@ -230,8 +230,8 @@
             class="project-label"
             style={`left:${birthX(p)}%;top:${familyById[p.family].y + p.dy}px;--family-a:${familyById[p.family].colorA}`}
             on:click={() => selectProject(p)}
-            in:scale={{ duration: 360, start: 0.5 }}
-            out:fade={{ duration: 160 }}
+            in:scale={{ duration: 520, start: 0.72 }}
+            out:fade={{ duration: 220 }}
           >
             <i></i><span>{p.name}</span><small>{fmt(p.birthMs)}</small>
           </button>
@@ -249,12 +249,12 @@
                 {containerRef}
                 fromRef={rootRef}
                 toRef={familyStartRefs[family.id]}
-                curvature={family.y < 298 ? 64 : -64}
-                duration={7.2}
-                delay={0.08}
-                pathColor="#4e5360"
-                pathWidth={2.2}
-                pathOpacity={0.24}
+                curvature={family.y < 298 ? 44 : -44}
+                duration={9.6}
+                delay={0.16}
+                pathColor="#414651"
+                pathWidth={1.15}
+                pathOpacity={0.12}
                 gradientStartColor={family.colorA}
                 gradientStopColor={family.colorB}
               />
@@ -265,11 +265,11 @@
                 fromRef={familyStartRefs[family.id]}
                 toRef={familyEndRefs[family.id]}
                 curvature={0}
-                duration={6.6}
-                delay={0.18}
-                pathColor="#535966"
-                pathWidth={3.4}
-                pathOpacity={0.30}
+                duration={10.4}
+                delay={0.30}
+                pathColor="#464b55"
+                pathWidth={1.4}
+                pathOpacity={0.15}
                 gradientStartColor={family.colorA}
                 gradientStopColor={family.colorB}
               />
@@ -282,12 +282,12 @@
                 {containerRef}
                 fromRef={birthRefs[p.id]}
                 toRef={endRefs[p.id]}
-                curvature={p.dy * -0.92}
-                duration={4.6 + (projects.indexOf(p) % 4) * 0.5}
-                delay={(projects.indexOf(p) % 5) * 0.14}
-                pathColor="#5e6572"
-                pathWidth={selected?.id === p.id ? 3.4 : 2.35}
-                pathOpacity={selected?.id === p.id ? 0.40 : 0.26}
+                curvature={p.dy * -0.62}
+                duration={8.6 + (projects.indexOf(p) % 4) * 0.65}
+                delay={(projects.indexOf(p) % 5) * 0.22}
+                pathColor="#4d535e"
+                pathWidth={selected?.id === p.id ? 1.75 : 1.1}
+                pathOpacity={selected?.id === p.id ? 0.22 : 0.11}
                 gradientStartColor={familyById[p.family].colorA}
                 gradientStopColor={familyById[p.family].colorB}
               />
