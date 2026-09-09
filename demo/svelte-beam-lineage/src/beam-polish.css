@@ -1,0 +1,33 @@
+/* Presentation-only refinement for the vendored upstream AnimatedBeam.svelte.
+   The component source remains unchanged. */
+
+.beam-layer svg {
+  opacity: 0.72;
+  overflow: visible;
+  shape-rendering: geometricPrecision;
+}
+
+/* Presentation attributes from the upstream component are deliberately
+   overridden here so the history reads as a fine instrument trace, not a cable. */
+.beam-layer svg path {
+  stroke-width: 1px !important;
+  vector-effect: non-scaling-stroke;
+  shape-rendering: geometricPrecision;
+}
+
+/* The first path is the quiet structural rail; keep it subordinate. */
+.beam-layer svg path:first-of-type {
+  stroke-width: 0.65px !important;
+  opacity: 0.48;
+}
+
+/* Selected project state should come from its node treatment, not a fat beam. */
+.project-label.selected + * {
+  filter: none;
+}
+
+@media (max-width: 640px) {
+  .beam-layer svg { opacity: 0.66; }
+  .beam-layer svg path { stroke-width: 0.85px !important; }
+  .beam-layer svg path:first-of-type { stroke-width: 0.55px !important; }
+}
