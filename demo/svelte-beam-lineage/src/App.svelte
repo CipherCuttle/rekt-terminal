@@ -15,6 +15,9 @@
   const latestObserved = [...projects].sort((a, b) => b.endMs - a.endMs)[0];
   const firstObserved = [...projects].sort((a, b) => a.birthMs - b.birthMs)[0];
   let selected = latestObserved;
+  let identityRef;
+  let threadRef;
+  let sourceRef;
 
   function fmt(ms) {
     return new Date(ms).toISOString().slice(0, 10);
@@ -22,6 +25,15 @@
 
   function month(ms) {
     return new Date(ms).toLocaleString('en', { month: 'short', timeZone: 'UTC' }).toUpperCase();
+  }
+
+  function jumpTo(target) {
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function cycleBuild() {
+    const index = projects.findIndex((project) => project.id === selected.id);
+    selected = projects[(index + 1) % projects.length];
   }
 </script>
 
@@ -48,7 +60,7 @@
   </header>
 
   <main class="panel-grid">
-    <section class="identity-module hardware-panel">
+    <section class="identity-module hardware-panel" bind:this={identityRef}>
       <div class="panel-label"><span>01</span> IDENTITY</div>
       <div class="identity-content">
         <div class="portrait-tile" aria-hidden="true">
@@ -63,11 +75,11 @@
         </div>
       </div>
 
-      <div class="hardware-keys" aria-label="Player record channels">
-        <button class="key key-violet" type="button"><b>PROFILE</b><span>01</span></button>
-        <button class="key key-cyan" type="button"><b>THREAD</b><span>02</span></button>
-        <button class="key key-orange" type="button"><b>SOURCES</b><span>03</span></button>
-        <button class="key key-dark" type="button"><b>RECEIPTS</b><span>—</span></button>
+      <div class="hardware-keys" aria-label="Player record navigation">
+        <button class="key key-violet" type="button" on:click={() => jumpTo(identityRef)}><b>PROFILE</b><span>01</span></button>
+        <button class="key key-cyan" type="button" on:click={() => jumpTo(threadRef)}><b>THREAD</b><span>02</span></button>
+        <button class="key key-orange" type="button" on:click={() => jumpTo(sourceRef)}><b>SOURCES</b><span>03</span></button>
+        <button class="key key-dark" type="button" disabled><b>RECEIPTS</b><span>OFF</span></button>
       </div>
     </section>
 
@@ -102,15 +114,17 @@
 
       <div class="current-readout">
         <div class="readout-screen">
-          <span>LATEST OBSERVED BUILD</span>
-          <strong>{latestObserved.name}</strong>
-          <small>{fmt(latestObserved.endMs)} · {latestObserved.language}</small>
+          <span>SELECTED OBSERVED BUILD</span>
+          <strong>{selected.name}</strong>
+          <small>{fmt(selected.endMs)} · {selected.language}</small>
         </div>
-        <div class="encoder" aria-hidden="true"><i></i><span>SEL</span></div>
+        <button class="encoder" type="button" on:click={cycleBuild} aria-label="Select next observed build">
+          <i aria-hidden="true"></i><span>NEXT</span>
+        </button>
       </div>
     </section>
 
-    <section class="thread-module hardware-panel">
+    <section class="thread-module hardware-panel" bind:this={threadRef}>
       <div class="panel-heading">
         <div>
           <div class="panel-label"><span>03</span> THE THREAD</div>
@@ -145,7 +159,7 @@
       </div>
     </section>
 
-    <aside class="inspect-module hardware-panel">
+    <aside class="inspect-module hardware-panel" bind:this={sourceRef}>
       <div class="panel-label"><span>04</span> BUILD CARTRIDGE</div>
       <div class={`cartridge tone-${selected.tone}`}>
         <div class="cartridge-top">
