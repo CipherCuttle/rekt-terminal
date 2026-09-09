@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#050806" />
+<title>INKUBATOR // BUILD HISTORY</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.34.3/dist/cytoscape.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js"></script>
+<style>
+:root{--bg:#050806;--panel:#090d0b;--panel2:#0d1310;--line:#1c2a22;--line2:#283a30;--text:#e9f1ec;--muted:#7f9487;--dim:#536359;--green:#96ff9d;--amber:#ffd27a;--red:#ff8d8d;--cyan:#8fe9ff;--shadow:0 18px 80px rgba(0,0,0,.35)}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(circle at 70% -20%,#112019 0,#050806 35%,#030504 80%);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace}button,input{font:inherit}.app{min-height:100dvh;padding:max(14px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));max-width:1480px;margin:auto}.top{display:flex;gap:14px;align-items:center;justify-content:space-between;margin-bottom:12px}.brand{display:flex;align-items:center;gap:10px;min-width:0}.sig{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 18px rgba(150,255,157,.75)}.brand b{font-size:13px;letter-spacing:.15em}.brand span{display:block;color:var(--muted);font-size:10px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.connect{display:flex;gap:8px;align-items:center}.connect input{width:150px;background:#050806;border:1px solid var(--line2);color:var(--text);padding:9px 10px;border-radius:8px;outline:none}.btn{border:1px solid #31483a;background:#0b130e;color:#b9ffc0;padding:9px 12px;border-radius:8px;cursor:pointer;letter-spacing:.04em}.btn:active{transform:translateY(1px)}.btn.ghost{color:var(--muted);background:#070a08}.notice{padding:9px 11px;border:1px solid var(--line);border-radius:8px;color:var(--muted);font-size:10px;line-height:1.5;background:rgba(8,12,9,.72);margin-bottom:12px}.notice strong{color:#bfd0c5}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px}.stat{background:linear-gradient(180deg,rgba(14,20,16,.95),rgba(7,11,8,.96));border:1px solid var(--line);padding:12px;border-radius:10px;min-height:76px}.stat .k{font-size:9px;color:var(--muted);letter-spacing:.12em}.stat .v{font-size:22px;margin-top:8px}.stat .s{font-size:9px;color:var(--dim);margin-top:3px}.tabs{display:flex;gap:6px;margin:4px 0 10px}.tab{border:1px solid var(--line);background:#070a08;color:var(--muted);padding:8px 11px;border-radius:8px;cursor:pointer;font-size:10px;letter-spacing:.08em}.tab.active{color:var(--green);border-color:#355440;background:#0c1510}.surface{border:1px solid var(--line);background:linear-gradient(180deg,rgba(9,13,11,.97),rgba(5,8,6,.98));border-radius:12px;box-shadow:var(--shadow);overflow:hidden;min-height:600px}.head{display:flex;align-items:flex-start;justify-content:space-between;padding:14px 15px;border-bottom:1px solid var(--line);gap:12px}.head h1{font-size:13px;margin:0;letter-spacing:.09em}.head p{font-size:10px;color:var(--muted);margin:5px 0 0;line-height:1.5}.legend{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;font-size:9px;color:var(--muted)}.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px}.view{display:none;min-height:540px}.view.active{display:block}.life-wrap{overflow:auto;position:relative}.life{min-width:820px;min-height:540px;padding:8px 0 18px}.axis-label{fill:#66796d;font-size:9px}.repo-label{fill:#c9d6cf;font-size:10px;cursor:pointer}.repo-label:hover{fill:var(--green)}.lane-line{stroke:#18251e;stroke-width:1}.project-line{stroke:#5e8570;stroke-linecap:round;cursor:pointer}.project-line.active{stroke:var(--green)}.project-start{fill:#6a8373}.project-now{fill:#a9ffb0;filter:drop-shadow(0 0 5px rgba(150,255,157,.5))}.project-dead{fill:#7e8b84}.cy{height:540px;width:100%}.history-grid{display:grid;grid-template-columns:minmax(280px,360px) 1fr;min-height:540px}.detail{padding:16px;border-right:1px solid var(--line)}.detail h2{font-size:17px;margin:0 0 6px;word-break:break-word}.detail .desc{font-size:10px;line-height:1.6;color:var(--muted);min-height:30px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.meta>div{padding:10px;background:#080c09;border:1px solid var(--line);border-radius:8px}.meta b{display:block;font-size:14px}.meta span{font-size:8px;color:var(--muted);letter-spacing:.08em}.truth{margin-top:14px;padding:10px;border:1px solid #314b38;background:#0b130e;border-radius:8px;color:#a8c5b0;font-size:9px;line-height:1.55}.truth strong{color:var(--green)}.chart{height:540px;width:100%}.empty{display:grid;place-items:center;min-height:460px;color:var(--muted);font-size:11px;padding:30px;text-align:center;line-height:1.7}.loading{position:fixed;inset:auto 16px 16px auto;padding:9px 11px;border:1px solid var(--line2);border-radius:8px;background:#08100b;color:var(--green);font-size:9px;display:none;z-index:9}.loading.on{display:block}.footer{font-size:9px;color:#536359;margin-top:10px;line-height:1.5}.footer b{color:#809689}
+@media(max-width:760px){.app{padding:10px}.top{align-items:flex-start;flex-direction:column}.connect{width:100%}.connect input{flex:1;width:auto}.stats{grid-template-columns:repeat(2,1fr)}.surface{min-height:560px}.head{flex-direction:column}.legend{justify-content:flex-start}.history-grid{grid-template-columns:1fr}.detail{border-right:0;border-bottom:1px solid var(--line)}.chart{height:390px}.cy{height:500px}.view{min-height:500px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="brand"><span class="sig"></span><div><b>INKUBATOR // BUILD HISTORY</b><span>Git-backed project evolution map</span></div></div>
+    <div class="connect"><input id="user" value="CipherCuttle" autocomplete="off" spellcheck="false" aria-label="GitHub username"><button class="btn" id="load">LOAD GITHUB</button></div>
+  </div>
+  <div class="notice"><strong>PUBLIC DEMO.</strong> This browser proof reads public GitHub metadata directly and never asks for a token. Private repos and full contribution history require the Inkubator GitHub App later. Repository size is not presented as hours worked; commit history is sampled only when you open a project.</div>
+  <div class="stats">
+    <div class="stat"><div class="k">VISIBLE PROJECTS</div><div class="v" id="repoCount">—</div><div class="s">public, non-fork + forks</div></div>
+    <div class="stat"><div class="k">BUILD SPAN</div><div class="v" id="span">—</div><div class="s">first repo → latest activity</div></div>
+    <div class="stat"><div class="k">ACTIVE / 90D</div><div class="v" id="activeCount">—</div><div class="s">pushed recently</div></div>
+    <div class="stat"><div class="k">OBSERVED LINKS</div><div class="v" id="edgeCount">—</div><div class="s">fork + explicit public evidence</div></div>
+  </div>
+  <div class="tabs"><button class="tab active" data-view="life">LIFE MAP</button><button class="tab" data-view="constellation">CONSTELLATION</button><button class="tab" data-view="history">PROJECT HISTORY</button></div>
+  <section class="surface">
+    <div class="head"><div><h1 id="viewTitle">YOUR BUILD HISTORY</h1><p id="viewSub">Time is the backbone. Every lane is a repository lifetime; activity details hydrate on demand.</p></div><div class="legend"><span><i class="dot" style="background:#96ff9d"></i>active</span><span><i class="dot" style="background:#6e8076"></i>quiet</span><span><i class="dot" style="background:#ffd27a"></i>claimed link</span></div></div>
+    <div id="lifeView" class="view active"><div class="life-wrap"><svg id="life" class="life"></svg></div></div>
+    <div id="constellationView" class="view"><div id="cy" class="cy"></div></div>
+    <div id="historyView" class="view"><div class="history-grid"><aside class="detail" id="detail"><div class="empty">Choose a project from LIFE MAP or CONSTELLATION.</div></aside><div id="chart" class="chart"></div></div></div>
+  </section>
+  <div class="footer"><b>Truth model:</b> PUBLIC METADATA = OBSERVED BY GITHUB API. Seed family links are shown only as CLAIMED unless directly corroborated. No commit count, repo size, or line count is converted into “hours worked.”</div>
+</div>
+<div class="loading" id="loading">RX // GITHUB</div>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const state = {user:'CipherCuttle', repos:[], edges:[], cy:null, chart:null, selected:null};
+const CLAIMED_SEEDS = [
+  ['Qnty','QntyLab','RESEARCH_SPLIT'],
+  ['Qnty','QntySpot','EXECUTION_SPLIT'],
+  ['Qnty','QntyAgentEval','EVAL_LINEAGE'],
+  ['Qnty','QntyAgentRuntime','RUNTIME_LINEAGE'],
+  ['Qnty','QntyPolicyGate','POLICY_LINEAGE'],
+  ['Qnty','QntyAuthorityRoot','AUTHORITY_LINEAGE']
+];
+const fmt = new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short'});
+const days = n => n*86400000;
+function busy(on){$('loading').classList.toggle('on',on)}
+function safeText(v){return String(v ?? '').replace(/[&<>]/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[s]))}
+async function api(url){const r=await fetch(url,{headers:{Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}});if(!r.ok) throw new Error(`GitHub ${r.status}`);return r.json()}
+function monthsBetween(a,b){return Math.max(1,Math.round((b-a)/days(30.4375)))}
+function isActive(r){return Date.now()-new Date(r.pushed_at||r.updated_at) < days(90)}
+function visibleRepos(repos){return [...repos].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).slice(-45)}
+async function loadUser(){
+  const user=$('user').value.trim(); if(!user)return; busy(true);
+  try{
+    state.user=user;
+    let all=[]; for(let page=1;page<=3;page++){const batch=await api(`https://api.github.com/users/${encodeURIComponent(user)}/repos?per_page=100&page=${page}&sort=created&direction=asc`);all=all.concat(batch);if(batch.length<100)break}
+    state.repos=all;
+    await buildEdges();
+    updateStats(); renderLife(); renderConstellation();
+    const pick=[...state.repos].sort((a,b)=>new Date(b.pushed_at)-new Date(a.pushed_at))[0]; if(pick) selectRepo(pick,false);
+  }catch(e){console.error(e);$('viewSub').textContent=`Could not load GitHub: ${e.message}. Public API rate limits may apply.`}
+  finally{busy(false)}
+}
+async function buildEdges(){
+  const names=new Set(state.repos.map(r=>r.name)); const edges=[];
+  for(const [a,b,label] of CLAIMED_SEEDS){if(names.has(a)&&names.has(b))edges.push({source:a,target:b,label,truth:'CLAIMED'})}
+  const forks=state.repos.filter(r=>r.fork).slice(0,8);
+  await Promise.all(forks.map(async r=>{try{const full=await api(`https://api.github.com/repos/${r.full_name}`);if(full.parent){edges.push({source:full.parent.name,target:r.name,label:'FORKED_FROM',truth:'OBSERVED',external:!names.has(full.parent.name),parent:full.parent})}}catch{}}));
+  state.edges=edges;
+}
+function updateStats(){
+  const repos=state.repos; $('repoCount').textContent=repos.length;
+  if(repos.length){const first=new Date(Math.min(...repos.map(r=>+new Date(r.created_at))));const last=new Date(Math.max(...repos.map(r=>+new Date(r.pushed_at||r.updated_at))));$('span').textContent=`${Math.max(1,(last-first)/days(365.25)).toFixed(1)}y`;}
+  $('activeCount').textContent=repos.filter(isActive).length; $('edgeCount').textContent=state.edges.length;
+}
+function renderLife(){
+  const repos=visibleRepos(state.repos); const svg=d3.select('#life'); svg.selectAll('*').remove();
+  if(!repos.length){svg.attr('height',520).append('text').attr('x',30).attr('y',50).attr('fill','#7f9487').text('No public repositories found.');return}
+  const minDate=new Date(Math.min(...repos.map(r=>+new Date(r.created_at)))); const maxDate=new Date(Math.max(Date.now(),...repos.map(r=>+new Date(r.pushed_at||r.updated_at))));
+  minDate.setMonth(minDate.getMonth()-1); maxDate.setMonth(maxDate.getMonth()+1);
+  const W=Math.max(900,Math.min(1600,innerWidth*1.3)), left=150,right=30,top=44,row=25,H=Math.max(540,top+repos.length*row+28); svg.attr('viewBox',`0 0 ${W} ${H}`).attr('width',W).attr('height',H);
+  const x=d3.scaleTime().domain([minDate,maxDate]).range([left,W-right]); const ticks=x.ticks(Math.min(9,Math.max(4,Math.floor(W/150))));
+  svg.selectAll('.grid').data(ticks).enter().append('line').attr('x1',d=>x(d)).attr('x2',d=>x(d)).attr('y1',28).attr('y2',H-15).attr('stroke','#101a14');
+  svg.selectAll('.axis-label').data(ticks).enter().append('text').attr('class','axis-label').attr('x',d=>x(d)).attr('y',18).attr('text-anchor','middle').text(d=>fmt.format(d));
+  const maxSize=d3.max(repos,r=>Math.log10((r.size||0)+10))||1; const width=d3.scaleLinear().domain([1,maxSize]).range([3,10]).clamp(true);
+  repos.forEach((r,i)=>{const y=top+i*row; const start=new Date(r.created_at), end=new Date(r.pushed_at||r.updated_at); const active=isActive(r); const g=svg.append('g');
+    g.append('line').attr('class','lane-line').attr('x1',left).attr('x2',W-right).attr('y1',y).attr('y2',y);
+    g.append('text').attr('class','repo-label').attr('x',left-10).attr('y',y+3).attr('text-anchor','end').text(r.name.length>20?r.name.slice(0,18)+'…':r.name).on('click',()=>selectRepo(r,true));
+    g.append('line').attr('class','project-line '+(active?'active':'')).attr('x1',x(start)).attr('x2',Math.max(x(start)+3,x(end))).attr('y1',y).attr('y2',y).attr('stroke-width',width(Math.log10((r.size||0)+10))).on('click',()=>selectRepo(r,true));
+    g.append('circle').attr('class','project-start').attr('cx',x(start)).attr('cy',y).attr('r',2.5);
+    g.append('circle').attr('class',active?'project-now':'project-dead').attr('cx',Math.max(x(start)+3,x(end))).attr('cy',y).attr('r',active?4:3).on('click',()=>selectRepo(r,true));
+  });
+}
+function renderConstellation(){
+  const repos=visibleRepos(state.repos); const nodeNames=new Set(repos.map(r=>r.name)); const elements=[];
+  repos.forEach(r=>elements.push({data:{id:r.name,label:r.name,active:isActive(r),size:r.size||1,language:r.language||'unknown'}}));
+  state.edges.filter(e=>nodeNames.has(e.source)&&nodeNames.has(e.target)).forEach((e,i)=>elements.push({data:{id:`e${i}`,source:e.source,target:e.target,label:e.label,truth:e.truth}}));
+  if(state.cy) state.cy.destroy();
+  state.cy=cytoscape({container:$('cy'),elements,layout:{name:'cose',animate:false,fit:true,padding:42,nodeRepulsion:850000,idealEdgeLength:120},style:[
+    {selector:'node',style:{'background-color':e=>e.data('active')?'#96ff9d':'#6d7d73','label':'data(label)','color':'#dce7e0','font-family':'monospace','font-size':9,'text-valign':'bottom','text-margin-y':8,'width':e=>Math.max(12,Math.min(34,9+Math.log10((e.data('size')||1)+10)*6)),'height':e=>Math.max(12,Math.min(34,9+Math.log10((e.data('size')||1)+10)*6)),'border-width':1,'border-color':'#17251d'}},
+    {selector:'edge',style:{'curve-style':'bezier','width':1.3,'line-color':e=>e.data('truth')==='OBSERVED'?'#80e58a':'#b99a5c','target-arrow-color':e=>e.data('truth')==='OBSERVED'?'#80e58a':'#b99a5c','target-arrow-shape':'triangle','arrow-scale':.65,'label':'data(label)','font-size':7,'font-family':'monospace','color':'#819589','text-background-color':'#071009','text-background-opacity':.9,'text-background-padding':2}},
+    {selector:'node:selected',style:{'border-width':2,'border-color':'#ffffff'}}
+  ]});
+  state.cy.on('tap','node',evt=>{const repo=state.repos.find(r=>r.name===evt.target.id());if(repo)selectRepo(repo,true)});
+}
+function switchView(name){document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.view===name));document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));$(`${name}View`).classList.add('active');const titles={life:['YOUR BUILD HISTORY','Time is the backbone. Every lane is a repository lifetime; activity details hydrate on demand.'],constellation:['PROJECT CONSTELLATION','Only explicit relationship edges are shown. Unconnected projects stay unconnected instead of creating spaghetti.'],history:['PROJECT HISTORY','Selected-project Git activity is sampled from up to 100 authored commits from the public API.']};$('viewTitle').textContent=titles[name][0];$('viewSub').textContent=titles[name][1];if(name==='constellation'&&state.cy)setTimeout(()=>state.cy.resize().fit(undefined,42),50);if(name==='history'&&state.chart)setTimeout(()=>state.chart.resize(),50)}
+async function selectRepo(repo,jump){state.selected=repo;renderDetail(repo,{loading:true});if(jump)switchView('history');busy(true);try{const commits=await api(`https://api.github.com/repos/${repo.full_name}/commits?per_page=100&author=${encodeURIComponent(state.user)}`);renderDetail(repo,{commits});renderChart(repo,commits)}catch(e){renderDetail(repo,{error:e.message});renderChart(repo,[])}finally{busy(false)}}
+function renderDetail(r,opt={}){const end=new Date(r.pushed_at||r.updated_at),start=new Date(r.created_at),age=monthsBetween(start,end);const commits=opt.commits||[];$('detail').innerHTML=`<h2>${safeText(r.name)}</h2><div class="desc">${safeText(r.description||'No repository description.')}</div><div class="meta"><div><b>${fmt.format(start)}</b><span>CREATED</span></div><div><b>${fmt.format(end)}</b><span>LAST PUSH</span></div><div><b>${age}mo</b><span>OBSERVED SPAN</span></div><div><b>${opt.loading?'…':commits.length}</b><span>AUTHORED COMMITS / SAMPLE</span></div><div><b>${safeText(r.language||'—')}</b><span>PRIMARY LANGUAGE</span></div><div><b>${Number(r.size||0).toLocaleString()}</b><span>REPO SIZE / KB</span></div></div><div class="truth"><strong>OBSERVED ≠ HOURS WORKED.</strong><br>${opt.loading?'Loading recent commit evidence…':opt.error?'Commit sample unavailable: '+safeText(opt.error):`Showing ${commits.length} authored commits returned by the public GitHub endpoint (maximum 100). A production Inkubator worker would ingest the full history and compute transparent activity dimensions.`}</div>`}
+function renderChart(repo,commits){if(!state.chart)state.chart=echarts.init($('chart'),null,{renderer:'canvas'});const buckets=new Map();commits.forEach(c=>{const d=new Date(c.commit?.author?.date||c.commit?.committer?.date);if(isNaN(d))return;const k=`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`;buckets.set(k,(buckets.get(k)||0)+1)});const data=[...buckets.entries()].sort((a,b)=>a[0].localeCompare(b[0]));state.chart.setOption({backgroundColor:'transparent',animationDuration:350,grid:{left:44,right:18,top:38,bottom:52},title:{text:'RECENT COMMIT SIGNAL',subtext:'authored commits returned by GitHub // max 100',left:16,top:8,textStyle:{color:'#dce7e0',fontFamily:'monospace',fontSize:11},subtextStyle:{color:'#617267',fontFamily:'monospace',fontSize:8}},tooltip:{trigger:'axis',backgroundColor:'#08100b',borderColor:'#2c4435',textStyle:{color:'#e9f1ec',fontFamily:'monospace',fontSize:10}},xAxis:{type:'category',data:data.map(d=>d[0]),axisLabel:{color:'#607168',fontFamily:'monospace',fontSize:8,rotate:data.length>10?40:0},axisLine:{lineStyle:{color:'#1c2a22'}}},yAxis:{type:'value',minInterval:1,axisLabel:{color:'#607168',fontFamily:'monospace',fontSize:8},splitLine:{lineStyle:{color:'#101a14'}}},series:[{type:'bar',data:data.map(d=>d[1]),barMaxWidth:26,itemStyle:{color:'#7edb87',borderRadius:[3,3,0,0]},emphasis:{itemStyle:{color:'#b5ffba'}}}],graphic:data.length?[]:[{type:'text',left:'center',top:'middle',style:{text:'NO PUBLIC COMMIT SAMPLE\nFOR THIS USER / REPOSITORY',fill:'#64756b',font:'10px monospace',textAlign:'center',lineHeight:18}}]})}
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>switchView(t.dataset.view)));$('load').addEventListener('click',loadUser);$('user').addEventListener('keydown',e=>{if(e.key==='Enter')loadUser()});window.addEventListener('resize',()=>{if(state.cy)state.cy.resize();if(state.chart)state.chart.resize()});loadUser();
+})();
+</script>
+</body>
+</html>
