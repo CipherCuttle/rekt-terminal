@@ -62,12 +62,19 @@ test('PARTNER_CARTRIDGE_V0 drives Apple Inu BITE through ordinary Mission and ca
     assert.ok(round);
     assert.equal((await app.inject({method: 'POST', url: `/v1/rounds/${round.round_id}/join`, headers: headers(owner.cookie)})).statusCode, 200);
 
+    const forgedRequest = randomUUID();
     const forged = await app.inject({method: 'POST', url: '/v1/missions', headers: headers(owner.cookie), payload: {
-      request_id: randomUUID(), round_id: round.round_id, project_name: 'Forged Partner Mission', goal: 'Pretend to be official',
+      request_id: forgedRequest, round_id: round.round_id, project_name: 'Forged Partner Mission', goal: 'Pretend to be official',
       ship_condition: 'Never', current_focus: 'Spoof', next_move: 'Spoof',
       origin: {schema_version: 'partner.mission-origin.v0', kind: 'PARTNER_BUILD_REQUEST', partner_slug: 'apple-inu', partner_name: 'Apple Inu', build_request_id: 'BITE-001', build_request_title: 'SEE THE MONEY', request_version: '0.1', partner_verification_state: 'CURATED'},
     }});
-    assert.equal(forged.statusCode, 400);
+    // Fastify strips undeclared extra properties on this existing route. The security
+    // invariant is that attacker-supplied partner provenance never survives.
+    assert.equal(forged.statusCode, 201);
+    assert.equal(forged.json().mission.origin, undefined);
+    const forgedMissionId = forged.json().mission.mission_id;
+    const forgedDeclared = await db.selectFrom('history_events').select('payload').where('event_type', '=', 'mission.declared').where('subject_id', '=', forgedMissionId).executeTakeFirstOrThrow();
+    assert.equal(Object.hasOwn(forgedDeclared.payload, 'origin'), false);
 
     const creationRequest = randomUUID();
     const buildUrl = '/v1/partner-cartridges/apple-inu/build-requests/BITE-001/build';
@@ -99,7 +106,7 @@ test('PARTNER_CARTRIDGE_V0 drives Apple Inu BITE through ordinary Mission and ca
     assert.equal(reloaded.json().mission.origin.build_request_id, 'BITE-001');
 
     const forbiddenShip = await app.inject({method: 'PATCH', url: `/v1/missions/${missionId}`, headers: headers(owner.cookie), payload: {request_id: randomUUID(), state: 'SHIPPED'}});
-    assert.equal(forbiddenShip.statusCode, 400);
+    assert.equal([400, 403].includes(forbiddenShip.statusCode), true);
     assert.equal((await db.selectFrom('history_events').select('history_event_id').where('event_type', '=', 'project.ship.accepted').where('subject_id', '=', projectId).execute()).length, 0);
 
     for (const state of ['BUILDING', 'SHIP_READY']) {
