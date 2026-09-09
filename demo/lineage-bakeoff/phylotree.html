@@ -7,6 +7,7 @@ html,body{margin:0;height:100%;background:#08090b;color:#e8e5df;font:12px ui-mon
 </head><body><div class="app"><header class="head"><b>CANDIDATE B // PHYLOTREE.JS 2.6</b><span>native scaled branch lengths + native zoom + native clade collapse</span><div class="badge">GEOMETRY TEST</div></header><div class="note">This view deliberately uses phylotree's actual scaled-tree renderer. Root→family length = calendar delay to the first repo in that group; family→project-birth length = delay to repo creation; project-birth→tip length = observed repo lifetime through last push. Groups are presentation only, not ancestry claims.</div><div class="wrap"><div class="tree" id="tree"></div></div></div>
 <script type="module">
 import { phylotree as Phylotree } from 'https://cdn.jsdelivr.net/npm/phylotree@2.6.0/+esm';
+const host=document.getElementById('tree');
 try{
 const DAY=86400000, origin=Date.parse('2026-01-01T00:00:00Z');
 const groups=[
@@ -32,6 +33,9 @@ const groupNewicks=groups.map(g=>{
 });
 const newick=`(${groupNewicks.join(',')})PLAYER;`;
 const tree=new Phylotree(newick);
-tree.render({container:'#tree',width:Math.max(720,window.innerWidth-30),height:Math.max(560,window.innerHeight-120),zoom:true,collapsible:true,selectable:true,reroot:false,hide:true,'align-tips':false,'show-scale':true,'left-right-spacing':'fit-to-size','top-bottom-spacing':'fit-to-size','minimum-per-node-spacing':18,'minimum-per-level-spacing':25});
-}catch(err){document.getElementById('tree').innerHTML='<pre class="error">phylotree failed to initialize:\n'+String(err?.stack||err)+'</pre>';}
+const display=tree.render({container:'#tree',width:Math.max(720,window.innerWidth-30),height:Math.max(560,window.innerHeight-120),zoom:true,collapsible:true,selectable:true,reroot:false,hide:true,'align-tips':false,'show-scale':true,'left-right-spacing':'fit-to-size','top-bottom-spacing':'fit-to-size','minimum-per-node-spacing':18,'minimum-per-level-spacing':25});
+const svg=display.show();
+if(!svg) throw new Error('phylotree rendered no SVG node');
+host.replaceChildren(svg);
+}catch(err){host.innerHTML='<pre class="error">phylotree failed to initialize:\n'+String(err?.stack||err)+'</pre>';}
 </script></body></html>
