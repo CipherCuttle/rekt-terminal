@@ -1,0 +1,76 @@
+name: Instrument V2 Visual Capture
+
+on:
+  pull_request:
+    paths:
+      - 'apps/inkubator-lab/src/instrument-v2/**'
+      - 'apps/inkubator-lab/src/main.tsx'
+      - '.github/workflows/inkubator-instrument-v2-visual-capture.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build Inkubator lab
+        run: npm run build -w @rekt-ink/inkubator-lab
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start static preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4174 --bind 127.0.0.1 --directory inkubator > /tmp/instrument-v2-preview.log 2>&1 &
+          echo $! > /tmp/instrument-v2-preview.pid
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:4174/ >/dev/null; then exit 0; fi
+            sleep 0.5
+          done
+          cat /tmp/instrument-v2-preview.log
+          exit 1
+
+      - name: Capture canonical viewports
+        shell: bash
+        run: |
+          mkdir -p instrument-v2-captures
+          node --input-type=module <<'NODE'
+          import { chromium } from '@playwright/test';
+          const browser = await chromium.launch({headless: true});
+          const targets = [
+            {name: 'desktop-player', width: 1672, height: 941, fullPage: false},
+            {name: 'mobile-player', width: 430, height: 820, fullPage: true},
+          ];
+          for (const target of targets) {
+            const page = await browser.newPage({viewport: {width: target.width, height: target.height}, deviceScaleFactor: 1});
+            await page.goto('http://127.0.0.1:4174/?lab=instrument-v2', {waitUntil: 'networkidle'});
+            await page.evaluate(() => document.fonts.ready);
+            await page.screenshot({path: `instrument-v2-captures/${target.name}.png`, fullPage: target.fullPage});
+            await page.close();
+          }
+          await browser.close();
+          NODE
+
+      - name: Upload captures
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: instrument-v2-captures
+          path: instrument-v2-captures
+          if-no-files-found: error

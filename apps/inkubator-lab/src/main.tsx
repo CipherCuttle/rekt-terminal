@@ -10,6 +10,7 @@ import './instrument-os/motion-runtime.css';
 const AppV3 = lazy(() => import('./AppV3'));
 const SignalSystemLab = lazy(() => import('./signal-system/GoldenScreens'));
 const InstrumentLab = lazy(() => import('./instrument-os/InstrumentLab'));
+const InstrumentV2Lab = lazy(() => import('./instrument-v2/InstrumentV2Lab'));
 const LiveCommand = lazy(() => import('./command/LiveCommand'));
 const LiveProject = lazy(() => import('./project/LiveProject'));
 const LiveWorld = lazy(() => import('./world/LiveWorld'));
@@ -32,17 +33,19 @@ createRoot(document.getElementById('root')!).render(
     <Suspense fallback={<div role="status">Loading REKT…</div>}>
       {CommandPreview && params.get('preview') === 'command'
         ? <CommandPreview />
-        : lab === 'instrument'
-        ? <InstrumentLab />
-        : lab === 'signals'
-          ? <SignalSystemLab />
-          : mode === 'command'
-            ? <QueryClientProvider client={instrumentQueryClient}><LiveCommand /></QueryClientProvider>
-            : mode === 'project'
-              ? <QueryClientProvider client={instrumentQueryClient}><LiveProject /></QueryClientProvider>
-              : mode === 'world'
-                ? <QueryClientProvider client={instrumentQueryClient}><LiveWorld /></QueryClientProvider>
-                : <AppV3 />}
+        : lab === 'instrument-v2'
+          ? <InstrumentV2Lab />
+          : lab === 'instrument'
+            ? <InstrumentLab />
+            : lab === 'signals'
+              ? <SignalSystemLab />
+              : mode === 'command'
+                ? <QueryClientProvider client={instrumentQueryClient}><LiveCommand /></QueryClientProvider>
+                : mode === 'project'
+                  ? <QueryClientProvider client={instrumentQueryClient}><LiveProject /></QueryClientProvider>
+                  : mode === 'world'
+                    ? <QueryClientProvider client={instrumentQueryClient}><LiveWorld /></QueryClientProvider>
+                    : <AppV3 />}
     </Suspense>
   </StrictMode>
 );

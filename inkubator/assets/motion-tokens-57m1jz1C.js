@@ -1,0 +1,1 @@
+const e={snap:.07,switch:.12,relay:.18,mechanical:.24,signal:.38,ceremony:.9},r={relay:"power2.out",mechanical:"power1.inOut",signal:"power2.inOut",error:"steps(1)"},a={thread:"-=0.12",mission:"-=0.04",verifier:"-=0.12",error:"-=0.08"};export{r as M,e as a,a as b};
