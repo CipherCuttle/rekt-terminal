@@ -70,7 +70,7 @@ describe('Live World', () => {
     expect(container.querySelector('.world-radar')).toBeNull();
     expect(container.querySelector('.world-field-route')).toBeNull();
     expect(container.querySelector('.world-radar-sweep')).toBeNull();
-    expect(screen.getByText('PUBLIC SELF-DESCRIPTION // NOT MATCHING')).toBeTruthy();
+    expect(screen.getByText('SELF-DESCRIPTION // NOT MATCHING')).toBeTruthy();
     expect(screen.queryByText(/BUILDING|BLOCKED/)).toBeNull();
     expect(screen.queryByText(/BEST MATCH|RECOMMENDATION|COMPATIBILITY/i)).toBeNull();
     expect(container.querySelectorAll('[data-truth="proven"]')).toHaveLength(0);

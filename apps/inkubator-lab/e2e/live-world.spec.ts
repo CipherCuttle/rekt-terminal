@@ -91,7 +91,7 @@ test('LIVE WORLD renders NOW plus a truthful signal tape and animates only a new
   await expect(page.locator('.world-network-field')).toHaveCount(0);
   await expect(page.locator('.world-radar')).toHaveCount(0);
   await expect(page.locator('.world-radar-sweep')).toHaveCount(0);
-  await expect(page.getByText('PUBLIC SELF-DESCRIPTION // NOT MATCHING')).toBeVisible();
+  await expect(page.getByText('SELF-DESCRIPTION // NOT MATCHING')).toBeVisible();
   await expect(page.getByText(/BUILDING|BLOCKED/)).toHaveCount(0);
   await expect(page.getByText(/BEST MATCH|RECOMMENDATION|COMPATIBILITY/i)).toHaveCount(0);
   await expect(page.getByText('Need an external tester.')).toBeVisible();
@@ -115,6 +115,7 @@ test('LIVE WORLD renders NOW plus a truthful signal tape and animates only a new
 
   await page.setViewportSize({width: 900, height: 900});
   await expectNoHorizontalOverflow(page);
+  await captureEvidence(page, `${process.env.WORLD_EVIDENCE_DIR ?? ''}/world-tablet-900x900.png`, 'BROWSER HARNESS // SYNTHETIC WORLD FEEDS // 900PX');
   await page.setViewportSize({width: 430, height: 932});
   await expect(page.locator('.world-now')).toBeVisible();
   await expect(page.locator('.world-tape')).toBeVisible();

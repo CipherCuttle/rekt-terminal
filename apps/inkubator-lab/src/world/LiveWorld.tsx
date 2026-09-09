@@ -200,7 +200,7 @@ function NowPanel({signal, error}: {signal?: WorldSignalView; error?: unknown}) 
   return (
     <section className="world-now" aria-labelledby="world-now-title">
       <header className="world-section-header">
-        <div><span>NOW / 00</span><h2 id="world-now-title">LATEST SUPPORTED SIGNAL</h2></div>
+        <div><span>NOW</span><h2 id="world-now-title">LATEST SUPPORTED SIGNAL</h2></div>
         <small>ONE CURRENT LOCUS // PROJECTION TIME</small>
       </header>
       {error ? <FeedError label="SIGNAL" error={error} /> : signal ? <SignalDetails signal={signal} latest /> : (
@@ -217,7 +217,7 @@ function SignalTape({signals, latestSignal, error}: {signals: DisplayWorldSignal
   return (
     <section className="world-tape" aria-labelledby="world-tape-title">
       <header className="world-section-header">
-        <div><span>TAPE / 01</span><h2 id="world-tape-title">SIGNAL TAPE</h2></div>
+        <div><span>TAPE</span><h2 id="world-tape-title">SIGNAL TAPE</h2></div>
         <small>NEWEST → OLDEST // PUBLIC TEMPORAL CONTINUITY</small>
       </header>
       {error ? <FeedError label="SIGNAL" error={error} /> : continuation.length ? (
@@ -240,7 +240,7 @@ function HelpBand({projects, error, latestSignal}: {projects: ProjectDiscoveryLi
   return (
     <section className="world-support-band world-help-band" aria-labelledby="world-help-title">
       <header className="world-section-header">
-        <div><span>BEACON / 08</span><h2 id="world-help-title">HELP BEACONS</h2></div>
+        <div><span>PUBLIC HELP</span><h2 id="world-help-title">HELP BEACONS</h2></div>
         <small>PUBLIC REQUESTS // CLAIMED</small>
       </header>
       {error ? <FeedError label="PROJECT" error={error} /> : openBeacons.length ? (
@@ -262,8 +262,8 @@ function BuilderBand({players, error}: {players: PublicPlayerList; error?: unkno
   return (
     <section className="world-support-band world-builder-band" aria-labelledby="world-builder-title">
       <header className="world-section-header">
-        <div><span>CAPABILITY / 05</span><h2 id="world-builder-title">BUILDER CAPABILITY</h2></div>
-        <small>PUBLIC SELF-DESCRIPTION // NOT MATCHING</small>
+        <div><span>PUBLIC SKILLS</span><h2 id="world-builder-title">BUILDER CAPABILITY</h2></div>
+        <small>SELF-DESCRIPTION // NOT MATCHING</small>
       </header>
       {error ? <FeedError label="PLAYER" error={error} /> : players.length ? (
         <ul className="world-builders">
