@@ -21,9 +21,9 @@ for (const required of ['engine-strict=true', 'save-exact=true', 'audit=false', 
 
 const expectedBuildScripts = {
   build: 'npm run build:canonical',
-  'build:core': 'npm run build -w @rekt-ink/episodes && npm run build -w @rekt-ink/sim && npm run build -w @rekt-ink/career && npm run build -w @rekt-ink/learning && npm run build -w @rekt-ink/api && npm run build -w @rekt-ink/web && npm run build -w @rekt-ink/inkubator-api',
+  'build:core': 'npm run build -w @rekt-ink/episodes && npm run build -w @rekt-ink/sim && npm run build -w @rekt-ink/career && npm run build -w @rekt-ink/learning && npm run build -w @rekt-ink/api && npm run build -w @rekt-ink/web && npm run build -w @rekt-ink/inkubator-api && npm run build -w @rekt-ink/inkubator-verifier',
   'build:inkubator': 'npm run build -w @rekt-ink/inkubator-lab',
-  'build:canonical': 'npm run build:core && npm run build:inkubator',
+  'build:canonical': 'npm run build:core && npm run build:inkubator && npm run build:devkit',
 };
 for (const [name, expected] of Object.entries(expectedBuildScripts)) if (packageJson.scripts?.[name] !== expected) fail(`${name} must be the canonical repository build contract; got ${JSON.stringify(packageJson.scripts?.[name])}`);
 
