@@ -1,15 +1,15 @@
 /* Instrument V2: local material tokens, one chassis, one history instrument.
    Geometry encodes sequence only. No timers, scope traces or activity meters. */
 .iv2-page {
-  --iv2-page: #dfe1de;
-  --iv2-chassis: #f2f3f1;
-  --iv2-panel: #f7f7f4;
-  --iv2-recessed: #e8e9e6;
-  --iv2-edge: #c7cac7;
+  --iv2-page: #e3e5e3;
+  --iv2-chassis: #f4f5f3;
+  --iv2-panel: #f8f8f6;
+  --iv2-recessed: #eaebe9;
+  --iv2-edge: #c9ccca;
   --iv2-ink: #141719;
   --iv2-muted: #606568;
-  --iv2-seam: #d4d6d3;
-  --iv2-display: #020405;
+  --iv2-seam: #d8dad8;
+  --iv2-display: #010203;
   --iv2-display-text: #eceeea;
   --iv2-display-muted: #9caaa9;
   --iv2-orange: #c8461b;
@@ -91,7 +91,7 @@ body:has(.iv2-page) { margin: 0; background: var(--iv2-page); }
 .iv2-display { position: relative; border: 7px solid var(--iv2-edge); border-bottom-width: 10px; border-radius: 8px; background: var(--iv2-display); color: var(--iv2-display-text); box-shadow: 0 1px #ffffffb8, 0 -1px var(--iv2-seam), inset 0 0 0 1px #292e2c, inset 0 8px 14px #000; }
 .iv2-display::after { content: ''; position: absolute; inset: 0; border-radius: 2px; pointer-events: none; background: repeating-linear-gradient(0deg, #ffffff03 0 1px, transparent 1px 4px); }
 .iv2-page[data-crt="off"] .iv2-display::after { display: none; }
-.iv2-fastener { position: absolute; right: -4px; bottom: -7px; width: 4px; height: 4px; border-radius: 50%; background: #777c72; box-shadow: 0 1px #f9faf2; }
+.iv2-fastener { position: absolute; right: -4px; bottom: -7px; width: 4px; height: 4px; border-radius: 50%; background: #777c72; box-shadow: 0 1px #f4f6f4; }
 .iv2-history { padding: 20px 22px 0; min-height: 550px; }
 .iv2-history-head { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 16px; }
 .iv2-history-head .iv2-micro { color: var(--iv2-display-muted); font-size: 10px; }
