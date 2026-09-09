@@ -22,7 +22,7 @@ The product should feel like a precision-designed physical object translated int
 - dark inset display wells contain the living REKT instrumentation;
 - cyan carries observed/live signal graphics;
 - REKT violet appears selectively for identity/context;
-- acid green remains reserved for PROVEN semantics, except clearly non-semantic hardware-online indicators where the product contract permits it;
+- acid green remains reserved for PROVEN semantics only;
 - small screws, seams, perforation/dot fields, barcode-like marks, calibration ticks and printed labels provide object-like precision;
 - the whole page is **not** a CRT: cathode is a localized display medium inside the white chassis.
 
@@ -111,7 +111,7 @@ Use for:
 - source health;
 - waveform/scope;
 - selected object diagram;
-- REKT/swordfish line-art state;
+- the supplied REKT pixel mascot as neutral identity, or source-supported state;
 - verifier/provenance instrument;
 - compact contextual data that benefits from high-contrast monitoring.
 
@@ -191,7 +191,7 @@ Allowed shared motifs:
 - compact barcode-like motif;
 - recessed display frame with tiny corner fasteners;
 - cyan/orange scope language;
-- bespoke swordfish/REKT/ink creature technical line art;
+- the canonical REKT pixel mascot in a recessed identity mount;
 - compact network/signal diagrams only when supported by data semantics.
 
 These motifs are a language, not mandatory decorations. A screen may omit any motif that adds noise.
@@ -216,19 +216,24 @@ A mini-terminal must not exist only to show random waveforms or fake “LIVE” 
 
 ---
 
-## 8. Swordfish / cathode graphic system
+## 8. REKT mascot / cathode graphic system
 
-The swordfish/cathode direction is retained as an original REKT graphical instrument family.
+**User supersession, 2026-09-09:** the swordfish direction is rejected, including
+redraws, abstractions, hidden fallbacks and fish-shaped successors.
 
-Preferred implementation:
+The supplied pixel-art character is the canonical mascot reference. Preserve its
+dark void body, hard pixel silhouette, violet hood/chassis, white eyes, cyan and
+sparse orange accents, and asymmetric right-side appendage. Do not invent lore.
 
-- authored SVG line art first;
-- semantic named groups/layers (`body`, `signal`, `attention`, `rx`, `meter`, etc.);
-- GSAP for bounded path/event choreography;
-- optional PixiJS version only for genuinely high-frequency/procedural display animation;
-- CRT postprocess applied to the display well, never baked into essential content.
+Use the original artwork at `apps/inkubator-lab/public/assets/rekt-mascot.png`
+through `RektMascot`. Identity is neutral and retains its violet core. The current
+calibration exposes `idle` only; observation/attention/blocker/proof states require
+real supported caller inputs before implementation. Never recolor the whole art.
+Missing artwork receives a neutral text fallback, never an invented replacement.
 
-The swordfish graphic is not a mascot pasted onto every screen. It may mutate by surface/state and can be replaced by source folders, verifier geometry, identity figures, artifact schematics, etc. while preserving the same line-art grammar.
+Keep CRT local to display wells. GSAP may explain selection or actual projection
+changes; no timer may manufacture activity or acceptance. The original art itself
+remains static and intact.
 
 ---
 
