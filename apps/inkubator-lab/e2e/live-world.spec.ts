@@ -75,22 +75,22 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
 }
 
-test('LIVE WORLD renders one causal network instrument and animates only a new feed signal', async ({page}) => {
+test('LIVE WORLD renders NOW plus a truthful signal tape and animates only a new feed signal', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
   let currentSignals = initialSignals;
   await routeWorld(page, () => currentSignals);
 
   await page.goto('/?mode=world');
-  await expect(page.getByRole('heading', {name: 'LIVING PUBLIC NETWORK'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'PUBLIC SIGNALS'})).toBeVisible();
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-mode', 'world');
   await expect(page.locator('.world-instrument')).toHaveCount(1);
-  await expect(page.locator('.world-instrument')).toHaveAttribute('data-field-count', '1');
-  await expect(page.getByRole('img', {name: /Public Inkubator network field/})).toBeVisible();
-  await expect(page.locator('.world-network-field')).toHaveCount(1);
-  await expect(page.locator('.world-current-signal')).toHaveCount(1);
-  await expect(page.locator('.world-signals li[data-truth="claimed"]')).toBeVisible();
-  await expect(page.locator('.world-current-signal[data-truth="observed"]')).toBeVisible();
-  await expect(page.getByText('POSITIONS = LAYOUT ONLY // NO PROGRESS, CATEGORY, RELATIONSHIP OR IMPORTANCE')).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'LATEST SUPPORTED SIGNAL'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'SIGNAL TAPE'})).toBeVisible();
+  await expect(page.locator('[data-now="true"]')).toHaveAttribute('data-signal-id', 'SIG-W-2');
+  await expect(page.locator('[data-signal-id="SIG-W-2"]')).toHaveCount(1);
+  await expect(page.locator('.world-network-field')).toHaveCount(0);
+  await expect(page.locator('.world-radar')).toHaveCount(0);
+  await expect(page.locator('.world-radar-sweep')).toHaveCount(0);
   await expect(page.getByText('PUBLIC SELF-DESCRIPTION // NOT MATCHING')).toBeVisible();
   await expect(page.getByText(/BUILDING|BLOCKED/)).toHaveCount(0);
   await expect(page.getByText(/BEST MATCH|RECOMMENDATION|COMPATIBILITY/i)).toHaveCount(0);
@@ -105,13 +105,21 @@ test('LIVE WORLD renders one causal network instrument and animates only a new f
   ];
   await expect(page.getByText('ASSIST ACCEPTED', {exact: true})).toBeVisible({timeout: 6000});
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-event-sequence', '1');
-  await expect(page.locator('[data-signal-id="SIG-W-3"]')).toHaveCount(3);
+  await expect(page.locator('[data-signal-id="SIG-W-3"]')).toHaveCount(1);
   await expectNoHorizontalOverflow(page);
   await captureEvidence(page, `${process.env.WORLD_EVIDENCE_DIR ?? ''}/world-desktop-1440x900.png`, 'BROWSER HARNESS // SYNTHETIC WORLD FEEDS');
   await page.setViewportSize({width: 390, height: 844});
   await page.emulateMedia({reducedMotion: 'reduce'});
   await expectNoHorizontalOverflow(page);
   await captureEvidence(page, `${process.env.WORLD_EVIDENCE_DIR ?? ''}/world-mobile-390x844.png`, 'BROWSER HARNESS // SYNTHETIC WORLD FEEDS // REDUCED MOTION');
+
+  await page.setViewportSize({width: 900, height: 900});
+  await expectNoHorizontalOverflow(page);
+  await page.setViewportSize({width: 430, height: 932});
+  await expect(page.locator('.world-now')).toBeVisible();
+  await expect(page.locator('.world-tape')).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await captureEvidence(page, `${process.env.WORLD_EVIDENCE_DIR ?? ''}/world-mobile-430x932.png`, 'BROWSER HARNESS // SYNTHETIC WORLD FEEDS // REDUCED MOTION');
 
   const results = await new AxeBuilder({page}).analyze();
   expect(results.violations).toEqual([]);
@@ -126,14 +134,14 @@ test('LIVE WORLD keeps available public projects visible and preserves mobile ca
   });
 
   await page.goto('/?mode=world');
-  await expect(page.getByRole('heading', {name: 'LIVING PUBLIC NETWORK'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'PUBLIC SIGNALS'})).toBeVisible();
   await expect(page.getByText('Need an external tester.')).toBeVisible();
   await expect(page.getByText('PLAYER FEED UNAVAILABLE')).toBeVisible({timeout: 6000});
   await expect(page.getByText('SIGNAL FEED UNAVAILABLE').first()).toBeVisible();
-  await expect(page.locator('.world-radar')).toHaveAttribute('data-motion-policy', 'reduced');
-  await expect(page.locator('.world-current-signal')).toHaveCount(0);
+  await expect(page.locator('.world-now')).toBeVisible();
+  await expect(page.locator('.world-tape')).toBeVisible();
   const order = await page.locator('.world-instrument > *').evaluateAll((nodes) => nodes.map((node) => node.className));
-  expect(order).toEqual(['world-intercept', 'world-field-panel', 'world-support-grid', 'world-activity']);
+  expect(order).toEqual(['world-now', 'world-tape', 'world-support-grid']);
   await expectNoHorizontalOverflow(page);
   await captureEvidence(page, `${process.env.WORLD_EVIDENCE_DIR ?? ''}/world-mobile-partial-failure-390x844.png`, 'BROWSER HARNESS // PARTIAL FEED FAILURE // REDUCED MOTION');
 });

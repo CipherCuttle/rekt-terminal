@@ -52,29 +52,61 @@ function renderWorld(worldClient = client()) {
 }
 
 describe('Live World', () => {
-  it('renders only canonical public project, builder, beacon and signal projections', async () => {
+  it('emphasizes the latest supported signal once and keeps the tape chronological', async () => {
     const {container} = renderWorld();
 
-    expect(await screen.findByRole('heading', {name: 'LIVING PUBLIC NETWORK'})).toBeTruthy();
+    expect(await screen.findByRole('heading', {name: 'PUBLIC SIGNALS'})).toBeTruthy();
     expect(await screen.findByText('Need an external tester.')).toBeTruthy();
     expect(screen.getAllByText('WEIRD LITTLE THING').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Relay Kid').length).toBeGreaterThan(0);
     expect(screen.getByText('EXTERNAL TEST RECORDED')).toBeTruthy();
-    expect(container.querySelectorAll('.world-instrument')).toHaveLength(1);
-    expect(screen.getByRole('img', {name: /Public Inkubator network field/})).toBeTruthy();
-    expect(screen.getByRole('heading', {name: 'NETWORK FIELD'})).toBeTruthy();
-    expect(container.querySelectorAll('.world-network-field')).toHaveLength(1);
-    expect(container.querySelector('.world-instrument')?.getAttribute('data-field-count')).toBe('1');
-    expect(container.querySelectorAll('.world-current-signal')).toHaveLength(1);
-    expect(container.querySelector('.world-signals li[data-truth="claimed"]')).toBeTruthy();
-    expect(container.querySelector('.world-current-signal[data-truth="observed"]')).toBeTruthy();
-    expect(screen.getByText('POSITIONS = LAYOUT ONLY // NO PROGRESS, CATEGORY, RELATIONSHIP OR IMPORTANCE')).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'LATEST SUPPORTED SIGNAL'})).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'SIGNAL TAPE'})).toBeTruthy();
+    expect(container.querySelector('[data-now="true"]')?.getAttribute('data-signal-id')).toBe('SIG-2');
+    expect(container.querySelectorAll('[data-signal-id="SIG-2"]')).toHaveLength(1);
+    expect(container.querySelector('[data-signal-id="SIG-1"]')?.closest('li')).toBeTruthy();
+    expect(screen.getByRole('link', {name: 'Open project context for TINY RELAY'})).toBeTruthy();
+    expect(container.querySelector('.world-network-field')).toBeNull();
+    expect(container.querySelector('.world-radar')).toBeNull();
+    expect(container.querySelector('.world-field-route')).toBeNull();
+    expect(container.querySelector('.world-radar-sweep')).toBeNull();
     expect(screen.getByText('PUBLIC SELF-DESCRIPTION // NOT MATCHING')).toBeTruthy();
     expect(screen.queryByText(/BUILDING|BLOCKED/)).toBeNull();
     expect(screen.queryByText(/BEST MATCH|RECOMMENDATION|COMPATIBILITY/i)).toBeNull();
     expect(container.querySelectorAll('[data-truth="proven"]')).toHaveLength(0);
     expect(screen.queryByText(/repository_full_name|refs\/heads/i)).toBeNull();
     expect(screen.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeTruthy();
+  });
+
+  it('preserves the runtime truth mapping for every supported World event kind', async () => {
+    const signals: WorldSignalList = [
+      {...initialSignals[0], kind: 'HELP_BEACON_OPENED', truth_state: 'CLAIMED'},
+      {...initialSignals[0], signal_id: 'SIG-3', kind: 'ASSIST_ACCEPTED', truth_state: 'OBSERVED', occurred_at: '2026-09-08T12:00:00Z'},
+      {...initialSignals[0], signal_id: 'SIG-4', kind: 'EXTERNAL_TEST_RECORDED', truth_state: 'OBSERVED', occurred_at: '2026-09-08T11:00:00Z'},
+    ];
+    const {container} = renderWorld(client({listWorldSignals: vi.fn().mockResolvedValue(signals)}));
+
+    expect(await screen.findByText('EXTERNAL TEST RECORDED')).toBeTruthy();
+    expect(container.querySelector('[data-signal-id="SIG-1"]')?.getAttribute('data-truth')).toBe('claimed');
+    expect(container.querySelector('[data-signal-id="SIG-3"]')?.getAttribute('data-truth')).toBe('observed');
+    expect(container.querySelector('[data-signal-id="SIG-4"]')?.getAttribute('data-truth')).toBe('observed');
+    expect(screen.queryByText('PROVEN')).toBeNull();
+  });
+
+  it('fails visibly closed for unknown, malformed and contradictory signal rows', async () => {
+    const unsupported = [
+      {...initialSignals[0], kind: 'GITHUB_PUSH', truth_state: 'OBSERVED'},
+      {...initialSignals[0], signal_id: 'SIG-BAD', kind: 'ASSIST_ACCEPTED', truth_state: 'CLAIMED'},
+      {signal_id: 'SIG-MALFORMED', project_name: 'HIDDEN DETAIL'},
+    ] as unknown as WorldSignalList;
+    renderWorld(client({listWorldSignals: vi.fn().mockResolvedValue(unsupported)}));
+
+    expect(await screen.findByText('NO SUPPORTED PUBLIC SIGNALS')).toBeTruthy();
+    expect(screen.getAllByText('WORLD SIGNAL NOT RENDERED')).toHaveLength(3);
+    expect(screen.getByText('UNKNOWN WORLD EVENT KIND')).toBeTruthy();
+    expect(screen.getByText('WORLD EVENT / TRUTH MISMATCH')).toBeTruthy();
+    expect(screen.queryByText('PROVEN')).toBeNull();
+    expect(screen.queryByText('GITHUB PUSH')).toBeNull();
   });
 
   it('keeps partial public feed failures visible without collapsing available world context', async () => {

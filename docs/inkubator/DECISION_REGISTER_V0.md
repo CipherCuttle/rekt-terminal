@@ -6,6 +6,20 @@
 
 This register prevents previously settled questions from silently reopening every session. It does not stop evidence-driven changes; it requires changes to be explicit.
 
+## Controlled WORLD topology closure — 2026-09-10
+
+**Prior:** WORLD topology was unresolved across A PURE SIGNAL TAPE, B NOW + SIGNAL TAPE, and C RECEIVER + SIGNAL TAPE.
+
+**Evidence:** isolated A/B/C experiment at `68b2b290916e44e85ca66eb4ff6b2f1dbea54505`, using identical event fixtures across normal, quiet, help-now and burst scenarios on desktop/mobile with axe/Playwright coverage and preserved semantic constraints.
+
+**New decision:** WORLD selects **B — NOW + SIGNAL TAPE**.
+
+**Rationale:** B gives WORLD an immediate current-event locus while preserving truthful temporal continuity. It improves peripheral awareness without inventing space, proximity, relationship strength, ranking, physics or recommendation semantics. A is semantically clean but under-emphasizes current events; C adds receiver metaphor and material complexity without enough demonstrated comprehension benefit.
+
+**Reopen only if:** actual cohort/user evidence shows the NOW locus harms comprehension, or another topology materially improves WORLD's unique job without semantic invention.
+
+**Impact:** frontend WORLD composition only; no backend/domain semantic change, generated contract change or new WORLD event kind. PLAYER remains frozen/user-approved.
+
 ## Product decisions
 
 | Decision | Status | Reopen only if |
