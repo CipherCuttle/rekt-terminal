@@ -5,9 +5,13 @@
 
   const DAY = 86_400_000;
   const HOUR = 3_600_000;
-  const BIRTH_HOT_WINDOW = 8 * DAY;
   const START = Date.parse('2026-04-01T00:00:00Z');
   const END = Date.parse('2026-09-10T00:00:00Z');
+  const REPLAY_MS_PER_DAY = 90;
+  const REPLAY_SEGMENT_MIN_MS = 850;
+  const REPLAY_SEGMENT_MAX_MS = 3_200;
+  const BIRTH_HOLD_MS = 1_650;
+  const SCRUB_CUE_MS = 1_100;
 
   const families = [
     { id: 'qnty', label: 'QNTY SYSTEMS', y: 108, colorA: '#78e8ff', colorB: '#875fff' },
@@ -29,6 +33,7 @@
     { id: 'frontier', family: 'signal', name: 'frontier', birth: '2026-09-04T23:27:04Z', end: '2026-09-08T22:48:18Z', dy: -30, language: 'TypeScript' },
   ].map((p) => ({ ...p, birthMs: Date.parse(p.birth), endMs: Date.parse(p.end) }));
 
+  const replayBirths = [...projects].sort((a, b) => a.birthMs - b.birthMs);
   const familyById = Object.fromEntries(families.map((f) => [f.id, f]));
   const familyBirth = Object.fromEntries(
     families.map((f) => [f.id, Math.min(...projects.filter((p) => p.family === f.id).map((p) => p.birthMs))])
@@ -50,23 +55,28 @@
   let speed = 1;
   let direction = 1;
   let raf = 0;
-  let lastFrame = 0;
   let scaleMode = 'YEAR';
   let viewStart = START;
   let viewEnd = END;
   let geometryKey = 0;
+  let cueProjectId = null;
+  let cueTimeout = 0;
+  let segmentFrom = START;
+  let segmentTo = START;
+  let segmentStartedAt = 0;
+  let segmentDuration = 1;
+  let holdUntil = 0;
 
   $: visibleProjects = projects.filter((p) => p.endMs >= viewStart && p.birthMs <= viewEnd);
   $: visibleFamilies = families.filter((f) => visibleProjects.some((p) => p.family === f.id));
-  $: activeProjects = visibleProjects.filter((p) => playhead >= p.birthMs && playhead <= p.endMs);
-  $: birthProject = [...visibleProjects]
-    .filter((p) => playhead >= p.birthMs && playhead - p.birthMs <= BIRTH_HOT_WINDOW)
+  $: cueProject = cueProjectId ? projects.find((p) => p.id === cueProjectId) ?? null : null;
+  $: latestKnownProject = [...visibleProjects]
+    .filter((p) => projectIsBorn(p))
     .sort((a, b) => b.birthMs - a.birthMs)[0] ?? null;
-  $: activeProject = birthProject
-    ?? (selected && playhead >= selected.birthMs && playhead <= selected.endMs ? selected : null)
-    ?? [...activeProjects].sort((a, b) => b.birthMs - a.birthMs)[0]
-    ?? null;
-  $: probeProject = activeProject ?? (selected && playhead >= selected.birthMs ? selected : null);
+  $: activeProject = cueProject
+    ?? (selected && projectIsBorn(selected) ? selected : null)
+    ?? latestKnownProject;
+  $: probeProject = activeProject;
   $: knownProjectCount = projects.filter((p) => projectIsBorn(p)).length;
   $: knownFamilyCount = families.filter((f) => familyIsBorn(f.id)).length;
   $: ticks = buildTicks();
@@ -82,9 +92,14 @@
   function familyIsBorn(id) { return playhead >= familyBirth[id]; }
   function projectIsBorn(p) { return playhead >= p.birthMs; }
   function projectIsEnded(p) { return playhead >= p.endMs; }
-  function familyIsHot(id) { return activeProject?.family === id; }
-  function projectIsHot(id) { return activeProject?.id === id; }
+  function projectBeamVisible(p) { return projectIsBorn(p) || cueProjectId === p.id; }
+  function projectIsHot(id) {
+    if (cueProjectId === id) return true;
+    return !playing && selected?.id === id && projectIsBorn(selected);
+  }
+  function familyIsHot(id) { return projects.some((p) => p.family === id && projectIsHot(p.id)); }
   function bornCount(id) { return projects.filter((p) => p.family === id && playhead >= p.birthMs).length; }
+  function hotBeamDuration() { return Math.max(0.7, 1.35 / speed); }
 
   function tickLabel(ms) {
     const d = new Date(ms);
@@ -122,9 +137,60 @@
     return arr.map((b) => ({ ...b, h: 7 + (b.value / max) * 38 }));
   }
 
+  function clearCueTimeout() {
+    clearTimeout(cueTimeout);
+    cueTimeout = 0;
+  }
+
+  function setTransientCue(project) {
+    clearCueTimeout();
+    cueProjectId = project?.id ?? null;
+    if (!project) return;
+    cueTimeout = window.setTimeout(() => {
+      if (!playing) cueProjectId = null;
+      cueTimeout = 0;
+    }, SCRUB_CUE_MS);
+  }
+
+  function crossedBirth(from, to) {
+    if (from === to) return null;
+    const lo = Math.min(from, to);
+    const hi = Math.max(from, to);
+    return [...projects]
+      .filter((p) => p.birthMs > lo && p.birthMs <= hi)
+      .sort((a, b) => b.birthMs - a.birthMs)[0] ?? null;
+  }
+
+  function replaySegmentDuration(from, to) {
+    const gapDays = Math.max(0.01, (to - from) / DAY);
+    const base = clamp(gapDays * REPLAY_MS_PER_DAY, REPLAY_SEGMENT_MIN_MS, REPLAY_SEGMENT_MAX_MS);
+    return base / speed;
+  }
+
+  function nextReplayBirth(after) {
+    return replayBirths.find((p) => p.birthMs > after + 500) ?? null;
+  }
+
+  function projectAtBirth(ms) {
+    return replayBirths.find((p) => Math.abs(p.birthMs - ms) < 1_000) ?? null;
+  }
+
+  function beginReplaySegment(now) {
+    const next = nextReplayBirth(playhead);
+    segmentFrom = playhead;
+    segmentTo = next?.birthMs ?? END;
+    segmentStartedAt = now;
+    segmentDuration = replaySegmentDuration(segmentFrom, segmentTo);
+    holdUntil = 0;
+    cueProjectId = null;
+  }
+
   async function setScale(mode) {
     playing = false;
     cancelAnimationFrame(raf);
+    holdUntil = 0;
+    cueProjectId = null;
+    clearCueTimeout();
     scaleMode = mode;
     const spans = { YEAR: END - START, MONTH: 38 * DAY, WEEK: 10 * DAY, DAY: 36 * HOUR };
     const span = spans[mode];
@@ -142,6 +208,9 @@
   async function rewind() {
     playing = false;
     cancelAnimationFrame(raf);
+    clearCueTimeout();
+    cueProjectId = null;
+    holdUntil = 0;
     direction = -1;
     playhead = START;
     if (scaleMode !== 'YEAR') {
@@ -153,39 +222,96 @@
     }
   }
 
-  function togglePlay() {
+  async function togglePlay() {
     if (playing) {
       playing = false;
       cancelAnimationFrame(raf);
+      holdUntil = 0;
+      cueProjectId = null;
       return;
     }
+
+    clearCueTimeout();
     if (playhead >= END - 1000) playhead = START;
     direction = 1;
-    if (scaleMode !== 'YEAR') setScale('YEAR');
+
+    if (scaleMode !== 'YEAR') {
+      scaleMode = 'YEAR';
+      viewStart = START;
+      viewEnd = END;
+      await tick();
+      geometryKey += 1;
+    }
+
     playing = true;
-    lastFrame = performance.now();
+    const now = performance.now();
+    beginReplaySegment(now);
     raf = requestAnimationFrame(frame);
   }
 
   function frame(now) {
     if (!playing) return;
-    const dt = now - lastFrame;
-    lastFrame = now;
-    playhead += dt * speed * ((END - START) / 16_000);
-    if (playhead >= END) {
-      playhead = END;
-      playing = false;
+
+    if (holdUntil) {
+      if (now < holdUntil) {
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+      cueProjectId = null;
+      beginReplaySegment(now);
+      raf = requestAnimationFrame(frame);
       return;
     }
+
+    const progress = clamp((now - segmentStartedAt) / Math.max(1, segmentDuration), 0, 1);
+    playhead = segmentFrom + (segmentTo - segmentFrom) * progress;
+
+    if (progress >= 1) {
+      playhead = segmentTo;
+      const arrived = projectAtBirth(segmentTo);
+      if (arrived) {
+        selected = arrived;
+        cueProjectId = arrived.id;
+        holdUntil = now + (BIRTH_HOLD_MS / speed);
+      } else {
+        playhead = END;
+        cueProjectId = null;
+        playing = false;
+        return;
+      }
+    }
+
     raf = requestAnimationFrame(frame);
+  }
+
+  function cycleSpeed() {
+    const previous = speed;
+    const next = speed === 1 ? 2 : speed === 2 ? 0.5 : 1;
+    const now = performance.now();
+    speed = next;
+
+    if (!playing) return;
+    if (holdUntil) {
+      const remaining = Math.max(0, holdUntil - now);
+      holdUntil = now + remaining * (previous / next);
+      return;
+    }
+
+    segmentFrom = playhead;
+    segmentStartedAt = now;
+    segmentDuration = replaySegmentDuration(segmentFrom, segmentTo);
   }
 
   async function scrub(value) {
     playing = false;
     cancelAnimationFrame(raf);
+    holdUntil = 0;
+    const previous = playhead;
     const next = Number(value);
-    if (next !== playhead) direction = next < playhead ? -1 : 1;
+    if (next !== previous) direction = next < previous ? -1 : 1;
+    const crossed = crossedBirth(previous, next);
     playhead = next;
+    if (crossed) setTransientCue(crossed); else setTransientCue(null);
     await tick();
   }
 
@@ -202,7 +328,10 @@
     geometryKey += 1;
   }
 
-  onDestroy(() => cancelAnimationFrame(raf));
+  onDestroy(() => {
+    cancelAnimationFrame(raf);
+    clearCueTimeout();
+  });
 </script>
 
 <div class="app-shell">
@@ -250,7 +379,7 @@
     <section class="controls" aria-label="History replay controls">
       <button on:click={rewind}>REWIND</button>
       <button class:active={playing} on:click={togglePlay}>{playing ? 'PAUSE' : 'PLAY HISTORY'}</button>
-      <button on:click={() => speed = speed === 1 ? 2 : speed === 2 ? 0.5 : 1}>{speed}×</button>
+      <button on:click={cycleSpeed}>{speed}×</button>
       <div class="scales">
         {#each ['YEAR','MONTH','WEEK','DAY'] as mode}
           <button class:active={scaleMode === mode} on:click={() => setScale(mode)}>{mode}</button>
@@ -365,7 +494,7 @@
             {/each}
 
             {#each visibleProjects as p (p.id)}
-              {#if !collapsed.has(p.family) && projectIsBorn(p) && birthRefs[p.id] && endRefs[p.id]}
+              {#if !collapsed.has(p.family) && projectBeamVisible(p) && birthRefs[p.id] && endRefs[p.id]}
                 {#key `${p.id}:${projectIsHot(p.id) ? direction : 0}`}
                   <AnimatedBeam
                     {containerRef}
@@ -373,8 +502,8 @@
                     toRef={endRefs[p.id]}
                     curvature={p.dy * -0.62}
                     reverse={projectIsHot(p.id) && direction < 0}
-                    duration={projectIsHot(p.id) ? 8.8 : 12.8}
-                    delay={projectIsHot(p.id) ? 0.04 : 0.42}
+                    duration={projectIsHot(p.id) ? hotBeamDuration() : 12.8}
+                    delay={projectIsHot(p.id) ? 0.02 : 0.42}
                     pathColor={projectIsHot(p.id) ? '#505762' : '#343942'}
                     pathWidth={projectIsHot(p.id) ? 1.55 : 0.9}
                     pathOpacity={projectIsHot(p.id) ? 0.20 : 0.08}
@@ -389,7 +518,7 @@
       </div>
 
       <div class="histogram">
-        <div class="hist-label"><span>KNOWN ACTIVITY MASS // SCRUB HISTORY</span><b>{activeProject ? `TRACE: ${activeProject.name}` : scaleMode}</b></div>
+        <div class="hist-label"><span>KNOWN ACTIVITY MASS // SCRUB HISTORY</span><b>{cueProject ? `BIRTH: ${cueProject.name}` : activeProject ? `TRACE: ${activeProject.name}` : scaleMode}</b></div>
         <div class="bars">
           {#each bins as b}
             <i style={`height:${b.h}px;opacity:${b.value ? 0.82 : 0.10}`}></i>
