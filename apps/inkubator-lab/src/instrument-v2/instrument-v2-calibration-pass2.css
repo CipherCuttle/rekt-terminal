@@ -1,0 +1,128 @@
+/* Pixel calibration pass 2.
+   This file deliberately overrides the isolated Instrument V2 lab only.
+   It is loaded globally with higher-specificity selectors so the lazy lab chunk
+   cannot reorder these calibration corrections. */
+
+@media (min-width: 761px) {
+  body:has(.iv2-page) .iv2-machine {
+    min-height: 920px;
+  }
+
+  /* The approved desktop composition ends with the three right-hand monitors
+     and stamp; it does not carry a full-width bottom footer. */
+  body:has(.iv2-page) .iv2-footer {
+    display: none;
+  }
+
+  /* Reference interior is ~509x276 at the 1672px calibration viewport.
+     Keep the outer module height but use a slightly deeper lower bezel. */
+  body:has(.iv2-page) .iv2-hero-crt {
+    border-top-width: 8px;
+    border-bottom-width: 12px;
+  }
+
+  body:has(.iv2-page) .iv2-hero-crt-body {
+    grid-template-columns: 88px minmax(0, 1fr) 98px;
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  /* The reference creature is deliberately tall and gestural rather than a
+     narrow fish diagram. Preserve the authored vector while calibrating its
+     optical aspect ratio inside the display well. */
+  body:has(.iv2-page) .iv2-fish {
+    transform: scale(1.04, 1.50);
+    transform-origin: 50% 50%;
+  }
+
+  body:has(.iv2-page) .iv2-fish-lines {
+    stroke-width: 2.35;
+  }
+
+  body:has(.iv2-page) .iv2-fish-accent {
+    stroke-width: 2.55;
+  }
+
+  /* The generated reference uses a low, very wide grotesk wordmark.
+     Arial Black is available in the pinned browser environment; compensate
+     optically with width scaling instead of importing a new runtime font. */
+  body:has(.iv2-page) .iv2-title-row h1 {
+    font-size: 56px;
+    line-height: .82;
+    letter-spacing: -.065em;
+    transform: scaleX(1.34);
+    transform-origin: left top;
+  }
+
+  body:has(.iv2-page) .iv2-intro h2 {
+    margin-top: 13px;
+  }
+
+  body:has(.iv2-page) .iv2-intro p {
+    font-size: 11px;
+    line-height: 1.42;
+  }
+
+  body:has(.iv2-page) .iv2-dotfield {
+    top: 82px;
+  }
+
+  body:has(.iv2-page) .iv2-compound-copy {
+    top: 157px;
+  }
+
+  /* Bring the build-thread typography up to the visual weight of the art
+     reference while preserving its existing row geometry. */
+  body:has(.iv2-page) .iv2-thread-copy strong {
+    font-size: 12px;
+  }
+
+  body:has(.iv2-page) .iv2-thread-copy p {
+    font-size: 9.5px;
+  }
+
+  body:has(.iv2-page) .iv2-thread-author,
+  body:has(.iv2-page) .iv2-thread-comments {
+    font-size: 8.5px;
+  }
+
+  body:has(.iv2-page) .iv2-thread-avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  /* Slightly more physical panel relief, still much quieter than card UI. */
+  body:has(.iv2-page) .iv2-panel {
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.96),
+      inset 0 -1px 0 rgba(17,18,20,.025),
+      0 1px 3px rgba(0,0,0,.028);
+  }
+}
+
+@media (max-width: 760px) {
+  body:has(.iv2-page) .iv2-fish {
+    transform: scale(1.03, 1.43);
+    transform-origin: 50% 50%;
+  }
+
+  body:has(.iv2-page) .iv2-title-row h1 {
+    font-size: clamp(62px, 17vw, 74px);
+    line-height: .82;
+    letter-spacing: -.07em;
+    transform: scaleX(1.18);
+    transform-origin: left top;
+  }
+
+  body:has(.iv2-page) .iv2-thread-copy strong {
+    font-size: 11px;
+  }
+
+  body:has(.iv2-page) .iv2-thread-copy p {
+    font-size: 7.5px;
+  }
+
+  body:has(.iv2-page) .iv2-footer {
+    display: grid;
+  }
+}
