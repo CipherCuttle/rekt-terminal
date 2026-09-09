@@ -5,7 +5,7 @@ Status: READY_FOR_USER_VISUAL_GATE. Astra's coherent PLAYER calibration and Luna
 ## Revisions and location
 
 STARTING SHA: `83fcc77c423b4b3823cc7838c0e2a5b7b2d1b6f9`
-ENDING SHA: `f5ddf4d` (Luna continuation; implementation/artifact checkpoint remains `6006327`).
+ENDING SHA: `5e58f41` (Luna continuation; implementation/artifact checkpoint remains `6006327`).
 BRANCH: `agent/instrument-v2-mascot-purpose-pass-v0`
 WORKTREE: `/home/swirky/DevHub/worktrees/rekt-mascot-purpose`
 
@@ -14,7 +14,7 @@ COMMITS CREATED:
 - `79df846` — purpose-bound PLAYER history, supplied mascot, responsive composition, tests.
 - `6006327` — complete refreshed static calibration artifact.
 - `61501bf` — Astra handoff and hostile review record.
-- `f5ddf4d` — Luna continuation: close responsive, keyboard and mobile axe regressions.
+- `5e58f41` — Luna continuation: close responsive, keyboard and mobile axe regressions.
 
 Original worktree remains clean at `/home/swirky/DevHub/worktrees/rekt-command-v11`, branch
 `experiment/world-composition-lab-v1`, SHA `68b2b29`. No user WIP was changed,
