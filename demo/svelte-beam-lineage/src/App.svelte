@@ -76,9 +76,9 @@
       </div>
 
       <div class="hardware-keys" aria-label="Player record navigation">
-        <button class="key key-violet" type="button" on:click={() => jumpTo(identityRef)}><b>PROFILE</b><span>01</span></button>
-        <button class="key key-cyan" type="button" on:click={() => jumpTo(threadRef)}><b>THREAD</b><span>02</span></button>
-        <button class="key key-orange" type="button" on:click={() => jumpTo(sourceRef)}><b>SOURCES</b><span>03</span></button>
+        <button class="key key-violet" style="cursor:pointer" type="button" on:click={() => jumpTo(identityRef)}><b>PROFILE</b><span>01</span></button>
+        <button class="key key-cyan" style="cursor:pointer" type="button" on:click={() => jumpTo(threadRef)}><b>THREAD</b><span>02</span></button>
+        <button class="key key-orange" style="cursor:pointer" type="button" on:click={() => jumpTo(sourceRef)}><b>SOURCES</b><span>03</span></button>
         <button class="key key-dark" type="button" disabled><b>RECEIPTS</b><span>OFF</span></button>
       </div>
     </section>
@@ -118,7 +118,7 @@
           <strong>{selected.name}</strong>
           <small>{fmt(selected.endMs)} · {selected.language}</small>
         </div>
-        <button class="encoder" type="button" on:click={cycleBuild} aria-label="Select next observed build">
+        <button class="encoder" style="border:0;background:transparent;padding:0;cursor:pointer;color:inherit" type="button" on:click={cycleBuild} aria-label="Select next observed build">
           <i aria-hidden="true"></i><span>NEXT</span>
         </button>
       </div>
