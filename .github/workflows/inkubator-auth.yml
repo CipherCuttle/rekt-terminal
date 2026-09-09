@@ -79,7 +79,7 @@ jobs:
         run: npm run build -w @rekt-ink/inkubator-api
 
       - name: Verify generated typed client
-        run: node apps/inkubator-api/dist/generate-client.js --check
+        run: npm run verify:client -w @rekt-ink/inkubator-api
 
       - name: Unit tests
         run: npm run test -w @rekt-ink/inkubator-api

@@ -75,7 +75,7 @@ jobs:
         run: npm run verify:inkubator-foundation
 
       - name: Test Inkubator protocol
-        run: npm test -w @rekt-ink/inkubator-protocol
+        run: npm test -w @rekt-ink/protocol
 
       - name: Verify generated public state is current
         shell: bash

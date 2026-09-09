@@ -96,7 +96,7 @@ jobs:
         run: npm run verify:inkubator-foundation
 
       - name: Generated Inkubator API client contract
-        run: npm run verify:inkubator-api-client
+        run: npm run build -w @rekt-ink/inkubator-api && npm run verify:inkubator-api-client
 
       - name: Typecheck
         run: npm run typecheck
