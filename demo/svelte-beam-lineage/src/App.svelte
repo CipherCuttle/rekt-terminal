@@ -67,6 +67,8 @@
     ?? [...activeProjects].sort((a, b) => b.birthMs - a.birthMs)[0]
     ?? null;
   $: probeProject = activeProject ?? (selected && playhead >= selected.birthMs ? selected : null);
+  $: knownProjectCount = projects.filter((p) => projectIsBorn(p)).length;
+  $: knownFamilyCount = families.filter((f) => familyIsBorn(f.id)).length;
   $: ticks = buildTicks();
   $: bins = buildBins();
 
@@ -79,6 +81,7 @@
   function fmt(ms) { return new Date(ms).toISOString().slice(0, 10); }
   function familyIsBorn(id) { return playhead >= familyBirth[id]; }
   function projectIsBorn(p) { return playhead >= p.birthMs; }
+  function projectIsEnded(p) { return playhead >= p.endMs; }
   function familyIsHot(id) { return activeProject?.family === id; }
   function projectIsHot(id) { return activeProject?.id === id; }
   function bornCount(id) { return projects.filter((p) => p.family === id && playhead >= p.birthMs).length; }
@@ -107,9 +110,12 @@
     const span = viewEnd - viewStart;
     const arr = Array.from({ length: count }, (_, i) => ({ i, value: 0 }));
     for (const p of projects) {
-      if (p.birthMs > viewEnd || p.endMs < viewStart) continue;
-      const from = clamp(Math.floor(((Math.max(p.birthMs, viewStart) - viewStart) / span) * count), 0, count - 1);
-      const to = clamp(Math.ceil(((Math.min(p.endMs, viewEnd) - viewStart) / span) * count), 0, count - 1);
+      if (p.birthMs > playhead || p.birthMs > viewEnd || p.endMs < viewStart) continue;
+      const observedStart = Math.max(p.birthMs, viewStart);
+      const observedEnd = Math.min(p.endMs, playhead, viewEnd);
+      if (observedEnd < observedStart) continue;
+      const from = clamp(Math.floor(((observedStart - viewStart) / span) * count), 0, count - 1);
+      const to = clamp(Math.ceil(((observedEnd - viewStart) / span) * count), 0, count - 1);
       for (let i = from; i <= to; i += 1) arr[i].value += 1;
     }
     const max = Math.max(1, ...arr.map((b) => b.value));
@@ -200,188 +206,229 @@
 </script>
 
 <div class="app-shell">
-  <header class="topbar">
-    <div>
-      <div class="eyebrow">EXACT UPSTREAM SVELTE MOTION // SEMANTIC HISTORY REPLAY</div>
-      <h1>BUILD LINEAGE // LIVING HISTORY</h1>
+  <nav class="mode-rail" aria-label="REKT Inkubator surfaces">
+    <div class="brand"><i class="brand-mark" aria-hidden="true"></i><span>REKT / INK(CUBATOR)</span></div>
+    <div class="mode-links" aria-label="Instrument modes">
+      {#each ['WORLD','COMMAND','PROJECT','PLAYER','SHIP'] as surface}
+        <span class:current={surface === 'PLAYER'}>{surface}</span>
+      {/each}
     </div>
-    <div class="source-pill">AnimatedBeam.svelte // UNMODIFIED</div>
+    <span class="mode-meta">COCKPIT / SIGNAL SYSTEM V0</span>
+  </nav>
+
+  <header class="player-header">
+    <div class="player-ident">
+      <div class="player-glyph" aria-hidden="true"><span>CC</span></div>
+      <div>
+        <div class="kicker">PLAYER / BUILDER</div>
+        <h1>CIPHERCUTTLE</h1>
+        <p>BUILD HISTORY // OBSERVED REPOSITORY WINDOWS</p>
+      </div>
+    </div>
+    <div class="player-stats" aria-label="History state">
+      <div><strong>{String(knownProjectCount).padStart(2, '0')}</strong><span>KNOWN BUILDS</span></div>
+      <div><strong>{String(knownFamilyCount).padStart(2, '0')}</strong><span>KNOWN FAMILIES</span></div>
+    </div>
   </header>
 
-  <section class="controls">
-    <button on:click={rewind}>REWIND</button>
-    <button class:active={playing} on:click={togglePlay}>{playing ? 'PAUSE' : 'PLAY HISTORY'}</button>
-    <button on:click={() => speed = speed === 1 ? 2 : speed === 2 ? 0.5 : 1}>{speed}×</button>
-    <div class="scales">
-      {#each ['YEAR','MONTH','WEEK','DAY'] as mode}
-        <button class:active={scaleMode === mode} on:click={() => setScale(mode)}>{mode}</button>
-      {/each}
-    </div>
-    <div class="date-read">{direction < 0 ? '←' : '→'} {fmt(playhead)}</div>
+  <section class="meta-strip" aria-label="History metadata">
+    <div><span>SOURCE</span><b class="observed"><i></i>GITHUB / OBSERVED</b></div>
+    <div><span>PLAYHEAD</span><b>{fmt(playhead)}</b></div>
+    <div><span>DIRECTION</span><b>{direction < 0 ? 'REVERSE' : 'FORWARD'}</b></div>
+    <div><span>LINEAGE CLAIM</span><b>GROUPING ≠ ANCESTRY</b></div>
   </section>
 
-  <main class="stage-card">
-    <div class="axis">
-      {#each ticks as t}
-        <div class="tick" style={`left:${xPct(t)}%`}><span>{tickLabel(t)}</span></div>
-      {/each}
-      <div class="playhead" style={`left:${xPct(playhead)}%`}></div>
-    </div>
+  <section class="instrument-frame">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">INSTRUMENT 04 / PLAYER HISTORY</div>
+        <h2>BUILD LINEAGE // LIVING HISTORY</h2>
+      </div>
+      <div class="source-pill"><i></i>AnimatedBeam.svelte // UPSTREAM UNMODIFIED</div>
+    </header>
 
-    <div class="beam-stage" bind:this={containerRef}>
-      {#each visibleFamilies as family (family.id)}
-        <div class:active-band={familyIsHot(family.id)} class="family-band" style={`top:${family.y - 50}px;--family-a:${family.colorA}`}></div>
-      {/each}
-
-      <div class="root node root" bind:this={rootRef} style="left:3.5%;top:298px"><span>PLAYER</span><small>BUILD ROOT</small></div>
-
-      {#each visibleFamilies as family (family.id)}
-        <div class:born={familyIsBorn(family.id)} class="anchor family-start" bind:this={familyStartRefs[family.id]} style={`left:${familyStartX(family)}%;top:${family.y}px`}></div>
-        <div class="anchor family-end" bind:this={familyEndRefs[family.id]} style={`left:${familyEndX(family)}%;top:${family.y}px`}></div>
-        {#if familyIsBorn(family.id)}
-          <button
-            class:collapsed={collapsed.has(family.id)}
-            class:active-family={familyIsHot(family.id)}
-            class="family-label"
-            style={`left:${familyStartX(family)}%;top:${family.y}px;--family-a:${family.colorA}`}
-            on:click={() => toggleFamily(family.id)}
-            in:scale={{ duration: 320, start: 0.45 }}
-            out:scale={{ duration: 180, start: 0.45 }}
-          >
-            <i></i><span>{family.label}</span><small>{bornCount(family.id)} BUILDS · {collapsed.has(family.id) ? 'EXPAND' : 'COLLAPSE'}</small>
-          </button>
-        {/if}
-      {/each}
-
-      {#each visibleProjects as p (p.id)}
-        <div
-          class:born={projectIsBorn(p)}
-          class:hot={projectIsHot(p.id)}
-          class="anchor birth-anchor"
-          bind:this={birthRefs[p.id]}
-          style={`left:${birthX(p)}%;top:${familyById[p.family].y}px`}
-        ></div>
-        <div class="anchor end-anchor" bind:this={endRefs[p.id]} style={`left:${endX(p)}%;top:${familyById[p.family].y + p.dy}px`}></div>
-
-        {#if !collapsed.has(p.family) && projectIsBorn(p)}
-          <button
-            class:selected={selected?.id === p.id}
-            class:past={playhead > p.endMs}
-            class:temporal-active={playhead >= p.birthMs && playhead <= p.endMs}
-            class:beam-active={projectIsHot(p.id)}
-            class="project-label"
-            style={`left:${birthX(p)}%;top:${familyById[p.family].y + p.dy}px;--family-a:${familyById[p.family].colorA}`}
-            on:click={() => selectProject(p)}
-            in:scale={{ duration: 420, start: 0.35 }}
-            out:scale={{ duration: 220, start: 0.35 }}
-          >
-            <i></i><span>{p.name}</span><small>{fmt(p.birthMs)}</small>
-          </button>
-        {/if}
-
-        {#if !collapsed.has(p.family) && playhead >= p.endMs}
-          <div
-            class:past={playhead > p.endMs}
-            class="end-cap"
-            style={`left:${endX(p)}%;top:${familyById[p.family].y + p.dy}px;--family-a:${familyById[p.family].colorA}`}
-            in:scale={{ duration: 260, start: 0.4 }}
-            out:scale={{ duration: 160, start: 0.4 }}
-          ></div>
-        {/if}
-      {/each}
-
-      {#key geometryKey}
-        <div class="beam-layer">
-          {#each visibleFamilies as family (family.id)}
-            {#if rootRef && familyStartRefs[family.id]}
-              <AnimatedBeam
-                {containerRef}
-                fromRef={rootRef}
-                toRef={familyStartRefs[family.id]}
-                curvature={family.y < 298 ? 44 : -44}
-                duration={10.8}
-                delay={0.20}
-                pathColor={familyIsBorn(family.id) ? '#383d46' : '#22262d'}
-                pathWidth={familyIsBorn(family.id) ? 1.0 : 0.72}
-                pathOpacity={familyIsBorn(family.id) ? 0.10 : 0.045}
-                gradientStartColor={familyIsHot(family.id) ? family.colorA : familyIsBorn(family.id) ? '#272c34' : '#171b20'}
-                gradientStopColor={familyIsHot(family.id) ? family.colorB : familyIsBorn(family.id) ? '#343a45' : '#20252c'}
-              />
-            {/if}
-            {#if familyStartRefs[family.id] && familyEndRefs[family.id]}
-              <AnimatedBeam
-                {containerRef}
-                fromRef={familyStartRefs[family.id]}
-                toRef={familyEndRefs[family.id]}
-                curvature={0}
-                duration={11.6}
-                delay={0.34}
-                pathColor={familyIsBorn(family.id) ? '#3f444d' : '#21252c'}
-                pathWidth={familyIsBorn(family.id) ? 1.2 : 0.72}
-                pathOpacity={familyIsBorn(family.id) ? 0.12 : 0.04}
-                gradientStartColor={familyIsHot(family.id) ? family.colorA : familyIsBorn(family.id) ? '#242931' : '#171b20'}
-                gradientStopColor={familyIsHot(family.id) ? family.colorB : familyIsBorn(family.id) ? '#323842' : '#20252c'}
-              />
-            {/if}
-          {/each}
-
-          {#each visibleProjects as p (p.id)}
-            {#if !collapsed.has(p.family) && birthRefs[p.id] && endRefs[p.id]}
-              {#key `${p.id}:${projectIsBorn(p) ? 1 : 0}:${projectIsHot(p.id) ? direction : 0}`}
-                <AnimatedBeam
-                  {containerRef}
-                  fromRef={birthRefs[p.id]}
-                  toRef={endRefs[p.id]}
-                  curvature={p.dy * -0.62}
-                  reverse={projectIsHot(p.id) && direction < 0}
-                  duration={projectIsHot(p.id) ? 8.8 : projectIsBorn(p) ? 12.8 : 24}
-                  delay={projectIsHot(p.id) ? 0.04 : projectIsBorn(p) ? 0.42 : 0.8}
-                  pathColor={projectIsHot(p.id) ? '#505762' : projectIsBorn(p) ? '#343942' : '#1f2329'}
-                  pathWidth={projectIsHot(p.id) ? 1.55 : projectIsBorn(p) ? 0.9 : 0.65}
-                  pathOpacity={projectIsHot(p.id) ? 0.20 : projectIsBorn(p) ? 0.08 : 0.035}
-                  gradientStartColor={projectIsHot(p.id) ? familyById[p.family].colorA : projectIsBorn(p) ? '#20252c' : '#15191e'}
-                  gradientStopColor={projectIsHot(p.id) ? familyById[p.family].colorB : projectIsBorn(p) ? '#303640' : '#1e232a'}
-                />
-              {/key}
-            {/if}
-          {/each}
-        </div>
-      {/key}
-    </div>
-
-    <div class="histogram">
-      <div class="hist-label"><span>ACTIVE PROJECT MASS // SCRUB HISTORY</span><b>{activeProject ? `TRACE: ${activeProject.name}` : scaleMode}</b></div>
-      <div class="bars">
-        {#each bins as b}
-          <i style={`height:${b.h}px;opacity:${b.value ? 0.82 : 0.10}`}></i>
+    <section class="controls" aria-label="History replay controls">
+      <button on:click={rewind}>REWIND</button>
+      <button class:active={playing} on:click={togglePlay}>{playing ? 'PAUSE' : 'PLAY HISTORY'}</button>
+      <button on:click={() => speed = speed === 1 ? 2 : speed === 2 ? 0.5 : 1}>{speed}×</button>
+      <div class="scales">
+        {#each ['YEAR','MONTH','WEEK','DAY'] as mode}
+          <button class:active={scaleMode === mode} on:click={() => setScale(mode)}>{mode}</button>
         {/each}
       </div>
-      <input
-        aria-label="History playhead"
-        type="range"
-        min={START}
-        max={END}
-        step={HOUR}
-        value={playhead}
-        on:input={(e) => scrub(e.currentTarget.value)}
-      />
-    </div>
-  </main>
+      <div class="date-read"><i></i>{direction < 0 ? '←' : '→'} {fmt(playhead)}</div>
+    </section>
 
-  <aside class="probe">
-    <div class="probe-title">PROJECT PROBE</div>
+    <main class="stage-card">
+      <div class="axis">
+        {#each ticks as t}
+          <div class="tick" style={`left:${xPct(t)}%`}><span>{tickLabel(t)}</span></div>
+        {/each}
+        <div class="playhead" style={`left:${xPct(playhead)}%`}></div>
+      </div>
+
+      <div class="beam-stage" bind:this={containerRef}>
+        {#each visibleFamilies as family (family.id)}
+          <div class:active-band={familyIsHot(family.id)} class="family-band" style={`top:${family.y - 50}px;--family-a:${family.colorA}`}></div>
+        {/each}
+
+        <div class="root node root" bind:this={rootRef} style="left:3.5%;top:298px"><span>PLAYER</span><small>BUILD ROOT</small></div>
+
+        {#each visibleFamilies as family (family.id)}
+          <div class:born={familyIsBorn(family.id)} class="anchor family-start" bind:this={familyStartRefs[family.id]} style={`left:${familyStartX(family)}%;top:${family.y}px`}></div>
+          <div class="anchor family-end" bind:this={familyEndRefs[family.id]} style={`left:${familyEndX(family)}%;top:${family.y}px`}></div>
+          {#if familyIsBorn(family.id)}
+            <button
+              class:collapsed={collapsed.has(family.id)}
+              class:active-family={familyIsHot(family.id)}
+              class="family-label"
+              style={`left:${familyStartX(family)}%;top:${family.y}px;--family-a:${family.colorA}`}
+              on:click={() => toggleFamily(family.id)}
+              in:scale={{ duration: 320, start: 0.45 }}
+              out:scale={{ duration: 180, start: 0.45 }}
+            >
+              <i></i><span>{family.label}</span><small>{bornCount(family.id)} BUILDS · {collapsed.has(family.id) ? 'EXPAND' : 'COLLAPSE'}</small>
+            </button>
+          {/if}
+        {/each}
+
+        {#each visibleProjects as p (p.id)}
+          <div
+            class:born={projectIsBorn(p)}
+            class:hot={projectIsHot(p.id)}
+            class="anchor birth-anchor"
+            bind:this={birthRefs[p.id]}
+            style={`left:${birthX(p)}%;top:${familyById[p.family].y}px`}
+          ></div>
+          <div class="anchor end-anchor" bind:this={endRefs[p.id]} style={`left:${endX(p)}%;top:${familyById[p.family].y + p.dy}px`}></div>
+
+          {#if !collapsed.has(p.family) && projectIsBorn(p)}
+            <button
+              class:selected={selected?.id === p.id}
+              class:past={playhead > p.endMs}
+              class:temporal-active={playhead >= p.birthMs && playhead <= p.endMs}
+              class:beam-active={projectIsHot(p.id)}
+              class="project-label"
+              style={`left:${birthX(p)}%;top:${familyById[p.family].y + p.dy}px;--family-a:${familyById[p.family].colorA}`}
+              on:click={() => selectProject(p)}
+              in:scale={{ duration: 420, start: 0.35 }}
+              out:scale={{ duration: 220, start: 0.35 }}
+            >
+              <i></i><span>{p.name}</span><small>{fmt(p.birthMs)}</small>
+            </button>
+          {/if}
+
+          {#if !collapsed.has(p.family) && projectIsEnded(p)}
+            <div
+              class:past={playhead > p.endMs}
+              class="end-cap"
+              style={`left:${endX(p)}%;top:${familyById[p.family].y + p.dy}px;--family-a:${familyById[p.family].colorA}`}
+              in:scale={{ duration: 260, start: 0.4 }}
+              out:scale={{ duration: 160, start: 0.4 }}
+            ></div>
+          {/if}
+        {/each}
+
+        {#key geometryKey}
+          <div class="beam-layer">
+            {#each visibleFamilies as family (family.id)}
+              {#if rootRef && familyStartRefs[family.id]}
+                <AnimatedBeam
+                  {containerRef}
+                  fromRef={rootRef}
+                  toRef={familyStartRefs[family.id]}
+                  curvature={family.y < 298 ? 44 : -44}
+                  duration={10.8}
+                  delay={0.20}
+                  pathColor={familyIsBorn(family.id) ? '#383d46' : '#22262d'}
+                  pathWidth={familyIsBorn(family.id) ? 1.0 : 0.72}
+                  pathOpacity={familyIsBorn(family.id) ? 0.10 : 0.045}
+                  gradientStartColor={familyIsHot(family.id) ? family.colorA : familyIsBorn(family.id) ? '#272c34' : '#171b20'}
+                  gradientStopColor={familyIsHot(family.id) ? family.colorB : familyIsBorn(family.id) ? '#343a45' : '#20252c'}
+                />
+              {/if}
+              {#if familyStartRefs[family.id] && familyEndRefs[family.id]}
+                <AnimatedBeam
+                  {containerRef}
+                  fromRef={familyStartRefs[family.id]}
+                  toRef={familyEndRefs[family.id]}
+                  curvature={0}
+                  duration={11.6}
+                  delay={0.34}
+                  pathColor={familyIsBorn(family.id) ? '#3f444d' : '#21252c'}
+                  pathWidth={familyIsBorn(family.id) ? 1.2 : 0.72}
+                  pathOpacity={familyIsBorn(family.id) ? 0.12 : 0.04}
+                  gradientStartColor={familyIsHot(family.id) ? family.colorA : familyIsBorn(family.id) ? '#242931' : '#171b20'}
+                  gradientStopColor={familyIsHot(family.id) ? family.colorB : familyIsBorn(family.id) ? '#323842' : '#20252c'}
+                />
+              {/if}
+            {/each}
+
+            {#each visibleProjects as p (p.id)}
+              {#if !collapsed.has(p.family) && projectIsBorn(p) && birthRefs[p.id] && endRefs[p.id]}
+                {#key `${p.id}:${projectIsHot(p.id) ? direction : 0}`}
+                  <AnimatedBeam
+                    {containerRef}
+                    fromRef={birthRefs[p.id]}
+                    toRef={endRefs[p.id]}
+                    curvature={p.dy * -0.62}
+                    reverse={projectIsHot(p.id) && direction < 0}
+                    duration={projectIsHot(p.id) ? 8.8 : 12.8}
+                    delay={projectIsHot(p.id) ? 0.04 : 0.42}
+                    pathColor={projectIsHot(p.id) ? '#505762' : '#343942'}
+                    pathWidth={projectIsHot(p.id) ? 1.55 : 0.9}
+                    pathOpacity={projectIsHot(p.id) ? 0.20 : 0.08}
+                    gradientStartColor={projectIsHot(p.id) ? familyById[p.family].colorA : '#20252c'}
+                    gradientStopColor={projectIsHot(p.id) ? familyById[p.family].colorB : '#303640'}
+                  />
+                {/key}
+              {/if}
+            {/each}
+          </div>
+        {/key}
+      </div>
+
+      <div class="histogram">
+        <div class="hist-label"><span>KNOWN ACTIVITY MASS // SCRUB HISTORY</span><b>{activeProject ? `TRACE: ${activeProject.name}` : scaleMode}</b></div>
+        <div class="bars">
+          {#each bins as b}
+            <i style={`height:${b.h}px;opacity:${b.value ? 0.82 : 0.10}`}></i>
+          {/each}
+        </div>
+        <input
+          aria-label="History playhead"
+          type="range"
+          min={START}
+          max={END}
+          step={HOUR}
+          value={playhead}
+          on:input={(e) => scrub(e.currentTarget.value)}
+        />
+      </div>
+    </main>
+  </section>
+
+  <aside class="probe instrument-frame">
+    <div class="probe-head">
+      <div><span class="kicker">PROJECT PROBE</span><strong>PLAYHEAD-BOUNDED INSPECTION</strong></div>
+      <span class="truth-state"><i></i>OBSERVED</span>
+    </div>
     {#if probeProject}
-      <strong>{probeProject.name}</strong>
-      <span>{probeProject.language} // OBSERVED REPOSITORY WINDOW</span>
+      <div class="probe-project">
+        <strong>{probeProject.name}</strong>
+        <span>{probeProject.language} // OBSERVED REPOSITORY WINDOW</span>
+      </div>
       <dl>
         <div><dt>BIRTH MARKER</dt><dd>{fmt(probeProject.birthMs)}</dd></div>
-        <div><dt>LAST PUSH SNAPSHOT</dt><dd>{fmt(probeProject.endMs)}</dd></div>
-        <div><dt>TRACE STATE</dt><dd>{projectIsHot(probeProject.id) ? (direction < 0 ? 'LIVE · REVERSE' : 'LIVE · FORWARD') : 'HISTORICAL'}</dd></div>
+        <div><dt>LAST PUSH SNAPSHOT</dt><dd>{projectIsEnded(probeProject) ? fmt(probeProject.endMs) : 'NOT YET REACHED'}</dd></div>
+        <div><dt>TRACE STATE</dt><dd>{projectIsHot(probeProject.id) ? (direction < 0 ? 'LIVE · REVERSE' : 'LIVE · FORWARD') : projectIsEnded(probeProject) ? 'HISTORICAL' : 'ACTIVE WINDOW'}</dd></div>
       </dl>
     {:else}
-      <strong>NO PROJECT YET</strong>
-      <span>SCRUB OR PLAY FORWARD TO MATERIALIZE BUILD HISTORY</span>
+      <div class="probe-project empty">
+        <strong>NO PROJECT YET</strong>
+        <span>SCRUB OR PLAY FORWARD TO MATERIALIZE BUILD HISTORY</span>
+      </div>
     {/if}
-    <p>The spatial scaffold stays resident, but names, dates and project state now exist only after their historical birth marker. Crossing a birth mounts or retracts that semantic layer while the literal upstream <code>AnimatedBeam.svelte</code> trace is promoted locally.</p>
+    <p>Repository windows are OBSERVED demo inputs. Family grouping is presentation context, not proven ancestry. Future project names, end-state and activity stay hidden until the playhead reaches them.</p>
   </aside>
 </div>
