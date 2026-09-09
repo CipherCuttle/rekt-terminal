@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#020203" />
+<title>INKUBATOR // BUILD LINEAGE V3</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020203}iframe{display:block;width:100%;height:100%;border:0;background:#020203}
+</style>
+</head>
+<body>
+<iframe id="v2" src="./instrument-v2.html" title="REKT Inkubator build lineage instrument v3"></iframe>
+<script>
+(() => {
+  const v2 = document.getElementById('v2');
+  const afterLoad = (frame, fn) => frame?.contentDocument?.readyState === 'complete' ? fn() : frame?.addEventListener('load', fn, {once:true});
+  afterLoad(v2, () => {
+    const v2d = v2.contentDocument;
+    const base = v2d?.getElementById('base');
+    if (!base) return;
+    afterLoad(base, () => {
+      const w = base.contentWindow;
+      const d = base.contentDocument;
+      const d3 = w?.d3;
+      if (!w || !d || !d3) return;
+
+      const extra = d.createElement('style');
+      extra.textContent = `
+        .v2-controls{display:none!important}
+        .lineage-tools{height:35px;border-bottom:1px solid var(--line);display:flex;align-items:stretch;background:#030304;position:relative;z-index:13}
+        .lineage-tools .group{display:flex;border-right:1px solid var(--line)}
+        .lineage-tools .spacer{flex:1}
+        .lineage-tools button{min-width:38px;border:0;border-right:1px solid var(--line);background:transparent;color:#68616e;padding:0 10px;font-size:7px;letter-spacing:.11em;cursor:pointer}
+        .lineage-tools button:last-child{border-right:0}.lineage-tools button:hover,.lineage-tools button.on{color:var(--violet);background:rgba(170,131,255,.025)}
+        .lineage-tools .zoom-readout{display:grid;place-items:center;min-width:54px;color:#554e5b;font-size:6px;letter-spacing:.1em;padding:0 8px}
+        .lineage-tools .hint{display:flex;align-items:center;padding:0 10px;color:#403a45;font-size:6px;letter-spacing:.1em;white-space:nowrap}
+        .mapwrap.v3-zoom{overflow:hidden!important;height:calc(100dvh - 224px)!important;min-height:500px}
+        .timeline.v3-zoom{min-width:100%!important;width:100%!important;height:100%!important;min-height:100%!important;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+        .timeline.v3-zoom:active{cursor:grabbing}
+        .timeline.v3-zoom .axisline,.timeline.v3-zoom .thread-spine,.timeline.v3-zoom .thread-live,.timeline.v3-zoom .project-branch,.timeline.v3-zoom .claim-link,.timeline.v3-zoom .nowline{vector-effect:non-scaling-stroke}
+        #machine[data-zoom-tier='far'] .project-meta{opacity:0!important}
+        #machine[data-zoom-tier='far'] .claim-label-v3{opacity:.12!important}
+        #machine[data-zoom-tier='far'] .nodehit.dense-label-v3 .project-name{opacity:.12!important}
+        #machine[data-zoom-tier='mid'] .nodehit.dense-label-v3 .project-meta{opacity:0!important}
+        #machine[data-zoom-tier='near'] .project-meta,#machine[data-zoom-tier='near'] .claim-label-v3{opacity:1!important}
+        .project-name,.project-meta,.claim-label-v3{transition:opacity .12s}
+        .zoom-toast{position:absolute;right:10px;top:10px;z-index:9;color:#615969;background:rgba(2,2,3,.86);border:1px solid #24212c;padding:5px 7px;font-size:6px;letter-spacing:.1em;pointer-events:none;opacity:0;transition:opacity .15s}
+        .zoom-toast.on{opacity:1}
+        @media(max-width:980px){.mapwrap.v3-zoom{height:58dvh!important;min-height:470px}}
+        @media(max-width:620px){
+          .topstate{min-width:auto}.crt-toggle{padding:0 7px!important}.source-mini{display:none!important}
+          .lineage-tools{height:34px;overflow-x:auto;scrollbar-width:none}.lineage-tools::-webkit-scrollbar{display:none}
+          .lineage-tools button{min-width:42px;padding:0 8px;font-size:6px;white-space:nowrap}.lineage-tools .hint{display:none}.lineage-tools .zoom-readout{min-width:48px}
+          .mapwrap.v3-zoom{height:57dvh!important;min-height:440px}
+          .timeline.v3-zoom .project-name{font-size:8px!important}
+        }
+        @media(prefers-reduced-motion:reduce){.project-name,.project-meta,.claim-label-v3{transition:none!important}}
+      `;
+      d.head.appendChild(extra);
+
+      const mapwrap = d.getElementById('mapwrap');
+      const timeline = d.getElementById('timeline');
+      const machine = d.getElementById('machine');
+      if (!mapwrap || !timeline || !machine) return;
+      mapwrap.classList.add('v3-zoom');
+      timeline.classList.add('v3-zoom');
+      machine.dataset.zoomTier = 'far';
+
+      const toolbar = d.createElement('div');
+      toolbar.className = 'lineage-tools';
+      toolbar.innerHTML = `
+        <div class="group"><button id="v3Focus">FOCUS</button><button id="v3Play">PLAY THREAD</button></div>
+        <div class="spacer"></div>
+        <div class="hint">PINCH / DRAG // DOUBLE TAP NODE</div>
+        <div class="group"><button id="v3Minus" aria-label="Zoom out">−</button><div class="zoom-readout" id="v3ZoomReadout">100%</div><button id="v3Plus" aria-label="Zoom in">+</button><button id="v3Fit">FIT</button></div>`;
+      mapwrap.parentNode.insertBefore(toolbar, mapwrap);
+
+      const toast = d.createElement('div');
+      toast.className = 'zoom-toast';
+      toast.textContent = 'PINCH / DRAG // + − FIT';
+      mapwrap.appendChild(toast);
+      setTimeout(() => {toast.classList.add('on'); setTimeout(()=>toast.classList.remove('on'),1700)},450);
+
+      const hiddenFocus = d.getElementById('focusMode');
+      const hiddenPlay = d.getElementById('playThread');
+      const focus = d.getElementById('v3Focus');
+      const play = d.getElementById('v3Play');
+      focus.addEventListener('click', () => {
+        hiddenFocus?.click();
+        const on = hiddenFocus?.classList.contains('on');
+        focus.classList.toggle('on',!!on);
+        focus.textContent = on ? 'FOCUS // ON' : 'FOCUS';
+      });
+      play.addEventListener('click', () => hiddenPlay?.click());
+
+      const svg = d3.select(timeline);
+      let layer = null;
+      let wrapping = false;
+      let currentTransform = d3.zoomIdentity;
+      const readout = d.getElementById('v3ZoomReadout');
+
+      function classifyLabels(){
+        const labels = Array.from(timeline.querySelectorAll('.project-name'));
+        timeline.querySelectorAll('.nodehit').forEach(n=>n.classList.remove('dense-label-v3'));
+        timeline.querySelectorAll('text').forEach(t=>{
+          if ((t.textContent||'').trim().startsWith('CLAIMED')) t.classList.add('claim-label-v3');
+        });
+        const kept=[];
+        labels.forEach(label=>{
+          let b; try{b=label.getBBox()}catch{return}
+          const collides=kept.some(k => b.x < k.x+k.width+8 && b.x+b.width+8 > k.x && Math.abs(b.y-k.y) < 13);
+          if(collides) label.closest('.nodehit')?.classList.add('dense-label-v3'); else kept.push(b);
+        });
+      }
+
+      function ensureLayer(){
+        if (wrapping) return layer;
+        let node = timeline.querySelector(':scope > g[data-zoom-layer="v3"]');
+        if (!node) {
+          const children = Array.from(timeline.childNodes).filter(n => !(n.nodeType===1 && n.matches?.('g[data-zoom-layer="v3"]')));
+          if (!children.length) return null;
+          wrapping = true;
+          node = d.createElementNS('http://www.w3.org/2000/svg','g');
+          node.setAttribute('data-zoom-layer','v3');
+          children.forEach(c=>node.appendChild(c));
+          timeline.appendChild(node);
+          wrapping = false;
+        }
+        layer = d3.select(node);
+        layer.attr('transform',currentTransform);
+        classifyLabels();
+        return layer;
+      }
+
+      function setTier(k){
+        machine.dataset.zoomTier = k < 1.25 ? 'far' : k < 2.35 ? 'mid' : 'near';
+        readout.textContent = `${Math.round(k*100)}%`;
+      }
+
+      const zoom = d3.zoom()
+        .scaleExtent([0.7,6])
+        .on('zoom', ev => {
+          currentTransform = ev.transform;
+          ensureLayer()?.attr('transform',currentTransform);
+          setTier(currentTransform.k);
+        });
+      svg.call(zoom).on('dblclick.zoom',null);
+
+      function animateTransform(transform){
+        const duration = w.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220;
+        svg.transition().duration(duration).call(zoom.transform,transform);
+      }
+      function fit(){ animateTransform(d3.zoomIdentity); }
+      d.getElementById('v3Plus').addEventListener('click',()=>svg.transition().duration(160).call(zoom.scaleBy,1.45));
+      d.getElementById('v3Minus').addEventListener('click',()=>svg.transition().duration(160).call(zoom.scaleBy,1/1.45));
+      d.getElementById('v3Fit').addEventListener('click',fit);
+
+      function zoomNode(node){
+        let b; try{b=node.getBBox()}catch{return}
+        const vb=timeline.viewBox?.baseVal;
+        const vw=vb?.width||900, vh=vb?.height||900;
+        const cx=b.x+b.width/2, cy=b.y+b.height/2;
+        const k=Math.min(3.4,Math.max(2.0,currentTransform.k<1.4?2.25:currentTransform.k));
+        animateTransform(d3.zoomIdentity.translate(vw/2,vh/2).scale(k).translate(-cx,-cy));
+      }
+
+      let lastTap=0,lastNode=null;
+      timeline.addEventListener('pointerup',e=>{
+        const node=e.target.closest?.('.nodehit');
+        if(!node)return;
+        const now=Date.now();
+        if(node===lastNode && now-lastTap<340){ zoomNode(node); lastTap=0; lastNode=null; }
+        else {lastTap=now;lastNode=node;}
+      });
+      timeline.addEventListener('dblclick',e=>{
+        const node=e.target.closest?.('.nodehit');
+        if(node){e.preventDefault();zoomNode(node)}
+      });
+
+      let scheduled=false;
+      const observer = new MutationObserver(() => {
+        if(wrapping||scheduled)return;
+        scheduled=true;
+        requestAnimationFrame(()=>{scheduled=false;ensureLayer();});
+      });
+      observer.observe(timeline,{childList:true});
+      ensureLayer();
+      fit();
+    });
+  });
+})();
+</script>
+</body>
+</html>
