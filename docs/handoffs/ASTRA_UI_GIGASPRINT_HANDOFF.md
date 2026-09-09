@@ -1,11 +1,11 @@
 # Astra UI gigasprint handoff
 
-Status: READY_FOR_USER_VISUAL_GATE. Astra's coherent PLAYER calibration and Luna's bounded regression continuation are complete; no Critical/High defects remain.
+Status: USER_COLOR_GATE = PASS. Instrument OS v2 chassis material is frozen at the approved baseline; no further visual polishing is authorized.
 
 ## Revisions and location
 
 STARTING SHA: `83fcc77c423b4b3823cc7838c0e2a5b7b2d1b6f9`
-ENDING SHA: `5e58f41` (Luna continuation; implementation/artifact checkpoint remains `6006327`).
+APPROVED MATERIAL BASELINE: `45ac998` (`polish(ui): refine Instrument OS neutral plane contrast`).
 BRANCH: `agent/instrument-v2-mascot-purpose-pass-v0`
 WORKTREE: `/home/swirky/DevHub/worktrees/rekt-mascot-purpose`
 
@@ -15,10 +15,12 @@ COMMITS CREATED:
 - `6006327` — complete refreshed static calibration artifact.
 - `61501bf` — Astra handoff and hostile review record.
 - `5e58f41` — Luna continuation: close responsive, keyboard and mobile axe regressions.
+- `48aaffe` — initial Instrument OS v2 chassis material calibration.
+- `45ac998` — approved neutral plane/material refinement.
 
 Original worktree remains clean at `/home/swirky/DevHub/worktrees/rekt-command-v11`, branch
 `experiment/world-composition-lab-v1`, SHA `68b2b29`. No user WIP was changed,
-stashed or discarded. Nothing was pushed, merged or deployed.
+stashed or discarded. The approved branch is pushed; nothing was merged or deployed.
 
 ## What was implemented
 
@@ -54,7 +56,9 @@ Review: `docs/handoffs/ASTRA_UI_GIGASPRINT_REVIEW.md`.
 ## Visual decisions frozen / DO NOT REOPEN
 
 - Supplied pixel mascot only. No fish, substitute creature, recoloring or lore.
-- Warm white chassis, black evidence display, sparse orange control/focus.
+- Clean neutral-white chassis, black evidence display, sparse orange control/focus.
+- User Color Gate: PASS. Freeze commit `45ac998` as the Instrument OS v2 chassis
+  material baseline. Do not continue visual polishing from this checkpoint.
 - PLAYER means durable builder history, not engagement, wallet or telemetry.
 - Thread means sequence here, not measured distance, causal strength or progress.
 - CLAIMED ≠ OBSERVED ≠ PROVEN. CONNECTED/SUBMITTED remain operational states.
@@ -158,7 +162,19 @@ Luna completed the three bounded regression tasks listed for continuation:
   returning to Recorded history restores the selected Work observed provenance.
 
 No production runtime adapter, backend operation, generated client type or route
-was added. The remaining gate is user visual approval of the committed captures.
+was added. User Color Gate is PASS; the approved material baseline is frozen.
+
+## User approval receipt
+
+On 2026-09-09 the user approved the current PLAYER material calibration:
+
+- `USER_COLOR_GATE = PASS`
+- Approved commit: `45ac998`
+- Approved character: clean white precision instrument; neutral/slightly cool
+  polymer/aluminium planes, crisp dark printing, restrained grey seams/depth,
+  sparse orange accent and near-black display wells.
+- Scope freeze: no further PLAYER visual/material polishing until a new explicit
+  scope is authorized.
 
 ## Exact continuation commands
 
@@ -186,7 +202,7 @@ npx playwright test -c playwright.instrument-v2.config.ts -g '900' --update-snap
 npx playwright test -c playwright.instrument-v2.config.ts
 ```
 
-Do not blindly update approved baselines. No push/merge/deployment implied.
+Do not blindly update approved baselines. No merge/deployment implied; the approved branch was pushed after the color gate.
 
 ## Exact files changed
 
