@@ -9,35 +9,41 @@
   const END = Date.parse('2026-09-10T00:00:00Z');
 
   const families = [
-    { id: 'qnty', label: 'QNTY SYSTEMS', y: 125, colorA: '#78e8ff', colorB: '#875fff' },
-    { id: 'other', label: 'OTHER BUILDS', y: 265, colorA: '#9ca4b3', colorB: '#6f7785' },
-    { id: 'rekt', label: 'REKT SYSTEMS', y: 390, colorA: '#bb8cff', colorB: '#78e8ff' },
-    { id: 'signal', label: 'SIGNAL / FRONTIER', y: 500, colorA: '#79ddff', colorB: '#b18aff' },
+    { id: 'qnty', label: 'QNTY SYSTEMS', y: 108, colorA: '#78e8ff', colorB: '#875fff' },
+    { id: 'other', label: 'OTHER BUILDS', y: 238, colorA: '#a8afbb', colorB: '#707887' },
+    { id: 'rekt', label: 'REKT SYSTEMS', y: 365, colorA: '#bb8cff', colorB: '#78e8ff' },
+    { id: 'signal', label: 'SIGNAL / FRONTIER', y: 490, colorA: '#79ddff', colorB: '#b18aff' },
   ];
 
   const projects = [
-    { id: 'qnty-core', family: 'qnty', name: 'Qnty', birth: '2026-04-09T21:29:04Z', end: '2026-08-16T21:46:51Z', dy: -56, language: 'Python' },
-    { id: 'qntylab', family: 'qnty', name: 'QntyLab', birth: '2026-07-31T04:03:04Z', end: '2026-09-08T14:25:11Z', dy: -18, language: 'Python' },
-    { id: 'eval', family: 'qnty', name: 'QntyAgentEval', birth: '2026-08-10T21:11:39Z', end: '2026-08-11T00:00:55Z', dy: 20, language: 'Python' },
-    { id: 'qntyspot', family: 'qnty', name: 'QntySpot', birth: '2026-08-24T04:32:18Z', end: '2026-09-08T20:19:23Z', dy: 58, language: 'Python' },
-    { id: 'authority', family: 'qnty', name: 'QntyAuthorityRoot', birth: '2026-09-02T20:10:38Z', end: '2026-09-08T15:53:16Z', dy: 96, language: 'TypeScript' },
-    { id: 'rugpull', family: 'other', name: 'rugpull-tycoon', birth: '2026-07-01T23:35:31Z', end: '2026-07-18T21:06:47Z', dy: -28, language: 'TypeScript' },
-    { id: 'smokestack', family: 'other', name: 'Smokestack', birth: '2026-08-23T21:24:56Z', end: '2026-08-28T03:08:23Z', dy: 28, language: 'TypeScript' },
-    { id: 'rekt-terminal', family: 'rekt', name: 'rekt-terminal', birth: '2026-08-27T23:40:44Z', end: '2026-09-09T00:19:58Z', dy: -28, language: 'TypeScript' },
-    { id: 'apple', family: 'rekt', name: 'apple-inu-bite-night', birth: '2026-09-08T12:37:00Z', end: '2026-09-08T22:17:27Z', dy: 30, language: 'TypeScript' },
-    { id: 'frontier', family: 'signal', name: 'frontier', birth: '2026-09-04T23:27:04Z', end: '2026-09-08T22:48:18Z', dy: 0, language: 'TypeScript' },
+    { id: 'qnty-core', family: 'qnty', name: 'Qnty', birth: '2026-04-09T21:29:04Z', end: '2026-08-16T21:46:51Z', dy: -58, language: 'Python' },
+    { id: 'qntylab', family: 'qnty', name: 'QntyLab', birth: '2026-07-31T04:03:04Z', end: '2026-09-08T14:25:11Z', dy: -30, language: 'Python' },
+    { id: 'eval', family: 'qnty', name: 'QntyAgentEval', birth: '2026-08-10T21:11:39Z', end: '2026-08-11T00:00:55Z', dy: 0, language: 'Python' },
+    { id: 'qntyspot', family: 'qnty', name: 'QntySpot', birth: '2026-08-24T04:32:18Z', end: '2026-09-08T20:19:23Z', dy: 34, language: 'Python' },
+    { id: 'authority', family: 'qnty', name: 'QntyAuthorityRoot', birth: '2026-09-02T20:10:38Z', end: '2026-09-08T15:53:16Z', dy: 68, language: 'TypeScript' },
+    { id: 'rugpull', family: 'other', name: 'rugpull-tycoon', birth: '2026-07-01T23:35:31Z', end: '2026-07-18T21:06:47Z', dy: -36, language: 'TypeScript' },
+    { id: 'smokestack', family: 'other', name: 'Smokestack', birth: '2026-08-23T21:24:56Z', end: '2026-08-28T03:08:23Z', dy: 38, language: 'TypeScript' },
+    { id: 'rekt-terminal', family: 'rekt', name: 'rekt-terminal', birth: '2026-08-27T23:40:44Z', end: '2026-09-09T00:19:58Z', dy: -42, language: 'TypeScript' },
+    { id: 'apple', family: 'rekt', name: 'apple-inu-bite-night', birth: '2026-09-08T12:37:00Z', end: '2026-09-08T22:17:27Z', dy: 42, language: 'TypeScript' },
+    { id: 'frontier', family: 'signal', name: 'frontier', birth: '2026-09-04T23:27:04Z', end: '2026-09-08T22:48:18Z', dy: -30, language: 'TypeScript' },
   ].map((p) => ({ ...p, birthMs: Date.parse(p.birth), endMs: Date.parse(p.end) }));
 
   const familyById = Object.fromEntries(families.map((f) => [f.id, f]));
   const familyBirth = Object.fromEntries(
     families.map((f) => [f.id, Math.min(...projects.filter((p) => p.family === f.id).map((p) => p.birthMs))])
   );
+  const familyEnd = Object.fromEntries(
+    families.map((f) => [f.id, Math.max(...projects.filter((p) => p.family === f.id).map((p) => p.endMs))])
+  );
 
   let containerRef;
   let rootRef;
-  let familyRefs = {};
-  let projectRefs = {};
+  let familyStartRefs = {};
+  let familyEndRefs = {};
+  let birthRefs = {};
+  let endRefs = {};
   let selected = projects[1];
+  let collapsed = new Set();
   let playhead = END;
   let playing = false;
   let speed = 1;
@@ -48,15 +54,18 @@
   let viewEnd = END;
   let geometryKey = 0;
 
-  $: visibleProjects = projects.filter((p) => p.birthMs <= playhead && p.birthMs >= viewStart - 0.02 * (viewEnd - viewStart) && p.birthMs <= viewEnd + 0.02 * (viewEnd - viewStart));
+  $: visibleProjects = projects.filter((p) => p.birthMs <= playhead && p.endMs >= viewStart && p.birthMs <= viewEnd);
   $: visibleFamilies = families.filter((f) => familyBirth[f.id] <= playhead && visibleProjects.some((p) => p.family === f.id));
   $: ticks = buildTicks();
   $: bins = buildBins();
+  $: revealPct = xPct(playhead);
 
   function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
   function xPct(ms) { return 5 + clamp((ms - viewStart) / Math.max(1, viewEnd - viewStart), 0, 1) * 90; }
-  function familyX(f) { return xPct(familyBirth[f.id]); }
-  function projectX(p) { return xPct(p.birthMs); }
+  function familyStartX(f) { return xPct(Math.max(familyBirth[f.id], viewStart)); }
+  function familyEndX(f) { return xPct(Math.min(familyEnd[f.id], viewEnd)); }
+  function birthX(p) { return xPct(Math.max(p.birthMs, viewStart)); }
+  function endX(p) { return xPct(Math.min(p.endMs, viewEnd)); }
   function fmt(ms) { return new Date(ms).toISOString().slice(0, 10); }
 
   function tickLabel(ms) {
@@ -79,16 +88,17 @@
   }
 
   function buildBins() {
-    const count = 36;
+    const count = 42;
     const span = viewEnd - viewStart;
     const arr = Array.from({ length: count }, (_, i) => ({ i, value: 0 }));
     for (const p of projects) {
-      if (p.birthMs < viewStart || p.birthMs > viewEnd) continue;
-      const i = clamp(Math.floor(((p.birthMs - viewStart) / span) * count), 0, count - 1);
-      arr[i].value += 1;
+      if (p.birthMs > viewEnd || p.endMs < viewStart) continue;
+      const from = clamp(Math.floor(((Math.max(p.birthMs, viewStart) - viewStart) / span) * count), 0, count - 1);
+      const to = clamp(Math.ceil(((Math.min(p.endMs, viewEnd) - viewStart) / span) * count), 0, count - 1);
+      for (let i = from; i <= to; i += 1) arr[i].value += 1;
     }
     const max = Math.max(1, ...arr.map((b) => b.value));
-    return arr.map((b) => ({ ...b, h: 8 + (b.value / max) * 35 }));
+    return arr.map((b) => ({ ...b, h: 7 + (b.value / max) * 38 }));
   }
 
   async function setScale(mode) {
@@ -132,7 +142,7 @@
     if (!playing) return;
     const dt = now - lastFrame;
     lastFrame = now;
-    playhead += dt * speed * ((END - START) / 13_000);
+    playhead += dt * speed * ((END - START) / 16_000);
     if (playhead >= END) {
       playhead = END;
       playing = false;
@@ -150,16 +160,24 @@
 
   function selectProject(p) { selected = p; }
 
+  async function toggleFamily(id) {
+    const next = new Set(collapsed);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    collapsed = next;
+    await tick();
+    geometryKey += 1;
+  }
+
   onDestroy(() => cancelAnimationFrame(raf));
 </script>
 
 <div class="app-shell">
   <header class="topbar">
     <div>
-      <div class="eyebrow">EXACT UPSTREAM SVELTE MOTION TEST</div>
-      <h1>BUILD LINEAGE // ANIMATED BEAM</h1>
+      <div class="eyebrow">EXACT UPSTREAM SVELTE MOTION // TEMPORAL TREE TEST</div>
+      <h1>BUILD LINEAGE // LIVING HISTORY</h1>
     </div>
-    <div class="source-pill">SikandarJODD / AnimatedBeam.svelte</div>
+    <div class="source-pill">AnimatedBeam.svelte // UNMODIFIED</div>
   </header>
 
   <section class="controls">
@@ -183,77 +201,109 @@
     </div>
 
     <div class="beam-stage" bind:this={containerRef}>
-      <div class="root node root" bind:this={rootRef} style="left:4%;top:302px"><span>PLAYER</span></div>
-
       {#each visibleFamilies as family (family.id)}
-        <div
-          class="node family"
-          bind:this={familyRefs[family.id]}
-          style={`left:${familyX(family)}%;top:${family.y}px`}
-          in:scale={{ duration: 300, start: 0.7 }}
-        >
-          <span>{family.label}</span>
-        </div>
+        <div class="family-band" style={`top:${family.y - 50}px;--family-a:${family.colorA}`}></div>
       {/each}
 
-      {#each visibleProjects as p (p.id)}
+      <div class="root node root" bind:this={rootRef} style="left:3.5%;top:298px"><span>PLAYER</span><small>BUILD ROOT</small></div>
+
+      {#each visibleFamilies as family (family.id)}
+        <div class="anchor family-start" bind:this={familyStartRefs[family.id]} style={`left:${familyStartX(family)}%;top:${family.y}px`}></div>
+        <div class="anchor family-end" bind:this={familyEndRefs[family.id]} style={`left:${familyEndX(family)}%;top:${family.y}px`}></div>
         <button
-          class:selected={selected?.id === p.id}
-          class="node project"
-          bind:this={projectRefs[p.id]}
-          style={`left:${projectX(p)}%;top:${familyById[p.family].y + p.dy}px`}
-          on:click={() => selectProject(p)}
-          in:scale={{ duration: 380, start: 0.55 }}
-          out:fade={{ duration: 160 }}
+          class:collapsed={collapsed.has(family.id)}
+          class="family-label"
+          style={`left:${familyStartX(family)}%;top:${family.y}px;--family-a:${family.colorA}`}
+          on:click={() => toggleFamily(family.id)}
         >
-          <span>{p.name}</span><small>{fmt(p.birthMs)}</small>
+          <i></i><span>{family.label}</span><small>{projects.filter((p) => p.family === family.id).length} BUILDS · {collapsed.has(family.id) ? 'EXPAND' : 'COLLAPSE'}</small>
         </button>
       {/each}
 
-      {#key geometryKey}
-        {#each visibleFamilies as family (family.id)}
-          {#if rootRef && familyRefs[family.id]}
-            <AnimatedBeam
-              {containerRef}
-              fromRef={rootRef}
-              toRef={familyRefs[family.id]}
-              curvature={family.y < 302 ? 52 : -52}
-              duration={6.2}
-              delay={0.15}
-              pathColor="#5a606b"
-              pathWidth={1.6}
-              pathOpacity={0.18}
-              gradientStartColor={family.colorA}
-              gradientStopColor={family.colorB}
-            />
-          {/if}
-        {/each}
+      {#each visibleProjects as p (p.id)}
+        <div class="anchor birth-anchor" bind:this={birthRefs[p.id]} style={`left:${birthX(p)}%;top:${familyById[p.family].y}px`}></div>
+        <div class="anchor end-anchor" bind:this={endRefs[p.id]} style={`left:${endX(p)}%;top:${familyById[p.family].y + p.dy}px`}></div>
 
-        {#each visibleProjects as p (p.id)}
-          {#if familyRefs[p.family] && projectRefs[p.id]}
-            <AnimatedBeam
-              {containerRef}
-              fromRef={familyRefs[p.family]}
-              toRef={projectRefs[p.id]}
-              curvature={p.dy * -0.78}
-              duration={4.8 + (projects.indexOf(p) % 4) * 0.55}
-              delay={(projects.indexOf(p) % 5) * 0.13}
-              pathColor="#616773"
-              pathWidth={selected?.id === p.id ? 2.6 : 1.8}
-              pathOpacity={selected?.id === p.id ? 0.30 : 0.16}
-              gradientStartColor={familyById[p.family].colorA}
-              gradientStopColor={familyById[p.family].colorB}
-            />
+        {#if !collapsed.has(p.family)}
+          <button
+            class:selected={selected?.id === p.id}
+            class="project-label"
+            style={`left:${birthX(p)}%;top:${familyById[p.family].y + p.dy}px;--family-a:${familyById[p.family].colorA}`}
+            on:click={() => selectProject(p)}
+            in:scale={{ duration: 360, start: 0.5 }}
+            out:fade={{ duration: 160 }}
+          >
+            <i></i><span>{p.name}</span><small>{fmt(p.birthMs)}</small>
+          </button>
+          {#if playhead >= p.endMs}
+            <div class="end-cap" style={`left:${endX(p)}%;top:${familyById[p.family].y + p.dy}px;--family-a:${familyById[p.family].colorA}`}></div>
           {/if}
-        {/each}
+        {/if}
+      {/each}
+
+      {#key geometryKey}
+        <div class="beam-layer">
+          {#each visibleFamilies as family (family.id)}
+            {#if rootRef && familyStartRefs[family.id]}
+              <AnimatedBeam
+                {containerRef}
+                fromRef={rootRef}
+                toRef={familyStartRefs[family.id]}
+                curvature={family.y < 298 ? 64 : -64}
+                duration={7.2}
+                delay={0.08}
+                pathColor="#4e5360"
+                pathWidth={2.2}
+                pathOpacity={0.24}
+                gradientStartColor={family.colorA}
+                gradientStopColor={family.colorB}
+              />
+            {/if}
+            {#if familyStartRefs[family.id] && familyEndRefs[family.id]}
+              <AnimatedBeam
+                {containerRef}
+                fromRef={familyStartRefs[family.id]}
+                toRef={familyEndRefs[family.id]}
+                curvature={0}
+                duration={6.6}
+                delay={0.18}
+                pathColor="#535966"
+                pathWidth={3.4}
+                pathOpacity={0.30}
+                gradientStartColor={family.colorA}
+                gradientStopColor={family.colorB}
+              />
+            {/if}
+          {/each}
+
+          {#each visibleProjects as p (p.id)}
+            {#if !collapsed.has(p.family) && birthRefs[p.id] && endRefs[p.id]}
+              <AnimatedBeam
+                {containerRef}
+                fromRef={birthRefs[p.id]}
+                toRef={endRefs[p.id]}
+                curvature={p.dy * -0.92}
+                duration={4.6 + (projects.indexOf(p) % 4) * 0.5}
+                delay={(projects.indexOf(p) % 5) * 0.14}
+                pathColor="#5e6572"
+                pathWidth={selected?.id === p.id ? 3.4 : 2.35}
+                pathOpacity={selected?.id === p.id ? 0.40 : 0.26}
+                gradientStartColor={familyById[p.family].colorA}
+                gradientStopColor={familyById[p.family].colorB}
+              />
+            {/if}
+          {/each}
+        </div>
       {/key}
+
+      <div class="history-reveal" style={`width:${revealPct}%`}></div>
     </div>
 
     <div class="histogram">
-      <div class="hist-label">PROJECT BIRTH HISTOGRAM // SCRUB HISTORY</div>
+      <div class="hist-label"><span>ACTIVE PROJECT MASS // SCRUB HISTORY</span><b>{scaleMode}</b></div>
       <div class="bars">
         {#each bins as b}
-          <i style={`height:${b.h}px;opacity:${b.value ? 0.8 : 0.12}`}></i>
+          <i style={`height:${b.h}px;opacity:${b.value ? 0.82 : 0.10}`}></i>
         {/each}
       </div>
       <input
@@ -279,6 +329,6 @@
         <div><dt>GROUPING</dt><dd>{familyById[selected.family].label}</dd></div>
       </dl>
     {/if}
-    <p>Every luminous connection above is the unmodified upstream <code>AnimatedBeam.svelte</code> component. The demo only supplies DOM refs, timeline positions, and component props.</p>
+    <p>The luminous root, trunks and project branches are still literal instances of upstream <code>AnimatedBeam.svelte</code>. This pass changes only DOM anchor geometry, visibility and timeline semantics.</p>
   </aside>
 </div>
