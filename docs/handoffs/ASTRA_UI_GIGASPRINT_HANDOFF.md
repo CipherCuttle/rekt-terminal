@@ -1,11 +1,11 @@
 # Astra UI gigasprint handoff
 
-Status: READY_FOR_LUNA. Coherent PLAYER calibration complete; no Critical/High defects remain.
+Status: READY_FOR_USER_VISUAL_GATE. Astra's coherent PLAYER calibration and Luna's bounded regression continuation are complete; no Critical/High defects remain.
 
 ## Revisions and location
 
 STARTING SHA: `83fcc77c423b4b3823cc7838c0e2a5b7b2d1b6f9`
-ENDING SHA: `6006327940796ae63ba3d9ff3ad7ddecbc6856a4` (implementation/artifact checkpoint; this handoff-only commit follows).
+ENDING SHA: `f5ddf4d` (Luna continuation; implementation/artifact checkpoint remains `6006327`).
 BRANCH: `agent/instrument-v2-mascot-purpose-pass-v0`
 WORKTREE: `/home/swirky/DevHub/worktrees/rekt-mascot-purpose`
 
@@ -13,7 +13,8 @@ COMMITS CREATED:
 
 - `79df846` — purpose-bound PLAYER history, supplied mascot, responsive composition, tests.
 - `6006327` — complete refreshed static calibration artifact.
-- Final handoff-only commit: obtain its SHA with `git log -1 --format='%H %s'`.
+- `61501bf` — Astra handoff and hostile review record.
+- `f5ddf4d` — Luna continuation: close responsive, keyboard and mobile axe regressions.
 
 Original worktree remains clean at `/home/swirky/DevHub/worktrees/rekt-command-v11`, branch
 `experiment/world-composition-lab-v1`, SHA `68b2b29`. No user WIP was changed,
@@ -86,12 +87,13 @@ navigation. Asset failure produces neutral text; never another creature.
 
 ## Screenshot paths
 
-Eight committed PNGs in `apps/inkubator-lab/e2e/__screenshots__/`:
+Ten committed PNGs in `apps/inkubator-lab/e2e/__screenshots__/`:
 
 - `builder-history-1440.png`, `builder-history-raw-1440.png` — 1440×1000 viewport.
 - `builder-history-1280.png`, `builder-history-raw-1280.png` — 1280×800.
 - `builder-history-390.png`, `builder-history-raw-390.png` — 390×844.
 - `builder-history-430.png`, `builder-history-raw-430.png` — 430×932.
+- `builder-history-900.png`, `builder-history-raw-900.png` — 900×1000.
 
 Full-document captures; raw captures select SUBMITTED with CRT off/reduced motion.
 The fixed mobile bar remains at its viewport position in full-document captures.
@@ -109,12 +111,13 @@ Exact commands from repository root:
 | `npm run test -w @rekt-ink/inkubator-lab` | PASS: 11 files, 54 tests |
 | `npm run verify:inkubator-signal-system` | PASS |
 | `npm run build -w @rekt-ink/inkubator-lab` | PASS: TypeScript + Vite 7.0.0, 2865 modules, final build 2.64s |
-| `npx playwright test -c apps/inkubator-lab/playwright.instrument-v2.config.ts` | PASS: 9 tests, final comparison run 9.0s |
+| `npx playwright test -c apps/inkubator-lab/playwright.instrument-v2.config.ts` | PASS: 12 tests, including 900px visual baselines, mobile keyboard/provenance and mobile fail-closed axe checks |
 | `git diff --check` | PASS |
 
-Browser verification: eight visual comparisons, all four required viewports without
-overflow, four axe scans with zero violations, keyboard/provenance/owner links,
-five scenarios, missing art, reduced motion, existing ten-primitive instrument lab.
+Browser verification: ten visual comparisons, all five required viewports without
+overflow, desktop and mobile axe scans with zero violations, keyboard/provenance/
+owner links, five scenarios, missing art, reduced motion, existing ten-primitive
+instrument lab.
 
 Built preview at `http://127.0.0.1:5185/?lab=instrument-v2`, 900×1000:
 no page errors, original image decoded, no overflow, inline inspector and selected
@@ -122,8 +125,8 @@ receipt visible. Started from app directory:
 `npx vite preview --host 127.0.0.1 --port 5185`.
 
 Initial new tests failed on text selectors (adjacent fixture text nodes and a
-desktop-only subtitle in a mobile accessible name). Selectors fixed; final run
-compares existing baselines, without updates.
+desktop-only subtitle in a mobile accessible name). Selectors fixed. The final run
+compares all existing baselines, including the two newly generated 900px captures.
 
 Existing non-fatal warnings: Pixi/jsdom canvas getContext in unit tests;
 npm esbuild install-script notices; NO_COLOR/FORCE_COLOR in Playwright.
@@ -142,19 +145,20 @@ project fixture, not runtime validation or a production history projection. Owne
 links open explanatory local context rather than fictional production objects.
 Other production surfaces retain their pre-existing limitations.
 
-## TODO — ordered, small, mechanical / next 3 exact tasks for Luna
+## Luna continuation
 
-The visual unit is complete. These are bounded regression extensions:
+Luna completed the three bounded regression tasks listed for continuation:
 
-1. Add 900×1000 to the viewport loop in `e2e/instrument-v2.spec.ts`. Change the
-   loop's inspector selection from `width < 761` to `width <= 950`, matching CSS.
-   Generate only the two new 900px baselines, inspect them, then compare all.
-2. Add one 390px keyboard regression: focus Work observed; ArrowDown, End, Home;
-   assert matching inline inspector and accessible/reachable focused event.
-   Check only the displayed inspector appears in the accessibility tree.
-3. Extend scenario coverage with 390px axe checks for unavailable/unsupported;
-   restore recorded history and assert source/provenance selection returns.
-   No product/runtime adapter work.
+- Added 900×1000 to the responsive visual loop, aligned the inline inspector
+  assertion with the CSS stacking breakpoint (`width <= 950`), and committed the
+  two new 900px cathode/raw baselines.
+- Added a 390px keyboard regression covering Work observed → ArrowDown → End →
+  Home, selected provenance, focus retention and the hidden desktop inspector.
+- Added 390px axe checks for unavailable/unsupported scenarios and verified that
+  returning to Recorded history restores the selected Work observed provenance.
+
+No production runtime adapter, backend operation, generated client type or route
+was added. The remaining gate is user visual approval of the committed captures.
 
 ## Exact continuation commands
 
@@ -261,4 +265,3 @@ A	inkubator/assets/webworkerAll-BW5WiZdR.js
 M	inkubator/index.html
 A	docs/handoffs/ASTRA_UI_GIGASPRINT_HANDOFF.md
 ```
-

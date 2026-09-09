@@ -56,7 +56,59 @@ test('empty, stale, failed and unsupported scenarios remain distinct and fail cl
   await expect(page.locator('.iv2-inspector-desktop').getByRole('heading', {name: 'Work observed'})).toBeVisible();
 });
 
-for (const viewport of [{width: 1440, height: 1000}, {width: 1280, height: 800}, {width: 390, height: 844}, {width: 430, height: 932}]) {
+test('mobile keyboard navigation keeps only the displayed provenance inspector reachable', async ({page}) => {
+  await page.setViewportSize({width: 390, height: 844});
+  await page.goto('/?lab=instrument-v2');
+  const records = page.locator('.iv2-event');
+  const mobileInspector = page.locator('.iv2-inspector-mobile');
+  const desktopInspector = page.locator('.iv2-inspector-desktop');
+
+  await records.nth(2).focus();
+  await expect(records.nth(2)).toBeFocused();
+  await expect(mobileInspector.getByRole('heading', {name: 'Work observed'})).toBeVisible();
+  await expect(mobileInspector.getByText('fixture:observation-01', {exact: true})).toBeVisible();
+  await expect(desktopInspector).toBeHidden();
+
+  await page.keyboard.press('ArrowDown');
+  await expect(records.nth(3)).toBeFocused();
+  await expect(mobileInspector.getByRole('heading', {name: 'External test recorded'})).toBeVisible();
+  await expect(mobileInspector.getByText('fixture:test-01', {exact: true})).toBeVisible();
+
+  await page.keyboard.press('End');
+  await expect(records.nth(7)).toBeFocused();
+  await expect(mobileInspector.getByRole('heading', {name: 'Cheevo earned'})).toBeVisible();
+  await page.keyboard.press('Home');
+  await expect(records.first()).toBeFocused();
+  await expect(mobileInspector.getByRole('heading', {name: 'Mission declared'})).toBeVisible();
+  await expect(desktopInspector).toBeHidden();
+  await expect(mobileInspector).toBeVisible();
+  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
+});
+
+test('mobile unavailable and unsupported scenarios pass axe and restore selected provenance', async ({page}) => {
+  await page.setViewportSize({width: 390, height: 844});
+  await page.goto('/?lab=instrument-v2');
+  const scenario = page.getByRole('combobox', {name: 'SCENARIO'});
+  const mobileInspector = page.locator('.iv2-inspector-mobile');
+
+  await page.getByRole('button', {name: /Work observed/}).click();
+  await expect(mobileInspector.getByText('fixture:observation-01', {exact: true})).toBeVisible();
+  for (const [value, title] of [['unavailable', 'History unavailable'], ['unsupported', 'Unsupported history format']] as const) {
+    await scenario.selectOption(value);
+    await expect(page.getByText(title, {exact: true})).toBeVisible();
+    await expect(page.locator('.iv2-event')).toHaveCount(0);
+    await expect(mobileInspector).toHaveCount(0);
+    expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
+  }
+
+  await scenario.selectOption('record');
+  await expect(page.locator('.iv2-event')).toHaveCount(8);
+  await expect(page.getByRole('button', {name: /Work observed/})).toHaveAttribute('aria-pressed', 'true');
+  await expect(mobileInspector.getByText('fixture:observation-01', {exact: true})).toBeVisible();
+  await expect(mobileInspector.getByText('GitHub adapter observation', {exact: true})).toBeVisible();
+});
+
+for (const viewport of [{width: 1440, height: 1000}, {width: 1280, height: 800}, {width: 900, height: 1000}, {width: 390, height: 844}, {width: 430, height: 932}]) {
   test(`history composition ${viewport.width}×${viewport.height} has accessible raw and cathode modes`, async ({page}) => {
     await page.setViewportSize(viewport);
     await page.emulateMedia({reducedMotion: 'reduce'});
@@ -69,7 +121,7 @@ for (const viewport of [{width: 1440, height: 1000}, {width: 1280, height: 800},
     await page.getByRole('button', {name: 'CRT ON'}).click();
     await expect(page.locator('.iv2-page')).toHaveAttribute('data-crt', 'off');
     await page.getByRole('button', {name: /Ship submitted/}).click();
-    const inspector = page.locator(viewport.width < 761 ? '.iv2-inspector-mobile' : '.iv2-inspector-desktop');
+    const inspector = page.locator(viewport.width <= 950 ? '.iv2-inspector-mobile' : '.iv2-inspector-desktop');
     await expect(inspector.getByText('SUBMITTED', {exact: true})).toBeVisible();
     await expect(inspector.getByText(/Verifier PASS would still not establish acceptance/)).toBeVisible();
     expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
