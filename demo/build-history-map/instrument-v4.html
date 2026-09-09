@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#020203" />
+<title>INKUBATOR // BUILD LINEAGE V4</title>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020203}iframe{display:block;width:100%;height:100%;border:0;background:#020203}</style>
+</head>
+<body>
+<iframe id="v3" src="./instrument-v3.html" title="REKT Inkubator build lineage instrument v4"></iframe>
+<script>
+(() => {
+  const v3 = document.getElementById('v3');
+  const ready = (frame, fn) => frame?.contentDocument?.readyState === 'complete' ? fn() : frame?.addEventListener('load', fn, {once:true});
+  ready(v3, () => {
+    const v3d = v3.contentDocument;
+    const v2 = v3d?.getElementById('v2');
+    if (!v2) return;
+    ready(v2, () => {
+      const v2d = v2.contentDocument;
+      const base = v2d?.getElementById('base');
+      if (!base) return;
+      ready(base, () => {
+        const w = base.contentWindow;
+        const d = base.contentDocument;
+        const d3 = w?.d3;
+        if (!w || !d || !d3) return;
+
+        const css = d.createElement('style');
+        css.textContent = `
+          .family-lens{display:flex;align-items:stretch;border-right:1px solid var(--line)}
+          .family-lens .family-label{display:flex;align-items:center;padding:0 8px;color:#413b46;font-size:6px;letter-spacing:.11em;border-right:1px solid var(--line);white-space:nowrap}
+          .family-lens button{min-width:45px!important;color:#5e5664!important}.family-lens button.on{color:var(--violet)!important;background:rgba(170,131,255,.035)!important}
+          #machine[data-family='qnty'] .nodehit:not(.family-qnty),#machine[data-family='rekt'] .nodehit:not(.family-rekt),#machine[data-family='other'] .nodehit:not(.family-other){opacity:.035!important;pointer-events:none}
+          #machine[data-family='qnty'] .nodehit.family-qnty,#machine[data-family='rekt'] .nodehit.family-rekt,#machine[data-family='other'] .nodehit.family-other{opacity:1!important}
+          #machine[data-family]:not([data-family='all']) .claim-link{opacity:.12!important}
+          .family-badge-v4{font-size:5px;letter-spacing:.11em;fill:#504759;opacity:.82;pointer-events:none}
+          .history-bus-v4{padding:0!important;background:linear-gradient(90deg,rgba(170,131,255,.014),transparent 62%)}
+          .history-head-v4{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 13px;border-bottom:1px solid var(--line);color:var(--muted);font-size:7px;letter-spacing:.12em}
+          .history-head-v4 .state{color:var(--cyan);font-size:6px}.history-head-v4 button{border:1px solid #2c2731;background:transparent;color:#6d6473;padding:4px 7px;font-size:6px;letter-spacing:.1em;cursor:pointer}.history-head-v4 button:hover{color:var(--cyan);border-color:#28515a}
+          .history-canvas-v4{height:122px;position:relative;overflow:hidden}.history-canvas-v4 svg{display:block;width:100%;height:100%}
+          .history-base-v4{stroke:#2b2731;stroke-width:1}.history-grid-v4{stroke:#151319;stroke-width:1}.history-commit-v4{fill:var(--cyan)}.history-pr-v4{fill:var(--violet)}.history-release-v4{fill:var(--green)}
+          .history-date-v4{fill:#5d5662;font-size:6px;letter-spacing:.07em}.history-marker-v4{opacity:.72;transform-box:fill-box;transform-origin:center}
+          .history-events-v4{max-height:176px;overflow:auto;padding:0 13px}.history-event-v4{display:grid;grid-template-columns:48px 1fr;gap:9px;padding:8px 0;border-top:1px solid #151319}.history-event-v4:first-child{border-top:0}.history-event-v4 .kind{font-size:6px;letter-spacing:.1em}.history-event-v4.commit .kind{color:var(--cyan)}.history-event-v4.pr .kind{color:var(--violet)}.history-event-v4.release .kind{color:var(--green)}.history-event-v4 .event-main{font-size:7px;line-height:1.35;color:#c9c3ba;overflow:hidden;text-overflow:ellipsis}.history-event-v4 .event-when{font-size:6px;color:#5e5763;margin-top:3px}
+          .history-legend-v4{display:flex;gap:12px;padding:8px 13px;border-top:1px solid #151319;color:#57505c;font-size:5px;letter-spacing:.09em}.history-legend-v4 i{display:inline-block;width:5px;height:5px;margin-right:4px}.history-note-v4{padding:8px 13px 10px;color:#5b5360;font-size:6px;line-height:1.5;border-top:1px solid #151319}
+          .history-rx-v4{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(107,231,255,.035),transparent);opacity:0}
+          .family-truth-v4{padding:5px 10px;border-bottom:1px solid var(--line);color:#4a434f;font-size:6px;letter-spacing:.08em;background:#030304}.family-truth-v4 b{color:#786d82;font-weight:500}
+          @media(max-width:620px){.family-lens .family-label{display:none}.family-lens button{min-width:42px!important;padding:0 7px!important}.history-canvas-v4{height:105px}.history-events-v4{max-height:145px}.history-event-v4{grid-template-columns:42px 1fr}.family-truth-v4{font-size:5.5px}}
+          @media(prefers-reduced-motion:reduce){.history-marker-v4{transition:none!important}}
+        `;
+        d.head.appendChild(css);
+
+        const tools = d.querySelector('.lineage-tools');
+        if (tools) {
+          const spacer = tools.querySelector('.spacer');
+          const lens = d.createElement('div');
+          lens.className = 'family-lens';
+          lens.innerHTML = '<span class="family-label">VIEW GROUP</span><button data-family="all" class="on">ALL</button><button data-family="qnty">QNTY</button><button data-family="rekt">REKT</button><button data-family="other">OTHER</button>';
+          tools.insertBefore(lens, spacer || tools.firstChild);
+        }
+
+        const threadbay = d.querySelector('.threadbay');
+        const mapwrap = d.getElementById('mapwrap');
+        if (threadbay && mapwrap) {
+          const note = d.createElement('div');
+          note.className = 'family-truth-v4';
+          note.innerHTML = '<b>VIEW GROUPS ARE PRESENTATION ONLY.</b> NAME-BASED GROUPING DOES NOT CLAIM ANCESTRY. Only explicit CLAIMED / OBSERVED relations carry provenance.';
+          threadbay.insertBefore(note, mapwrap);
+        }
+
+        const machine = d.getElementById('machine');
+        machine.dataset.family = 'all';
+        const familyFor = name => /^qnty/i.test(name) ? 'qnty' : (/(rekt|inkubator)/i.test(name) ? 'rekt' : 'other');
+
+        function classifyFamilies(){
+          d.querySelectorAll('.nodehit').forEach(node => {
+            const name = (node.querySelector('.project-name')?.textContent || '').trim();
+            node.classList.remove('family-qnty','family-rekt','family-other');
+            const family = familyFor(name);
+            node.classList.add(`family-${family}`);
+            if (!node.querySelector('.family-badge-v4')) {
+              const meta = node.querySelector('.project-meta');
+              if (meta) {
+                const badge = d.createElementNS('http://www.w3.org/2000/svg','text');
+                badge.setAttribute('class','family-badge-v4');
+                badge.setAttribute('x', meta.getAttribute('x') || '270');
+                badge.setAttribute('y', String((Number(meta.getAttribute('y')) || 0) + 10));
+                badge.textContent = family.toUpperCase();
+                node.appendChild(badge);
+              }
+            }
+          });
+        }
+        classifyFamilies();
+
+        d.querySelectorAll('.family-lens button[data-family]').forEach(btn => btn.addEventListener('click', () => {
+          const family = btn.dataset.family;
+          machine.dataset.family = family;
+          d.querySelectorAll('.family-lens button').forEach(b=>b.classList.toggle('on',b===btn));
+          const focus = d.getElementById('v3Focus');
+          if (family !== 'all' && focus && !focus.classList.contains('on')) focus.click();
+          if (family === 'all' && focus?.classList.contains('on')) focus.click();
+        }));
+
+        const familyObserver = new MutationObserver(() => requestAnimationFrame(classifyFamilies));
+        familyObserver.observe(d.getElementById('timeline'),{childList:true,subtree:true});
+
+        const cache = new Map();
+        let historySeq = 0;
+        const esc = v => String(v ?? '').replace(/[&<>]/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[s]));
+        const fmt = new Intl.DateTimeFormat(undefined,{year:'2-digit',month:'short',day:'numeric'});
+
+        async function gh(url){
+          const r = await fetch(url,{headers:{Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}});
+          if(!r.ok) throw new Error(`GitHub ${r.status}`);
+          return {data:await r.json(),remaining:r.headers.get('x-ratelimit-remaining')};
+        }
+
+        async function readHistory(owner,repo){
+          const key=`${owner}/${repo}`;
+          if(cache.has(key)) return cache.get(key);
+          const encoded=`${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+          const [commitsR,releasesR,pullsR] = await Promise.all([
+            gh(`https://api.github.com/repos/${encoded}/commits?author=${encodeURIComponent(owner)}&per_page=50`),
+            gh(`https://api.github.com/repos/${encoded}/releases?per_page=15`),
+            gh(`https://api.github.com/repos/${encoded}/pulls?state=closed&sort=updated&direction=desc&per_page=30`)
+          ]);
+          const events=[];
+          commitsR.data.forEach(c=>events.push({kind:'commit',date:c.commit?.author?.date||c.commit?.committer?.date,title:(c.commit?.message||'commit').split('\n')[0],id:(c.sha||'').slice(0,7)}));
+          releasesR.data.forEach(r=>events.push({kind:'release',date:r.published_at||r.created_at,title:r.name||r.tag_name||'release',id:r.tag_name||''}));
+          pullsR.data.filter(p=>p.merged_at).forEach(p=>events.push({kind:'pr',date:p.merged_at,title:p.title||`PR #${p.number}`,id:`#${p.number}`}));
+          const clean=events.filter(e=>e.date&&!Number.isNaN(+new Date(e.date))).sort((a,b)=>+new Date(a.date)-+new Date(b.date));
+          const result={events:clean,remaining:commitsR.remaining||releasesR.remaining||pullsR.remaining};
+          cache.set(key,result);return result;
+        }
+
+        function renderBus(container, payload, repo){
+          const events=payload.events;
+          const shown=events.slice(-18).reverse();
+          container.innerHTML=`
+            <div class="history-head-v4"><span>OBSERVED EVENT BUS // ${esc(repo)}</span><span><button id="playProjectV4">PLAY PROJECT</button> <span class="state">RX ${events.length} // RATE ${payload.remaining??'—'}</span></span></div>
+            <div class="history-canvas-v4"><div class="history-rx-v4"></div><svg id="historySvgV4" viewBox="0 0 300 122" preserveAspectRatio="none"></svg></div>
+            <div class="history-legend-v4"><span><i style="background:var(--cyan)"></i>COMMIT</span><span><i style="background:var(--violet)"></i>MERGED PR</span><span><i style="background:var(--green)"></i>RELEASE</span></div>
+            <div class="history-events-v4">${shown.length?shown.map(e=>`<div class="history-event-v4 ${e.kind}"><div class="kind">${e.kind.toUpperCase()}<br>${esc(e.id)}</div><div><div class="event-main">${esc(e.title)}</div><div class="event-when">${fmt.format(new Date(e.date)).toUpperCase()}</div></div></div>`).join(''):'<div class="no-select">NO RECENT OBSERVED EVENTS IN SAMPLE.</div>'}</div>
+            <div class="history-note-v4">RECENT PUBLIC GITHUB SAMPLE. Events are OBSERVED source facts; they are not converted into hours, quality, progress, ancestry, or PROVEN Ship authority.</div>`;
+          const svg=d3.select(container.querySelector('#historySvgV4'));svg.selectAll('*').remove();
+          if(!events.length)return;
+          const min=new Date(Math.min(...events.map(e=>+new Date(e.date)))),max=new Date(Math.max(...events.map(e=>+new Date(e.date))));
+          const x=d3.scaleTime().domain([min,max.getTime()===min.getTime()?new Date(+max+86400000):max]).range([18,282]);
+          [28,61,94].forEach(y=>svg.append('line').attr('class','history-grid-v4').attr('x1',10).attr('x2',290).attr('y1',y).attr('y2',y));
+          svg.append('line').attr('class','history-base-v4').attr('x1',18).attr('x2',282).attr('y1',61).attr('y2',61);
+          const yFor={release:28,pr:61,commit:94};
+          events.forEach((e,i)=>svg.append('circle').attr('class',`history-marker-v4 history-${e.kind}-v4`).attr('data-event-index',i).attr('cx',x(new Date(e.date))).attr('cy',yFor[e.kind]).attr('r',e.kind==='release'?3.1:2.2));
+          svg.append('text').attr('class','history-date-v4').attr('x',18).attr('y',116).text(fmt.format(min).toUpperCase());
+          svg.append('text').attr('class','history-date-v4').attr('text-anchor','end').attr('x',282).attr('y',116).text(fmt.format(max).toUpperCase());
+          container.querySelector('#playProjectV4')?.addEventListener('click',()=>{
+            if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+            const marks=Array.from(container.querySelectorAll('.history-marker-v4'));
+            const wash=container.querySelector('.history-rx-v4');
+            gsap.killTweensOf(marks);gsap.set(marks,{opacity:.12,scale:.65});
+            gsap.fromTo(wash,{opacity:0,xPercent:-45},{opacity:.9,xPercent:45,duration:.7,ease:'power1.inOut',onComplete:()=>gsap.to(wash,{opacity:0,duration:.22})});
+            const tl=gsap.timeline();marks.forEach((m,i)=>tl.to(m,{opacity:1,scale:1.55,duration:.08,ease:'power2.out'},i*.045).to(m,{scale:1,duration:.08},i*.045+.075));
+          });
+        }
+
+        function ensureBus(){
+          let bus=d.getElementById('historyBusV4');
+          if(!bus){bus=d.createElement('section');bus.id='historyBusV4';bus.className='instrument history-bus-v4';d.getElementById('probe')?.appendChild(bus)}
+          return bus;
+        }
+
+        async function hydrateSelected(){
+          const seq=++historySeq;
+          const repo=(d.getElementById('projectTitle')?.textContent||'').trim();
+          if(!repo||repo==='NO PROJECT LOCK'||repo==='SOURCE UNAVAILABLE')return;
+          const owner=(d.getElementById('user')?.value||d.getElementById('playerLabel')?.textContent||'').trim();
+          if(!owner)return;
+          const bus=ensureBus();bus.innerHTML='<div class="history-head-v4"><span>OBSERVED EVENT BUS</span><span class="state">RX // READING</span></div><div class="no-select">HYDRATING COMMITS + MERGED PRS + RELEASES…</div>';
+          try{const payload=await readHistory(owner,repo);if(seq!==historySeq)return;const fresh=ensureBus();renderBus(fresh,payload,repo)}catch(e){if(seq!==historySeq)return;const fresh=ensureBus();fresh.innerHTML=`<div class="history-head-v4"><span>OBSERVED EVENT BUS</span><span class="state" style="color:var(--amber)">UNAVAILABLE</span></div><div class="no-select" style="color:var(--amber)">${esc(e.message)} // No history is fabricated.</div>`}
+        }
+
+        const title=d.getElementById('projectTitle');
+        let timer=0;
+        const titleObserver=new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(hydrateSelected,90)});
+        titleObserver.observe(title,{childList:true,characterData:true,subtree:true});
+        setTimeout(hydrateSelected,250);
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>
