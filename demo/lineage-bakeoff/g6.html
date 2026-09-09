@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>Lineage Bakeoff // G6</title>
+<style>
+html,body{margin:0;height:100%;background:#08090b;color:#e8e5df;font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:hidden}.app{height:100dvh;display:grid;grid-template-rows:auto 1fr}.head{padding:10px 12px;border-bottom:1px solid #272a31;display:flex;gap:12px;align-items:center;background:#0b0c0f}.head b{font-size:12px;letter-spacing:.08em}.head span{color:#888e9a;font-size:10px}.badge{margin-left:auto;color:#7fe7ff;border:1px solid #284751;padding:4px 6px}.graph{min-height:0;position:relative}.note{position:absolute;z-index:3;left:10px;top:10px;pointer-events:none;color:#838995;background:rgba(8,9,11,.82);padding:6px 8px;border-left:2px solid #7e61d9;font-size:9px;line-height:1.45;max-width:280px}.error{padding:20px;color:#ff8a80;white-space:pre-wrap}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@antv/g6@5/dist/g6.min.js"></script>
+</head>
+<body>
+<div class="app"><header class="head"><b>CANDIDATE A // ANT V G6 5</b><span>native dendrogram + native timebar + native collapse/expand</span><div class="badge">ENGINE TEST</div></header><main class="graph" id="container"><div class="note">Pinch/scroll to zoom · drag background to pan · tap family nodes to collapse/expand · use G6's own timebar at the bottom to scrub/play births. Family edges are grouping only, not ancestry claims.</div></main></div>
+<script>
+(async()=>{
+try{
+const {Graph,treeToGraphData}=G6;
+const ts=s=>new Date(s).getTime();
+const tree={id:'player',data:{label:'PLAYER',kind:'root',timestamp:ts('2026-01-01')},children:[
+ {id:'qnty-family',data:{label:'QNTY SYSTEMS',kind:'family',timestamp:ts('2026-04-09')},children:[
+  {id:'qnty',data:{label:'Qnty',kind:'repo',timestamp:ts('2026-04-09')}},
+  {id:'qntylab',data:{label:'QntyLab',kind:'repo',timestamp:ts('2026-07-31')}},
+  {id:'eval',data:{label:'QntyAgentEval',kind:'repo',timestamp:ts('2026-08-10')}},
+  {id:'qntyspot',data:{label:'QntySpot',kind:'repo',timestamp:ts('2026-08-24')}},
+  {id:'authority',data:{label:'QntyAuthorityRoot',kind:'repo',timestamp:ts('2026-09-02')}}]},
+ {id:'rekt-family',data:{label:'REKT SYSTEMS',kind:'family',timestamp:ts('2026-08-27')},children:[
+  {id:'rekt',data:{label:'rekt-terminal',kind:'repo',timestamp:ts('2026-08-27')}},
+  {id:'apple',data:{label:'apple-inu-bite-night',kind:'repo',timestamp:ts('2026-09-08')}}]},
+ {id:'signal-family',data:{label:'SIGNAL / FRONTIER',kind:'family',timestamp:ts('2026-09-04')},children:[
+  {id:'frontier',data:{label:'frontier',kind:'repo',timestamp:ts('2026-09-04')}}]},
+ {id:'other-family',data:{label:'OTHER BUILDS',kind:'family',timestamp:ts('2026-07-01')},children:[
+  {id:'rugpull',data:{label:'rugpull-tycoon',kind:'repo',timestamp:ts('2026-07-01')}},
+  {id:'smokestack',data:{label:'Smokestack',kind:'repo',timestamp:ts('2026-08-23')}}]}
+]};
+const data=treeToGraphData(tree);
+const byId=Object.fromEntries(data.nodes.map(n=>[n.id,n]));
+data.edges=data.edges.map((e,i)=>({...e,id:e.id||`e-${i}`,data:{timestamp:byId[e.target]?.data?.timestamp||ts('2026-01-01')}}));
+const activity=[
+ ['2026-04-09',1],['2026-07-01',1],['2026-07-31',1],['2026-08-10',1],['2026-08-23',1],['2026-08-24',1],['2026-08-27',1],['2026-09-02',1],['2026-09-03',3],['2026-09-04',1],['2026-09-08',12]
+].map(([d,value])=>({time:ts(d),value,label:d}));
+const graph=new Graph({
+ container:'container',data,theme:'dark',autoFit:'view',padding:[38,28,110,28],animation:true,
+ layout:{type:'dendrogram',direction:'LR',nodeSep:42,rankSep:150,radial:false},
+ node:{type:'circle',style:{
+  size:d=>d.data.kind==='root'?20:d.data.kind==='family'?16:10,
+  fill:d=>d.data.kind==='root'?'#d7d2ca':d.data.kind==='family'?'#8d6fe8':'#78dff6',
+  stroke:'#08090b',lineWidth:2,
+  labelText:d=>`${d.data.label}${d.data.kind==='repo'?'  ·  '+new Date(d.data.timestamp).toISOString().slice(0,10):''}`,
+  labelFill:d=>d.data.kind==='family'?'#b89dff':'#dedad3',labelFontSize:d=>d.data.kind==='repo'?10:11,labelPlacement:'right',labelOffsetX:7
+ },animation:{enter:'fade',update:'translate',exit:'fade'}},
+ edge:{type:'cubic-horizontal',style:{stroke:'#686d78',lineWidth:1.5,opacity:.72},animation:{enter:'path-in',exit:'path-out',update:'translate'}},
+ behaviors:['drag-canvas','zoom-canvas',{type:'collapse-expand',key:'collapse',trigger:'click',animation:true,align:true,enable:e=>e.targetType==='node'&&['family','root'].includes(graph?.getNodeData?.(e.target.id)?.data?.kind)}],
+ plugins:[{type:'timebar',key:'timebar',data:activity,timebarType:'chart',position:'bottom',height:92,loop:false,elementTypes:['node','edge'],mode:'visibility',getTime:d=>d.data?.timestamp||ts('2026-01-01'),labelFormatter:t=>new Date(t).toISOString().slice(0,10)}]
+});
+await graph.render();
+}catch(err){document.getElementById('container').innerHTML='<pre class="error">G6 failed to initialize:\n'+String(err?.stack||err)+'</pre>';}
+})();
+</script>
+</body></html>
