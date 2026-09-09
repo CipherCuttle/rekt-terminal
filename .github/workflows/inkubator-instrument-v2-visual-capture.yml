@@ -55,14 +55,14 @@ jobs:
           import { chromium } from '@playwright/test';
           const browser = await chromium.launch({headless: true});
           const targets = [
-            {name: 'desktop-player', width: 1672, height: 941},
-            {name: 'mobile-player', width: 941, height: 1672},
+            {name: 'desktop-player', width: 1672, height: 941, fullPage: false},
+            {name: 'mobile-player', width: 430, height: 820, fullPage: true},
           ];
           for (const target of targets) {
             const page = await browser.newPage({viewport: {width: target.width, height: target.height}, deviceScaleFactor: 1});
             await page.goto('http://127.0.0.1:4174/?lab=instrument-v2', {waitUntil: 'networkidle'});
             await page.evaluate(() => document.fonts.ready);
-            await page.screenshot({path: `instrument-v2-captures/${target.name}.png`, fullPage: true});
+            await page.screenshot({path: `instrument-v2-captures/${target.name}.png`, fullPage: target.fullPage});
             await page.close();
           }
           await browser.close();
