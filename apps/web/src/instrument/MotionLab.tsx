@@ -124,21 +124,16 @@ function MotionCanvas({
   timeMs,
   playbackRate = 1,
   className = '',
+  decorative = false,
 }: {
   skin: Skin;
   running: boolean;
   timeMs: number;
   playbackRate?: number;
   className?: string;
+  decorative?: boolean;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const startRef = useRef<number | null>(null);
-  const offsetRef = useRef(timeMs);
-
-  useEffect(() => {
-    offsetRef.current = timeMs;
-    startRef.current = null;
-  }, [timeMs]);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -146,22 +141,31 @@ function MotionCanvas({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     let frame = 0;
+    const startedAt = performance.now();
 
     const paint = (now: number) => {
-      if (startRef.current === null) startRef.current = now;
-      const elapsed = (now - startRef.current) * playbackRate;
-      const t = running ? offsetRef.current + elapsed : offsetRef.current;
+      const elapsed = (now - startedAt) * playbackRate;
+      const t = running ? timeMs + elapsed : timeMs;
       const sample = sampleInstrumentMotion(t);
       if (skin === 'rekt') drawRekt(ctx, sample);
       else drawNeutral(ctx, sample);
       if (running) frame = requestAnimationFrame(paint);
     };
 
-    paint(performance.now());
+    paint(startedAt);
     return () => cancelAnimationFrame(frame);
-  }, [playbackRate, running, skin]);
+  }, [playbackRate, running, skin, timeMs]);
 
-  return <canvas ref={ref} width={W} height={H} className={`motion-lab-canvas ${className}`.trim()} aria-label={`${skin} motion scene`} />;
+  return (
+    <canvas
+      ref={ref}
+      width={W}
+      height={H}
+      className={`motion-lab-canvas ${className}`.trim()}
+      aria-hidden={decorative || undefined}
+      aria-label={decorative ? undefined : `${skin} motion scene`}
+    />
+  );
 }
 
 function ReferenceAnalyzer() {
@@ -248,7 +252,7 @@ function ReferenceAnalyzer() {
           <div className="motion-lab-reference-empty">LOAD A CROPPED 320×150-ISH DISPLAY CAPTURE. THE FILE NEVER LEAVES THIS BROWSER SESSION.</div>
         )}
         <div className="motion-lab-reference-overlay" style={{ opacity: overlayOpacity }} aria-hidden="true">
-          <MotionCanvas skin="neutral" running={false} timeMs={motionTimeMs} className="motion-lab-overlay-canvas" />
+          <MotionCanvas skin="neutral" running={false} timeMs={motionTimeMs} className="motion-lab-overlay-canvas" decorative />
         </div>
       </div>
 
