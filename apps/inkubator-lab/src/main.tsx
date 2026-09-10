@@ -1,6 +1,7 @@
 import {lazy, StrictMode, Suspense} from 'react';
 import {createRoot} from 'react-dom/client';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
+import {parseInstrumentMode} from './shell/InstrumentNavigation';
 import './base-v3.css';
 import './comeback-v3.css';
 import './protocol-v0.css';
@@ -11,14 +12,10 @@ import './command/live-command-v2-semantics.css';
 const AppV3 = lazy(() => import('./AppV3'));
 const SignalSystemLab = lazy(() => import('./signal-system/GoldenScreens'));
 const InstrumentLab = lazy(() => import('./instrument-os/InstrumentLab'));
-const LiveCommand = lazy(() => import('./command/LiveCommand'));
-const LiveProject = lazy(() => import('./project/LiveProject'));
-const LiveWorld = lazy(() => import('./world/LiveWorld'));
-const LivePlayer = lazy(() => import('./player/LivePlayer'));
-const LiveShip = lazy(() => import('./ship/LiveShip'));
+const LiveInstrument = lazy(() => import('./LiveInstrument'));
 const params = new URLSearchParams(window.location.search);
 const lab = params.get('lab');
-const mode = params.get('mode');
+const liveMode = parseInstrumentMode(params.get('mode'));
 
 const instrumentQueryClient = new QueryClient({
   defaultOptions: {
@@ -36,17 +33,9 @@ createRoot(document.getElementById('root')!).render(
         ? <InstrumentLab />
         : lab === 'signals'
           ? <SignalSystemLab />
-          : mode === 'command'
-            ? <QueryClientProvider client={instrumentQueryClient}><LiveCommand /></QueryClientProvider>
-            : mode === 'project'
-              ? <QueryClientProvider client={instrumentQueryClient}><LiveProject /></QueryClientProvider>
-              : mode === 'world'
-                ? <QueryClientProvider client={instrumentQueryClient}><LiveWorld /></QueryClientProvider>
-                : mode === 'player'
-                  ? <QueryClientProvider client={instrumentQueryClient}><LivePlayer /></QueryClientProvider>
-                  : mode === 'ship'
-                    ? <QueryClientProvider client={instrumentQueryClient}><LiveShip /></QueryClientProvider>
-                    : <AppV3 />}
+          : liveMode
+            ? <QueryClientProvider client={instrumentQueryClient}><LiveInstrument initialMode={liveMode} /></QueryClientProvider>
+            : <AppV3 />}
     </Suspense>
   </StrictMode>
 );
