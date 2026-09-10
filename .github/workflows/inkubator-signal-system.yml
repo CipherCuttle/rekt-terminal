@@ -66,3 +66,15 @@ jobs:
 
       - name: Playwright journeys, axe, mobile and visual snapshots
         run: npm run test:e2e -w @rekt-ink/inkubator-lab
+
+      - name: WORLD composition Storybook comparison
+        working-directory: apps/inkubator-lab
+        run: npx playwright test --config=playwright.world.config.ts
+
+      - name: Retain WORLD composition evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: world-composition-evidence
+          path: /tmp/rekt-world-composition-lab-v1
+          if-no-files-found: ignore
