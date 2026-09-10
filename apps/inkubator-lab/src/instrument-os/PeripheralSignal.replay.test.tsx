@@ -7,6 +7,6 @@ describe('PeripheralSignal replay memory', () => {
     const {container, rerender} = render(<PeripheralSignal cue="SOURCE_RX" eventId="observation-1" />);
     rerender(<PeripheralSignal cue="SOURCE_RX" />);
     rerender(<PeripheralSignal cue="SOURCE_RX" eventId="observation-1" />);
-    expect(container.querySelector('svg[data-motion-contract="v1"]')).toHaveAttribute('data-frame', '4');
+    expect(container.querySelector('svg[data-motion-contract="v1"]')?.getAttribute('data-frame')).toBe('4');
   });
 });
