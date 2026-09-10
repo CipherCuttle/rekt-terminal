@@ -52,14 +52,16 @@ function renderWorld(worldClient = client()) {
 }
 
 describe('Live World', () => {
-  it('renders only canonical public project, builder, beacon and signal projections', async () => {
+  it('renders only canonical public projections in the v2 pulse and network instruments', async () => {
     const {container} = renderWorld();
 
     expect(await screen.findByRole('heading', {name: 'UNDERGROUND BUILD NETWORK'})).toBeTruthy();
+    expect(await screen.findByText('1 OPEN HELP BEACON')).toBeTruthy();
+    expect(container.querySelector('[data-shell="terminal"]')?.getAttribute('data-shell-variant')).toBe('v2');
     expect(await screen.findByText('Need an external tester.')).toBeTruthy();
     expect(screen.getAllByText('WEIRD LITTLE THING').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Relay Kid').length).toBeGreaterThan(0);
-    expect(screen.getByText('EXTERNAL TEST RECORDED')).toBeTruthy();
+    expect(screen.getAllByText('EXTERNAL TEST RECORDED').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole('img', {name: 'Public Inkubator project and signal radar'})).toBeTruthy();
     expect(container.querySelectorAll('[data-truth="proven"]')).toHaveLength(0);
     expect(screen.queryByText(/repository_full_name|refs\/heads/i)).toBeNull();
@@ -85,12 +87,12 @@ describe('Live World', () => {
     const worldClient = client({listWorldSignals: vi.fn().mockResolvedValueOnce(initialSignals).mockResolvedValue(nextSignals)});
     const {container, queryClient} = renderWorld(worldClient);
 
-    await screen.findByText('EXTERNAL TEST RECORDED');
+    await screen.findAllByText('EXTERNAL TEST RECORDED');
     expect(container.querySelector('[data-shell="terminal"]')?.getAttribute('data-event-sequence')).toBe('0');
     await queryClient.refetchQueries({queryKey: ['inkubator', 'world', 'signals']});
 
     await waitFor(() => expect(container.querySelector('[data-shell="terminal"]')?.getAttribute('data-event-sequence')).toBe('1'));
-    expect(screen.getByText('ASSIST ACCEPTED')).toBeTruthy();
+    expect(screen.getAllByText('ASSIST ACCEPTED').length).toBeGreaterThanOrEqual(2);
   });
 
   it('fails closed when every canonical public feed is unavailable', async () => {
