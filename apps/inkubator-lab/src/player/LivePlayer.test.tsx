@@ -54,7 +54,7 @@ const reputation: PlayerReputationView = {
     rule_version: 'cheevo.rules.v1',
     truth_state: 'PROVEN',
     earned_at: '2026-09-10T10:00:01Z',
-    evidence: [{source_type: 'RECEIPT', source_id: 'R-1'}],
+    evidence: {source_type: 'RECEIPT', source_id: 'R-1'},
   }],
 };
 
