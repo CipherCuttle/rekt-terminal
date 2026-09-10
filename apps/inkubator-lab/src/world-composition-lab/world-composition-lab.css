@@ -11,6 +11,7 @@
   --world-lab-on-display: #eeeee9;
   --world-lab-dim: #989aa0;
   --world-lab-violet: #7046c4;
+  --world-lab-violet-on-display: #aa8fe7;
   --world-lab-cyan: #55cbea;
   --world-lab-orange: #d86f2c;
   min-height: 100vh;
@@ -193,6 +194,8 @@
   color: var(--world-lab-on-display);
   box-shadow: inset 0 0 0 5px #11141a;
 }
+.world-lab-dispatch-now .world-lab-kicker,
+.world-lab-receiver .world-lab-kicker { color: var(--world-lab-violet-on-display); }
 .world-lab-dispatch-now__label { display: flex; justify-content: space-between; gap: 16px; padding: 14px 16px; border-bottom: 1px solid rgba(238, 238, 233, .12); }
 .world-lab-dispatch-now__marker { color: #aa8fe7; font-size: 10px; font-weight: 900; }
 .world-lab-dispatch-now__marker[data-kind="HELP_BEACON_OPENED"] { color: #f09a58; }
