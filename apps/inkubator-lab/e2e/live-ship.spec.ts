@@ -20,6 +20,14 @@ const readyCommand: CommandView = {
   daemon: {rule_version: 'daemon-advisory.v1', authority: 'ADVISORY_ONLY', what_changed: 'Mission is ready.', proposed_next_move: 'Submit the artifact.'},
 };
 
+const authenticatedMe = {
+  schema_version: 'player.private.v1',
+  player_id: 'PLAYER-OWNER',
+  display_name: 'CipherCuttle',
+  created_at: '2026-09-01T08:00:00Z',
+  updated_at: '2026-09-10T08:00:00Z',
+};
+
 const emptyShip: ProjectShipStateView = {schema_version: 'project.ship.public.v2', project_id: 'PROJECT-E2E'};
 
 const acceptedArtifact: AcceptedShipArtifactView = {
@@ -66,6 +74,7 @@ test('LIVE SHIP records a SHIP_READY owner submission then renders only server-p
   await page.route('**/v1/**', async (route) => {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
+    if (pathname === '/v1/me' && request.method() === 'GET') return fulfillJson(route, 200, authenticatedMe);
     if (pathname === '/v1/me/command' && request.method() === 'GET') return fulfillJson(route, 200, command);
     if (pathname === '/v1/projects/PROJECT-E2E/ship' && request.method() === 'GET') return fulfillJson(route, 200, shipState);
     if (pathname === '/v1/missions/MISSION-E2E/ship-submissions' && request.method() === 'POST') {
@@ -108,6 +117,7 @@ test('LIVE SHIP records a SHIP_READY owner submission then renders only server-p
 test('LIVE SHIP keeps verifier PASS at OBSERVED without minting a receipt', async ({page}) => {
   await page.route('**/v1/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/v1/me') return fulfillJson(route, 200, authenticatedMe);
     if (pathname === '/v1/me/command') return fulfillJson(route, 200, {...readyCommand, mission: {...readyCommand.mission, state: 'SUBMITTED'}});
     if (pathname === '/v1/projects/PROJECT-E2E/ship') return fulfillJson(route, 200, observedShip);
     return route.continue();
@@ -126,6 +136,7 @@ test('LIVE SHIP renders the immutable PROVEN receipt as the dominant mobile arti
   await page.emulateMedia({reducedMotion: 'reduce'});
   await page.route('**/v1/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/v1/me') return fulfillJson(route, 200, authenticatedMe);
     if (pathname === '/v1/me/command') return fulfillJson(route, 200, {...readyCommand, mission: {...readyCommand.mission, state: 'SHIPPED'}});
     if (pathname === '/v1/projects/PROJECT-E2E/ship') return fulfillJson(route, 200, provenShip);
     return route.continue();
@@ -149,6 +160,7 @@ test('LIVE SHIP fails closed on unknown Ship state and on missing private comman
   await page.setViewportSize({width: 390, height: 844});
   await page.route('**/v1/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/v1/me') return fulfillJson(route, 200, authenticatedMe);
     if (pathname === '/v1/me/command') return fulfillJson(route, 200, readyCommand);
     if (pathname === '/v1/projects/PROJECT-E2E/ship') return fulfillJson(route, 503, {error: 'ship_state_offline'});
     return route.continue();
@@ -161,7 +173,9 @@ test('LIVE SHIP fails closed on unknown Ship state and on missing private comman
 
   await page.unroute('**/v1/**');
   await page.route('**/v1/**', async (route) => {
-    if (new URL(route.request().url()).pathname === '/v1/me/command') return fulfillJson(route, 401, {error: 'authentication_required'});
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/v1/me') return fulfillJson(route, 200, authenticatedMe);
+    if (pathname === '/v1/me/command') return fulfillJson(route, 401, {error: 'authentication_required'});
     return route.continue();
   });
   await page.goto('/?mode=ship');
