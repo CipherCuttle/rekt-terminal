@@ -77,21 +77,25 @@ function renderCommand(client: {getMyCommand: () => Promise<CommandView>}, query
 }
 
 describe('Live Command', () => {
-  it('renders canonical CommandView data without development fixture fallback', async () => {
+  it('renders canonical CommandView as one Living Thread instead of a sector dashboard', async () => {
     const client = {getMyCommand: vi.fn().mockResolvedValue(commandView())};
     const {container} = renderCommand(client);
 
     expect(await screen.findByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'Make the thing real.'})).toBeTruthy();
     expect(screen.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeTruthy();
     expect(screen.getByText('PRIVATE')).toBeTruthy();
     expect(screen.getByText('ADVISORY ONLY')).toBeTruthy();
     expect(screen.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Living Thread mission instrument"]')).toBeTruthy();
+    expect(container.querySelector('.command-sector')).toBeNull();
+    expect(container.querySelector('.command-ratchet')).toBeNull();
     expect(container.querySelector('[data-renderer="pixi"]')?.getAttribute('data-renderer-lifecycle')).toBe('retained');
-    expect(container.querySelectorAll('[data-truth="proven"]')).toHaveLength(1);
+    expect(container.querySelectorAll('.command-thread-gates [data-truth="proven"]')).toHaveLength(1);
     expect(screen.queryByText(/development fixture/i)).toBeNull();
   });
 
-  it('animates only from canonical projection deltas after a refetch', async () => {
+  it('renders canonical projection deltas at the relevant Thread locus after a refetch', async () => {
     const first = commandView();
     const second = commandView({
       mission: {...first.mission, blocker: 'Verifier is red.', state: 'BLOCKED'},
@@ -106,6 +110,8 @@ describe('Live Command', () => {
     await waitFor(() => expect(container.querySelector('.command-live')?.getAttribute('data-event-sequence')).toBe('1'));
     expect(screen.getByText(/EVENT \/\/ GATE:QUALITY_TESTING → BLOCKER → MISSION/i)).toBeTruthy();
     expect(screen.getByText('Verifier is red.')).toBeTruthy();
+    expect(container.querySelector('.command-thread-break')).toBeTruthy();
+    expect(container.querySelector('[data-delta="GATE:QUALITY_TESTING"]')?.getAttribute('data-truth')).toBe('blocked');
   });
 
   it('fails closed when the canonical command endpoint is unavailable', async () => {
