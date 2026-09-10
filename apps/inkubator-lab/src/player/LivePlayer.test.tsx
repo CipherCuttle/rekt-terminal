@@ -89,18 +89,20 @@ describe('Live PLAYER', () => {
     expect(screen.getAllByText('PROVEN').length).toBeGreaterThan(0);
     expect(screen.getByText('RECEIPT:R-1')).toBeTruthy();
     expect(screen.getByText('SEQUENCE, NOT A PROGRESS SCORE')).toBeTruthy();
-    expect(screen.queryByText(/universal xp/i)).toBeTruthy();
+    expect(screen.getAllByText(/universal xp/i).length).toBeGreaterThan(0);
     expect(container.querySelector('.player-mascot img')?.getAttribute('src')).toContain('assets/rekt-mascot.png');
   });
 
-  it('lets keyboard inspection move across canonical records while preserving truth labels', async () => {
-    renderPlayer();
-    const buttons = await screen.findAllByRole('button', {pressed: false});
-    const firstHistory = buttons.find((button) => button.getAttribute('data-player-history-id') === 'H-1')!;
-    firstHistory.focus();
-    fireEvent.keyDown(firstHistory, {key: 'End'});
-    await waitFor(() => expect(screen.getByRole('button', {pressed: true}).getAttribute('data-player-history-id')).toBe('H-3'));
-    expect(screen.getByRole('complementary', {name: 'Selected builder record'}).textContent).toContain('R-1');
+  it('lets a record selection update the provenance inspector without changing its truth', async () => {
+    const {container} = renderPlayer();
+    await screen.findByText('Working URL or GTFO');
+    const firstHistory = container.querySelector<HTMLButtonElement>('[data-player-history-id="H-1"]')!;
+    fireEvent.click(firstHistory);
+    await waitFor(() => expect(firstHistory.getAttribute('aria-pressed')).toBe('true'));
+    const inspector = screen.getByRole('complementary', {name: 'Selected builder record'});
+    expect(inspector.textContent).toContain('Mission blocked');
+    expect(inspector.textContent).toContain('CLAIMED');
+    expect(inspector.textContent).toContain('M-1');
   });
 
   it('isolates optional profile/history/reputation failures without inventing replacement state', async () => {
