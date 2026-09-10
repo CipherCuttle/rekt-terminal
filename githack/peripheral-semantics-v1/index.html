@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>REKT Peripheral Semantics V1</title>
+<style>
+:root{color-scheme:dark;--void:#050507;--panel:#09090b;--line:#312d37;--text:#f2eff8;--muted:#8e8898;--violet:#9a72ff;--cyan:#73dfff;--amber:#ffb45f;--coral:#ff806e;--green:#9aff67}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--void);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}body{padding:18px}.shell{max-width:1080px;margin:auto;border:1px solid #3a3640;background:#070709}.top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:14px 16px;border-bottom:1px solid var(--line)}.brand{font-weight:800;letter-spacing:.15em}.brand small,.truth small{display:block;color:var(--muted);font-size:10px;font-weight:500;margin-top:4px}.truth{text-align:right;font-size:11px;letter-spacing:.08em}.stage{display:grid;grid-template-columns:minmax(230px,42%) 1fr;min-height:480px}.actor{border-right:1px solid var(--line);display:grid;place-items:center;position:relative;padding:28px}.actor img{width:min(82%,340px);height:auto;image-rendering:pixelated}.actor-note{position:absolute;left:14px;bottom:14px;color:var(--muted);font-size:10px;letter-spacing:.1em}.instrument{padding:22px;display:grid;align-content:center;gap:16px}.readout{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;border-bottom:1px solid var(--line);padding-bottom:10px}.readout span{font-size:11px;color:var(--muted);letter-spacing:.12em}.readout strong{font-size:20px;letter-spacing:.08em}.authority{font-size:10px;letter-spacing:.1em;padding:4px 7px;border:1px solid currentColor}.authority[data-tone=observed]{color:var(--cyan)}.authority[data-tone=context]{color:var(--violet)}.authority[data-tone=attention]{color:var(--amber)}.authority[data-tone=blocked]{color:var(--coral)}.authority[data-tone=proven]{color:var(--green)}.authority[data-tone=stale]{color:var(--muted)}.display{height:220px;border:1px solid #403b46;display:grid;place-items:center;position:relative;overflow:hidden;background:#030304}.lcd{font-size:38px;letter-spacing:.12em;white-space:pre;color:var(--text);image-rendering:pixelated}.lcd[data-tone=observed]{color:var(--cyan)}.lcd[data-tone=context]{color:var(--violet)}.lcd[data-tone=attention]{color:var(--amber)}.lcd[data-tone=blocked]{color:var(--coral)}.lcd[data-tone=proven]{color:var(--green)}.lcd[data-tone=stale]{color:var(--muted)}.eventline{height:26px;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.controls{border-top:1px solid var(--line);padding:14px 16px;display:grid;gap:12px}.primary{display:flex;flex-wrap:wrap;gap:8px}button{background:#0a0a0d;color:var(--text);border:1px solid #4a4551;padding:9px 11px;font:inherit;font-size:11px;letter-spacing:.06em;cursor:pointer}button:hover{border-color:#77707e}button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}button[data-accent=green]{border-color:#507b42;color:var(--green)}button[data-accent=cyan]{border-color:#356a76;color:var(--cyan)}button[data-accent=coral]{border-color:#7a463e;color:var(--coral)}.secondary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.log{border-top:1px solid var(--line);padding:11px 16px;display:flex;gap:12px;overflow:auto;color:var(--muted);font-size:10px;white-space:nowrap}.log b{color:var(--text);font-weight:500}.legend{padding:10px 16px;border-top:1px solid var(--line);display:flex;gap:16px;flex-wrap:wrap;font-size:10px;color:var(--muted)}.legend i{font-style:normal}.legend .obs{color:var(--cyan)}.legend .prov{color:var(--green)}.legend .att{color:var(--amber)}.legend .bad{color:var(--coral)}
+@media(max-width:760px){body{padding:0}.shell{border:0}.stage{grid-template-columns:1fr}.actor{min-height:260px;border-right:0;border-bottom:1px solid var(--line)}.actor img{width:min(58vw,260px)}.instrument{padding:16px}.secondary{grid-template-columns:repeat(2,1fr)}.lcd{font-size:30px}}
+@media(prefers-reduced-motion:reduce){.lcd{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+<header class="top"><div class="brand">REKT // PERIPHERAL SEMANTICS V1<small>STATIC MASCOT · EVENT-DRIVEN MACHINE LANGUAGE</small></div><div class="truth">CLAIMED ≠ OBSERVED ≠ PROVEN<small>NO AUTOPLAY ON LOAD</small></div></header>
+<main class="stage">
+<section class="actor"><img src="../../apps/inkubator-lab/public/assets/rekt-mascot.png" alt="" aria-hidden="true"><div class="actor-note">REKT REMAINS STATIC</div></section>
+<section class="instrument"><div class="readout"><div><span>CURRENT CUE</span><strong id="label">IDLE</strong></div><div id="authority" class="authority">NO EVENT</div></div><div class="display" aria-hidden="true"><div id="lcd" class="lcd">·</div></div><div id="eventline" class="eventline">Waiting for a canonical event. Nothing moves.</div></section>
+</main>
+<section class="controls" aria-label="Demo controls"><div class="primary"><button data-seq="github" data-accent="cyan">SIMULATE GITHUB PUSH</button><button data-seq="verify" data-accent="cyan">VERIFY / PASS OBSERVED</button><button data-seq="accept" data-accent="green">ACCEPT SHIP / PROVEN</button></div><div class="secondary"><button data-cue="SOURCE_LINK">SOURCE LINK</button><button data-cue="MISSION_BLOCKED" data-accent="coral">BLOCKED</button><button data-cue="HELP_BEACON">HELP BEACON</button><button data-cue="STALE">STALE</button><button data-cue="UNAVAILABLE">UNAVAILABLE</button><button data-cue="SHIP_SUBMITTED">SHIP SUBMITTED</button><button id="reset">RESET / IDLE</button></div></section>
+<div class="legend"><i class="obs">CYAN = OBSERVED</i><i>VIOLET = CONTEXT/CLAIM</i><i class="att">ORANGE = ATTENTION</i><i class="bad">CORAL = BLOCKED/FAILED</i><i class="prov">GREEN = PROVEN ONLY</i></div>
+<div id="log" class="log"><b>EVENT LOG</b><span>—</span></div>
+</div>
+<div id="a11y" role="status" aria-live="polite" aria-atomic="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)"></div>
+<script>
+const cues={
+ SOURCE_LINK:{label:'SOURCE LINK',authority:'SOURCE',tone:'context',ms:380,frames:['·','· )','· ))','· )))']},
+ SOURCE_RX:{label:'SOURCE RX',authority:'OBSERVED',tone:'observed',ms:380,frames:['•···· ]','··•·· ]','····• ]','·····●']},
+ OBSERVED:{label:'OBSERVED',authority:'OBSERVED',tone:'observed',ms:380,frames:['□·· [ ]','··□ [ ]','··· [□]','[■]']},
+ NEXT_MOVE_CHANGED:{label:'NEXT MOVE',authority:'ADVISORY',tone:'context',ms:480,frames:['▶ ○ ○ ○','○ ▶ ○ ○','○ ○ ▶ ○','○ ○ ○ ▶']},
+ MISSION_BLOCKED:{label:'BLOCKED',authority:'STATUS',tone:'blocked',ms:240,frames:['•···· │','··•·· │','····• │','····• │']},
+ HELP_BEACON:{label:'HELP BEACON',authority:'STATUS',tone:'attention',ms:380,frames:['  •\n  Y','  )\n  Y','  ))\n  Y','  )))\n  Y']},
+ VERIFYING:{label:'VERIFYING',authority:'OBSERVED',tone:'observed',ms:480,frames:['□   [ ]',' □  [ ]','  □ [ ]','   [□]']},
+ VERIFY_PASS:{label:'PASS / OBSERVED',authority:'OBSERVED',tone:'observed',ms:380,frames:['[□]','[─□]','[□─]','[✓]']},
+ SHIP_SUBMITTED:{label:'SHIP SUBMITTED',authority:'CLAIMED',tone:'context',ms:480,frames:['□··· [ ]','·□·· [ ]','··□· [ ]','    [□]']},
+ SHIP_PROVEN:{label:'PROVEN',authority:'PROVEN',tone:'proven',ms:520,frames:['[ ]','[·]','[✓]','[✓]']},
+ RECEIPT:{label:'RECEIPT',authority:'PROVEN',tone:'proven',ms:380,frames:['▔▔▔','▔▔▔\n ▯','▔▔▔\n ▤','▔▔▔\n ▤']},
+ STALE:{label:'STALE',authority:'UNKNOWN',tone:'stale',ms:380,frames:['■','▣','□','⌜ ⌟']},
+ UNAVAILABLE:{label:'UNAVAILABLE',authority:'UNKNOWN',tone:'stale',ms:380,frames:['· )))','· ))','· )','· ╱']}
+};
+const lcd=document.getElementById('lcd'),label=document.getElementById('label'),authority=document.getElementById('authority'),eventline=document.getElementById('eventline'),a11y=document.getElementById('a11y'),log=document.getElementById('log');let run=0;const seen=new Set();
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function logEvent(t){const s=document.createElement('span');s.textContent=t;log.appendChild(s);log.scrollLeft=log.scrollWidth}
+async function renderCue(kind,eventId=crypto.randomUUID(),token=++run){if(seen.has(eventId))return;seen.add(eventId);const c=cues[kind];label.textContent=c.label;authority.textContent=c.authority;authority.dataset.tone=c.tone;lcd.dataset.tone=c.tone;eventline.textContent=eventId+' · '+kind;a11y.textContent=c.label;logEvent(kind+' ['+eventId.slice(0,8)+']');for(const frame of c.frames){if(token!==run)return;lcd.textContent=frame;await sleep(c.ms/c.frames.length)} }
+async function sequence(kinds,prefix){const token=++run;for(let i=0;i<kinds.length;i++){if(token!==run)return;await renderCue(kinds[i],prefix+':'+i,token);await sleep(80)}}
+document.querySelectorAll('[data-cue]').forEach(b=>b.onclick=()=>renderCue(b.dataset.cue));
+document.querySelector('[data-seq=github]').onclick=()=>sequence(['SOURCE_RX','OBSERVED','NEXT_MOVE_CHANGED'],'gh-'+Date.now());
+document.querySelector('[data-seq=verify]').onclick=()=>sequence(['VERIFYING','VERIFY_PASS'],'verify-'+Date.now());
+document.querySelector('[data-seq=accept]').onclick=()=>sequence(['SHIP_PROVEN','RECEIPT'],'receipt-'+Date.now());
+document.getElementById('reset').onclick=()=>{run++;lcd.textContent='·';lcd.dataset.tone='';label.textContent='IDLE';authority.textContent='NO EVENT';authority.dataset.tone='';eventline.textContent='Waiting for a canonical event. Nothing moves.';a11y.textContent='Idle'};
+</script>
+</body>
+</html>
