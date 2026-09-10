@@ -75,13 +75,16 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
 }
 
-test('LIVE PROJECT renders canonical workstation projections without promoting observed ship state', async ({page}) => {
+test('LIVE PROJECT renders canonical v2 workstation projections without promoting observed ship state', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
   await routeProject(page);
 
   await page.goto('/?mode=project');
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-mode', 'project');
+  await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
+  await expect(page.getByText('Wire project.', {exact: true})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'PROVE PROJECT'})).toBeVisible();
   await expect(page.getByText('CipherCuttle/weird-little-thing')).toBeVisible();
   await expect(page.getByText('Need one external tester.')).toBeVisible();
   await expect(page.getByText('Helper')).toBeVisible();
@@ -107,6 +110,8 @@ test('LIVE PROJECT keeps optional projection failures visible and usable on mobi
 
   await page.goto('/?mode=project');
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
+  await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
+  await expect(page.getByRole('heading', {name: 'PROVE PROJECT'})).toBeVisible();
   await expect(page.getByText('HELP LINK UNAVAILABLE')).toBeVisible({timeout: 6000});
   await expect(page.getByText('TEST LINK UNAVAILABLE')).toBeVisible();
   await expect(page.getByText('SHIP LINK UNAVAILABLE').first()).toBeVisible();
