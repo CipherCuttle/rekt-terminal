@@ -47,27 +47,15 @@ describe('TerminalShell', () => {
     expect((screen.getByRole('button', {name: /WORLD/}) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('keeps WORLD and PLAYER on v2 while unmigrated SHIP remains legacy', () => {
+  it('keeps every canonical Instrument OS mode on the v2 material shell', () => {
     const {rerender} = render(
-      <TerminalShell mode="WORLD" kicker="REKT" title="WORLD">
-        <p>world payload</p>
-      </TerminalShell>,
+      <TerminalShell mode="WORLD" kicker="REKT" title="WORLD"><p>world payload</p></TerminalShell>,
     );
 
-    expect(screen.getByRole('main').getAttribute('data-shell-variant')).toBe('v2');
-
-    rerender(
-      <TerminalShell mode="PLAYER" kicker="REKT" title="PLAYER">
-        <p>player payload</p>
-      </TerminalShell>,
-    );
-    expect(screen.getByRole('main').getAttribute('data-shell-variant')).toBe('v2');
-
-    rerender(
-      <TerminalShell mode="SHIP" kicker="REKT" title="SHIP">
-        <p>ship payload</p>
-      </TerminalShell>,
-    );
-    expect(screen.getByRole('main').getAttribute('data-shell-variant')).toBe('legacy');
+    for (const mode of ['WORLD', 'COMMAND', 'PROJECT', 'PLAYER', 'SHIP'] as const) {
+      rerender(<TerminalShell mode={mode} kicker="REKT" title={mode}><p>{mode.toLowerCase()} payload</p></TerminalShell>);
+      expect(screen.getByRole('main').getAttribute('data-shell-variant')).toBe('v2');
+      expect(screen.getByRole('main').className).toContain('ios-shell-v2');
+    }
   });
 });
