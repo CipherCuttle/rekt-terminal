@@ -95,8 +95,8 @@ describe('Live Project', () => {
 
     expect(await screen.findByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeTruthy();
     expect(container.querySelector('[data-shell-variant="v2"]')).toBeTruthy();
-    expect(screen.getByText('Wire the project workstation.')).toBeTruthy();
-    expect(screen.getByRole('heading', {name: 'PROVE THE PROJECT SURFACE'})).toBeTruthy();
+    expect(await screen.findByText('Wire the project workstation.')).toBeTruthy();
+    expect(await screen.findByRole('heading', {name: 'PROVE THE PROJECT SURFACE'})).toBeTruthy();
     expect(await screen.findByText('CipherCuttle/weird-little-thing')).toBeTruthy();
     expect(screen.getByText('Need one external tester.')).toBeTruthy();
     expect(screen.getByText('Helper')).toBeTruthy();
