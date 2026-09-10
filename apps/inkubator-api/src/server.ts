@@ -1,6 +1,7 @@
 import {buildApp} from './app.js';
 import {loadRuntimeConfig} from './config.js';
 import {createDatabase} from './database.js';
+import {registerGitHubLoginRoutes} from './github-login-routes.js';
 import {createGitHubUserVerifier} from './github.js';
 
 const config = loadRuntimeConfig();
@@ -14,6 +15,15 @@ const app = buildApp({
     ? {runtime: config.github, verifier: createGitHubUserVerifier(config.github)}
     : null,
 });
+
+if (config.github) {
+  registerGitHubLoginRoutes(app, {
+    db,
+    appOrigin: config.appOrigin,
+    sessionTtlSeconds: config.sessionTtlSeconds,
+    github: config.github,
+  });
+}
 
 let closing = false;
 async function close() {

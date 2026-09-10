@@ -63,6 +63,14 @@ function commandView(overrides: Partial<CommandView> = {}): CommandView {
 
 type CommandRouteResponse = {status: number; body: unknown};
 
+const authenticatedMe = {
+  schema_version: 'player.private.v1',
+  player_id: 'PLAYER-LIVE-001',
+  display_name: 'Builder',
+  created_at: '2026-09-01T08:00:00Z',
+  updated_at: '2026-09-10T08:00:00Z',
+};
+
 async function routeCommand(page: Page, respond: () => CommandRouteResponse) {
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -72,6 +80,9 @@ async function routeCommand(page: Page, respond: () => CommandRouteResponse) {
     }
     const response = respond();
     await route.fulfill({status: response.status, contentType: 'application/json', body: JSON.stringify(response.body)});
+  });
+  await page.route('**/v1/me', async (route) => {
+    await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(authenticatedMe)});
   });
 }
 
