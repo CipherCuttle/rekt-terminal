@@ -125,7 +125,7 @@ export const PERIPHERAL_MOTIONS: readonly PeripheralMotionDefinition[] = [
   ]},
   {cue:'RECEIPT',label:'RECEIPT',authority:'PROVEN',tone:'proven',durationMs:ms(MOTION_SECONDS.signal),layers:[
     path('printer','M54 30h52v18H54zM60 48h40','ink'),
-    path('paper','M62 0h36v34H62M69 10h22M69 17h22M69 24h17','proven',TRACK_Y(0,[47,52,58,64],[false,true,true,true]),{kind:'track',axis:'y',direction:'increasing',minTravel:10,maxOrthogonalDrift:0}),
+    path('paper','M62 0h36v34H62M69 10h22M69 17h22M69 24h17','proven',TRACK_Y(0,[43,48,54,60],[false,true,true,true]),{kind:'track',axis:'y',direction:'increasing',minTravel:10,maxOrthogonalDrift:0}),
   ]},
   {cue:'STALE',label:'STALE',authority:'UNKNOWN',tone:'stale',durationMs:ms(MOTION_SECONDS.signal),layers:[
     dot('source',58,52,4,'stale'),

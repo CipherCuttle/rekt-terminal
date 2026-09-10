@@ -617,3 +617,19 @@ If **yes**, implement the smallest four-frame mechanism that explains it.
 If **no**, keep the screen still.
 
 That silence is intentional. It is part of the REKT Instrument OS aesthetic.
+
+## Product coherence integration (September 2026)
+
+The production COMMAND surface now uses this renderer for its one explanatory
+canonical change cue. It no longer renders a weighted synthetic trace, ASCII
+field, mascot placeholder, GSAP packet/ripple, or Next Move sheen. No renderer,
+logical stage, frame-count, event authority, or timing contract changed.
+
+Product palette is monochrome for observed/status/blocked, pink for current
+context, and green exclusively for PROVEN. Set `--peripheral-ink` to suit the
+screen environment; avoid inheriting pale-faceplate text colors inside a display.
+Receipt paper settles within the logical stage (its earlier final path exceeded
+96 pixels). Mid-event reduced-motion changes and unavailable event props cancel
+pending timers and settle immediately. Previously seen event keys are retained
+for the mounted display, so returning from one cue to an older cue cannot replay
+history. STALE and UNAVAILABLE are rendered settled in production COMMAND.

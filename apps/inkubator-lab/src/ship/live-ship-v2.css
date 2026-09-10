@@ -2,6 +2,27 @@
   --ship-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
 }
 
+/* One index and one explanation, using the shared display construction. */
+.ship-live .ship-workspace {padding:0 28px 28px}
+.ship-live .ship-context {display:flex;gap:18px;align-items:baseline;padding:20px 0;border-bottom:1px solid var(--ios2-seam)}
+.ship-context small {font:10px var(--ship-mono);color:var(--ios2-muted)}
+.ship-context p {flex:1;margin:0;font-size:14px;color:var(--ios2-ink)}.ship-context a {font:11px var(--ship-mono);color:var(--ios2-ink)}
+.ship-live .ship-state {padding-bottom:24px}
+.ship-live .ship-stage-index {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin-top:28px;border-top:1px solid var(--ios2-display-divider)}
+.ship-live .ship-stage-index button {display:flex;flex-direction:column;align-items:flex-start;min-height:155px;gap:18px;border-right:1px solid var(--ios2-display-divider);padding:18px 12px}
+.ship-live .ship-stage-index button strong {font-size:14px}.ship-live .ship-stage-index button small {font-size:10px}
+.ship-live .ship-channel {display:flex;gap:18px;align-items:center;min-height:128px;margin:20px 0}
+.ship-live .ship-channel svg {width:100px;height:60px;flex-shrink:0}.ship-live .ship-channel p {font:12px/1.5 var(--ship-mono);overflow-wrap:anywhere}
+.ship-live .faceplate-display .ship-proof-boundary {background:transparent;border:0;border-top:1px solid var(--ios2-display-divider);color:var(--ios2-display-muted);font:10px/1.5 var(--ship-mono);padding:15px 0;margin:0}
+.ship-live .faceplate-inspector .ship-accepted {display:block;border:0}.ship-live .faceplate-inspector .ship-artifact-stage {background:none;min-height:0;border:0;padding:14px 0;color:var(--ios2-ink)}.ship-live .faceplate-inspector .ship-artifact-stage small {color:var(--ios2-green)}
+.ship-live .faceplate-inspector .ship-artifact-stage strong {color:var(--ios2-ink);font-size:25px}.ship-live .faceplate-inspector .ship-artifact-stage a {color:var(--ios2-ink);font-size:12px}
+.ship-live .faceplate-inspector .ship-receipt {padding:0;border:0;background:none}.ship-live .faceplate-inspector .ship-receipt h2 {font-size:22px}
+.ship-live .faceplate-inspector .ship-observation {border:0;background:none;padding:0;color:var(--ios2-ink)}
+.ship-live .faceplate-inspector .ship-observation strong {color:var(--ios2-ink)}
+.ship-live .faceplate-inspector .ship-observation p {font-size:13px}.ship-live .faceplate-inspector .ship-observation time {font-size:11px}
+.ship-live .ship-submit {margin-top:20px}.ship-live .ship-submit-control>p {font-size:13px;line-height:1.5}
+@media(max-width:700px){.ship-live .ship-workspace {padding:0 16px 24px}.ship-live .ship-context {display:block}.ship-context p {margin:8px 0 12px}.ship-live .ship-stage-index {grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px}.ship-live .ship-stage-index button {min-height:110px;gap:10px}.ship-live .ship-channel {gap:12px}.ship-live .ship-channel svg {width:80px}}
+
 .ship-live .ship-workspace {
   display: grid;
   gap: 0;
@@ -74,6 +95,12 @@
   letter-spacing: .1em;
 }
 
+/* Contrast fix: dark-display smalls use the display-muted token; the light
+   ship-observation label uses ink. */
+.ship-live .ship-signal-display small,
+.ship-live .ship-stage-index button small { color: var(--ios2-display-muted); }
+.ship-live .ship-observation small { color: var(--ios2-ink); }
+
 .ship-live .ship-condition strong,
 .ship-live .ship-next strong {
   display: block;
@@ -121,21 +148,6 @@
 .ship-live .ship-gates strong {
   font-size: 10px;
   font-weight: 700;
-}
-
-.ship-live .ship-gates li[data-state='proven'] b {
-  color: var(--ios2-green);
-}
-
-.ship-live .ship-gates li[data-state='observed'] b,
-.ship-live .ship-gates li[data-state='active'] b {
-  color: var(--ios2-cyan);
-}
-
-.ship-live .ship-gates li[data-state='attention'] b,
-.ship-live .ship-gates li[data-state='blocked'] b,
-.ship-live .ship-gates li[data-state='failed'] b {
-  color: var(--ios2-orange);
 }
 
 .ship-live .ship-no-submission {
@@ -311,7 +323,7 @@
 }
 
 .ship-live .ship-observation > div:first-child strong {
-  color: #006e7e;
+  color: #083a42;
   font: 800 11px/1 var(--ship-mono);
 }
 
@@ -332,12 +344,12 @@
 }
 
 .ship-live .ship-observation dt {
-  color: var(--ios2-muted);
+  color: var(--ios2-ink);
 }
 
 .ship-live .ship-observation time,
 .ship-live .ship-observation p {
-  color: var(--ios2-muted);
+  color: var(--ios2-ink);
   font: 8px/1.5 var(--ship-mono);
   overflow-wrap: anywhere;
 }
@@ -637,7 +649,7 @@
 }
 
 .ship-live .ship-submit-status[data-ready='true'] {
-  color: var(--ios2-green);
+  color: var(--ios2-ink);
 }
 
 .ship-live .ship-submit-error {
@@ -801,3 +813,5 @@
     grid-template-columns: 1fr;
   }
 }
+
+.ship-submit fieldset {display:contents}

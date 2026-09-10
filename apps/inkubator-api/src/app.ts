@@ -573,6 +573,20 @@ export function buildApp(options: BuildAppOptions) {
     return toPrivatePlayer(player);
   });
 
+  app.get('/v1/github/repositories', async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    reply.header('cache-control', 'no-store');
+    const repositories = await options.db.selectFrom('github_repositories as repository')
+      .innerJoin('github_installations as installation', 'installation.installation_id', 'repository.installation_id')
+      .select(['repository.repository_id', 'repository.full_name', 'repository.private'])
+      .where('installation.player_id', '=', authenticated.actor.playerId)
+      .where('installation.revoked_at', 'is', null)
+      .where('repository.active', '=', true)
+      .orderBy('repository.full_name', 'asc').execute();
+    return repositories.map(repository => ({...repository, repository_id: String(repository.repository_id)}));
+  });
+
   if (options.github) {
     app.post('/v1/github/install', async (request, reply) => {
       const authenticated = await authenticate(request, options.db);
@@ -598,6 +612,7 @@ export function buildApp(options: BuildAppOptions) {
         const verified = await options.github!.verifier.verifyInstallation(query.code, query.installation_id);
         const finalized = await finalizeGitHubSetup(options.db, authenticated.actor.playerId, claimed.createdAt, verified);
         reply.header('cache-control', 'no-store');
+        if (request.headers.accept?.includes('text/html')) return reply.redirect(new URL('/?mode=command&source=authorized', options.appOrigin).toString());
         return {
           schema_version: 'github.installation.private.v1',
           installation_id: verified.installationId,

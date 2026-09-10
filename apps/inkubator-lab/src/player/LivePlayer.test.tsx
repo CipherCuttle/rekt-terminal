@@ -90,7 +90,7 @@ describe('Live PLAYER', () => {
     expect(screen.getByText('RECEIPT:R-1')).toBeTruthy();
     expect(screen.getByText('SEQUENCE, NOT A PROGRESS SCORE')).toBeTruthy();
     expect(screen.getAllByText(/universal xp/i).length).toBeGreaterThan(0);
-    expect(container.querySelector('.player-mascot img')?.getAttribute('src')).toContain('assets/rekt-mascot.png');
+    expect(container.querySelector('.player-mascot')).toBeNull();
   });
 
   it('lets a record selection update the provenance inspector without changing its truth', async () => {
@@ -127,13 +127,10 @@ describe('Live PLAYER', () => {
     expect(screen.getByText(/No development fixture fallback is permitted/i)).toBeTruthy();
   });
 
-  it('keeps mascot failure neutral instead of substituting different art', async () => {
+  it('reopens the exact accepted receipt from builder history', async () => {
     const {container} = renderPlayer();
-    await screen.findByRole('heading', {name: 'ink.operator'});
-    const image = container.querySelector<HTMLImageElement>('.player-mascot img');
-    expect(image).not.toBeNull();
-    fireEvent.error(image!);
-    expect(await screen.findByText('ART UNAVAILABLE')).toBeTruthy();
-    expect(container.querySelector('.player-mascot img')).toBeNull();
+    await screen.findByText('Working URL or GTFO');
+    fireEvent.click(container.querySelector('[data-player-history-id="H-3"]')!);
+    expect(screen.getByRole('link', {name: 'Open receipt ↗'}).getAttribute('href')).toContain('receipt=');
   });
 });

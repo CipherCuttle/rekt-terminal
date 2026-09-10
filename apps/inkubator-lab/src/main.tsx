@@ -7,7 +7,6 @@ import './comeback-v3.css';
 import './protocol-v0.css';
 import './signal-system/phase9-rehearsal.css';
 import './instrument-os/motion-runtime.css';
-import './command/live-command-v2-semantics.css';
 
 const AppV3 = lazy(() => import('./AppV3'));
 const SignalSystemLab = lazy(() => import('./signal-system/GoldenScreens'));
@@ -36,9 +35,9 @@ createRoot(document.getElementById('root')!).render(
           ? <PeripheralMotionLab />
           : lab === 'signals'
             ? <SignalSystemLab />
-            : liveMode
-              ? <QueryClientProvider client={instrumentQueryClient}><LiveInstrument initialMode={liveMode} /></QueryClientProvider>
-              : <AppV3 />}
+            : lab === 'legacy'
+              ? <><div role="note" className="fixture-banner">LEGACY DEMO / FIXTURE DATA / NOT LIVE</div><AppV3 /></>
+              : <QueryClientProvider client={instrumentQueryClient}><LiveInstrument initialMode={liveMode ?? 'COMMAND'} /></QueryClientProvider>}
     </Suspense>
   </StrictMode>
 );

@@ -694,6 +694,14 @@ export interface DevkitHelpBeaconList {
   beacons: HelpBeaconView[];
 }
 
+export interface GitHubRepositoryChoice {
+  repository_id: string;
+  full_name: string;
+  private: boolean;
+}
+
+export type GitHubRepositoryChoices = GitHubRepositoryChoice[];
+
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export class InkubatorApiError extends Error {
@@ -818,6 +826,10 @@ export class InkubatorApiClient {
 
   createGitHubInstall(): Promise<GitHubInstallView> {
     return this.request<GitHubInstallView>("/v1/github/install", {method: 'POST'});
+  }
+
+  listGitHubRepositories(): Promise<GitHubRepositoryChoices> {
+    return this.request<GitHubRepositoryChoices>("/v1/github/repositories", {method: 'GET'});
   }
 
   discoverPlayers(): Promise<PublicPlayerList> {

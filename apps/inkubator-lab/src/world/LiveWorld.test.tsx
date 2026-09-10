@@ -1,4 +1,4 @@
-import {cleanup, render, screen, waitFor} from '@testing-library/react';
+import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import type {InkubatorApiClient, ProjectDiscoveryList, PublicPlayerList, WorldSignalList} from '../generated/inkubator-api-client';
@@ -52,60 +52,54 @@ function renderWorld(worldClient = client()) {
 }
 
 describe('Live World', () => {
-  it('renders only canonical public projections in the v2 pulse and network instruments', async () => {
+  it('indexes public events in time order without invented topology or private routes', async () => {
     const {container} = renderWorld();
-
-    expect(await screen.findByRole('heading', {name: 'UNDERGROUND BUILD NETWORK'})).toBeTruthy();
-    expect(await screen.findByText('1 OPEN HELP BEACON')).toBeTruthy();
-    expect(container.querySelector('[data-shell="terminal"]')?.getAttribute('data-shell-variant')).toBe('v2');
-    expect((await screen.findAllByText('Need an external tester.')).length).toBe(2);
-    expect(screen.getAllByText('WEIRD LITTLE THING').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Relay Kid').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('EXTERNAL TEST RECORDED').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByRole('img', {name: 'Public Inkubator project and signal radar'})).toBeTruthy();
+    expect(await screen.findByRole('heading', {name: 'Public signal.'})).toBeTruthy();
+    const first = await screen.findByRole('button', {name: /EXTERNAL TEST RECORDED/});
+    expect(first.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('.world-radar')).toBeNull();
     expect(container.querySelectorAll('[data-truth="proven"]')).toHaveLength(0);
+    expect(container.querySelector('a[href*="mode=project"]')).toBeNull();
+    fireEvent.keyDown(first, {key: 'ArrowDown'});
+    expect(screen.getByRole('button', {name: /HELP BEACON OPENED/}).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('complementary').textContent).toContain('Need an external tester.');
     expect(screen.queryByText(/repository_full_name|refs\/heads/i)).toBeNull();
-    expect(screen.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeTruthy();
   });
 
-  it('keeps partial public feed failures visible without collapsing available world context', async () => {
-    renderWorld(client({
-      discoverPlayers: vi.fn().mockRejectedValue(new Error('players_unavailable')),
-      listWorldSignals: vi.fn().mockRejectedValue(new Error('signals_unavailable')),
-    }));
-
-    expect((await screen.findAllByText('Need an external tester.')).length).toBe(2);
-    expect(await screen.findByText('PLAYER FEED UNAVAILABLE', {}, {timeout: 3000})).toBeTruthy();
-    expect(screen.getByText('SIGNAL FEED UNAVAILABLE')).toBeTruthy();
+  it('keeps public events useful when project context is unavailable', async () => {
+    renderWorld(client({discoverProjects: vi.fn().mockRejectedValue(new Error('projects_unavailable'))}));
+    expect(await screen.findByText('PROJECT CONTEXT UNAVAILABLE')).toBeTruthy();
+    expect(screen.getByRole('button', {name: /EXTERNAL TEST RECORDED/})).toBeTruthy();
   });
 
-  it('increments world event sequence only when a newly returned canonical signal appears', async () => {
-    const nextSignals: WorldSignalList = [
-      {schema_version: 'world.signal.public.v1', signal_id: 'SIG-3', kind: 'ASSIST_ACCEPTED', project_id: 'P-1', project_name: 'WEIRD LITTLE THING', truth_state: 'OBSERVED', occurred_at: '2026-09-08T13:20:00Z'},
-      ...initialSignals,
-    ];
+  it('responds once to new backend events and never animates historical hydration', async () => {
+    const nextSignals: WorldSignalList = [{schema_version: 'world.signal.public.v1', signal_id: 'SIG-3', kind: 'ASSIST_ACCEPTED', project_id: 'P-1', project_name: 'WEIRD LITTLE THING', truth_state: 'OBSERVED', occurred_at: '2026-09-08T13:20:00Z'}, ...initialSignals];
     const worldClient = client({listWorldSignals: vi.fn().mockResolvedValueOnce(initialSignals).mockResolvedValue(nextSignals)});
     const {container, queryClient} = renderWorld(worldClient);
-
-    await screen.findAllByText('EXTERNAL TEST RECORDED');
+    await screen.findByRole('button', {name: /EXTERNAL TEST RECORDED/});
     expect(container.querySelector('[data-shell="terminal"]')?.getAttribute('data-event-sequence')).toBe('0');
+    expect(container.querySelector('[data-cue="SOURCE_RX"]')?.getAttribute('data-frame')).toBe('4');
     await queryClient.refetchQueries({queryKey: ['inkubator', 'world', 'signals']});
-
-    await waitFor(() => {
-      expect(container.querySelector('[data-shell="terminal"]')?.getAttribute('data-event-sequence')).toBe('1');
-      expect(screen.getAllByText('ASSIST ACCEPTED').length).toBeGreaterThanOrEqual(2);
-    });
+    await waitFor(() => expect(container.querySelector('[data-shell="terminal"]')?.getAttribute('data-event-sequence')).toBe('1'));
+    await queryClient.refetchQueries({queryKey: ['inkubator', 'world', 'signals']});
+    expect(container.querySelector('[data-shell="terminal"]')?.getAttribute('data-event-sequence')).toBe('1');
   });
 
-  it('fails closed when every canonical public feed is unavailable', async () => {
-    renderWorld(client({
-      discoverProjects: vi.fn().mockRejectedValue(new Error('world_offline')),
-      discoverPlayers: vi.fn().mockRejectedValue(new Error('world_offline')),
-      listWorldSignals: vi.fn().mockRejectedValue(new Error('world_offline')),
-    }));
+  it('labels retained history stale and freezes event motion after refresh failure', async () => {
+    const worldClient = client({listWorldSignals: vi.fn().mockResolvedValueOnce(initialSignals).mockRejectedValue(new Error('offline'))});
+    const {container, queryClient} = renderWorld(worldClient);
+    await screen.findByRole('button', {name: /EXTERNAL TEST RECORDED/});
+    await queryClient.refetchQueries({queryKey: ['inkubator', 'world', 'signals']});
+    expect(await screen.findByText('STALE PUBLIC SNAPSHOT')).toBeTruthy();
+    expect(screen.getByRole('button', {name: /EXTERNAL TEST RECORDED/})).toBeTruthy();
+    expect(container.querySelector('[data-cue]')).toBeNull();
+    expect(screen.getByRole('complementary').textContent).toContain('STALE SNAPSHOT');
+  });
 
-    expect(await screen.findByRole('heading', {name: 'WORLD LINK UNAVAILABLE'}, {timeout: 3000})).toBeTruthy();
-    expect(screen.getAllByText('world_offline').length).toBeGreaterThan(0);
-    expect(screen.getByText(/No development fixture fallback is permitted/i)).toBeTruthy();
+  it('shows unavailable rather than an empty or fixture public feed on failure', async () => {
+    renderWorld(client({listWorldSignals: vi.fn().mockRejectedValue(new Error('world_offline'))}));
+    expect(await screen.findByText('WORLD LINK UNAVAILABLE')).toBeTruthy();
+    expect(screen.queryByText('NO PUBLIC SIGNALS')).toBeNull();
+    expect(screen.getByRole('button', {name: 'Retry public events'})).toBeTruthy();
   });
 });

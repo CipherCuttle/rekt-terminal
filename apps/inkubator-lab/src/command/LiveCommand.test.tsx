@@ -2,7 +2,7 @@ import {cleanup, render, screen, waitFor} from '@testing-library/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import type {CommandView} from '../generated/inkubator-api-client';
-import LiveCommand from './LiveCommand';
+import LiveCommand, {commandCue} from './LiveCommand';
 
 afterEach(cleanup);
 
@@ -84,13 +84,15 @@ describe('Live Command', () => {
     expect(await screen.findByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeTruthy();
     expect(screen.getByRole('heading', {name: 'Make the thing real.'})).toBeTruthy();
     expect(screen.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeTruthy();
-    expect(screen.getByText('PRIVATE')).toBeTruthy();
+    expect(screen.getByText('GITHUB / PRIVATE')).toBeTruthy();
     expect(screen.getByText('ADVISORY ONLY')).toBeTruthy();
     expect(screen.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeTruthy();
     expect(container.querySelector('[aria-label="Living Thread mission instrument"]')).toBeTruthy();
     expect(container.querySelector('.command-sector')).toBeNull();
     expect(container.querySelector('.command-ratchet')).toBeNull();
-    expect(container.querySelector('[data-renderer="pixi"]')?.getAttribute('data-renderer-lifecycle')).toBe('retained');
+    expect(container.querySelector('[data-renderer="pixi"]')).toBeNull();
+    expect(container.querySelector('[data-motion-contract="v1"]')?.getAttribute('data-frame')).toBe('4');
+    expect(screen.getByRole('link', {name: 'OPEN PROJECT →'})).toBeTruthy();
     expect(container.querySelectorAll('.command-thread-gates [data-truth="proven"]')).toHaveLength(1);
     expect(screen.queryByText(/development fixture/i)).toBeNull();
   });
@@ -114,6 +116,24 @@ describe('Live Command', () => {
     expect(container.querySelector('[data-delta="GATE:QUALITY_TESTING"]')?.getAttribute('data-truth')).toBe('blocked');
   });
 
+  it('preserves the last known projection and settles motion after a channel error', async () => {
+    const client = {getMyCommand: vi.fn().mockResolvedValueOnce(commandView()).mockRejectedValue(new Error('network_unavailable'))};
+    const {container, queryClient} = renderCommand(client);
+    await screen.findByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'});
+    await queryClient.refetchQueries({queryKey: ['inkubator', 'command', 'me']});
+    expect((await screen.findByRole('alert')).textContent).toContain('Last known state retained');
+    expect(screen.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeTruthy();
+    expect(container.querySelector('[data-cue="UNAVAILABLE"]')?.getAttribute('data-frame')).toBe('4');
+    expect(screen.queryByRole('region', {name: 'Mission work controls'})).toBeNull();
+  });
+
+  it('routes the one primary move to Ship when canonical mission is ready', async () => {
+    const first = commandView();
+    renderCommand({getMyCommand: vi.fn().mockResolvedValue({...first, mission: {...first.mission, state: 'SHIP_READY'}})});
+    expect(await screen.findByRole('link', {name: 'OPEN SHIP →'})).toBeTruthy();
+    expect(screen.queryByRole('link', {name: 'OPEN PROJECT →'})).toBeNull();
+  });
+
   it('fails closed when the canonical command endpoint is unavailable', async () => {
     const client = {getMyCommand: vi.fn().mockRejectedValue(new Error('session_required'))};
     renderCommand(client);
@@ -121,5 +141,28 @@ describe('Live Command', () => {
     expect(await screen.findByRole('heading', {name: 'COMMAND LINK UNAVAILABLE'}, {timeout: 3000})).toBeTruthy();
     expect(screen.getByText('session_required')).toBeTruthy();
     expect(screen.getByText(/No development fixture fallback is permitted/i)).toBeTruthy();
+  });
+});
+
+describe('commandCue event mapping', () => {
+  it('maps core canonical events to cues keyed by canonical values', () => {
+    const base = commandView();
+    // Stale / unavailable signal states are status cues without an event id (no replay).
+    expect(commandCue(commandView({github_evidence: {...base.github_evidence, signal_state: 'STALE'}}), [])).toEqual({cue: 'STALE'});
+    expect(commandCue(commandView({github_evidence: {...base.github_evidence, source_state: 'UNAVAILABLE'}}), [])).toEqual({cue: 'UNAVAILABLE'});
+    // Blocker arrival is keyed by mission id + blocker value.
+    expect(commandCue(commandView({...base, mission: {...base.mission, blocker: 'Verifier is red.'}}), [])).toEqual({cue: 'MISSION_BLOCKED', eventId: 'M-001:Verifier is red.'});
+    // Next Move change is keyed by mission id + canonical next move value.
+    expect(commandCue(base, [{kind: 'NEXT_MOVE'}])).toEqual({cue: 'NEXT_MOVE_CHANGED', eventId: 'M-001:CONNECT THE LIVE COMMAND BUS'});
+    // A new canonical observation is keyed by its observation id.
+    expect(commandCue(base, [])).toEqual({cue: 'SOURCE_RX', eventId: 'OBS-001'});
+  });
+
+  it('maps a connected source to SOURCE_LINK and a disconnected source to no event at all', () => {
+    const base = commandView();
+    const quiet = commandView({github_evidence: {...base.github_evidence, signal_state: 'ACTIVE'}});
+    expect(commandCue(quiet, [])).toEqual({cue: 'SOURCE_LINK', eventId: 'P-001'});
+    const disconnected = commandView({...quiet, project: {...quiet.project, source_connected: false}});
+    expect(commandCue(disconnected, [])).toEqual({cue: 'SOURCE_LINK'});
   });
 });

@@ -1,340 +1,66 @@
-import {useEffect, useRef, useState} from 'react';
-import {useGSAP} from '@gsap/react';
+import {useEffect, useRef, useState, type KeyboardEvent} from 'react';
 import {useQuery} from '@tanstack/react-query';
-import gsap from 'gsap';
-import type {
-  InkubatorApiClient,
-  ProjectDiscoveryList,
-  PublicPlayerList,
-  WorldSignalList,
-} from '../generated/inkubator-api-client';
+import type {InkubatorApiClient, WorldSignalView} from '../generated/inkubator-api-client';
 import {createInkubatorApiClient} from '../inkubator-api';
-import {MOTION_EASE, MOTION_SECONDS} from '../instrument-os/motion-tokens';
+import {PeripheralSignal} from '../instrument-os/PeripheralSignal';
 import {TerminalShell} from '../shell/TerminalShell';
-import './live-world.css';
 import './live-world-v2.css';
 
-gsap.registerPlugin(useGSAP);
-
-type WorldClient = Pick<InkubatorApiClient, 'discoverProjects' | 'discoverPlayers' | 'listWorldSignals'>;
-
-export type LiveWorldProps = {
-  client?: WorldClient;
-  refetchIntervalMs?: number | false;
-};
-
-const projectKey = ['inkubator', 'world', 'projects'] as const;
-const playerKey = ['inkubator', 'world', 'players'] as const;
+type WorldClient = Pick<InkubatorApiClient, 'discoverProjects' | 'listWorldSignals'>;
+export type LiveWorldProps = {client?: WorldClient; refetchIntervalMs?: number | false};
 const signalKey = ['inkubator', 'world', 'signals'] as const;
+const projectKey = ['inkubator', 'world', 'projects'] as const;
 
-function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
-}
-
-function useReducedMotion() {
-  const [reducedMotion, setReducedMotion] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const sync = () => setReducedMotion(media.matches);
-    sync();
-    media.addEventListener?.('change', sync);
-    return () => media.removeEventListener?.('change', sync);
-  }, []);
-
-  return reducedMotion;
-}
-
-function hashString(value: string) {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-function projectPosition(projectId: string) {
-  const hash = hashString(projectId);
-  const angle = ((hash % 360) / 180) * Math.PI;
-  const radius = 82 + ((hash >>> 9) % 118);
-  return {
-    x: 300 + Math.cos(angle) * radius,
-    y: 220 + Math.sin(angle) * radius * 0.78,
-  };
-}
-
-function observationTone(state: string) {
-  if (state === 'OBSERVED') return 'observed';
-  if (state === 'ACTIVE') return 'active';
-  if (state === 'STALE') return 'stale';
-  if (state === 'FAILED') return 'failed';
-  return 'unknown';
-}
-
-function FeedError({label, error}: {label: string; error: unknown}) {
-  return (
-    <div className="world-feed-error" role="status">
-      <small>{label} FEED UNAVAILABLE</small>
-      <strong>{errorMessage(error, `${label.toLowerCase()}_feed_unavailable`)}</strong>
-    </div>
-  );
-}
-
-function NetworkRadar({projects, signals, reducedMotion}: {
-  projects: ProjectDiscoveryList;
-  signals: WorldSignalList;
-  reducedMotion: boolean;
-}) {
-  const projectById = new Map(projects.map((entry) => [entry.project.project_id, entry]));
-  const recentSignals = [...signals].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)).slice(0, 12);
-
-  return (
-    <div className="world-radar" data-motion-policy={reducedMotion ? 'reduced' : 'full'}>
-      <svg viewBox="0 0 600 440" role="img" aria-label="Public Inkubator project and signal radar">
-        <g className="world-radar-grid" aria-hidden="true">
-          <circle cx="300" cy="220" r="58" />
-          <circle cx="300" cy="220" r="118" />
-          <circle cx="300" cy="220" r="178" />
-          <path d="M300 25v390M45 220h510M118 77l364 286M118 363L482 77" />
-        </g>
-        <g className="world-radar-core" aria-hidden="true">
-          <circle cx="300" cy="220" r="9" />
-          <circle cx="300" cy="220" r="17" />
-          <path className="world-radar-sweep" d="M300 220L300 36" />
-        </g>
-        <g className="world-radar-signals" aria-hidden="true">
-          {recentSignals.map((signal) => {
-            const project = projectById.get(signal.project_id);
-            if (!project) return null;
-            const point = projectPosition(signal.project_id);
-            return (
-              <line
-                key={signal.signal_id}
-                x1="300"
-                y1="220"
-                x2={point.x}
-                y2={point.y}
-                data-signal-id={signal.signal_id}
-                data-truth={signal.truth_state.toLowerCase()}
-              />
-            );
-          })}
-        </g>
-        <g className="world-radar-projects">
-          {projects.map((entry) => {
-            const point = projectPosition(entry.project.project_id);
-            const tone = observationTone(entry.project.observation_state);
-            return (
-              <g
-                key={entry.project.project_id}
-                className="world-radar-node"
-                data-tone={tone}
-                transform={`translate(${point.x} ${point.y})`}
-              >
-                <circle r="8" />
-                <circle className="world-radar-node-ring" r="14" />
-                <text x="18" y="-2">{entry.project.name.slice(0, 24)}</text>
-                <text className="world-radar-node-state" x="18" y="10">{entry.project.mission_state} / {entry.project.observation_state}</text>
-              </g>
-            );
-          })}
-        </g>
-      </svg>
-      <div className="world-radar-legend" aria-hidden="true">
-        <span data-tone="observed">OBSERVED</span>
-        <span data-tone="active">ACTIVE</span>
-        <span data-tone="stale">STALE</span>
-        <span data-tone="failed">FAILED</span>
-      </div>
-    </div>
-  );
-}
-
-function SignalRail({signals}: {signals: WorldSignalList}) {
-  const ordered = [...signals].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
-  if (!ordered.length) return <div className="world-empty"><small>SIGNAL BUS</small><strong>NO PUBLIC SIGNALS</strong></div>;
-
-  return (
-    <ol className="world-signals">
-      {ordered.slice(0, 10).map((signal) => (
-        <li key={signal.signal_id} data-signal-id={signal.signal_id} data-truth={signal.truth_state.toLowerCase()}>
-          <span>{signal.truth_state}</span>
-          <div><strong>{signal.project_name}</strong><small>{signal.kind.replaceAll('_', ' ')}</small></div>
-          <time dateTime={signal.occurred_at}>{signal.occurred_at}</time>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function WorldProjection({
-  projects,
-  projectsError,
-  players,
-  playersError,
-  signals,
-  signalsError,
-  newSignalIds,
-  eventSequence,
-}: {
-  projects: ProjectDiscoveryList;
-  projectsError?: unknown;
-  players: PublicPlayerList;
-  playersError?: unknown;
-  signals: WorldSignalList;
-  signalsError?: unknown;
-  newSignalIds: string[];
-  eventSequence: number;
-}) {
-  const rootRef = useRef<HTMLElement>(null);
-  const reducedMotion = useReducedMotion();
-  const openBeacons = projects.filter((entry) => entry.open_help_beacon?.state === 'OPEN');
-  const observedSignals = signals.filter((signal) => signal.truth_state === 'OBSERVED').length;
-  const latestSignal = [...signals].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))[0];
-
-  useGSAP(() => {
-    if (eventSequence === 0 || reducedMotion || newSignalIds.length === 0) return;
-    const root = rootRef.current;
-    if (!root) return;
-    const targets = Array.from(root.querySelectorAll<HTMLElement | SVGElement>('[data-signal-id]'))
-      .filter((target) => newSignalIds.includes(target.getAttribute('data-signal-id') ?? ''));
-    if (!targets.length) return;
-    gsap.timeline({defaults: {ease: MOTION_EASE.signal}})
-      .fromTo(targets, {opacity: 0.18, filter: 'brightness(1.8)'}, {opacity: 1, filter: 'brightness(1)', duration: MOTION_SECONDS.signal, stagger: 0.05});
-  }, {scope: rootRef, dependencies: [eventSequence, reducedMotion], revertOnUpdate: true});
-
-  return (
-    <TerminalShell
-      rootRef={rootRef}
-      mode="WORLD"
-      kicker="REKT INK(CUBATOR) // PUBLIC WORLD"
-      title="UNDERGROUND BUILD NETWORK"
-      description="Public network instrument. Only canonical public projections enter this surface; private repository metadata and private command state stay out."
-      readout={[
-        {label: 'PROJECTS', value: String(projects.length)},
-        {label: 'BUILDERS', value: String(players.length)},
-        {label: 'SIGNALS', value: String(signals.length)},
-      ]}
-      eventStatus={`PUBLIC SIGNAL BUS // ${observedSignals} OBSERVED / ${signals.length - observedSignals} CLAIMED`}
-      workspaceClassName="world-workspace"
-      footerItems={[
-        'PUBLIC PROJECTION ONLY',
-        'SIGNAL MOTION // FEED DELTAS ONLY',
-        'CLAIMED ≠ OBSERVED ≠ PROVEN',
-      ]}
-      className="world-live"
-      eventSequence={eventSequence}
-    >
-      <section className="world-network-pulse" aria-label="Public network pulse">
-        <div className="world-pulse-help">
-          <small>HELP NOW</small>
-          <strong>{openBeacons.length ? `${openBeacons.length} OPEN HELP ${openBeacons.length === 1 ? 'BEACON' : 'BEACONS'}` : 'NO OPEN HELP BEACONS'}</strong>
-          <span>{openBeacons[0]?.open_help_beacon?.summary ?? 'Public help demand is currently quiet.'}</span>
-        </div>
-        <div className="world-pulse-latest">
-          <small>LATEST PUBLIC SIGNAL</small>
-          <strong>{latestSignal ? latestSignal.kind.replaceAll('_', ' ') : 'NO PUBLIC SIGNALS'}</strong>
-          <span>{latestSignal?.project_name ?? 'Waiting for the public signal bus.'}</span>
-        </div>
-      </section>
-
-      <section className="world-sector world-sector--radar">
-        <header><span>00</span><strong>NETWORK / RADAR</strong><i aria-hidden="true" /></header>
-        <div>{projectsError ? <FeedError label="PROJECT" error={projectsError} /> : <NetworkRadar projects={projects} signals={signals} reducedMotion={reducedMotion} />}</div>
-      </section>
-
-      <section className="world-sector world-sector--signals">
-        <header><span>01</span><strong>LIVE PUBLIC SIGNALS</strong><i aria-hidden="true" /></header>
-        <div>{signalsError ? <FeedError label="SIGNAL" error={signalsError} /> : <SignalRail signals={signals} />}</div>
-      </section>
-
-      <section className="world-sector world-sector--beacons">
-        <header><span>08</span><strong>HELP BEACONS</strong><i aria-hidden="true" /></header>
-        <div>
-          {projectsError ? <FeedError label="PROJECT" error={projectsError} /> : openBeacons.length ? (
-            <ul className="world-beacons">
-              {openBeacons.map((entry) => (
-                <li key={entry.open_help_beacon!.beacon_id}>
-                  <div><small>{entry.project.name}</small><strong>{entry.open_help_beacon!.summary}</strong></div>
-                  <span>{entry.open_help_beacon!.skills_needed.join(' / ') || 'OPEN HELP'}</span>
-                </li>
-              ))}
-            </ul>
-          ) : <div className="world-empty"><small>HELP BAND</small><strong>NO OPEN BEACONS</strong></div>}
-        </div>
-      </section>
-
-      <section className="world-sector world-sector--builders">
-        <header><span>05</span><strong>BUILDERS / CAPABILITY BAND</strong><i aria-hidden="true" /></header>
-        <div>
-          {playersError ? <FeedError label="PLAYER" error={playersError} /> : players.length ? (
-            <ul className="world-builders">
-              {players.slice(0, 12).map((player) => (
-                <li key={player.player_id}>
-                  <strong>{player.display_name}</strong>
-                  <span>CAN HELP // {player.can_help_with.join(' / ') || 'UNDECLARED'}</span>
-                  <small>NEEDS // {player.skills_needed.join(' / ') || 'NONE DECLARED'}</small>
-                </li>
-              ))}
-            </ul>
-          ) : <div className="world-empty"><small>BUILDER BAND</small><strong>NO PUBLIC BUILDERS</strong></div>}
-        </div>
-      </section>
-    </TerminalShell>
-  );
-}
+function signalLabel(signal: WorldSignalView) { return signal.kind.replaceAll('_', ' '); }
 
 export default function LiveWorld({client = createInkubatorApiClient(), refetchIntervalMs = 2500}: LiveWorldProps) {
-  const projectQuery = useQuery({queryKey: projectKey, queryFn: () => client.discoverProjects(), refetchInterval: refetchIntervalMs, retry: 1});
-  const playerQuery = useQuery({queryKey: playerKey, queryFn: () => client.discoverPlayers(), refetchInterval: refetchIntervalMs, retry: 1});
-  const signalQuery = useQuery({queryKey: signalKey, queryFn: () => client.listWorldSignals(), refetchInterval: refetchIntervalMs, retry: 1});
-  const previousSignalIds = useRef<Set<string> | null>(null);
-  const [newSignalIds, setNewSignalIds] = useState<string[]>([]);
+  const signals = useQuery({queryKey: signalKey, queryFn: () => client.listWorldSignals(), refetchInterval: refetchIntervalMs, retry: false});
+  const projects = useQuery({queryKey: projectKey, queryFn: () => client.discoverProjects(), refetchInterval: refetchIntervalMs, retry: false});
+  const [selectedId, setSelectedId] = useState<string>();
+  const previousIds = useRef<Set<string> | null>(null);
   const [eventSequence, setEventSequence] = useState(0);
+  const [arrivalId, setArrivalId] = useState<string>();
+  const ordered = [...(signals.data ?? [])].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at) || a.signal_id.localeCompare(b.signal_id));
+  const selected = ordered.find(signal => signal.signal_id === selectedId) ?? ordered[0];
+  const context = !projects.error ? projects.data?.find(entry => entry.project.project_id === selected?.project_id) : undefined;
+  const stale = Boolean(signals.error && signals.data);
 
   useEffect(() => {
-    if (!signalQuery.data) return;
-    const next = new Set(signalQuery.data.map((signal) => signal.signal_id));
-    const previous = previousSignalIds.current;
-    previousSignalIds.current = next;
+    if (!signals.data || signals.error) return;
+    const next = new Set(signals.data.map(signal => signal.signal_id));
+    const previous = previousIds.current;
+    previousIds.current = next;
     if (!previous) return;
-    const added = [...next].filter((id) => !previous.has(id));
+    const added = signals.data.filter(signal => !previous.has(signal.signal_id));
     if (!added.length) return;
-    setNewSignalIds(added);
-    setEventSequence((value) => value + 1);
-  }, [signalQuery.data, signalQuery.dataUpdatedAt]);
+    setArrivalId(added.map(signal => signal.signal_id).join(':'));
+    setEventSequence(value => value + 1);
+  }, [signals.data, signals.error]);
 
-  const allPending = projectQuery.isPending && playerQuery.isPending && signalQuery.isPending;
-  const allFailed = projectQuery.isError && playerQuery.isError && signalQuery.isError;
-
-  if (allPending) {
-    return (
-      <TerminalShell mode="WORLD" kicker="REKT INK(CUBATOR) // PUBLIC WORLD" title="UNDERGROUND BUILD NETWORK" description="Connecting canonical public network projections." workspaceClassName="world-loading" className="world-live">
-        <div><small>WORLD INSTRUMENT</small><h2>CONNECTING PUBLIC SIGNAL BUS</h2><p>Waiting for project, builder and world-signal projections.</p></div>
-      </TerminalShell>
-    );
+  function navigate(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const next = event.key === 'ArrowDown' ? Math.min(index + 1, ordered.length - 1) : event.key === 'ArrowUp' ? Math.max(index - 1, 0) : event.key === 'Home' ? 0 : event.key === 'End' ? ordered.length - 1 : undefined;
+    if (next === undefined) return;
+    event.preventDefault();
+    setSelectedId(ordered[next].signal_id);
+    event.currentTarget.closest('ol')?.querySelectorAll<HTMLButtonElement>('button')[next]?.focus();
   }
 
-  if (allFailed) {
-    return (
-      <TerminalShell mode="WORLD" kicker="REKT INK(CUBATOR) // PUBLIC WORLD" title="UNDERGROUND BUILD NETWORK" description="Canonical public network projection unavailable." workspaceClassName="world-loading world-loading--error" className="world-live" role="alert">
-        <div><small>WORLD INSTRUMENT</small><h2>WORLD LINK UNAVAILABLE</h2><p>{errorMessage(signalQuery.error ?? projectQuery.error ?? playerQuery.error, 'world_projection_unavailable')}</p><p>No development fixture fallback is permitted.</p></div>
-      </TerminalShell>
-    );
-  }
-
-  return (
-    <WorldProjection
-      projects={projectQuery.data ?? []}
-      projectsError={projectQuery.error}
-      players={playerQuery.data ?? []}
-      playersError={playerQuery.error}
-      signals={signalQuery.data ?? []}
-      signalsError={signalQuery.error}
-      newSignalIds={newSignalIds}
-      eventSequence={eventSequence}
-    />
-  );
+  return <TerminalShell mode="WORLD" kicker="WORLD / PUBLIC EVENTS" title="Public signal." description="Useful events around you. Public evidence, in time order." workspaceClassName="world-workspace" className="world-live" eventSequence={eventSequence} footerItems={['PUBLIC EVENTS / UTC', 'CLAIMED ≠ OBSERVED ≠ PROVEN']}>
+    <header className="faceplate-print-head"><span>01 /</span><h2>RECEIVER / SIGNAL TAPE</h2><small>NEWEST FIRST · SELECT TO INSPECT</small></header>
+    <div className="faceplate-split">
+      <section className="faceplate-display world-tape" aria-label="Public event index" data-stale={stale}>
+        <header className="world-display-head"><div><small>PUBLIC CHANNEL</small><h2>World receiver<span aria-hidden="true">_</span></h2></div><span>{signals.isPending ? 'LOADING' : signals.error ? stale ? 'STALE' : 'UNAVAILABLE' : `${ordered.length} EVENTS`}</span></header>
+        <div className="world-receiver-status"><span>{signals.error ? 'INPUT UNAVAILABLE' : signals.isPending ? 'READING PUBLIC EVENTS' : 'PUBLIC EVENT RECORD'}</span>{!signals.error && !signals.isPending && <PeripheralSignal cue="SOURCE_RX" eventId={arrivalId} />}</div>
+        {signals.error ? <div className="world-input-state" role="status"><strong>{stale ? 'STALE PUBLIC SNAPSHOT' : 'WORLD LINK UNAVAILABLE'}</strong><p>{stale ? 'The last received records remain available for inspection. New events cannot be checked.' : 'Public events could not be loaded.'}</p>{signals.dataUpdatedAt > 0 && <time dateTime={new Date(signals.dataUpdatedAt).toISOString()}>LAST RECEIVED / {new Date(signals.dataUpdatedAt).toISOString()}</time>}<button type="button" onClick={() => void signals.refetch()}>Retry public events</button></div> : signals.isPending ? <div className="world-input-state" role="status"><strong>READING PUBLIC EVENTS</strong><p>The public channel is loading.</p></div> : !ordered.length ? <div className="world-input-state"><strong>NO PUBLIC SIGNALS</strong><p>New public help and evidence records will appear here.</p></div> : null}
+        <ol className="world-event-list">{ordered.map((signal, index) => <li key={signal.signal_id}><button className="faceplate-record" type="button" aria-pressed={selected?.signal_id === signal.signal_id} onClick={() => setSelectedId(signal.signal_id)} onKeyDown={event => navigate(event, index)}><time dateTime={signal.occurred_at}>{signal.occurred_at.slice(0, 10)}<small>{signal.occurred_at.slice(11, 16)} UTC</small></time><span><strong>{signalLabel(signal)}</strong><small>{signal.project_name}</small></span><b data-truth={signal.truth_state.toLowerCase()}>{signal.truth_state}</b><span aria-hidden="true">↗</span></button></li>)}</ol>
+        <footer>↑ ↓ HOME END TO INSPECT / TIME ORDER, NO RANKING</footer>
+      </section>
+      <aside className="faceplate-inspector" aria-label="Selected public event"><small>SELECTED EVENT{stale ? ' / STALE SNAPSHOT' : ''}</small>{selected ? <>
+        <span className="world-truth" data-truth={selected.truth_state.toLowerCase()}>{selected.truth_state}</span><h2>{signalLabel(selected)}</h2><p>{selected.project_name}</p>
+        <dl><div><dt>OCCURRED / UTC</dt><dd><time dateTime={selected.occurred_at}>{selected.occurred_at}</time></dd></div><div><dt>REFERENCE</dt><dd><code>{selected.signal_id}</code></dd></div><div><dt>PUBLIC PROJECT</dt><dd>{selected.project_name}</dd></div></dl>
+        <p>{selected.truth_state === 'OBSERVED' ? 'A supported public event was recorded. It does not establish an accepted Ship.' : 'A builder opened a public request for help. This is a declaration, not proof.'}</p>
+        {projects.error ? <p role="status">PROJECT CONTEXT UNAVAILABLE</p> : projects.isPending ? <p role="status">Loading public project context.</p> : context?.open_help_beacon?.state === 'OPEN' ? <section className="world-beacon-context"><small>CURRENT OPEN HELP</small><h3>{context.open_help_beacon.summary}</h3><p>{context.open_help_beacon.skills_needed.join(' / ') || 'No skills specified.'}</p><p>OWNER / {context.owner.display_name}</p></section> : <p>No open help request in the current public project record.</p>}
+      </> : <><h2>{signals.isPending ? 'Loading the channel.' : signals.error ? 'Channel unavailable.' : 'The channel is quiet.'}</h2><p>Select a public event to read its context.</p></>}</aside>
+    </div>
+  </TerminalShell>;
 }

@@ -2,8 +2,8 @@
   width: 160px;
   height: 96px;
   display: block;
-  overflow: visible;
-  color: var(--text-primary, #f2eff8);
+  overflow: hidden;
+  color: var(--peripheral-ink, #f1f4f6);
 }
 
 .rektPeripheralLayer {
@@ -19,13 +19,13 @@
   stroke: none;
 }
 
-.rektPeripheralLayer[data-tone='ink'] { color: var(--text-primary, #f2eff8); }
-.rektPeripheralLayer[data-tone='context'] { color: var(--signal-context, #9a72ff); }
-.rektPeripheralLayer[data-tone='observed'] { color: var(--signal-observed, #73dfff); }
-.rektPeripheralLayer[data-tone='attention'] { color: var(--signal-attention, #ffb45f); }
-.rektPeripheralLayer[data-tone='blocked'] { color: var(--signal-blocked, #ff806e); }
-.rektPeripheralLayer[data-tone='proven'] { color: var(--signal-proven, #9aff67); }
-.rektPeripheralLayer[data-tone='stale'] { color: var(--signal-stale, #8e8898); }
+.rektPeripheralLayer[data-tone='ink'] { color: var(--peripheral-ink, #f1f4f6); }
+.rektPeripheralLayer[data-tone='context'] { color: var(--peripheral-current, #ff55a0); }
+.rektPeripheralLayer[data-tone='observed'] { color: var(--peripheral-ink, #f1f4f6); }
+.rektPeripheralLayer[data-tone='attention'] { color: var(--peripheral-ink, #f1f4f6); }
+.rektPeripheralLayer[data-tone='blocked'] { color: var(--peripheral-ink, #f1f4f6); }
+.rektPeripheralLayer[data-tone='proven'] { color: var(--peripheral-proven, #adff70); }
+.rektPeripheralLayer[data-tone='stale'] { color: var(--peripheral-muted, #b2bbc2); }
 
 .rektPeripheralDebug {
   color: #ff4fa3;

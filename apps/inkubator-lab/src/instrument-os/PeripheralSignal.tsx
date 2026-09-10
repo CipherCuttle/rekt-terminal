@@ -7,7 +7,7 @@ if (import.meta.env.DEV) assertPeripheralMotionContracts();
 const byCue = new Map(PERIPHERAL_MOTIONS.map(def => [def.cue, def]));
 
 function useReducedMotion() {
-  const [reduced, setReduced] = useState(false);
+  const [reduced, setReduced] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -53,38 +53,24 @@ export function PeripheralSignal({cue, eventId, className = '', debug = false}: 
   const reducedMotion = useReducedMotion();
   const [frame, setFrame] = useState(3);
   const currentKey = eventId ? `${cue}:${eventId}` : undefined;
-  const previousKey = useRef<string | undefined>(undefined);
+  const seenKeys = useRef(new Set<string>());
   const initialized = useRef(false);
-  const timers = useRef<number[]>([]);
-
-  useEffect(() => () => timers.current.forEach(timer => window.clearTimeout(timer)), []);
 
   useEffect(() => {
-    if (!initialized.current) {
-      initialized.current = true;
-      previousKey.current = currentKey;
+    const historical = !initialized.current;
+    initialized.current = true;
+    const seen = currentKey ? seenKeys.current.has(currentKey) : false;
+    if (currentKey) seenKeys.current.add(currentKey);
+    // A status-only/cue change and a reduced-motion change must cancel old timers.
+    if (historical || !currentKey || seen || reducedMotion) {
       setFrame(3);
       return;
     }
-
-    if (!currentKey) return;
-    const previous = previousKey.current;
-    if (previous === currentKey) return;
-    previousKey.current = currentKey;
-
-    timers.current.forEach(timer => window.clearTimeout(timer));
-    timers.current = [];
-    if (reducedMotion) {
-      setFrame(3);
-      return;
-    }
-
     setFrame(0);
     const frameMs = def.durationMs / 4;
-    [1, 2, 3].forEach(next => {
-      timers.current.push(window.setTimeout(() => setFrame(next), frameMs * next));
-    });
-  }, [currentKey, def.durationMs, reducedMotion]);
+    const timers = [1, 2, 3].map(next => window.setTimeout(() => setFrame(next), frameMs * next));
+    return () => timers.forEach(timer => window.clearTimeout(timer));
+  }, [cue, currentKey, def.durationMs, reducedMotion]);
 
   const moving = useMemo(() => new Set(def.layers.filter(layer => layer.policy.kind === 'track').map(layer => layer.id)), [def]);
 

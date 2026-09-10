@@ -4,6 +4,7 @@ import '../instrument-os/instrument-os.css';
 import './terminal-shell.css';
 import './terminal-shell-v2.css';
 import './coherence-foundation-v0.css';
+import './faceplate.css';
 
 export {INSTRUMENT_MODES};
 export type {InstrumentMode};
@@ -73,7 +74,8 @@ export function TerminalShell({
       data-crt={crt}
       data-event-sequence={eventSequence}
     >
-      <div className="ios-crt" aria-hidden="true" />
+      <a className="faceplate-skip" href="#instrument-workspace">Skip to instrument</a>
+      <div className="faceplate-topbar"><a className="faceplate-brand" href="?mode=command"><strong>REKT//</strong> INKUBATOR</a><span>{mode} / INSTRUMENT SERIES</span></div>
 
       <header className="ios-lab-header ios-shell-header">
         <div>
@@ -117,7 +119,7 @@ export function TerminalShell({
           <span className="ios-rail-tail">OS/02</span>
         </nav>
 
-        <section className={`ios-shell-workspace ${workspaceClassName}`.trim()} aria-label={`${mode} workspace`}>
+        <section id="instrument-workspace" tabIndex={-1} className={`ios-shell-workspace ${workspaceClassName}`.trim()} aria-label={`${mode} workspace`}>
           {children}
         </section>
       </section>
