@@ -1,0 +1,44 @@
+.inkubator-auth-state {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+}
+
+.inkubator-auth-card {
+  width: min(42rem, 100%);
+  padding: clamp(1rem, 4vw, 2.25rem);
+  border: 1px solid var(--ios2-line, #b8b8b3);
+  background: var(--ios2-paper, #f3f3ef);
+}
+
+.inkubator-auth-card h2 {
+  margin: .45rem 0 .75rem;
+  font-size: clamp(1.5rem, 6vw, 3.5rem);
+  line-height: .9;
+}
+
+.inkubator-auth-card p {
+  max-width: 52ch;
+}
+
+.inkubator-auth-action {
+  display: inline-flex;
+  margin-top: 1rem;
+  padding: .8rem 1rem;
+  border: 1px solid currentColor;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.inkubator-auth-action:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 3px;
+}
+
+.inkubator-auth-footnote {
+  margin-top: 1rem;
+  font-size: .78rem;
+  opacity: .72;
+}

@@ -14,6 +14,7 @@ import {phase6ShipArtifactAttributionMigration} from './migrations/015-phase6-sh
 import {phase6ReviewRepairMigration} from './migrations/016-phase6-review-repair.js';
 import {phase7CheevoReputationMigration} from './migrations/017-phase7-cheevo-reputation.js';
 import {phase8DevkitCredentialsMigration} from './migrations/018-phase8-devkit-credentials.js';
+import {githubLoginIdentityMigration} from './migrations/019-github-login-identity.js';
 
 const initialMigration: Migration = {
   async up(db) {
@@ -316,6 +317,7 @@ class StaticMigrationProvider implements MigrationProvider {
       '016_phase6_review_repair': phase6ReviewRepairMigration,
       '017_phase7_cheevo_reputation': phase7CheevoReputationMigration,
       '018_phase8_devkit_credentials': phase8DevkitCredentialsMigration,
+      '019_github_login_identity': githubLoginIdentityMigration,
     };
   }
 }
