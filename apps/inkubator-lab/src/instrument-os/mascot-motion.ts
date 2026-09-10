@@ -1,7 +1,7 @@
-export type RektMascotState = 'SLEEP' | 'LAZY' | 'BORED' | 'WORK' | 'ANGRY' | 'EXCITED';
+export type RektMascotState = 'SLEEP' | 'LAZY' | 'BORED' | 'WORK' | 'GRUMPY' | 'RELUCTANT_WIN';
 export type MascotPlayback = 'LOOP' | 'PING_PONG' | 'ONCE';
-export type MascotEyePose = 'closed' | 'half' | 'left' | 'right' | 'focus' | 'angry' | 'wide';
-export type MascotEffect = 'none' | 'z' | 'zz' | 'zzz' | 'ellipsis' | 'question' | 'anger' | 'spark';
+export type MascotEyePose = 'closed' | 'half' | 'sideLeft' | 'sideRight' | 'focus' | 'squint' | 'grump';
+export type MascotEffect = 'none' | 'z' | 'zz' | 'zzz' | 'ellipsis' | 'question' | 'sigh' | 'grumble' | 'task';
 
 export type MascotFrame = Readonly<{
   x: number;
@@ -21,34 +21,45 @@ export type MascotMotionDefinition = Readonly<{
 const F = (x: number, y: number, eye: MascotEyePose, effect: MascotEffect = 'none'): MascotFrame => ({x, y, eye, effect});
 
 /**
- * V0 deliberately keeps the canonical mascot silhouette almost fixed.
- * Personality is carried by eye pose, tiny 0-3px body shifts and peripheral FX.
- * Gear/hood/body/tentacle geometry comes from the canonical creator-derived asset.
+ * REKT MASCOT PERSONALITY CONTRACT V0.2
+ *
+ * REKT is a grumpy, lazy degen operator who resents being assigned work.
+ * He is never furious, triumphant, kawaii, bouncy, or eager to please.
+ * Emotional range: asleep -> lazy -> bored -> reluctant work -> grumble ->
+ * begrudging acknowledgement -> back to lazy.
+ *
+ * The creator-derived mascot asset remains the body/silhouette authority.
+ * V0.2 carries personality through grumpy eye poses, 0-3px body settling,
+ * tiny exhale/grumble/task marks, and Zs. Gear/hood/body/tentacle geometry is
+ * never redrawn by this contract.
+ *
+ * Personality is METAPHOR only. System truth continues to come from the
+ * independent peripheral-motion contract.
  */
 export const REKT_MASCOT_MOTIONS: readonly MascotMotionDefinition[] = [
   {
-    state: 'SLEEP', label: 'SLEEPING ON THE CLOCK', playback: 'PING_PONG', frameMs: 720,
-    frames: [F(0, 1, 'closed', 'z'), F(0, 2, 'closed', 'zz'), F(0, 2, 'closed', 'zzz'), F(0, 1, 'closed', 'zz')],
+    state: 'SLEEP', label: 'SLEEPING ON THE CLOCK', playback: 'PING_PONG', frameMs: 760,
+    frames: [F(0, 1, 'closed'), F(0, 2, 'closed', 'z'), F(0, 2, 'closed', 'zz'), F(0, 1, 'closed', 'zzz')],
   },
   {
-    state: 'LAZY', label: 'ABSOLUTELY NOT WORKING', playback: 'LOOP', frameMs: 820,
-    frames: [F(0, 2, 'half'), F(0, 3, 'half'), F(0, 3, 'left', 'ellipsis'), F(0, 2, 'half')],
+    state: 'LAZY', label: 'ABSOLUTELY NOT VOLUNTEERING', playback: 'LOOP', frameMs: 860,
+    frames: [F(0, 2, 'half'), F(0, 3, 'sideLeft'), F(0, 3, 'half', 'ellipsis'), F(0, 2, 'sideRight')],
   },
   {
-    state: 'BORED', label: 'WAITING FOR SOMETHING INTERESTING', playback: 'LOOP', frameMs: 620,
-    frames: [F(0, 0, 'left'), F(0, 0, 'focus'), F(0, 0, 'right'), F(0, 0, 'focus', 'ellipsis')],
+    state: 'BORED', label: 'WAITING FOR THIS TO BECOME SOMEONE ELSE\'S PROBLEM', playback: 'LOOP', frameMs: 680,
+    frames: [F(0, 1, 'sideLeft'), F(0, 1, 'grump'), F(0, 1, 'sideRight'), F(0, 1, 'half', 'ellipsis')],
   },
   {
-    state: 'WORK', label: 'RELUCTANTLY WORKING', playback: 'LOOP', frameMs: 430,
-    frames: [F(0, 0, 'focus', 'question'), F(0, 0, 'left'), F(0, 1, 'focus'), F(0, 0, 'right')],
+    state: 'WORK', label: 'FINE. I\'LL DO THE TASK.', playback: 'LOOP', frameMs: 470,
+    frames: [F(0, 0, 'grump', 'question'), F(0, 1, 'focus', 'task'), F(0, 1, 'sideLeft', 'task'), F(0, 0, 'grump', 'ellipsis')],
   },
   {
-    state: 'ANGRY', label: 'THIS WAS NOT IN THE JOB DESCRIPTION', playback: 'ONCE', frameMs: 130,
-    frames: [F(0, 0, 'focus'), F(-1, 0, 'angry'), F(1, 0, 'angry', 'anger'), F(0, 0, 'angry', 'anger')],
+    state: 'GRUMPY', label: 'MUTTERING ABOUT MANAGEMENT', playback: 'ONCE', frameMs: 220,
+    frames: [F(0, 0, 'grump'), F(-1, 0, 'squint', 'grumble'), F(1, 0, 'grump', 'sigh'), F(0, 0, 'half', 'ellipsis')],
   },
   {
-    state: 'EXCITED', label: 'SOMEHOW WE SHIPPED', playback: 'ONCE', frameMs: 150,
-    frames: [F(0, 0, 'focus'), F(0, -2, 'wide'), F(0, -3, 'wide', 'spark'), F(0, 0, 'wide', 'spark')],
+    state: 'RELUCTANT_WIN', label: 'YEAH YEAH. IT WORKED. CAN I GO NOW?', playback: 'ONCE', frameMs: 300,
+    frames: [F(0, 0, 'focus', 'task'), F(0, 0, 'grump'), F(0, 1, 'half', 'sigh'), F(0, 2, 'grump', 'ellipsis')],
   },
 ] as const;
 
