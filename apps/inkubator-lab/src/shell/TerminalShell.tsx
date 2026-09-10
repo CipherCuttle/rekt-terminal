@@ -3,6 +3,7 @@ import {INSTRUMENT_MODES, useInstrumentNavigation, type InstrumentMode} from './
 import '../instrument-os/instrument-os.css';
 import './terminal-shell.css';
 import './terminal-shell-v2.css';
+import './coherence-foundation-v0.css';
 
 export {INSTRUMENT_MODES};
 export type {InstrumentMode};
