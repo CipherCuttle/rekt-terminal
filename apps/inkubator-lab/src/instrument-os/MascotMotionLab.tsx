@@ -20,8 +20,8 @@ export default function MascotMotionLab() {
       <header className="mml-header">
         <div>
           <small>REKT INK(CUBATOR) // INSTRUMENT OS</small>
-          <h1>REKT TAMAGOTCHI CONTRACT V0</h1>
-          <p>Same little REKT. Bad work ethic. Tiny deterministic personality frames. System-truth effects remain a separate channel.</p>
+          <h1>REKT MASCOT MOTION CONTRACT V0.2</h1>
+          <p>Same creator-derived REKT. Always a little grumpy. Lazy degen operator. Never angry, never kawaii. System-truth effects stay independent.</p>
         </div>
         <nav className="mml-links" aria-label="Motion labs">
           <a href="?lab=peripheral">PERIPHERAL CONTRACT</a>
@@ -39,15 +39,15 @@ export default function MascotMotionLab() {
           />
         </div>
         <aside className="mml-readout">
-          <small>PERSONALITY STATE</small>
+          <small>PERSONALITY STATE // METAPHOR ONLY</small>
           <strong>{state}</strong>
           <span>{definition.label}</span>
           <code>{definition.playback} // 4 FRAMES // {definition.frameMs}MS/FRAME</code>
           <button type="button" onClick={replayMascot}>REPLAY PERSONALITY</button>
           <hr/>
-          <small>SYSTEM SIDE EFFECT</small>
+          <small>SYSTEM SIDE EFFECT // TRUTH CHANNEL</small>
           <strong>{peripheralCue ?? 'NONE'}</strong>
-          <span>Independent truth-authority channel. Mood never manufactures PROVEN/OBSERVED state.</span>
+          <span>Independent truth-authority channel. Mascot mood never manufactures PROVEN, OBSERVED, BLOCKED, or receipt state.</span>
           <button type="button" disabled={!peripheralCue} onClick={firePeripheral}>FIRE SIDE EFFECT</button>
         </aside>
       </section>
@@ -88,8 +88,8 @@ export default function MascotMotionLab() {
       </section>
 
       <footer className="mml-footer">
-        <span>CANONICAL CREATOR-DERIVED REKT ASSET REMAINS THE BODY AUTHORITY</span>
-        <span>PERSONALITY ≠ SYSTEM TRUTH</span>
+        <span>CREATOR-DERIVED REKT ASSET = BODY / HOOD / GEAR / LONG TENTACLE AUTHORITY</span>
+        <span>PERSONALITY = METAPHOR // SIDE EFFECTS = SYSTEM TRUTH</span>
       </footer>
     </main>
   );
