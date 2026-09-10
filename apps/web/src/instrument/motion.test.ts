@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MOTION_PERIOD_MS, sampleInstrumentMotion } from './motion';
+import { DEFAULT_REFERENCE_FPS, MOTION_PERIOD_MS, sampleInstrumentMotion, stepReferenceTimeMs } from './motion';
 
 describe('sampleInstrumentMotion', () => {
   it('is deterministic and periodic', () => {
@@ -21,5 +21,21 @@ describe('sampleInstrumentMotion', () => {
       expect(sample.pulse).toBeGreaterThanOrEqual(0);
       expect(sample.pulse).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('stepReferenceTimeMs', () => {
+  it('steps by one frame at the declared reference fps', () => {
+    expect(stepReferenceTimeMs(1000, 1, 25)).toBeCloseTo(1040, 8);
+    expect(stepReferenceTimeMs(1000, -1, 25)).toBeCloseTo(960, 8);
+  });
+
+  it('clamps at zero and the known reference duration', () => {
+    expect(stepReferenceTimeMs(0, -1, DEFAULT_REFERENCE_FPS, 2000)).toBe(0);
+    expect(stepReferenceTimeMs(1990, 1, DEFAULT_REFERENCE_FPS, 2000)).toBe(2000);
+  });
+
+  it('falls back to the default fps for non-finite input', () => {
+    expect(stepReferenceTimeMs(0, 1, Number.NaN)).toBeCloseTo(1000 / DEFAULT_REFERENCE_FPS, 8);
   });
 });
