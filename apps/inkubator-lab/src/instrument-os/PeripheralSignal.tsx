@@ -53,7 +53,7 @@ export function PeripheralSignal({cue, eventId, className = '', debug = false}: 
   const reducedMotion = useReducedMotion();
   const [frame, setFrame] = useState(3);
   const currentKey = eventId ? `${cue}:${eventId}` : undefined;
-  const previousKey = useRef<string | undefined>();
+  const previousKey = useRef<string | undefined>(undefined);
   const initialized = useRef(false);
   const timers = useRef<number[]>([]);
 
