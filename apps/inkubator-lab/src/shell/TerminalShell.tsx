@@ -1,10 +1,11 @@
 import type {AriaRole, ReactNode, Ref} from 'react';
+import {INSTRUMENT_MODES, useInstrumentNavigation, type InstrumentMode} from './InstrumentNavigation';
 import '../instrument-os/instrument-os.css';
 import './terminal-shell.css';
 import './terminal-shell-v2.css';
 
-export const INSTRUMENT_MODES = ['WORLD', 'COMMAND', 'PROJECT', 'PLAYER', 'SHIP'] as const;
-export type InstrumentMode = (typeof INSTRUMENT_MODES)[number];
+export {INSTRUMENT_MODES};
+export type {InstrumentMode};
 
 export type TerminalReadout = {
   label: string;
@@ -39,7 +40,7 @@ export function TerminalShell({
   description,
   readout = [],
   eventStatus,
-  enabledModes = [mode],
+  enabledModes,
   onModeSelect,
   children,
   workspaceClassName = '',
@@ -52,7 +53,10 @@ export function TerminalShell({
   crt = 'off',
   eventSequence,
 }: TerminalShellProps) {
-  const enabled = new Set(enabledModes);
+  const integratedNavigation = useInstrumentNavigation();
+  const effectiveModes = enabledModes ?? integratedNavigation?.enabledModes ?? [mode];
+  const effectiveSelect = onModeSelect ?? integratedNavigation?.onModeSelect;
+  const enabled = new Set(effectiveModes);
   const shellVariant = 'v2';
 
   return (
@@ -103,7 +107,7 @@ export function TerminalShell({
                 disabled={!isEnabled}
                 data-mode={item.toLowerCase()}
                 data-availability={isEnabled ? 'enabled' : 'pending'}
-                onClick={() => isEnabled && onModeSelect?.(item)}
+                onClick={() => isEnabled && effectiveSelect?.(item)}
               >
                 <span>{item.slice(0, 1)}</span><b>{item}</b>
               </button>

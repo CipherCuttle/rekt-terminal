@@ -89,6 +89,7 @@
 }
 
 .ios-shell-v2 .ios-shell-chassis {
+  isolation: isolate;
   grid-template-columns: 116px minmax(0, 1fr);
   min-height: 690px;
   border: 1px solid var(--ios2-edge);
@@ -100,6 +101,8 @@
 }
 
 .ios-shell-v2 .ios-shell-mode-rail {
+  position: relative;
+  z-index: 2;
   border-right: 1px solid var(--ios2-seam);
   background: var(--ios2-chassis);
 }
@@ -117,6 +120,7 @@
 .ios-shell-v2 .ios-shell-mode-rail button {
   min-height: 64px;
   border-top-color: var(--ios2-seam);
+  background: var(--ios2-chassis);
   color: var(--ios2-muted);
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -146,6 +150,8 @@
 }
 
 .ios-shell-v2 .ios-shell-workspace {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   background: var(--ios2-chassis);
 }
