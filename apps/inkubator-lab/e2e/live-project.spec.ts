@@ -16,6 +16,14 @@ const command: CommandView = {
   daemon: {rule_version: 'daemon-advisory.v1', authority: 'ADVISORY_ONLY', what_changed: 'Project changed.', proposed_next_move: 'Keep scope bounded.'},
 };
 
+const me = {
+  schema_version: 'player.private.v1',
+  player_id: 'PLAYER-1',
+  display_name: 'Builder',
+  created_at: '2026-09-01T08:00:00Z',
+  updated_at: '2026-09-10T08:00:00Z',
+};
+
 const project: PrivateProject = {
   schema_version: 'project.private.v2', project_id: 'P-LIVE-001', owner_player_id: 'PLAYER-1', name: 'WEIRD LITTLE THING', mission_id: 'M-LIVE-001', mission_state: 'BUILDING',
   goal: 'Ship one real working thing.', ship_condition: 'A working link exists.', current_focus: 'Wire project.', next_move: 'PROVE PROJECT', source_connected: true,
@@ -47,6 +55,7 @@ type Response = {status: number; body: unknown};
 
 async function routeProject(page: Page, override: Partial<Record<string, Response>> = {}) {
   const responses: Record<string, Response> = {
+    '/v1/me': {status: 200, body: me},
     '/v1/me/command': {status: 200, body: command},
     '/v1/projects/P-LIVE-001/private': {status: 200, body: project},
     '/v1/projects/P-LIVE-001/help-loop': {status: 200, body: help},
