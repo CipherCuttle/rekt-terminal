@@ -1,0 +1,179 @@
+.pml-shell {
+  min-height: 100vh;
+  background: #f1efe9;
+  color: #111015;
+  padding: 24px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.pml-header,
+.pml-stage,
+.pml-contract,
+.pml-bank,
+.pml-footer {
+  max-width: 980px;
+  margin-inline: auto;
+}
+
+.pml-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.pml-header small,
+.pml-readout small,
+.pml-contract small {
+  display: block;
+  font-size: 10px;
+  letter-spacing: .12em;
+  color: #6e6874;
+}
+
+.pml-header h1 {
+  margin: 5px 0 7px;
+  font-size: clamp(20px, 4vw, 34px);
+  letter-spacing: -.035em;
+}
+
+.pml-header p {
+  max-width: 720px;
+  margin: 0;
+  color: #5f5964;
+  line-height: 1.5;
+  font-size: 12px;
+}
+
+.pml-debug {
+  white-space: nowrap;
+  border: 1px solid #bbb5bf;
+  padding: 9px 10px;
+  font-size: 11px;
+  letter-spacing: .06em;
+  background: #fffdf8;
+}
+
+.pml-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  min-height: 360px;
+  border: 1px solid #ada7af;
+  background: #fffdf8;
+}
+
+.pml-display {
+  min-height: 360px;
+  display: grid;
+  place-items: center;
+  background: #050507;
+  border-right: 1px solid #ada7af;
+}
+
+.pml-display .rektPeripheralSignal {
+  width: min(76vw, 480px);
+  height: auto;
+}
+
+.pml-readout {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 22px;
+  gap: 9px;
+}
+
+.pml-readout strong {
+  font-size: 21px;
+  letter-spacing: .05em;
+}
+
+.pml-readout span {
+  font-size: 10px;
+  color: #6e6874;
+  line-height: 1.5;
+}
+
+.pml-readout button,
+.pml-bank button {
+  appearance: none;
+  border: 1px solid #9f98a3;
+  background: #f9f6ef;
+  color: #111015;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pml-readout button {
+  margin-top: 8px;
+  padding: 12px 14px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.pml-readout button:hover,
+.pml-bank button:hover,
+.pml-bank button[aria-pressed='true'] {
+  border-color: #111015;
+  background: #ebe6dc;
+}
+
+.pml-contract {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid #ada7af;
+  border-top: 0;
+  background: #fffdf8;
+}
+
+.pml-contract > div {
+  min-height: 90px;
+  padding: 14px;
+  border-right: 1px solid #d4ced5;
+}
+
+.pml-contract > div:last-child { border-right: 0; }
+.pml-contract strong { display: block; margin-top: 6px; font-size: 11px; line-height: 1.5; }
+
+.pml-bank {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pml-bank button {
+  text-align: left;
+  min-height: 66px;
+  padding: 10px;
+}
+
+.pml-bank b,
+.pml-bank span { display: block; }
+.pml-bank b { font-size: 10px; letter-spacing: .04em; }
+.pml-bank span { margin-top: 5px; font-size: 9px; color: #77717b; }
+
+.pml-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 9px;
+  letter-spacing: .07em;
+  color: #77717b;
+}
+
+@media (max-width: 760px) {
+  .pml-shell { padding: 12px; }
+  .pml-header { display: grid; }
+  .pml-stage { grid-template-columns: 1fr; }
+  .pml-display { min-height: 280px; border-right: 0; border-bottom: 1px solid #ada7af; }
+  .pml-display .rektPeripheralSignal { width: min(88vw, 440px); }
+  .pml-contract { grid-template-columns: 1fr; }
+  .pml-contract > div { border-right: 0; border-bottom: 1px solid #d4ced5; }
+  .pml-contract > div:last-child { border-bottom: 0; }
+  .pml-bank { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pml-footer { display: grid; }
+}
