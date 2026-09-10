@@ -36,3 +36,9 @@
   background: var(--command-cyan);
   box-shadow: 0 0 0 4px #7cdbe812;
 }
+
+/* Readable advisory text must not pass through a sub-WCAG opacity state.
+   GSAP may still choreograph causal signal loci; advisory copy stays fully opaque. */
+.command-live .command-advisory {
+  opacity: 1 !important;
+}
