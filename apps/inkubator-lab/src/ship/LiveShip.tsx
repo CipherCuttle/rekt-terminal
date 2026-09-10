@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState, type FormEvent} from 'react';
+import {useEffect, useState, type FormEvent} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
 import type {
   AcceptedShipArtifactView,
@@ -321,7 +321,7 @@ export default function LiveShip({client = createInkubatorApiClient(), refetchIn
   }
 
   if (commandQuery.isError || !commandQuery.data) {
-    return <TerminalShell mode="SHIP" kicker="REKT INK(CUBATOR) // LIVE SHIP" title="Ship the thing." description="Canonical Mission authority unavailable." workspaceClassName="ship-loading ship-loading--error" className="ship-live" role="alert"><div><small>SHIP BUS</small><h2>SHIP LINK UNAVAILABLE</h2><p>{errorMessage(commandQuery.error, 'ship_command_projection_unavailable')}</p><p>No development fixture fallback is permitted.</p></div></TerminalShell>;
+    return <TerminalShell mode="SHIP" kicker="REKT INK(CUBATOR) // LIVE SHIP" title="Ship the thing." description="Canonical Mission authority unavailable." workspaceClassName="ship-loading ship-loading--error" className="ship-live"><div role="alert"><small>SHIP BUS</small><h2>SHIP LINK UNAVAILABLE</h2><p>{errorMessage(commandQuery.error, 'ship_command_projection_unavailable')}</p><p>No development fixture fallback is permitted.</p></div></TerminalShell>;
   }
 
   const refetch = async () => {
