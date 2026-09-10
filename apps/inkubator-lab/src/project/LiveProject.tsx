@@ -11,6 +11,7 @@ import type {
 import {createInkubatorApiClient} from '../inkubator-api';
 import {TerminalShell} from '../shell/TerminalShell';
 import './live-project.css';
+import './live-project-v2.css';
 
 type ProjectClient = Pick<
   InkubatorApiClient,
@@ -91,7 +92,7 @@ function ProjectProjection({
       mode="PROJECT"
       kicker="REKT INK(CUBATOR) // LIVE PROJECT"
       title={project.name}
-      description="Canonical project workstation. Source, help, external test and ship instruments remain separate projections; this screen does not synthesize stronger truth."
+      description="Canonical project workstation. Current work stays dominant; source, help, external test and ship remain separate truth-bounded projections."
       readout={[
         {label: 'PROJECT', value: project.project_id},
         {label: 'MISSION', value: project.mission_id},
@@ -106,6 +107,18 @@ function ProjectProjection({
       ]}
       className="project-live"
     >
+      <section className="project-current-locus" aria-label="Project current locus">
+        <div>
+          <span>CURRENT LOCUS</span>
+          <p>{command.mission.current_focus}</p>
+        </div>
+        <div className="project-next-move">
+          <span>NEXT MOVE</span>
+          <h2>{command.mission.next_move}</h2>
+          <b aria-hidden="true">→</b>
+        </div>
+      </section>
+
       <ProjectSector code="10" title="ARTIFACT / DEPLOY" className="project-sector--artifact">
         {artifact && artifactUrl ? (
           <div className="project-artifact" data-truth={shipTruth}>
