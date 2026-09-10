@@ -11,12 +11,21 @@ import './chart-interaction.css';
 import './pwa.css';
 import App from './App';
 import { PwaStatus, registerPwa } from './pwa';
+import { MotionLabRoute } from './instrument/MotionLab.route';
 
 void registerPwa();
 
+const motionLabEnabled = new URLSearchParams(window.location.search).get('motionLab') === '1';
+
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <PwaStatus />
-    <App />
+    {motionLabEnabled ? (
+      <MotionLabRoute />
+    ) : (
+      <>
+        <PwaStatus />
+        <App />
+      </>
+    )}
   </React.StrictMode>,
 );
