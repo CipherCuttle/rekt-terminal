@@ -12,6 +12,7 @@ import {createInkubatorApiClient} from '../inkubator-api';
 import {MOTION_EASE, MOTION_SECONDS} from '../instrument-os/motion-tokens';
 import {TerminalShell} from '../shell/TerminalShell';
 import './live-world.css';
+import './live-world-v2.css';
 
 gsap.registerPlugin(useGSAP);
 
@@ -191,6 +192,7 @@ function WorldProjection({
   const reducedMotion = useReducedMotion();
   const openBeacons = projects.filter((entry) => entry.open_help_beacon?.state === 'OPEN');
   const observedSignals = signals.filter((signal) => signal.truth_state === 'OBSERVED').length;
+  const latestSignal = [...signals].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))[0];
 
   useGSAP(() => {
     if (eventSequence === 0 || reducedMotion || newSignalIds.length === 0) return;
@@ -209,7 +211,7 @@ function WorldProjection({
       mode="WORLD"
       kicker="REKT INK(CUBATOR) // PUBLIC WORLD"
       title="UNDERGROUND BUILD NETWORK"
-      description="Public network instrument. It renders only canonical public projections; private repository metadata and private command state never enter this surface."
+      description="Public network instrument. Only canonical public projections enter this surface; private repository metadata and private command state stay out."
       readout={[
         {label: 'PROJECTS', value: String(projects.length)},
         {label: 'BUILDERS', value: String(players.length)},
@@ -225,6 +227,19 @@ function WorldProjection({
       className="world-live"
       eventSequence={eventSequence}
     >
+      <section className="world-network-pulse" aria-label="Public network pulse">
+        <div className="world-pulse-help">
+          <small>HELP NOW</small>
+          <strong>{openBeacons.length ? `${openBeacons.length} OPEN HELP ${openBeacons.length === 1 ? 'BEACON' : 'BEACONS'}` : 'NO OPEN HELP BEACONS'}</strong>
+          <span>{openBeacons[0]?.open_help_beacon?.summary ?? 'Public help demand is currently quiet.'}</span>
+        </div>
+        <div className="world-pulse-latest">
+          <small>LATEST PUBLIC SIGNAL</small>
+          <strong>{latestSignal ? latestSignal.kind.replaceAll('_', ' ') : 'NO PUBLIC SIGNALS'}</strong>
+          <span>{latestSignal?.project_name ?? 'Waiting for the public signal bus.'}</span>
+        </div>
+      </section>
+
       <section className="world-sector world-sector--radar">
         <header><span>00</span><strong>NETWORK / RADAR</strong><i aria-hidden="true" /></header>
         <div>{projectsError ? <FeedError label="PROJECT" error={projectsError} /> : <NetworkRadar projects={projects} signals={signals} reducedMotion={reducedMotion} />}</div>
