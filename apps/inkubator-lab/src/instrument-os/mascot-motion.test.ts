@@ -9,7 +9,7 @@ describe('REKT mascot motion contract', () => {
 
   it('freezes the first grumpy-degen personality slice', () => {
     expect(REKT_MASCOT_MOTIONS.map((definition) => definition.state)).toEqual([
-      'SLEEP', 'LAZY', 'BORED', 'WORK', 'GRUMPY', 'RELUCTANT_WIN',
+      'SLEEP', 'LAZY', 'BORED', 'WORK', 'GRUMPY', 'RELUCTANT_ACK',
     ]);
   });
 
@@ -18,26 +18,28 @@ describe('REKT mascot motion contract', () => {
     expect(Math.max(...drift)).toBeLessThanOrEqual(3);
   });
 
-  it('has no angry, excited, wide-eyed, or sparkle vocabulary', () => {
+  it('has no angry, excited, wide-eyed, sparkle, or completion vocabulary', () => {
     const serialized = JSON.stringify(REKT_MASCOT_MOTIONS).toLowerCase();
     expect(serialized).not.toContain('angry');
     expect(serialized).not.toContain('excited');
     expect(serialized).not.toContain('wide');
     expect(serialized).not.toContain('spark');
+    expect(serialized).not.toContain('win');
+    expect(serialized).not.toContain('proven');
   });
 
   it('keeps grumpy reactions finite while lazy states may loop', () => {
     expect(REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'GRUMPY')?.playback).toBe('ONCE');
-    expect(REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'RELUCTANT_WIN')?.playback).toBe('ONCE');
+    expect(REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'RELUCTANT_ACK')?.playback).toBe('ONCE');
     expect(REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'SLEEP')?.playback).toBe('PING_PONG');
     expect(REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'LAZY')?.playback).toBe('LOOP');
   });
 
-  it('keeps work annoyed rather than celebratory', () => {
+  it('keeps work and acknowledgement annoyed rather than celebratory', () => {
     const work = REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'WORK');
-    const win = REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'RELUCTANT_WIN');
+    const acknowledgement = REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'RELUCTANT_ACK');
     expect(work?.frames.some((frame) => frame.eye === 'grump')).toBe(true);
-    expect(win?.frames.some((frame) => frame.eye === 'grump')).toBe(true);
-    expect(win?.frames.some((frame) => frame.effect === 'sigh')).toBe(true);
+    expect(acknowledgement?.frames.some((frame) => frame.eye === 'grump')).toBe(true);
+    expect(acknowledgement?.frames.some((frame) => frame.effect === 'sigh')).toBe(true);
   });
 });
