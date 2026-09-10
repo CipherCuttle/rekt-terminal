@@ -1,0 +1,303 @@
+.world-live.ios-shell-v2 {
+  --ios-violet: var(--ios2-violet);
+  --ios-cyan: var(--ios2-cyan);
+  --ios-green: var(--ios2-green);
+  --ios-red: var(--ios2-red);
+  --ios-amber: var(--ios2-amber);
+  --ios-text: var(--ios2-ink);
+  --ios-muted: var(--ios2-muted);
+  --ios-line: var(--ios2-edge);
+  --ios-line-soft: var(--ios2-seam);
+  --world-grid: rgba(124, 219, 232, .08);
+}
+
+.world-live.ios-shell-v2 .world-workspace {
+  grid-template-columns: minmax(0, 1.6fr) minmax(300px, .9fr);
+  grid-template-rows: 108px 430px minmax(250px, auto);
+  background: var(--ios2-chassis);
+  background-image: none;
+}
+
+.world-live.ios-shell-v2 .world-network-pulse {
+  grid-column: 1 / 3;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1px;
+  border-bottom: 1px solid var(--ios2-edge);
+  background: var(--ios2-edge);
+}
+
+.world-live.ios-shell-v2 .world-network-pulse > div {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 16px 20px;
+  background: var(--ios2-panel);
+}
+
+.world-live.ios-shell-v2 .world-network-pulse small,
+.world-live.ios-shell-v2 .world-network-pulse span {
+  color: var(--ios2-muted);
+  font: 8px/1.4 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  letter-spacing: .1em;
+}
+
+.world-live.ios-shell-v2 .world-network-pulse strong {
+  overflow-wrap: anywhere;
+  color: var(--ios2-ink);
+  font-size: clamp(17px, 2vw, 28px);
+  line-height: 1;
+  letter-spacing: -.025em;
+}
+
+.world-live.ios-shell-v2 .world-pulse-help {
+  box-shadow: inset 4px 0 var(--ios2-orange);
+}
+
+.world-live.ios-shell-v2 .world-pulse-help strong {
+  color: var(--ios2-orange);
+}
+
+.world-live.ios-shell-v2 .world-pulse-latest {
+  box-shadow: inset 4px 0 var(--ios2-cyan);
+}
+
+.world-live.ios-shell-v2 .world-sector {
+  border-color: var(--ios2-seam);
+  background: var(--ios2-panel);
+}
+
+.world-live.ios-shell-v2 .world-sector > header {
+  min-height: 34px;
+  border-bottom: 1px solid var(--ios2-seam);
+  background: var(--ios2-recessed);
+}
+
+.world-live.ios-shell-v2 .world-sector > header span,
+.world-live.ios-shell-v2 .world-sector small {
+  color: var(--ios2-muted);
+  font-size: 8px;
+}
+
+.world-live.ios-shell-v2 .world-sector > header strong {
+  color: var(--ios2-ink);
+  font-size: 8px;
+}
+
+.world-live.ios-shell-v2 .world-sector > header i {
+  background: var(--ios2-orange);
+}
+
+.world-live.ios-shell-v2 .world-sector > div {
+  height: calc(100% - 34px);
+  padding: 12px 16px 16px;
+}
+
+.world-live.ios-shell-v2 .world-sector--radar {
+  --ios-violet: #b395ff;
+  --ios-cyan: #7cdbe8;
+  --ios-amber: #e0b66a;
+  --ios-red: #ff9c89;
+  --ios-text: #eceeea;
+  --ios-muted: #9caaa9;
+  --ios-line: #39403d;
+  --ios-line-soft: #252a28;
+  grid-column: 1;
+  grid-row: 2;
+  border: 7px solid var(--ios2-edge);
+  border-right-width: 6px;
+  background: var(--ios2-display);
+  box-shadow: inset 0 8px 14px #000;
+}
+
+.world-live.ios-shell-v2 .world-sector--signals {
+  --ios-violet: #b395ff;
+  --ios-cyan: #7cdbe8;
+  --ios-amber: #e0b66a;
+  --ios-red: #ff9c89;
+  --ios-text: #eceeea;
+  --ios-muted: #9caaa9;
+  --ios-line: #39403d;
+  --ios-line-soft: #252a28;
+  grid-column: 2;
+  grid-row: 2;
+  border: 7px solid var(--ios2-edge);
+  border-left-width: 6px;
+  background: var(--ios2-display);
+  box-shadow: inset 0 8px 14px #000;
+}
+
+.world-live.ios-shell-v2 .world-sector--radar > header,
+.world-live.ios-shell-v2 .world-sector--signals > header {
+  border-bottom-color: #2d3431;
+  background: #090b0b;
+}
+
+.world-live.ios-shell-v2 .world-sector--radar > header span,
+.world-live.ios-shell-v2 .world-sector--signals > header span {
+  color: var(--ios-muted);
+}
+
+.world-live.ios-shell-v2 .world-sector--radar > header strong,
+.world-live.ios-shell-v2 .world-sector--signals > header strong {
+  color: var(--ios-text);
+}
+
+.world-live.ios-shell-v2 .world-sector--radar > header i,
+.world-live.ios-shell-v2 .world-sector--signals > header i {
+  background: var(--ios-cyan);
+}
+
+.world-live.ios-shell-v2 .world-sector--radar small,
+.world-live.ios-shell-v2 .world-sector--signals small {
+  color: var(--ios-muted);
+}
+
+.world-live.ios-shell-v2 .world-sector--beacons {
+  grid-column: 1;
+  grid-row: 3;
+  border-bottom: 0;
+}
+
+.world-live.ios-shell-v2 .world-sector--builders {
+  grid-column: 2;
+  grid-row: 3;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.world-live.ios-shell-v2 .world-radar-grid circle,
+.world-live.ios-shell-v2 .world-radar-grid path {
+  stroke: rgba(124, 219, 232, .16);
+}
+
+.world-live.ios-shell-v2 .world-radar-core circle {
+  stroke: var(--ios-cyan);
+}
+
+.world-live.ios-shell-v2 .world-radar-core circle:first-child {
+  fill: var(--ios-cyan);
+}
+
+.world-live.ios-shell-v2 .world-radar-node circle {
+  fill: var(--ios2-display);
+}
+
+.world-live.ios-shell-v2 .world-radar-node text {
+  fill: var(--ios-text);
+}
+
+.world-live.ios-shell-v2 .world-radar-node-state {
+  fill: var(--ios-muted) !important;
+  font-size: 7px !important;
+}
+
+.world-live.ios-shell-v2 .world-radar-legend span,
+.world-live.ios-shell-v2 .world-signals time {
+  color: var(--ios-muted);
+  font-size: 7px;
+}
+
+.world-live.ios-shell-v2 .world-signals li {
+  border-top-color: var(--ios-line-soft);
+}
+
+.world-live.ios-shell-v2 .world-signals strong {
+  color: var(--ios-text);
+  font-size: 9px;
+}
+
+.world-live.ios-shell-v2 .world-signals li > span {
+  border-color: var(--ios-violet);
+  color: var(--ios-violet);
+  font-size: 7px;
+}
+
+.world-live.ios-shell-v2 .world-signals li[data-truth='observed'] > span {
+  border-color: var(--ios-cyan);
+  color: var(--ios-cyan);
+}
+
+.world-live.ios-shell-v2 .world-beacons li {
+  border-color: var(--ios2-seam);
+  background: var(--ios2-panel);
+  box-shadow: inset 3px 0 var(--ios2-orange);
+}
+
+.world-live.ios-shell-v2 .world-beacons strong,
+.world-live.ios-shell-v2 .world-builders strong,
+.world-live.ios-shell-v2 .world-empty strong {
+  color: var(--ios2-ink);
+}
+
+.world-live.ios-shell-v2 .world-beacons li > span,
+.world-live.ios-shell-v2 .world-builders span {
+  color: var(--ios2-cyan);
+  font-size: 7px;
+}
+
+.world-live.ios-shell-v2 .world-builders li {
+  border-top-color: var(--ios2-seam);
+}
+
+.world-live.ios-shell-v2 .world-builders small {
+  color: var(--ios2-muted);
+}
+
+.world-live.ios-shell-v2 .world-feed-error small,
+.world-live.ios-shell-v2 .world-feed-error strong,
+.world-live.ios-shell-v2 .world-loading--error h2,
+.world-live.ios-shell-v2 .world-loading--error p:first-of-type {
+  color: var(--ios2-red);
+}
+
+.world-live.ios-shell-v2 .world-loading {
+  min-height: 690px;
+  background: var(--ios2-chassis);
+  color: var(--ios2-ink);
+}
+
+.world-live.ios-shell-v2 .world-loading p {
+  color: var(--ios2-muted);
+}
+
+@media (max-width: 860px) {
+  .world-live.ios-shell-v2 .world-workspace {
+    display: block;
+  }
+
+  .world-live.ios-shell-v2 .world-network-pulse {
+    display: block;
+    border-bottom: 1px solid var(--ios2-seam);
+  }
+
+  .world-live.ios-shell-v2 .world-network-pulse > div {
+    min-height: 108px;
+    padding: 14px 16px;
+  }
+
+  .world-live.ios-shell-v2 .world-pulse-latest {
+    border-top: 1px solid var(--ios2-seam);
+  }
+
+  .world-live.ios-shell-v2 .world-sector {
+    min-height: 240px;
+    border-right: 0;
+  }
+
+  .world-live.ios-shell-v2 .world-sector--radar,
+  .world-live.ios-shell-v2 .world-sector--signals {
+    border-left-width: 6px;
+    border-right-width: 6px;
+  }
+
+  .world-live.ios-shell-v2 .world-sector--radar {
+    min-height: 430px;
+  }
+
+  .world-live.ios-shell-v2 .world-sector--signals {
+    min-height: 360px;
+  }
+}
