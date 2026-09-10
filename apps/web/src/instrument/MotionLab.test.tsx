@@ -38,4 +38,15 @@ describe('MotionLab', () => {
     fireEvent.click(screen.getByRole('button', { name: '600ms' }));
     expect(screen.getByRole('button', { name: 'PLAY' })).toBeInTheDocument();
   });
+
+  it('exposes local reference analysis without requiring a bundled reference asset', () => {
+    render(<MotionLab />);
+    expect(screen.getByLabelText('Reference analyzer')).toBeInTheDocument();
+    expect(screen.getByText(/file never leaves this browser session/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '−1 FRAME' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '+1 FRAME' })).toBeDisabled();
+    expect(screen.getByRole('spinbutton', { name: 'FPS' })).toHaveValue(30);
+    expect(screen.getByRole('spinbutton', { name: 'MOTION OFFSET MS' })).toHaveValue(0);
+    expect(screen.getByRole('button', { name: '0.5×' })).toHaveAttribute('aria-pressed', 'true');
+  });
 });
