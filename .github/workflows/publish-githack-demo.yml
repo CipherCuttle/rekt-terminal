@@ -1,0 +1,67 @@
+name: Publish Inkubator GitHack Demo
+
+on:
+  push:
+    branches: ['demo/inkubator-githack-v0']
+    paths-ignore:
+      - 'githack/inkubator/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: inkubator-githack-demo
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out demo branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify canonical toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = 'v24.20.0'
+          test "$(npm -v)" = '11.19.0'
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build REKT Inkubator only
+        run: npm run build:inkubator
+
+      - name: Stage GitHack bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf githack/inkubator
+          mkdir -p githack/inkubator
+          cp -a inkubator/. githack/inkubator/
+          rm -rf inkubator
+
+      - name: Publish generated demo bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f githack/inkubator
+          if git diff --cached --quiet; then
+            echo 'GitHack bundle already current.'
+            exit 0
+          fi
+          git commit -m 'chore(demo): update Inkubator GitHack bundle'
+          git push origin HEAD:${GITHUB_REF_NAME}
