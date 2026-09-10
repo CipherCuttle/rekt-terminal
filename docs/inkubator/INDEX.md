@@ -10,9 +10,11 @@
 
 **Authority lineage reconciled:** 2026-09-10
 
-**Current implementation checkpoint:** PHASE 9A integrated Instrument OS rehearsal candidate exists; design-authority reconciliation is active before further production UI mutation.
+**Technical Faceplate highest visual authority locked:** 2026-09-10
 
-**Next canonical execution:** DESIGN AUTHORITY RECONCILIATION → WORLD SEMANTIC/COMPOSITION REPAIR → PHASE 9B FOUNDING-COHORT REHEARSAL
+**Current implementation checkpoint:** PHASE 9A integrated Instrument OS rehearsal candidate exists; coherence reset is active before further production UI expansion.
+
+**Next canonical execution:** TECHNICAL FACEPLATE CONVERGENCE → FIVE-SURFACE CONTACT SHEET → WORLD DECISION → FINAL IA → DEPLOYED INTEGRATED REHEARSAL → FOUNDING-COHORT REHEARSAL
 
 ## Purpose
 
@@ -28,7 +30,9 @@ Phases 0–8 of the canonical roadmap are implemented/closed under the bounded c
 
 That is an explicit scope/authority amendment, not silent design drift.
 
-A second explicit visual authority change was locked on 2026-09-09: Instrument OS v2 reversed the material hierarchy from a near-black field terminal to a bright industrial chassis with bounded dark cathode instruments. The v2 authority branch later diverged from the productionized five-surface lineage. This index now reconciles that authority ordering before further frontend work.
+A second explicit visual authority change was locked on 2026-09-09: Instrument OS v2 reversed the material hierarchy from a near-black field terminal to a bright industrial chassis with bounded dark cathode instruments.
+
+A third explicit visual authority decision was locked on 2026-09-10 after direct comparison of the live calibration and Teenage Engineering EP-133 K.O. II faceplate reference: the broad v2 thesis remains correct, but the **specific proportions, density, typography contrast and micrographic faceplate grammar** in the approved `instrument-v2` Builder History calibration are now promoted to the highest visual execution authority.
 
 ## Authority order
 
@@ -39,13 +43,16 @@ When documents disagree, use this order:
 3. `ARCHITECTURE_CONSTITUTION_V0.md` — non-negotiable trust, build, semantic and systems-surface invariants.
 4. `REKT_SURFACE_PURPOSE_V1.md` — primary presentation ownership for SHELL / WORLD / COMMAND / PROJECT / PLAYER / SHIP and cross-surface responsibility boundaries.
 5. `REKT_SIGNAL_GRAMMAR_V1.md` — presentation constraints for truth, geometry, color, motion, unsupported states and renderer behavior.
-6. `REKT_INSTRUMENT_OS_V2.md` — **current visual/material/composition authority**: bright industrial chassis, black technical print, embedded dark cathode displays, cyan observed/live signal, sparse orange action/attention and REKT-specific line art.
-7. `REKT_INSTRUMENT_OS_V1.md` — retained software-instrument interaction/tooling ancestry only where compatible with Surface Purpose, Signal Grammar and Instrument OS v2.
-8. `REKT_SIGNAL_SYSTEM_V0.md` — retained semantic/UX ancestry for Thread, three intensity modes, accessibility and anti-gamification where not superseded by later authorities.
-9. `DEVKIT_CONTRACT_V0.md` — SDK/CLI/MCP authority, public API philosophy and anti-cheat boundaries.
-10. `CURRENT_STATE_AND_GAP_V0.md` — historical implementation-state record as of the Phase-8→9 handoff; superseded where later explicit frontend authority says otherwise.
-11. `IMPLEMENTATION_ROADMAP_MVP_V0.md` — original bounded implementation order, amended by the frontend rebuild and this reconciliation gate.
-12. `DECISION_REGISTER_V0.md` — frozen decisions and reopen criteria, including the G1–G3 surface/signal amendments.
+6. `REKT_TECHNICAL_FACEPLATE_V1.md` — **HIGHEST VISUAL AUTHORITY**: exact visual family, proportions, faceplate composition, typography scale contrast, micrographic grammar, display construction, control treatment and cross-surface convergence law.
+7. `REKT_INSTRUMENT_OS_V2.md` — inherited material/rendering authority where compatible with Technical Faceplate V1: bright industrial chassis, black technical print, embedded dark cathode displays, cyan observed/live signal, sparse orange action/attention and REKT-specific line art.
+8. `REKT_INSTRUMENT_OS_V1.md` — retained software-instrument interaction/tooling ancestry only where compatible with Surface Purpose, Signal Grammar, Technical Faceplate V1 and Instrument OS v2.
+9. `REKT_SIGNAL_SYSTEM_V0.md` — retained semantic/UX ancestry for Thread, three intensity modes, accessibility and anti-gamification where not superseded by later authorities.
+10. `DEVKIT_CONTRACT_V0.md` — SDK/CLI/MCP authority, public API philosophy and anti-cheat boundaries.
+11. `CURRENT_STATE_AND_GAP_V0.md` — historical implementation-state record as of the Phase-8→9 handoff; superseded where later explicit frontend authority says otherwise.
+12. `IMPLEMENTATION_ROADMAP_MVP_V0.md` — original bounded implementation order, amended by the frontend rebuild and coherence/faceplate convergence gates.
+13. `DECISION_REGISTER_V0.md` — frozen decisions and reopen criteria, including the G1–G3 surface/signal amendments.
+
+**“Highest visual authority” does not mean highest product truth.** Technical Faceplate V1 may never override product/domain semantics, privacy, proof boundaries, surface ownership, API truth or Signal Grammar.
 
 Phase closure receipts record evidence/status for completed phases but do not outrank the authorities above.
 
@@ -95,18 +102,54 @@ Operational surfaces are visually majority light/chassis. Dark CRT/cathode mater
 
 Generated concept images are visual reference authority only. Placeholder copy, routes, metrics, wallets, NFTs and fixture data from those concepts are not product/domain authority.
 
+## 2026-09-10 REKT Technical Faceplate visual lock
+
+### Evidence
+
+The approved `instrument-v2` Builder History calibration at commit `817a310f31f1e71640c96965448fcb7b8a561652` demonstrated the strongest coherent REKT visual language so far.
+
+The user explicitly selected its **details, micrographics and proportions** as the preferred design direction and identified the Teenage Engineering EP-133 K.O. II technical faceplate as the closer physical inspiration.
+
+### New highest visual decision
+
+The canonical internal style is **REKT TECHNICAL FACEPLATE**.
+
+Short form:
+
+> **PALE TECHNICAL FACEPLATE + BLACK PRINT + EXTREME TYPE SCALE + DENSE PURPOSEFUL MICROGRAPHICS + LOCALIZED DARK INSTRUMENT WELLS + SPARSE ORANGE CONTROL + SEMANTIC DISPLAY COLOR + SAME HARDWARE / DIFFERENT INSTRUMENT.**
+
+The system is **detailed, not decorated**.
+
+Micrographics are first-class identity primitives: indexes, rulers, hatch bands, registration marks, truth lamps, thread nodes, source sockets, count readouts, provenance rows, status strips, fasteners and compact REKT imprints.
+
+The default composition is:
+
+`CHASSIS → PRINT → INSTRUMENT WELL → CONTROL / INSPECTOR`
+
+not:
+
+`PAGE → CARD → CARD → CARD → CARD`
+
+The F1 calibration establishes master reference proportions, including the narrow rail, compact top bar, dominant instrument + optional narrow inspector, extreme human-vs-machine type contrast and asymmetric physical display bezel.
+
+EP-133 K.O. II is an external grammar reference only. Exact branded artwork, logos, control topology, labels and layouts must not be copied.
+
+See `REKT_TECHNICAL_FACEPLATE_V1.md` for the complete lock.
+
 ## 2026-09-10 lineage reconciliation
 
 The integrated five-surface rehearsal candidate at `6ab473ed010c752052ed925201611b9ced3d8248` productionized COMMAND / PROJECT / WORLD / PLAYER / SHIP and integrated their in-app switching, but its documentation ancestry omitted later sibling-branch authority files.
 
-This reconciliation restores into the integrated lineage:
+The reconciliation restored:
 
 - `REKT_INSTRUMENT_OS_V2.md`;
 - `REKT_SURFACE_PURPOSE_V1.md`;
 - `REKT_SIGNAL_GRAMMAR_V1.md`;
 - the amended `DECISION_REGISTER_V0.md` containing G1–G3.
 
-Restoring authority documents does **not** automatically certify existing runtime UI as compliant.
+Technical Faceplate V1 now sits above Instrument OS v2 for visual execution while preserving all restored truth/surface constraints.
+
+Restoring or promoting authority documents does **not** automatically certify existing runtime UI as compliant.
 
 Known runtime/design consequences:
 
@@ -119,19 +162,21 @@ Known runtime/design consequences:
 - WORLD final composition remains open among truthful temporal candidates; the semantic-free radar is superseded and must not survive as production authority.
 - BROADCAST ENTRY remains part of the frontend rebuild sequence but is not yet established as a production surface.
 
-See `DESIGN_AUTHORITY_RECONCILIATION_V0.md` for the branch/PR disposition ledger and next bounded gate.
-
 ## Current continuation checkpoint
 
 Live Git/PR facts remain volatile and must be reconciled read-only before mutation.
 
-Current reconciliation parent:
+Current authority/convergence lineage:
 
-- integrated rehearsal head: `6ab473ed010c752052ed925201611b9ced3d8248`;
-- integrated PR: #56 draft/open/unmerged;
+- design reconciliation: PR #61;
+- coherence reset: PR #64;
+- shared foundation: PR #66;
+- COMMAND exact-token convergence: PR #67;
+- Technical Faceplate V1: successor visual authority stacked on the coherence reset;
 - no merge authority has been granted;
-- Phase-9 broad hostile review remains unspent;
-- the next production UI mutation is not generic polish: it is the bounded WORLD semantic/composition repair required by Surface Purpose + Signal Grammar.
+- Phase-9 broad hostile review remains unspent.
+
+The next production UI work is **not generic polish and not another concept branch**. It is bounded Technical Faceplate convergence using the F1 reference family, followed by one desktop/mobile five-surface contact sheet before WORLD and final IA are frozen.
 
 A receiving orchestrator must hydrate from this authority set and reconcile current Git/PR facts before mutation.
 
@@ -153,9 +198,9 @@ Default bounded rule remains:
 
 `IMPLEMENT → TEST → ONE independent hostile review → fix Critical/High → ONE targeted re-review only if Critical/High fixes were needed → COMMIT → MOVE FORWARD`
 
-Medium/Low findings do not restart a phase unless they undermine the objective, invalidate evidence, violate a frozen contract/invariant, create a fail-closed/security defect, or make the launch frontend fail explicit Instrument OS kill criteria.
+Medium/Low findings do not restart a phase unless they undermine the objective, invalidate evidence, violate a frozen contract/invariant, create a fail-closed/security defect, or make the launch frontend fail explicit visual-authority kill criteria.
 
-The formal Phase-9 broad hostile review is not consumed by this documentation reconciliation.
+The formal Phase-9 broad hostile review is not consumed by this documentation/visual-authority change.
 
 ## Product shorthand
 
@@ -171,6 +216,10 @@ The visual operating model remains:
 
 `SIGNAL/INPUT → OBSERVE → INTERPRET → INSTRUMENT RESPONSE → NEXT MOVE → ACTION`
 
+The visual family model is now:
+
+`SAME HARDWARE → DIFFERENT INSTRUMENT → ONE TRUTH GRAMMAR`
+
 The amended frontend sequence is:
 
-`AUTHORITY RECONCILIATION → WORLD SEMANTIC/COMPOSITION REPAIR → INTEGRATED REHEARSAL → BROADCAST ENTRY DECISION → FOUNDING-COHORT REHEARSAL`
+`TECHNICAL FACEPLATE CONVERGENCE → FIVE-SURFACE CONTACT SHEET → WORLD DECISION → FINAL IA → DEPLOYED INTEGRATED REHEARSAL → HUMAN FOUNDING-COHORT REHEARSAL → BROAD HOSTILE REVIEW → CLOSURE`
