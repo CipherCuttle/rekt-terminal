@@ -1,0 +1,58 @@
+name: Inkubator GitHack Demo
+
+on:
+  push:
+    branches:
+      - 'demo/inkubator-world-composition-githack-v0'
+    paths:
+      - '.github/workflows/inkubator-githack-demo.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out demo source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build Inkubator static bundle
+        run: npm run build -w @rekt-ink/inkubator-lab
+
+      - name: Stage static bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f inkubator/index.html
+          mkdir -p "$RUNNER_TEMP/inkubator-githack"
+          cp -a inkubator/. "$RUNNER_TEMP/inkubator-githack/"
+          printf '%s\n' '${{ github.sha }}' > "$RUNNER_TEMP/inkubator-githack/SOURCE_SHA.txt"
+          touch "$RUNNER_TEMP/inkubator-githack/.nojekyll"
+
+      - name: Publish isolated GitHack branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch --orphan githack/inkubator-world-composition-v0
+          git rm -rf .
+          cp -a "$RUNNER_TEMP/inkubator-githack/." .
+          git add -A
+          git commit -m "demo: publish Inkubator WORLD comparison to GitHack"
+          git push --force origin HEAD:refs/heads/githack/inkubator-world-composition-v0
