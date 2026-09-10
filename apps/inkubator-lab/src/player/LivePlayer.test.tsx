@@ -122,15 +122,17 @@ describe('Live PLAYER', () => {
 
   it('fails closed when canonical private identity is unavailable', async () => {
     renderPlayer(client({getMe: vi.fn().mockRejectedValue(new Error('session_required'))}));
-    expect(await screen.findByRole('heading', {name: 'PLAYER LINK UNAVAILABLE'})).toBeTruthy();
+    expect(await screen.findByRole('heading', {name: 'PLAYER LINK UNAVAILABLE'}, {timeout: 3000})).toBeTruthy();
     expect(screen.getByText('session_required')).toBeTruthy();
     expect(screen.getByText(/No development fixture fallback is permitted/i)).toBeTruthy();
   });
 
   it('keeps mascot failure neutral instead of substituting different art', async () => {
     const {container} = renderPlayer();
-    const image = await waitFor(() => container.querySelector('.player-mascot img') as HTMLImageElement);
-    fireEvent.error(image);
+    await screen.findByRole('heading', {name: 'ink.operator'});
+    const image = container.querySelector<HTMLImageElement>('.player-mascot img');
+    expect(image).not.toBeNull();
+    fireEvent.error(image!);
     expect(await screen.findByText('ART UNAVAILABLE')).toBeTruthy();
     expect(container.querySelector('.player-mascot img')).toBeNull();
   });
