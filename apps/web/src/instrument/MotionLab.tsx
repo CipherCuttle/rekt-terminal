@@ -1,30 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { sampleInstrumentMotion, type MotionSample } from './motion';
 
 type Skin = 'neutral' | 'rekt';
 
-type MotionSample = {
-  tMs: number;
-  transport: number;
-  leftReel: number;
-  rightReel: number;
-  pulse: number;
-};
-
 const W = 320;
 const H = 150;
-const PERIOD_MS = 2400;
-
-function sampleMotion(tMs: number): MotionSample {
-  const phase = ((tMs % PERIOD_MS) + PERIOD_MS) % PERIOD_MS / PERIOD_MS;
-  const eased = phase < 0.5 ? 2 * phase * phase : 1 - Math.pow(-2 * phase + 2, 2) / 2;
-  return {
-    tMs,
-    transport: eased,
-    leftReel: phase * Math.PI * 2,
-    rightReel: -phase * Math.PI * 2,
-    pulse: 0.5 - 0.5 * Math.cos(phase * Math.PI * 2),
-  };
-}
 
 function drawNeutral(ctx: CanvasRenderingContext2D, s: MotionSample) {
   ctx.fillStyle = '#050507';
@@ -158,7 +138,7 @@ function MotionCanvas({ skin, running, timeMs }: { skin: Skin; running: boolean;
     const paint = (now: number) => {
       if (startRef.current === null) startRef.current = now;
       const t = running ? offsetRef.current + now - startRef.current : offsetRef.current;
-      const sample = sampleMotion(t);
+      const sample = sampleInstrumentMotion(t);
       if (skin === 'rekt') drawRekt(ctx, sample);
       else drawNeutral(ctx, sample);
       if (running) frame = requestAnimationFrame(paint);
