@@ -191,7 +191,7 @@
 }
 
 .ship-live .ship-signal-display[data-truth='claimed'] > header span {
-  color: var(--ios2-orange);
+  color: #d45727;
 }
 
 .ship-live .ship-signal-display[data-truth='observed'] > header span {
@@ -311,7 +311,7 @@
 }
 
 .ship-live .ship-observation > div:first-child strong {
-  color: var(--ios2-cyan);
+  color: #006e7e;
   font: 800 11px/1 var(--ship-mono);
 }
 
