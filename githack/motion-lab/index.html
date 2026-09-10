@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#f2efe9" />
+<title>REKT Inkubator — Instrument Motion Lab v0.2</title>
+<style>
+:root{--paper:#f2efe9;--ink:#121212;--screen:#050507;--muted:#706c65;--violet:#b68cff;--line:#c9c4bb}
+*{box-sizing:border-box}html,body{margin:0;background:var(--paper);color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace}body{min-height:100vh}.wrap{width:min(1180px,100%);margin:auto;padding:18px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}.kicker{font-size:11px;letter-spacing:.11em;font-weight:800}.title{font:700 clamp(28px,5vw,54px)/.95 system-ui,sans-serif;letter-spacing:-.045em;margin:5px 0}.sub{max-width:68ch;color:var(--muted);font-size:11px;line-height:1.55}.badge{border:1px solid var(--ink);padding:8px 10px;font-size:10px;white-space:nowrap}.panel{border:1px solid var(--ink);padding:13px;margin:12px 0;background:rgba(255,255,255,.15)}.panelhead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}.label{font-size:10px;letter-spacing:.09em;font-weight:800}.screen{background:var(--screen);border-radius:12px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}canvas{display:block;width:100%;aspect-ratio:320/150;image-rendering:pixelated}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.controls{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:10px}button,.filebtn,input,select{font:inherit}button,.filebtn{border:1px solid var(--ink);background:transparent;color:var(--ink);padding:8px 10px;cursor:pointer;font-size:10px;font-weight:700}button.active,button:hover,.filebtn:hover{background:var(--ink);color:var(--paper)}button:disabled{opacity:.35;cursor:not-allowed}.readout{font-size:10px;min-width:92px;text-align:center}.refstage{position:relative;aspect-ratio:320/150;max-width:960px;background:var(--screen);border-radius:12px;overflow:hidden}.refstage video,.overlay{position:absolute;inset:0;width:100%;height:100%}.refstage video{object-fit:contain}.overlay{pointer-events:none;mix-blend-mode:screen}.empty{display:grid;place-items:center;height:100%;padding:24px;color:#eee;text-align:center;font-size:10px;line-height:1.6}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:10px}.field{display:grid;gap:4px;font-size:9px;letter-spacing:.07em}.field input{width:112px;background:transparent;border:1px solid var(--ink);padding:7px}.field input[type=range]{width:150px;border:0;padding:0}.sample{display:flex;gap:12px;flex-wrap:wrap;margin-top:9px;font-size:9px}.foot{font-size:9px;color:var(--muted);line-height:1.55;margin-top:14px}.filebtn input{display:none}.markerbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.measure{font-size:9px;line-height:1.55;color:var(--muted);margin-top:8px}.measure strong{color:var(--ink)}
+@media(max-width:760px){.wrap{padding:11px}.top{flex-direction:column}.grid{grid-template-columns:1fr}.panel{padding:10px}.title{font-size:34px}.badge{align-self:flex-start}.row{align-items:stretch}.field{min-width:44%}.field input{width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div><div class="kicker">REKT // INKUBATOR · INSTRUMENT MOTION LAB V0.2</div><div class="title">Same motion.<br>Different actor.</div><div class="sub">Standalone GitHack demo. The 320×150 motion kernel is deterministic. Neutral and REKT renderers share the exact same timing and trajectory state. Current timing remains provisional until measured against OP‑1 reference footage.</div></div>
+    <div class="badge">DEMO · NO BACKEND</div>
+  </div>
+
+  <section class="panel">
+    <div class="panelhead"><div class="label">GENERATED MOTION</div><button id="play">PAUSE</button></div>
+    <div class="grid">
+      <article><div class="label" style="margin-bottom:7px">NEUTRAL GRAMMAR</div><div class="screen"><canvas id="neutral" width="320" height="150"></canvas></div></article>
+      <article><div class="label" style="margin-bottom:7px">REKT SKIN</div><div class="screen"><canvas id="rekt" width="320" height="150"></canvas></div></article>
+    </div>
+    <div class="controls" id="motionControls"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panelhead"><div><div class="label">REFERENCE ANALYZER · LOCAL ONLY</div><div id="refName" class="sub" style="margin-top:4px">NO LOCAL REFERENCE LOADED</div></div><label class="filebtn">LOAD VIDEO<input id="file" type="file" accept="video/*"></label></div>
+    <div class="refstage" id="refStage"><div id="empty" class="empty">LOAD A CROPPED OP‑1 DISPLAY CLIP FROM YOUR PHONE. THE VIDEO STAYS LOCAL TO THIS BROWSER SESSION.</div><video id="video" muted playsinline controls hidden></video><div class="overlay"><canvas id="overlay" width="320" height="150"></canvas></div></div>
+    <div class="row">
+      <div class="controls" style="margin:0"><button id="prev" disabled>−1 FRAME</button><span class="readout" id="time">0.0 ms</span><button id="next" disabled>+1 FRAME</button></div>
+      <label class="field">FPS<input id="fps" type="number" min="1" max="240" value="30"></label>
+      <label class="field">MOTION OFFSET MS<input id="offset" type="number" step="1" value="0"></label>
+      <label class="field">OVERLAY <span id="opacityLabel">55%</span><input id="opacity" type="range" min="0" max="1" step="0.05" value="0.55"></label>
+    </div>
+    <div class="controls"><button data-ref-rate="0.25">0.25×</button><button data-ref-rate="0.5" class="active">0.5×</button><button data-ref-rate="1">1×</button></div>
+    <div class="sample" id="sample"></div>
+    <div class="markerbar"><span class="label" style="align-self:center">LANDMARK</span><button data-landmark="transport" class="active">TRANSPORT</button><button data-landmark="left-spoke-tip">LEFT TIP</button><button data-landmark="right-spoke-tip">RIGHT TIP</button><button id="clearMarks">CLEAR</button></div>
+    <div class="measure" id="measure">Tap the reference stage to record an observed point. The demo compares that point to the shared neutral model in 320×150 coordinates.</div>
+  </section>
+
+  <div class="foot">This is an experimental reconstruction tool, not a claim of OP‑1 parity. No Teenage Engineering artwork or footage is bundled. REKT artwork here is original placeholder geometry for testing the motion grammar.</div>
+</div>
+<script>
+(()=>{
+const W=320,H=150,PERIOD=2400,G={y:74,left:78,right:242,reelR:22};
+let running=true,baseTime=0,started=performance.now(),rate=1,referenceTime=0,refRate=.5,selectedLandmark='transport',marks=[];
+const $=id=>document.getElementById(id), neutral=$('neutral'),rekt=$('rekt'),overlay=$('overlay');
+const ctxN=neutral.getContext('2d'),ctxR=rekt.getContext('2d'),ctxO=overlay.getContext('2d');
+function sample(t){const phase=(((t%PERIOD)+PERIOD)%PERIOD)/PERIOD;const eased=phase<.5?2*phase*phase:1-Math.pow(-2*phase+2,2)/2;return{t,phase,transport:eased,leftReel:phase*Math.PI*2,rightReel:-phase*Math.PI*2,pulse:.5-.5*Math.cos(phase*Math.PI*2)}}
+function spoke(ctx,cx,cy,r,a,tentacle=false){ctx.save();ctx.translate(cx,cy);ctx.rotate(a);if(tentacle){for(let i=0;i<4;i++){ctx.rotate(Math.PI/2);ctx.beginPath();ctx.moveTo(0,0);ctx.quadraticCurveTo(r*.55,-5,r,0);ctx.stroke()}}else{ctx.beginPath();ctx.moveTo(-r,0);ctx.lineTo(r,0);ctx.moveTo(0,-r);ctx.lineTo(0,r);ctx.stroke()}ctx.restore()}
+function squid(ctx,x,y,p){const s=1+p*.04;ctx.save();ctx.translate(x,y);ctx.scale(1/s,s);ctx.fillStyle='#f4f4ef';ctx.beginPath();ctx.ellipse(0,0,7,6,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#f4f4ef';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(-4,4);ctx.quadraticCurveTo(-8,11,-14,15);ctx.moveTo(0,5);ctx.quadraticCurveTo(0,12,2,15);ctx.moveTo(4,4);ctx.quadraticCurveTo(10,10,15,14);ctx.stroke();ctx.fillStyle='#050507';ctx.fillRect(-3,-1,1.5,1.5);ctx.fillRect(2,-1,1.5,1.5);ctx.restore()}
+function drawNeutral(ctx,s,transparent=false){ctx.clearRect(0,0,W,H);if(!transparent){ctx.fillStyle='#050507';ctx.fillRect(0,0,W,H)}ctx.strokeStyle='#f4f4ef';ctx.lineWidth=2;ctx.beginPath();ctx.arc(G.left,G.y,G.reelR,0,Math.PI*2);ctx.arc(G.right,G.y,G.reelR,0,Math.PI*2);ctx.stroke();spoke(ctx,G.left,G.y,G.reelR-5,s.leftReel);spoke(ctx,G.right,G.y,G.reelR-5,s.rightReel);ctx.beginPath();ctx.moveTo(G.left+G.reelR,G.y);ctx.lineTo(G.right-G.reelR,G.y);ctx.stroke();const x=G.left+G.reelR+s.transport*(G.right-G.left-G.reelR*2);ctx.fillStyle='#f4f4ef';ctx.fillRect(Math.round(x)-2,G.y-5,4,10)}
+function drawRekt(ctx,s){ctx.clearRect(0,0,W,H);ctx.fillStyle='#050507';ctx.fillRect(0,0,W,H);ctx.strokeStyle='#f4f4ef';ctx.lineWidth=2;ctx.beginPath();ctx.arc(G.left,G.y,G.reelR,0,Math.PI*2);ctx.arc(G.right,G.y,G.reelR,0,Math.PI*2);ctx.stroke();ctx.strokeStyle='#b68cff';spoke(ctx,G.left,G.y,G.reelR-4,s.leftReel,true);spoke(ctx,G.right,G.y,G.reelR-4,s.rightReel,true);ctx.strokeStyle='#f4f4ef';ctx.beginPath();ctx.moveTo(G.left+G.reelR,G.y);ctx.quadraticCurveTo(160,G.y+8*Math.sin(s.leftReel*2),G.right-G.reelR,G.y);ctx.stroke();const x=G.left+G.reelR+s.transport*(G.right-G.left-G.reelR*2);squid(ctx,x,G.y-17+Math.sin(s.leftReel*2)*2,s.pulse)}
+function predictor(kind,s){const span=G.right-G.left-G.reelR*2;if(kind==='transport')return{x:G.left+G.reelR+s.transport*span,y:G.y};if(kind==='left-spoke-tip')return{x:G.left+Math.cos(s.leftReel)*(G.reelR-5),y:G.y+Math.sin(s.leftReel)*(G.reelR-5)};return{x:G.right+Math.cos(s.rightReel)*(G.reelR-5),y:G.y+Math.sin(s.rightReel)*(G.reelR-5)}}
+function motionNow(now){return running?baseTime+(now-started)*rate:baseTime}
+function render(now){const s=sample(motionNow(now));drawNeutral(ctxN,s);drawRekt(ctxR,s);const rs=sample(referenceTime+(Number($('offset').value)||0));drawNeutral(ctxO,rs,true);$('sample').innerHTML=`<span>T+OFFSET ${rs.t.toFixed(1)} ms</span><span>TRANSPORT ${rs.transport.toFixed(4)}</span><span>L ${rs.leftReel.toFixed(4)} rad</span><span>R ${rs.rightReel.toFixed(4)} rad</span><span>PULSE ${rs.pulse.toFixed(4)}</span>`;requestAnimationFrame(render)}
+requestAnimationFrame(render);
+$('play').onclick=()=>{if(running){baseTime=motionNow(performance.now());running=false;$('play').textContent='PLAY'}else{started=performance.now();running=true;$('play').textContent='PAUSE'}};
+[0,300,600,1200,1800].forEach(t=>{const b=document.createElement('button');b.textContent=t+'ms';b.onclick=()=>{baseTime=t;running=false;$('play').textContent='PLAY'};$('motionControls').appendChild(b)});[.25,.5,1].forEach(r=>{const b=document.createElement('button');b.textContent='MOTION '+r+'×';b.onclick=()=>{baseTime=motionNow(performance.now());started=performance.now();rate=r};$('motionControls').appendChild(b)});
+const video=$('video');$('file').onchange=e=>{const f=e.target.files&&e.target.files[0];if(!f)return;video.src=URL.createObjectURL(f);video.hidden=false;$('empty').hidden=true;$('refName').textContent=f.name;$('prev').disabled=$('next').disabled=false;video.playbackRate=refRate};
+function sync(){referenceTime=video.currentTime*1000;$('time').textContent=referenceTime.toFixed(1)+' ms'}video.ontimeupdate=sync;video.onseeked=sync;video.onloadedmetadata=sync;
+function step(dir){video.pause();const fps=Math.max(1,Number($('fps').value)||30);const ms=Math.max(0,Math.min((isFinite(video.duration)?video.duration*1000:Infinity),referenceTime+dir*1000/fps));video.currentTime=ms/1000;referenceTime=ms;$('time').textContent=ms.toFixed(1)+' ms'}$('prev').onclick=()=>step(-1);$('next').onclick=()=>step(1);
+document.querySelectorAll('[data-ref-rate]').forEach(b=>b.onclick=()=>{refRate=Number(b.dataset.refRate);video.playbackRate=refRate;document.querySelectorAll('[data-ref-rate]').forEach(x=>x.classList.toggle('active',x===b))});
+$('opacity').oninput=e=>{$('.overlay').style.opacity=e.target.value;$('opacityLabel').textContent=Math.round(e.target.value*100)+'%'};$('.overlay').style.opacity=.55;
+document.querySelectorAll('[data-landmark]').forEach(b=>b.onclick=()=>{selectedLandmark=b.dataset.landmark;document.querySelectorAll('[data-landmark]').forEach(x=>x.classList.toggle('active',x===b))});
+$('refStage').addEventListener('click',e=>{if(video.hidden)return;const r=$('refStage').getBoundingClientRect(),x=(e.clientX-r.left)/r.width*W,y=(e.clientY-r.top)/r.height*H,t=referenceTime+(Number($('offset').value)||0),p=predictor(selectedLandmark,sample(t)),err=Math.hypot(x-p.x,y-p.y);marks.push({kind:selectedLandmark,x,y,px:p.x,py:p.y,err});const rmse=Math.sqrt(marks.reduce((a,m)=>a+m.err*m.err,0)/marks.length);$('measure').innerHTML=`<strong>${marks.length} measurement${marks.length===1?'':'s'}</strong> · latest ${selectedLandmark}: ${err.toFixed(2)} px · RMSE ${rmse.toFixed(2)} px`});$('clearMarks').onclick=()=>{marks=[];$('measure').textContent='Tap the reference stage to record an observed point. The demo compares that point to the shared neutral model in 320×150 coordinates.'};
+})();
+</script>
+</body>
+</html>
