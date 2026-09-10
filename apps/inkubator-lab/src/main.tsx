@@ -15,6 +15,7 @@ const LiveCommand = lazy(() => import('./command/LiveCommand'));
 const LiveProject = lazy(() => import('./project/LiveProject'));
 const LiveWorld = lazy(() => import('./world/LiveWorld'));
 const LivePlayer = lazy(() => import('./player/LivePlayer'));
+const LiveShip = lazy(() => import('./ship/LiveShip'));
 const params = new URLSearchParams(window.location.search);
 const lab = params.get('lab');
 const mode = params.get('mode');
@@ -43,7 +44,9 @@ createRoot(document.getElementById('root')!).render(
                 ? <QueryClientProvider client={instrumentQueryClient}><LiveWorld /></QueryClientProvider>
                 : mode === 'player'
                   ? <QueryClientProvider client={instrumentQueryClient}><LivePlayer /></QueryClientProvider>
-                  : <AppV3 />}
+                  : mode === 'ship'
+                    ? <QueryClientProvider client={instrumentQueryClient}><LiveShip /></QueryClientProvider>
+                    : <AppV3 />}
     </Suspense>
   </StrictMode>
 );

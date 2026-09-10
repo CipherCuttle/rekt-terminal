@@ -1,0 +1,803 @@
+.ship-live {
+  --ship-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+}
+
+.ship-live .ship-workspace {
+  display: grid;
+  gap: 0;
+}
+
+.ship-live .ship-printed-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 15px 20px 12px;
+  border-bottom: 1px solid var(--ios2-seam);
+}
+
+.ship-live .ship-printed-head > span,
+.ship-live .ship-printed-head > small {
+  color: var(--ios2-muted);
+  font: 700 8px/1.2 var(--ship-mono);
+  letter-spacing: .12em;
+}
+
+.ship-live .ship-printed-head h2 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: -.02em;
+}
+
+.ship-live .ship-readiness,
+.ship-live .ship-state,
+.ship-live .ship-submit {
+  border-bottom: 1px solid var(--ios2-seam);
+}
+
+.ship-live .ship-readiness-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr) minmax(240px, .9fr);
+  gap: 1px;
+  background: var(--ios2-seam);
+}
+
+.ship-live .ship-condition,
+.ship-live .ship-next,
+.ship-live .ship-gates {
+  min-width: 0;
+  margin: 0;
+  padding: 20px;
+  background: var(--ios2-panel);
+}
+
+.ship-live .ship-condition small,
+.ship-live .ship-next small,
+.ship-live .ship-gates span,
+.ship-live .ship-gates b,
+.ship-live .ship-submit label span,
+.ship-live .ship-submit-control small,
+.ship-live .ship-submit-status,
+.ship-live .ship-submit-error small,
+.ship-live .ship-submit-success small,
+.ship-live .ship-no-submission small,
+.ship-live .ship-signal-display small,
+.ship-live .ship-observation small,
+.ship-live .ship-artifact-stage small,
+.ship-live .ship-receipt > span,
+.ship-live .ship-credit small,
+.ship-live .ship-credit-summary small,
+.ship-live .ship-assists small,
+.ship-live .ship-proof-boundary small {
+  color: var(--ios2-muted);
+  font: 700 8px/1.35 var(--ship-mono);
+  letter-spacing: .1em;
+}
+
+.ship-live .ship-condition strong,
+.ship-live .ship-next strong {
+  display: block;
+  margin-top: 9px;
+  font-size: clamp(18px, 2vw, 28px);
+  line-height: 1.05;
+  letter-spacing: -.045em;
+}
+
+.ship-live .ship-condition p,
+.ship-live .ship-next span {
+  margin: 12px 0 0;
+  color: var(--ios2-muted);
+  font: 9px/1.55 var(--ship-mono);
+}
+
+.ship-live .ship-next span {
+  display: inline-block;
+  padding: 5px 7px;
+  border: 1px solid var(--ios2-edge);
+  background: var(--ios2-recessed);
+}
+
+.ship-live .ship-gates {
+  list-style: none;
+  display: grid;
+  align-content: center;
+  gap: 0;
+  padding-block: 13px;
+}
+
+.ship-live .ship-gates li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 36px;
+  border-bottom: 1px solid var(--ios2-seam);
+}
+
+.ship-live .ship-gates li:last-child {
+  border-bottom: 0;
+}
+
+.ship-live .ship-gates strong {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.ship-live .ship-gates li[data-state='proven'] b {
+  color: var(--ios2-green);
+}
+
+.ship-live .ship-gates li[data-state='observed'] b,
+.ship-live .ship-gates li[data-state='active'] b {
+  color: var(--ios2-cyan);
+}
+
+.ship-live .ship-gates li[data-state='attention'] b,
+.ship-live .ship-gates li[data-state='blocked'] b,
+.ship-live .ship-gates li[data-state='failed'] b {
+  color: var(--ios2-orange);
+}
+
+.ship-live .ship-no-submission {
+  padding: 38px 20px;
+  background: var(--ios2-recessed);
+  text-align: center;
+}
+
+.ship-live .ship-no-submission strong {
+  display: block;
+  margin-top: 8px;
+  font-size: clamp(20px, 3vw, 34px);
+  letter-spacing: -.05em;
+}
+
+.ship-live .ship-no-submission p {
+  margin: 9px 0 0;
+  color: var(--ios2-muted);
+  font: 9px/1.5 var(--ship-mono);
+}
+
+.ship-live .ship-state-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr);
+  min-height: 320px;
+}
+
+.ship-live .ship-signal-display {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  min-width: 0;
+  padding: 18px 20px 16px;
+  background: var(--ios2-display);
+  color: var(--ios2-display-text);
+}
+
+.ship-live .ship-signal-display > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid #ffffff1f;
+}
+
+.ship-live .ship-signal-display > header small {
+  color: var(--ios2-display-muted);
+  overflow-wrap: anywhere;
+}
+
+.ship-live .ship-signal-display > header span {
+  font: 800 9px/1 var(--ship-mono);
+  letter-spacing: .1em;
+}
+
+.ship-live .ship-signal-display[data-truth='claimed'] > header span {
+  color: #d45727;
+}
+
+.ship-live .ship-signal-display[data-truth='observed'] > header span {
+  color: #55d4e7;
+}
+
+.ship-live .ship-signal-display[data-truth='attention'] > header span {
+  color: #ff9a64;
+}
+
+.ship-live .ship-signal-display[data-truth='proven'] > header span {
+  color: #acd568;
+}
+
+.ship-live .ship-signal-core {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  padding: 28px 0;
+}
+
+.ship-live .ship-signal-core > i {
+  width: 58px;
+  height: 58px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 8px #010203, inset 0 0 0 9px currentColor;
+}
+
+.ship-live .ship-signal-display[data-truth='claimed'] .ship-signal-core > i {
+  color: var(--ios2-orange);
+}
+
+.ship-live .ship-signal-display[data-truth='observed'] .ship-signal-core > i {
+  color: #55d4e7;
+}
+
+.ship-live .ship-signal-display[data-truth='attention'] .ship-signal-core > i {
+  color: #ff9a64;
+}
+
+.ship-live .ship-signal-display[data-truth='proven'] .ship-signal-core > i {
+  color: #acd568;
+}
+
+.ship-live .ship-signal-core strong {
+  display: block;
+  font: 800 clamp(32px, 6vw, 72px)/.88 Arial, Helvetica, sans-serif;
+  letter-spacing: -.075em;
+}
+
+.ship-live .ship-signal-core p {
+  max-width: 580px;
+  margin: 12px 0 0;
+  color: var(--ios2-display-muted);
+  font: 10px/1.55 var(--ship-mono);
+}
+
+.ship-live .ship-signal-display dl,
+.ship-live .ship-observation dl,
+.ship-live .ship-receipt-meta {
+  margin: 0;
+}
+
+.ship-live .ship-signal-display dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid #ffffff1f;
+}
+
+.ship-live .ship-signal-display dl > div {
+  min-width: 0;
+  padding: 12px 10px 9px 0;
+}
+
+.ship-live .ship-signal-display dt,
+.ship-live .ship-observation dt,
+.ship-live .ship-receipt-meta dt {
+  color: var(--ios2-display-muted);
+  font: 700 7px/1.3 var(--ship-mono);
+  letter-spacing: .09em;
+}
+
+.ship-live .ship-signal-display dd,
+.ship-live .ship-observation dd {
+  margin: 5px 0 0;
+  font: 9px/1.4 var(--ship-mono);
+  overflow-wrap: anywhere;
+}
+
+.ship-live .ship-signal-display > a,
+.ship-live .ship-artifact-stage > a {
+  justify-self: start;
+  margin-top: 14px;
+  color: inherit;
+  font: 800 9px/1 var(--ship-mono);
+  letter-spacing: .06em;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+.ship-live .ship-observation {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  padding: 20px;
+  border-left: 1px solid var(--ios2-seam);
+  background: var(--ios2-recessed);
+}
+
+.ship-live .ship-observation > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ship-live .ship-observation > div:first-child strong {
+  color: #006e7e;
+  font: 800 11px/1 var(--ship-mono);
+}
+
+.ship-live .ship-observation[data-outcome='failed'] > div:first-child strong,
+.ship-live .ship-observation[data-outcome='unavailable'] > div:first-child strong {
+  color: var(--ios2-orange);
+}
+
+.ship-live .ship-observation dl {
+  display: grid;
+  gap: 10px;
+}
+
+.ship-live .ship-observation dl > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 9px;
+}
+
+.ship-live .ship-observation dt {
+  color: var(--ios2-muted);
+}
+
+.ship-live .ship-observation time,
+.ship-live .ship-observation p {
+  color: var(--ios2-muted);
+  font: 8px/1.5 var(--ship-mono);
+  overflow-wrap: anywhere;
+}
+
+.ship-live .ship-observation p {
+  margin: 0;
+}
+
+.ship-live .ship-proof-boundary {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 13px 20px;
+  border-top: 1px solid var(--ios2-seam);
+  background: var(--ios2-recessed);
+}
+
+.ship-live .ship-proof-boundary strong {
+  font-size: 11px;
+}
+
+.ship-live .ship-proof-boundary p {
+  margin: 0;
+  color: var(--ios2-muted);
+  font: 8px/1.4 var(--ship-mono);
+}
+
+.ship-live .ship-accepted {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, .85fr);
+  min-height: 560px;
+  border-top: 1px solid var(--ios2-seam);
+}
+
+.ship-live .ship-artifact-stage {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 18px;
+  min-width: 0;
+  padding: clamp(32px, 7vw, 90px);
+  background: var(--ios2-display);
+  color: var(--ios2-display-text);
+}
+
+.ship-live .ship-artifact-stage small {
+  color: #acd568;
+}
+
+.ship-live .ship-artifact-stage strong {
+  max-width: 760px;
+  font-size: clamp(48px, 8vw, 112px);
+  line-height: .82;
+  letter-spacing: -.08em;
+  overflow-wrap: anywhere;
+}
+
+.ship-live .ship-receipt {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+  padding: 26px;
+  background: var(--ios2-panel);
+}
+
+.ship-live .ship-proof-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+  color: var(--ios2-green);
+  font: 800 10px/1 var(--ship-mono);
+  letter-spacing: .1em;
+}
+
+.ship-live .ship-proof-mark i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.ship-live .ship-receipt h2 {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 56px);
+  line-height: .94;
+  letter-spacing: -.06em;
+}
+
+.ship-live .ship-receipt > p {
+  max-width: 640px;
+  margin: 0;
+  color: var(--ios2-muted);
+  font: 10px/1.6 var(--ship-mono);
+}
+
+.ship-live .ship-receipt-meta {
+  display: grid;
+  gap: 1px;
+  background: var(--ios2-seam);
+  border: 1px solid var(--ios2-seam);
+}
+
+.ship-live .ship-receipt-meta > div {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--ios2-chassis);
+}
+
+.ship-live .ship-receipt-meta dt {
+  color: var(--ios2-muted);
+}
+
+.ship-live .ship-receipt-meta dd {
+  min-width: 0;
+  margin: 0;
+  font: 9px/1.4 var(--ship-mono);
+  overflow-wrap: anywhere;
+}
+
+.ship-live .ship-credit {
+  border: 1px solid var(--ios2-seam);
+}
+
+.ship-live .ship-credit > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ios2-seam);
+}
+
+.ship-live .ship-credit > header b {
+  font: 800 8px/1 var(--ship-mono);
+}
+
+.ship-live .ship-credit ul,
+.ship-live .ship-assists {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ship-live .ship-credit li {
+  display: grid;
+  grid-template-columns: 52px minmax(0, .7fr) minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ios2-seam);
+}
+
+.ship-live .ship-credit li:last-child {
+  border-bottom: 0;
+}
+
+.ship-live .ship-credit li span,
+.ship-live .ship-credit li code,
+.ship-live .ship-assists code {
+  color: var(--ios2-muted);
+  font: 8px/1.35 var(--ship-mono);
+  overflow-wrap: anywhere;
+}
+
+.ship-live .ship-credit li strong,
+.ship-live .ship-assists strong {
+  font-size: 10px;
+}
+
+.ship-live .ship-credit-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--ios2-seam);
+}
+
+.ship-live .ship-credit-summary > div {
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--ios2-recessed);
+}
+
+.ship-live .ship-credit-summary strong {
+  display: block;
+  margin-top: 4px;
+  font: 800 10px/1.2 var(--ship-mono);
+  overflow-wrap: anywhere;
+}
+
+.ship-live .ship-assists {
+  display: grid;
+  gap: 1px;
+  background: var(--ios2-seam);
+}
+
+.ship-live .ship-assists li {
+  display: grid;
+  grid-template-columns: 90px minmax(0, .7fr) minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--ios2-chassis);
+}
+
+.ship-live .ship-submit form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--ios2-seam);
+}
+
+.ship-live .ship-submit label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 15px 20px;
+  background: var(--ios2-panel);
+}
+
+.ship-live .ship-submit input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 11px;
+  border: 1px solid var(--ios2-edge);
+  border-radius: 2px;
+  background: var(--ios2-chassis);
+  color: var(--ios2-ink);
+  font: 10px/1.3 var(--ship-mono);
+  outline: none;
+}
+
+.ship-live .ship-submit input:focus {
+  border-color: var(--ios2-cyan);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ios2-cyan) 18%, transparent);
+}
+
+.ship-live .ship-submit input[aria-invalid='true'] {
+  border-color: var(--ios2-orange);
+}
+
+.ship-live .ship-submit-control {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 20px;
+  background: var(--ios2-recessed);
+}
+
+.ship-live .ship-submit-control code {
+  display: block;
+  margin-top: 5px;
+  color: var(--ios2-ink);
+  font: 8px/1.35 var(--ship-mono);
+  overflow-wrap: anywhere;
+}
+
+.ship-live .ship-submit-control p {
+  margin: 5px 0 0;
+  color: var(--ios2-muted);
+  font: 8px/1.45 var(--ship-mono);
+}
+
+.ship-live .ship-submit-control button {
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid var(--ios2-ink);
+  border-radius: 2px;
+  background: var(--ios2-ink);
+  color: var(--ios2-chassis);
+  font: 800 9px/1 var(--ship-mono);
+  letter-spacing: .06em;
+  cursor: pointer;
+}
+
+.ship-live .ship-submit-control button:disabled {
+  border-color: var(--ios2-edge);
+  background: var(--ios2-edge);
+  color: var(--ios2-muted);
+  cursor: not-allowed;
+}
+
+.ship-live .ship-submit-status,
+.ship-live .ship-submit-error,
+.ship-live .ship-submit-success {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 20px;
+  background: var(--ios2-recessed);
+}
+
+.ship-live .ship-submit-status[data-ready='true'] {
+  color: var(--ios2-green);
+}
+
+.ship-live .ship-submit-error {
+  display: grid;
+  gap: 4px;
+  border-top: 2px solid var(--ios2-orange);
+}
+
+.ship-live .ship-submit-error strong,
+.ship-live .ship-submit-success strong {
+  font: 800 10px/1.3 var(--ship-mono);
+  overflow-wrap: anywhere;
+}
+
+.ship-live .ship-submit-error p,
+.ship-live .ship-submit-success p {
+  margin: 0;
+  color: var(--ios2-muted);
+  font: 8px/1.45 var(--ship-mono);
+}
+
+.ship-live .ship-submit-success {
+  display: grid;
+  gap: 4px;
+  border-top: 2px solid var(--ios2-cyan);
+}
+
+.ship-live .ship-loading {
+  display: grid;
+  place-items: center;
+  min-height: 480px;
+  padding: 30px;
+  text-align: center;
+}
+
+.ship-live .ship-loading small,
+.ship-live .ship-loading p {
+  color: var(--ios2-muted);
+  font: 8px/1.5 var(--ship-mono);
+  letter-spacing: .08em;
+}
+
+.ship-live .ship-loading h2 {
+  margin: 9px 0;
+  font-size: clamp(24px, 5vw, 54px);
+  letter-spacing: -.06em;
+}
+
+.ship-live .ship-loading--error h2 {
+  color: var(--ios2-orange);
+}
+
+@media (max-width: 1040px) {
+  .ship-live .ship-readiness-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ship-live .ship-gates {
+    grid-column: 1 / -1;
+  }
+
+  .ship-live .ship-state-grid,
+  .ship-live .ship-accepted {
+    grid-template-columns: 1fr;
+  }
+
+  .ship-live .ship-observation {
+    border-top: 1px solid var(--ios2-seam);
+    border-left: 0;
+  }
+
+  .ship-live .ship-artifact-stage {
+    min-height: 360px;
+  }
+}
+
+@media (max-width: 700px) {
+  .ship-live .ship-printed-head {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding-inline: 14px;
+  }
+
+  .ship-live .ship-printed-head > small {
+    grid-column: 2;
+  }
+
+  .ship-live .ship-readiness-grid,
+  .ship-live .ship-submit form {
+    grid-template-columns: 1fr;
+  }
+
+  .ship-live .ship-gates,
+  .ship-live .ship-submit-control,
+  .ship-live .ship-submit-status,
+  .ship-live .ship-submit-error,
+  .ship-live .ship-submit-success {
+    grid-column: auto;
+  }
+
+  .ship-live .ship-condition,
+  .ship-live .ship-next,
+  .ship-live .ship-gates,
+  .ship-live .ship-submit label,
+  .ship-live .ship-submit-control,
+  .ship-live .ship-observation,
+  .ship-live .ship-receipt {
+    padding-inline: 14px;
+  }
+
+  .ship-live .ship-submit-control {
+    grid-template-columns: 1fr;
+  }
+
+  .ship-live .ship-submit-control button {
+    width: 100%;
+  }
+
+  .ship-live .ship-signal-display {
+    padding-inline: 14px;
+  }
+
+  .ship-live .ship-signal-core {
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .ship-live .ship-signal-core > i {
+    width: 36px;
+    height: 36px;
+    box-shadow: inset 0 0 0 5px #010203, inset 0 0 0 6px currentColor;
+  }
+
+  .ship-live .ship-signal-display dl {
+    grid-template-columns: 1fr;
+  }
+
+  .ship-live .ship-proof-boundary {
+    grid-template-columns: 1fr;
+    padding-inline: 14px;
+  }
+
+  .ship-live .ship-artifact-stage {
+    min-height: 290px;
+    padding: 36px 18px;
+  }
+
+  .ship-live .ship-artifact-stage strong {
+    font-size: clamp(42px, 17vw, 78px);
+  }
+
+  .ship-live .ship-receipt-meta > div {
+    grid-template-columns: 1fr;
+  }
+
+  .ship-live .ship-credit li,
+  .ship-live .ship-assists li {
+    grid-template-columns: 1fr;
+  }
+
+  .ship-live .ship-credit-summary {
+    grid-template-columns: 1fr;
+  }
+}

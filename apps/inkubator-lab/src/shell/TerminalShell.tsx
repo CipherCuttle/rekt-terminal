@@ -53,13 +53,13 @@ export function TerminalShell({
   eventSequence,
 }: TerminalShellProps) {
   const enabled = new Set(enabledModes);
-  const shellVariant = mode === 'SHIP' ? 'legacy' : 'v2';
+  const shellVariant = 'v2';
 
   return (
     <main
       ref={rootRef}
       role={role}
-      className={`ios-lab ios-shell ${shellVariant === 'v2' ? 'ios-shell-v2' : ''} ${className}`.trim()}
+      className={`ios-lab ios-shell ios-shell-v2 ${className}`.trim()}
       data-shell="terminal"
       data-shell-variant={shellVariant}
       data-mode={mode.toLowerCase()}
