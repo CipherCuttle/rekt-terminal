@@ -51,6 +51,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git switch --orphan githack/inkubator-world-composition-v0
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf -- {} +
           cp -a "$RUNNER_TEMP/inkubator-githack/." .
           git add -A
           git commit -m "demo: publish Inkubator WORLD comparison to GitHack"
