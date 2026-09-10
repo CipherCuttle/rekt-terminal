@@ -94,7 +94,7 @@ test('LIVE SHIP records a SHIP_READY owner submission then renders only server-p
   await expect(page.getByRole('button', {name: 'SUBMIT FOR VERIFICATION'})).toBeEnabled();
   await page.getByRole('button', {name: 'SUBMIT FOR VERIFICATION'}).click();
 
-  await expect(page.getByText('SUBMISSION-NEW')).toBeVisible();
+  await expect(page.getByText('SUBMISSION-NEW').first()).toBeVisible();
   await expect(page.getByText('SUBMITTED', {exact: true}).first()).toBeVisible();
   await expect(page.getByText('NO ACCEPTED SHIP RECEIPT YET')).toBeVisible();
   expect(submittedBody?.title).toBe('REKT MACHINE');
@@ -136,7 +136,7 @@ test('LIVE SHIP renders the immutable PROVEN receipt as the dominant mobile arti
   await expect(page.getByText('RECEIPT-E2E')).toBeVisible();
   await expect(page.getByText('OBS-E2E')).toBeVisible();
   await expect(page.getByText('REVIEW-E2E')).toBeVisible();
-  await expect(page.getByText('CipherCuttle')).toBeVisible();
+  await expect(page.getByText('CipherCuttle').first()).toBeVisible();
   await expect(page.getByText('Helper')).toBeVisible();
   await expect(page.getByText('Tester')).toBeVisible();
   await expect(page.locator('[data-truth="proven"]')).not.toHaveCount(0);
