@@ -27,7 +27,8 @@
 .motion-lab-note,
 .motion-lab-reference-name,
 .motion-lab-readout,
-.motion-lab-sample {
+.motion-lab-sample,
+.motion-lab-measurements {
   font-family: 'JetBrains Mono', monospace;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -79,9 +80,15 @@
   border-radius: 12px;
 }
 
+.motion-lab-reference-stage.is-capturing {
+  cursor: crosshair;
+  box-shadow: 0 0 0 2px #111;
+}
+
 .motion-lab-reference-stage video,
 .motion-lab-reference-overlay,
-.motion-lab-reference-overlay .motion-lab-canvas {
+.motion-lab-reference-overlay .motion-lab-canvas,
+.motion-lab-landmarks {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -92,13 +99,50 @@
   object-fit: contain;
 }
 
-.motion-lab-reference-overlay {
+.motion-lab-reference-overlay,
+.motion-lab-landmarks {
   pointer-events: none;
+}
+
+.motion-lab-reference-overlay {
   mix-blend-mode: screen;
 }
 
 .motion-lab-reference-overlay .motion-lab-canvas {
   border-radius: 0;
+}
+
+.motion-lab-landmark {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  transform: translate(-50%, -50%);
+}
+
+.motion-lab-landmark-reference {
+  border: 2px solid #f4f4ef;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #050507;
+}
+
+.motion-lab-landmark-predicted::before,
+.motion-lab-landmark-predicted::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 13px;
+  height: 2px;
+  background: #b68cff;
+  transform-origin: center;
+}
+
+.motion-lab-landmark-predicted::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.motion-lab-landmark-predicted::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .motion-lab-reference-empty {
@@ -124,8 +168,9 @@
   letter-spacing: 0.06em;
 }
 
-.motion-lab-analysis-controls input[type='number'] {
-  width: 110px;
+.motion-lab-analysis-controls input[type='number'],
+.motion-lab-analysis-controls select {
+  width: 150px;
   border: 1px solid #111;
   background: transparent;
   padding: 7px 8px;
@@ -140,6 +185,23 @@
   min-width: 96px;
   font-size: 10px;
   text-align: center;
+}
+
+.motion-lab-measurements {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 9px;
+}
+
+.motion-lab-measurements li {
+  display: grid;
+  grid-template-columns: 88px minmax(130px, 1fr) repeat(3, minmax(110px, auto));
+  gap: 8px;
+  padding: 6px 8px;
+  border-top: 1px solid rgb(17 17 17 / 0.18);
 }
 
 .motion-lab-sample {
@@ -219,5 +281,9 @@
 
   .motion-lab-file {
     justify-content: space-between;
+  }
+
+  .motion-lab-measurements li {
+    grid-template-columns: 1fr 1fr;
   }
 }
