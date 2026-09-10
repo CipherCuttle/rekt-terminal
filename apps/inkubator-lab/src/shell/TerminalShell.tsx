@@ -1,6 +1,7 @@
 import type {AriaRole, ReactNode, Ref} from 'react';
 import '../instrument-os/instrument-os.css';
 import './terminal-shell.css';
+import './terminal-shell-v2.css';
 
 export const INSTRUMENT_MODES = ['WORLD', 'COMMAND', 'PROJECT', 'PLAYER', 'SHIP'] as const;
 export type InstrumentMode = (typeof INSTRUMENT_MODES)[number];
@@ -52,13 +53,15 @@ export function TerminalShell({
   eventSequence,
 }: TerminalShellProps) {
   const enabled = new Set(enabledModes);
+  const shellVariant = mode === 'COMMAND' || mode === 'PROJECT' ? 'v2' : 'legacy';
 
   return (
     <main
       ref={rootRef}
       role={role}
-      className={`ios-lab ios-shell ${className}`.trim()}
+      className={`ios-lab ios-shell ${shellVariant === 'v2' ? 'ios-shell-v2' : ''} ${className}`.trim()}
       data-shell="terminal"
+      data-shell-variant={shellVariant}
       data-mode={mode.toLowerCase()}
       data-motion={motion}
       data-motion-policy={motionPolicy}
@@ -106,7 +109,7 @@ export function TerminalShell({
               </button>
             );
           })}
-          <span className="ios-rail-tail">OS/01</span>
+          <span className="ios-rail-tail">OS/02</span>
         </nav>
 
         <section className={`ios-shell-workspace ${workspaceClassName}`.trim()} aria-label={`${mode} workspace`}>
