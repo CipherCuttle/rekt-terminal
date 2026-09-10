@@ -1,0 +1,38 @@
+.command-live .command-source-endpoint > span[data-truth='unknown'] {
+  color: var(--command-display-muted);
+}
+
+.command-live .command-source-endpoint > span[data-truth='active'] {
+  color: var(--command-violet);
+}
+
+.command-live .command-source-endpoint > span[data-truth='observed'] {
+  color: var(--command-cyan);
+}
+
+.command-live .command-source-endpoint > span[data-truth='stale'] {
+  color: var(--command-amber);
+}
+
+.command-live .command-source-endpoint > span[data-truth='failed'] {
+  color: var(--command-red);
+}
+
+.command-live .command-thread-gate[data-truth='claimed'] .command-thread-node {
+  border-color: var(--command-violet);
+}
+
+.command-live .command-thread-gate[data-truth='claimed'] b,
+.command-live .command-thread-gate[data-truth='claimed'] small {
+  color: var(--command-violet);
+}
+
+.command-live .command-thread-gate[data-truth='active'] .command-thread-node {
+  border-color: var(--command-cyan);
+}
+
+.command-live .command-thread-gate[data-truth='observed'] .command-thread-node {
+  border-color: var(--command-cyan);
+  background: var(--command-cyan);
+  box-shadow: 0 0 0 4px #7cdbe812;
+}
