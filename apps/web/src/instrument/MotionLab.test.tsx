@@ -1,10 +1,15 @@
+// @vitest-environment jsdom
+
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MotionLab } from './MotionLab';
 
 describe('MotionLab', () => {
-  it('renders neutral and REKT scenes from one shared motion surface', () => {
-    const getContext = HTMLCanvasElement.prototype.getContext;
+  const originalGetContext = HTMLCanvasElement.prototype.getContext;
+
+  beforeEach(() => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
     Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
       configurable: true,
       value: vi.fn(() => ({
@@ -15,17 +20,22 @@ describe('MotionLab', () => {
         fill: vi.fn(), scale: vi.fn(),
       })),
     });
+  });
 
+  afterEach(() => {
+    Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+      configurable: true,
+      value: originalGetContext,
+    });
+    vi.unstubAllGlobals();
+  });
+
+  it('renders neutral and REKT scenes from one shared motion surface', () => {
     render(<MotionLab />);
     expect(screen.getByLabelText('neutral motion scene')).toBeInTheDocument();
     expect(screen.getByLabelText('rekt motion scene')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '600ms' }));
     expect(screen.getByRole('button', { name: 'PLAY' })).toBeInTheDocument();
-
-    Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
-      configurable: true,
-      value: getContext,
-    });
   });
 });
