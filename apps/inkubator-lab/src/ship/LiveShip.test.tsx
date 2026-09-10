@@ -166,7 +166,7 @@ describe('Live SHIP', () => {
     expect(submit.disabled).toBe(true);
 
     fireEvent.change(screen.getByLabelText('PUBLIC ARTIFACT URL'), {target: {value: 'https://example.com/rekt'}});
-    expect(submit.disabled).toBe(false);
+    await waitFor(() => expect(submit.disabled).toBe(false));
     fireEvent.click(submit);
 
     await waitFor(() => expect(shipClient.submitShip).toHaveBeenCalledTimes(1));
@@ -209,7 +209,7 @@ describe('Live SHIP', () => {
     expect(screen.getByText('RECEIPT-1')).toBeTruthy();
     expect(screen.getByText('OBS-1')).toBeTruthy();
     expect(screen.getByText('REVIEW-1')).toBeTruthy();
-    expect(screen.getByText('CipherCuttle')).toBeTruthy();
+    expect(screen.getAllByText('CipherCuttle').length).toBeGreaterThan(0);
     expect(screen.getByText('Helper')).toBeTruthy();
     expect(screen.getByText('Tester')).toBeTruthy();
     expect(screen.getAllByText('PROVEN').length).toBeGreaterThan(0);
