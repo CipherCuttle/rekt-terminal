@@ -6,6 +6,8 @@
 
 This register prevents previously settled questions from silently reopening every session. It does not stop evidence-driven changes; it requires changes to be explicit.
 
+**2026-09-08 surface/signal amendment:** [Surface Purpose V1](REKT_SURFACE_PURPOSE_V1.md) freezes primary presentation ownership; [Signal Grammar V1](REKT_SIGNAL_GRAMMAR_V1.md) constrains actual generated projections. These govern conflicting earlier surface, color, geometry, motion and renderer guidance, including historical guidance in the Current State/Gap map. Backend/domain invariants are unchanged. G1–G3 below record the controlled changes; no production UI build resumes through this amendment.
+
 ## Product decisions
 
 | Decision | Status | Reopen only if |
@@ -55,8 +57,8 @@ This register prevents previously settled questions from silently reopening ever
 | --- | --- |
 | Shared visual grammar is `FRAME / SIGNAL / THREAD / PORTRAIT / EVENT / ARTIFACT` | **LOCKED v0** |
 | Three modes: BROADCAST / COCKPIT / ARTIFACT | **LOCKED v0** |
-| Thread is the cross-product "röd tråd" | **LOCKED v0** |
-| Acid green is scarce and semantic (proof/current/actionable) | **LOCKED** |
+| Thread is the cross-product "röd tråd": durable causal/temporal continuity, not a mandatory literal rail | **LOCKED / G3 CLARIFICATION** |
+| ACID GREEN = PROVEN ONLY; earlier proof/current/actionable overload superseded | **LOCKED / G2** |
 | V3 remains visual ancestry; do not generic-dashboard rewrite it | **LOCKED** |
 | React Bits/Three effects have named atmospheric jobs only | **LOCKED** |
 | Game language sits on top of familiar web interaction behavior | **LOCKED** |
@@ -190,3 +192,34 @@ To change a locked decision, add/update a canonical document and state:
 6. whether old behavior remains supported.
 
 Do not reopen settled decisions because a new library, agent or design reference makes another approach look fashionable.
+
+## Surface purpose + signal grammar amendments — 2026-09-08
+
+Author-supplied decisions from the completed research/red-team process, reconciled against the generated client and runtime at approved PROJECT head 063eface55a75dda773647ece5df97eda847ed99. The documentation branch starts from that head; later WORLD descendants are evidence only.
+
+### G1 — WORLD RADAR SUPERSESSION
+
+- PRIOR: Instrument OS V1 designated Radar a canonical WORLD primitive and network-radar direction.
+- EVIDENCE: current WorldSignalView and public discovery contracts contain no canonical spatial/graph relationship data. Candidate d781bf21c1ebcb438a5b083a8f496114118bdd80 used arbitrary/hash-derived project geometry; technical checks passed but visual review rejected the implied spatial relations.
+- NEW: semantic-free radar is prohibited for production WORLD. WORLD uses temporal/event semantics until a future canonical relationship projection justifies spatial geometry. Decorative structure remains allowed when it does not masquerade as information.
+- BASELINE GAP: the approved repository still contains legacy LiveWorld hash-positioned radar geometry and continuous sweep behavior. This is noncompliant legacy implementation evidence, not a permitted production exception; removal or hard-blocking requires a later authorized source pass.
+- IMPACT: frontend purpose/visual authority only; no backend invariant, public contract or truth ceiling changes. The rejected visual behavior is not supported production direction; existing source is untouched in this docs pass.
+- OPEN: WORLD final topology remains unresolved pending A/B/C: PURE SIGNAL TAPE; NOW / DISPATCH + SIGNAL TAPE; RECEIVER / EXPRESSIVE ARRIVAL + SIGNAL TAPE. All share a truthful temporal backbone; no Signal Tape composition is frozen as winner.
+- EXPERIMENT BOUNDARY: f6a87546e3e6588db812744797a6e795d9672a58 is the isolated synthetic physics comparison, not production authority. Real collision physics showed no clear added value; Matter production inclusion is not justified.
+
+### G2 — ACID GREEN
+
+- PRIOR: proof/current/actionable shared acid green in the visual register and Signal System V0.
+- PROBLEM: epistemic proof and ordinary interaction/current state shared one color.
+- NEW: ACID GREEN = PROVEN ONLY. Current/actionable state uses hierarchy, locus, typography, geometry, focus/affordance and glyphs, without borrowing proof-green.
+- BASELINE GAP: legacy visible surfaces may still use acid green for buttons, active state or ambient accents. Those uses are noncompliant with G2 and remain an implementation sweep item; this docs amendment does not silently grandfather them.
+- IMPACT: visual semantic sweep required as future implementation work; no source/token changes here. Backend proof mechanisms remain unchanged. Earlier green-for-current/actionable behavior is superseded, not an allowed compatibility mode.
+
+### G3 — THREAD CLARIFICATION
+
+- PRIOR: Thread is the cross-product "röd tråd"; rail examples and ThreadRail primitives suggested a literal rendering.
+- EVIDENCE: the locked register defines continuity without requiring a horizontal rail; surface continuity includes mission gates, project causes, public time, builder history and Ship lineage.
+- CLARIFICATION: THREAD = durable causal/temporal continuity. A literal horizontal rail is not required; a truthful rail remains one valid rendering.
+- IMPACT: no backend invariant or contract change. Preserve Thread semantics and compatible material identity; do not force a common topology across surfaces.
+
+The approved PROJECT head remains frozen. PLAYER/SHIP navigation prominence is OPEN and their builds are not authorized. The WORLD composition experiment is authorized as the next bounded comparison, not implemented here. This amendment does not invoke or resume the formal Phase-9 broad hostile review.
