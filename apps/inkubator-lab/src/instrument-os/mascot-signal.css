@@ -1,0 +1,72 @@
+.rektMascotSignal{
+  position:relative;
+  width:min(100%,420px);
+  aspect-ratio:1;
+  display:grid;
+  place-items:center;
+  isolation:isolate;
+}
+
+.rektMascotCanvas{
+  position:relative;
+  width:76%;
+  aspect-ratio:1;
+  transition:transform 90ms steps(1,end);
+  z-index:2;
+}
+
+.rektMascotBase{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  image-rendering:pixelated;
+  user-select:none;
+  pointer-events:none;
+}
+
+.rektMascotOverlay{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  overflow:visible;
+  pointer-events:none;
+}
+
+.rektMascotEyeMask{fill:#000;stroke:none}
+.rektMascotEyes{color:#fff;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:square;stroke-linejoin:miter}
+.rektMascotEyes .fill{fill:currentColor;stroke:none}
+
+.rektMascotFx{
+  color:#7ef4ff;
+  fill:currentColor;
+  stroke:currentColor;
+  stroke-width:1.35;
+  stroke-linecap:square;
+  stroke-linejoin:miter;
+  font:700 7px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  letter-spacing:.02em;
+}
+.rektMascotFx--sleep{color:#f0edf8}
+.rektMascotFx--sleep text:nth-child(2){font-size:6px;opacity:.86}
+.rektMascotFx--sleep text:nth-child(3){font-size:5px;opacity:.68}
+.rektMascotFx--question{fill:#ffad63;stroke:none;font-size:9px}
+.rektMascotFx--anger{color:#ff806e;fill:none;stroke-width:1.7}
+.rektMascotFx--spark{color:#7ef4ff;fill:none;stroke-width:1.5}
+.rektMascotFx--spark .accent{color:#ffad63;stroke:currentColor}
+
+.rektMascotPeripheral{
+  position:absolute;
+  inset:8%;
+  width:84%;
+  height:84%;
+  z-index:1;
+  opacity:.82;
+  pointer-events:none;
+}
+
+@media (prefers-reduced-motion:reduce){
+  .rektMascotCanvas{transition:none}
+}
