@@ -120,6 +120,7 @@
 .ios-shell-v2 .ios-shell-mode-rail button {
   min-height: 64px;
   border-top-color: var(--ios2-seam);
+  background: var(--ios2-chassis);
   color: var(--ios2-muted);
   font-family: Arial, Helvetica, sans-serif;
 }
