@@ -24,7 +24,7 @@ LAZY:{label:'ABSOLUTELY NOT VOLUNTEERING',play:'LOOP',ms:860,frames:[[0,2,'half'
 BORED:{label:"WAITING FOR THIS TO BECOME SOMEONE ELSE'S PROBLEM",play:'LOOP',ms:680,frames:[[0,1,'sideLeft','none'],[0,1,'grump','none'],[0,1,'sideRight','none'],[0,1,'half','ellipsis']]},
 WORK:{label:"FINE. I'LL DO THE TASK.",play:'LOOP',ms:470,frames:[[0,0,'grump','question'],[0,1,'focus','task'],[0,1,'sideLeft','task'],[0,0,'grump','ellipsis']]},
 GRUMPY:{label:'MUTTERING ABOUT MANAGEMENT',play:'ONCE',ms:220,frames:[[0,0,'grump','none'],[-1,0,'squint','grumble'],[1,0,'grump','sigh'],[0,0,'half','ellipsis']]},
-RELUCTANT_WIN:{label:'YEAH YEAH. IT WORKED. CAN I GO NOW?',play:'ONCE',ms:300,frames:[[0,0,'focus','task'],[0,0,'grump','none'],[0,1,'half','sigh'],[0,2,'grump','ellipsis']]}
+RELUCTANT_ACK:{label:'YEAH YEAH. I SAW IT. CAN I GO NOW?',play:'ONCE',ms:300,frames:[[0,0,'focus','task'],[0,0,'grump','none'],[0,1,'half','sigh'],[0,2,'grump','ellipsis']]}
 };
 const effects=['NONE','SOURCE_RX','VERIFYING','MISSION_BLOCKED','HELP_BEACON','SHIP_PROVEN','RECEIPT'];
 let state='LAZY',effect='NONE',stateFrame=0,stateTimer=null,fxToken=0;
