@@ -18,6 +18,7 @@ describe('TerminalShell', () => {
     );
 
     expect(screen.getByRole('main').getAttribute('data-shell')).toBe('terminal');
+    expect(screen.getByRole('main').getAttribute('data-shell-variant')).toBe('v2');
     expect(screen.getByRole('navigation', {name: 'Instrument mode'})).toBeTruthy();
     for (const mode of ['WORLD', 'COMMAND', 'PROJECT', 'PLAYER', 'SHIP']) {
       const button = screen.getByRole('button', {name: new RegExp(mode)});
@@ -44,5 +45,15 @@ describe('TerminalShell', () => {
     fireEvent.click(screen.getByRole('button', {name: /PROJECT/}));
     expect(onModeSelect).toHaveBeenCalledWith('PROJECT');
     expect((screen.getByRole('button', {name: /WORLD/}) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('keeps unmigrated modes on the legacy shell until they are explicitly productionized', () => {
+    render(
+      <TerminalShell mode="WORLD" kicker="REKT" title="WORLD">
+        <p>world payload</p>
+      </TerminalShell>,
+    );
+
+    expect(screen.getByRole('main').getAttribute('data-shell-variant')).toBe('legacy');
   });
 });
