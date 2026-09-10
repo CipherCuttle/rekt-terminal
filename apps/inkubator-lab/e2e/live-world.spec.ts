@@ -62,7 +62,7 @@ test('LIVE WORLD renders the v2 public pulse/radar and animates only a newly obs
   await expect(page.getByRole('region', {name: 'Public network pulse'})).toBeVisible();
   await expect(page.getByText('1 OPEN HELP BEACON')).toBeVisible();
   await expect(page.getByRole('img', {name: 'Public Inkubator project and signal radar'})).toBeVisible();
-  await expect(page.getByText('Need an external tester.')).toBeVisible();
+  await expect(page.getByText('Need an external tester.')).toHaveCount(2);
   await expect(page.getByText('EXTERNAL TEST RECORDED')).toHaveCount(2);
   await expect(page.locator('[data-truth="proven"]')).toHaveCount(0);
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-event-sequence', '0');
@@ -91,7 +91,7 @@ test('LIVE WORLD keeps available public projects visible when other feeds fail o
   await page.goto('/?mode=world');
   await expect(page.getByRole('heading', {name: 'UNDERGROUND BUILD NETWORK'})).toBeVisible();
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
-  await expect(page.getByText('Need an external tester.')).toBeVisible();
+  await expect(page.getByText('Need an external tester.')).toHaveCount(2);
   await expect(page.getByText('PLAYER FEED UNAVAILABLE')).toBeVisible({timeout: 6000});
   await expect(page.getByText('SIGNAL FEED UNAVAILABLE')).toBeVisible();
   await expect(page.locator('.world-radar')).toHaveAttribute('data-motion-policy', 'reduced');
