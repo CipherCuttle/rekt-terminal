@@ -12,6 +12,7 @@ import './command/live-command-v2-semantics.css';
 const AppV3 = lazy(() => import('./AppV3'));
 const SignalSystemLab = lazy(() => import('./signal-system/GoldenScreens'));
 const InstrumentLab = lazy(() => import('./instrument-os/InstrumentLab'));
+const PeripheralMotionLab = lazy(() => import('./instrument-os/PeripheralMotionLab'));
 const LiveInstrument = lazy(() => import('./LiveInstrument'));
 const params = new URLSearchParams(window.location.search);
 const lab = params.get('lab');
@@ -31,11 +32,13 @@ createRoot(document.getElementById('root')!).render(
     <Suspense fallback={<div role="status">Loading REKT…</div>}>
       {lab === 'instrument'
         ? <InstrumentLab />
-        : lab === 'signals'
-          ? <SignalSystemLab />
-          : liveMode
-            ? <QueryClientProvider client={instrumentQueryClient}><LiveInstrument initialMode={liveMode} /></QueryClientProvider>
-            : <AppV3 />}
+        : lab === 'peripheral'
+          ? <PeripheralMotionLab />
+          : lab === 'signals'
+            ? <SignalSystemLab />
+            : liveMode
+              ? <QueryClientProvider client={instrumentQueryClient}><LiveInstrument initialMode={liveMode} /></QueryClientProvider>
+              : <AppV3 />}
     </Suspense>
   </StrictMode>
 );

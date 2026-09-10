@@ -1,0 +1,44 @@
+.rektPeripheralSignal {
+  width: 160px;
+  height: 96px;
+  display: block;
+  overflow: visible;
+  color: var(--text-primary, #f2eff8);
+}
+
+.rektPeripheralLayer {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
+
+.rektPeripheralLayer .is-fill {
+  fill: currentColor;
+  stroke: none;
+}
+
+.rektPeripheralLayer[data-tone='ink'] { color: var(--text-primary, #f2eff8); }
+.rektPeripheralLayer[data-tone='context'] { color: var(--signal-context, #9a72ff); }
+.rektPeripheralLayer[data-tone='observed'] { color: var(--signal-observed, #73dfff); }
+.rektPeripheralLayer[data-tone='attention'] { color: var(--signal-attention, #ffb45f); }
+.rektPeripheralLayer[data-tone='blocked'] { color: var(--signal-blocked, #ff806e); }
+.rektPeripheralLayer[data-tone='proven'] { color: var(--signal-proven, #9aff67); }
+.rektPeripheralLayer[data-tone='stale'] { color: var(--signal-stale, #8e8898); }
+
+.rektPeripheralDebug {
+  color: #ff4fa3;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 0.6;
+  opacity: 0.45;
+}
+
+.rektPeripheralTrack {
+  fill: none;
+  stroke: #ff4fa3;
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  opacity: 0.8;
+}
