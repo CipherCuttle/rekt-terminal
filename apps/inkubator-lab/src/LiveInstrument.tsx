@@ -7,16 +7,16 @@ const LiveWorld = lazy(() => import('./world/LiveWorld'));
 const LivePlayer = lazy(() => import('./player/LivePlayer'));
 const LiveShip = lazy(() => import('./ship/LiveShip'));
 
-const SURFACES: Record<InstrumentMode, typeof LiveCommand> = {
-  WORLD: LiveWorld,
-  COMMAND: LiveCommand,
-  PROJECT: LiveProject,
-  PLAYER: LivePlayer,
-  SHIP: LiveShip,
-};
-
 function modeFromLocation(fallback: InstrumentMode) {
   return parseInstrumentMode(new URLSearchParams(window.location.search).get('mode')) ?? fallback;
+}
+
+function Surface({mode}: {mode: InstrumentMode}) {
+  if (mode === 'WORLD') return <LiveWorld />;
+  if (mode === 'PROJECT') return <LiveProject />;
+  if (mode === 'PLAYER') return <LivePlayer />;
+  if (mode === 'SHIP') return <LiveShip />;
+  return <LiveCommand />;
 }
 
 export default function LiveInstrument({initialMode}: {initialMode: InstrumentMode}) {
@@ -40,10 +40,9 @@ export default function LiveInstrument({initialMode}: {initialMode: InstrumentMo
     },
   }), [mode]);
 
-  const Surface = SURFACES[mode];
   return (
     <InstrumentNavigationProvider value={navigation}>
-      <Surface />
+      <Surface mode={mode} />
     </InstrumentNavigationProvider>
   );
 }
