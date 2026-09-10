@@ -117,7 +117,7 @@ test('LIVE SHIP keeps verifier PASS at OBSERVED without minting a receipt', asyn
   await expect(page.getByText('artifact_reachable')).toBeVisible();
   await expect(page.getByText('NO ACCEPTED SHIP RECEIPT YET')).toBeVisible();
   await expect(page.getByText(/Observation alone is not proof/i)).toBeVisible();
-  await expect(page.getByText('IMMUTABLE RECEIPT')).toHaveCount(0);
+  await expect(page.locator('.ship-receipt')).toHaveCount(0);
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });
 
