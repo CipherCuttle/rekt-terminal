@@ -26,12 +26,16 @@ function Surface({mode}: {mode: InstrumentMode}) {
 }
 
 function IdentityGate({mode, children}: {mode: InstrumentMode; children: ReactNode}) {
+  const requiresIdentity = mode !== 'WORLD';
   const sessionQuery = useQuery({
     queryKey: ['inkubator', 'session', 'me'],
     queryFn: () => authClient.getMe(),
     retry: false,
     staleTime: 30_000,
+    enabled: requiresIdentity,
   });
+
+  if (!requiresIdentity) return <>{children}</>;
 
   if (sessionQuery.isPending) {
     return (
