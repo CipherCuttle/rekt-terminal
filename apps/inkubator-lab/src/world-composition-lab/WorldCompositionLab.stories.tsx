@@ -5,6 +5,7 @@ const meta = {
   title: 'REKT World Composition Lab',
   component: WorldCompositionLab,
   parameters: {layout: 'fullscreen'},
+  globals: {a11y: {manual: true}},
 } satisfies Meta<typeof WorldCompositionLab>;
 
 export default meta;
