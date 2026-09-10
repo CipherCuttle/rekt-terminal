@@ -19,13 +19,17 @@ function useReducedMotion() {
   return reduced;
 }
 
+/**
+ * Every awake pose keeps the creator-logo's inward/downward grumpy bias.
+ * There are deliberately no round, sparkling, smiling, or wide kawaii eyes.
+ */
 function Eyes({pose}: {pose: MascotEyePose}) {
-  if (pose === 'closed') return <><path d="M42 42.4h6"/><path d="M52 42.4h6"/></>;
-  if (pose === 'half') return <><path d="M42 41.8l6 .7"/><path d="M52 42.5l6-.7"/></>;
-  if (pose === 'left') return <><path d="M41.5 40.5l6.5 2.7-2.8 1.2-3.7-1.4z" className="fill"/><path d="M51.5 42.1l6.5-1.6-1.1 2.5-4.3 1.4z" className="fill"/></>;
-  if (pose === 'right') return <><path d="M42 42.1l6.5-1.6-1 2.5-4.4 1.4z" className="fill"/><path d="M52 40.5l6.5 2.7-2.8 1.2-3.7-1.4z" className="fill"/></>;
-  if (pose === 'angry') return <><path d="M41.5 40.2l7 3.1-2.3 1.4-4.7-2.2z" className="fill"/><path d="M51.5 43.3l7-3.1v2.3l-4.7 2.2z" className="fill"/></>;
-  if (pose === 'wide') return <><rect x="42" y="40.3" width="6" height="4" rx="1" className="fill"/><rect x="52" y="40.3" width="6" height="4" rx="1" className="fill"/></>;
+  if (pose === 'closed') return <><path d="M42 42.5h6"/><path d="M52 42.5h6"/></>;
+  if (pose === 'half') return <><path d="M42 41.5l6 1.4"/><path d="M52 42.9l6-1.4"/></>;
+  if (pose === 'sideLeft') return <><path d="M41.5 40.7l6.5 2.8-2.6 1.1-3.9-1.7z" className="fill"/><path d="M51.7 42.1l6.1-1.5-1 2.4-4.2 1.3z" className="fill"/></>;
+  if (pose === 'sideRight') return <><path d="M42.2 42.1l6.1-1.5-1 2.4-4.2 1.3z" className="fill"/><path d="M51.5 40.7l6.5 2.8-2.6 1.1-3.9-1.7z" className="fill"/></>;
+  if (pose === 'squint') return <><path d="M42 41.3l6.2 2.1-2.3 1-3.9-1.3z" className="fill"/><path d="M51.8 43.4l6.2-2.1v1.8l-3.9 1.3z" className="fill"/></>;
+  if (pose === 'grump') return <><path d="M41.5 40.2l7 3.1-2.3 1.4-4.7-2.2z" className="fill"/><path d="M51.5 43.3l7-3.1v2.3l-4.7 2.2z" className="fill"/></>;
   return <><path d="M42 40.6l6 2.7-2.4 1.2-3.6-1.7z" className="fill"/><path d="M52 43.3l6-2.7v2.2l-3.6 1.7z" className="fill"/></>;
 }
 
@@ -38,15 +42,19 @@ function PersonalityFx({effect}: {effect: MascotEffect}) {
       {effect.length >= 3 ? <text x="75" y="21">Z</text> : null}
     </g>;
   }
-  if (effect === 'ellipsis') return <g className="rektMascotFx"><circle cx="70" cy="34" r="1"/><circle cx="75" cy="34" r="1"/><circle cx="80" cy="34" r="1"/></g>;
+  if (effect === 'ellipsis') return <g className="rektMascotFx rektMascotFx--muted"><circle cx="70" cy="34" r="1"/><circle cx="75" cy="34" r="1"/><circle cx="80" cy="34" r="1"/></g>;
   if (effect === 'question') return <text className="rektMascotFx rektMascotFx--question" x="72" y="29">?</text>;
-  if (effect === 'anger') return <g className="rektMascotFx rektMascotFx--anger"><path d="M65 31l4-4M65 27l4 4M72 28l4-5M73 32l5-2"/></g>;
-  return <g className="rektMascotFx rektMascotFx--spark"><path d="M27 31v8M23 35h8M71 24v10M66 29h10"/><path className="accent" d="M77 39v6M74 42h6M30 48v5M27.5 50.5h5"/></g>;
+  if (effect === 'sigh') return <g className="rektMascotFx rektMascotFx--sigh"><path d="M66 33q4-3 8 0q4 3 8 0"/><path d="M72 38q3-2 6 0"/></g>;
+  if (effect === 'grumble') return <g className="rektMascotFx rektMascotFx--grumble"><path d="M67 27l3 2 3-3 3 2 3-3"/><path d="M72 33l2 1 2-2 2 1"/></g>;
+  return <g className="rektMascotFx rektMascotFx--task">
+    <rect x="61" y="58" width="20" height="11" rx="1"/>
+    <path d="M64 61h10M64 64h7M77 61h1M77 64h1"/>
+  </g>;
 }
 
 export type MascotSignalProps = {
   state: RektMascotState;
-  /** Stable event id used to replay ONCE states such as ANGRY and EXCITED. */
+  /** Stable event id used to replay finite personality reactions. */
   eventId?: string;
   /** Independent system-truth side effect. Never inferred from mascot mood. */
   peripheralCue?: PeripheralCueKind;
@@ -87,7 +95,14 @@ export function MascotSignal({state, eventId, peripheralCue, peripheralEventId, 
   const pose = definition.frames[frame];
 
   return (
-    <div className={`rektMascotSignal ${className}`} data-mascot-state={state} data-frame={frame + 1} data-playback={definition.playback}>
+    <div
+      className={`rektMascotSignal ${className}`}
+      data-mascot-state={state}
+      data-frame={frame + 1}
+      data-playback={definition.playback}
+      data-mascot-contract="v0.2-grumpy"
+      data-personality-role="metaphor"
+    >
       <div className="rektMascotCanvas" style={{transform: `translate(${pose.x}px, ${pose.y}px)`}}>
         <img className="rektMascotBase" src="/assets/rekt-mascot.png" alt="" aria-hidden="true" draggable={false}/>
         <svg className="rektMascotOverlay" viewBox="0 0 100 100" role="presentation" aria-hidden="true" shapeRendering="crispEdges">
