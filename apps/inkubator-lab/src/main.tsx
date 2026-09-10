@@ -14,6 +14,7 @@ const InstrumentLab = lazy(() => import('./instrument-os/InstrumentLab'));
 const LiveCommand = lazy(() => import('./command/LiveCommand'));
 const LiveProject = lazy(() => import('./project/LiveProject'));
 const LiveWorld = lazy(() => import('./world/LiveWorld'));
+const LivePlayer = lazy(() => import('./player/LivePlayer'));
 const params = new URLSearchParams(window.location.search);
 const lab = params.get('lab');
 const mode = params.get('mode');
@@ -40,7 +41,9 @@ createRoot(document.getElementById('root')!).render(
               ? <QueryClientProvider client={instrumentQueryClient}><LiveProject /></QueryClientProvider>
               : mode === 'world'
                 ? <QueryClientProvider client={instrumentQueryClient}><LiveWorld /></QueryClientProvider>
-                : <AppV3 />}
+                : mode === 'player'
+                  ? <QueryClientProvider client={instrumentQueryClient}><LivePlayer /></QueryClientProvider>
+                  : <AppV3 />}
     </Suspense>
   </StrictMode>
 );
