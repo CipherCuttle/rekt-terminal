@@ -67,9 +67,10 @@ export function PeripheralSignal({cue, eventId, className = '', debug = false}: 
       return;
     }
 
+    if (!currentKey) return;
     const previous = previousKey.current;
+    if (previous === currentKey) return;
     previousKey.current = currentKey;
-    if (!currentKey || previous === currentKey) return;
 
     timers.current.forEach(timer => window.clearTimeout(timer));
     timers.current = [];
