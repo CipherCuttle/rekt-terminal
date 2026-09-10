@@ -7,9 +7,9 @@ describe('REKT mascot motion contract', () => {
     expect(REKT_MASCOT_MOTIONS.every((definition) => definition.frames.length === 4)).toBe(true);
   });
 
-  it('ships the first personality slice', () => {
+  it('freezes the first grumpy-degen personality slice', () => {
     expect(REKT_MASCOT_MOTIONS.map((definition) => definition.state)).toEqual([
-      'SLEEP', 'LAZY', 'BORED', 'WORK', 'ANGRY', 'EXCITED',
+      'SLEEP', 'LAZY', 'BORED', 'WORK', 'GRUMPY', 'RELUCTANT_WIN',
     ]);
   });
 
@@ -18,10 +18,26 @@ describe('REKT mascot motion contract', () => {
     expect(Math.max(...drift)).toBeLessThanOrEqual(3);
   });
 
-  it('keeps reactive moods finite while idle moods may loop', () => {
-    expect(REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'ANGRY')?.playback).toBe('ONCE');
-    expect(REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'EXCITED')?.playback).toBe('ONCE');
+  it('has no angry, excited, wide-eyed, or sparkle vocabulary', () => {
+    const serialized = JSON.stringify(REKT_MASCOT_MOTIONS).toLowerCase();
+    expect(serialized).not.toContain('angry');
+    expect(serialized).not.toContain('excited');
+    expect(serialized).not.toContain('wide');
+    expect(serialized).not.toContain('spark');
+  });
+
+  it('keeps grumpy reactions finite while lazy states may loop', () => {
+    expect(REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'GRUMPY')?.playback).toBe('ONCE');
+    expect(REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'RELUCTANT_WIN')?.playback).toBe('ONCE');
     expect(REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'SLEEP')?.playback).toBe('PING_PONG');
     expect(REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'LAZY')?.playback).toBe('LOOP');
+  });
+
+  it('keeps work annoyed rather than celebratory', () => {
+    const work = REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'WORK');
+    const win = REKT_MASCOT_MOTIONS.find((definition) => definition.state === 'RELUCTANT_WIN');
+    expect(work?.frames.some((frame) => frame.eye === 'grump')).toBe(true);
+    expect(win?.frames.some((frame) => frame.eye === 'grump')).toBe(true);
+    expect(win?.frames.some((frame) => frame.effect === 'sigh')).toBe(true);
   });
 });
