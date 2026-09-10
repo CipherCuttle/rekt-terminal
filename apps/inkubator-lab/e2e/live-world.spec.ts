@@ -50,7 +50,7 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
 }
 
-test('LIVE WORLD renders the public radar and animates only a newly observed feed signal', async ({page}) => {
+test('LIVE WORLD renders the v2 public pulse/radar and animates only a newly observed feed signal', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
   let currentSignals = initialSignals;
   await routeWorld(page, () => currentSignals);
@@ -58,9 +58,12 @@ test('LIVE WORLD renders the public radar and animates only a newly observed fee
   await page.goto('/?mode=world');
   await expect(page.getByRole('heading', {name: 'UNDERGROUND BUILD NETWORK'})).toBeVisible();
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-mode', 'world');
+  await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
+  await expect(page.getByRole('region', {name: 'Public network pulse'})).toBeVisible();
+  await expect(page.getByText('1 OPEN HELP BEACON')).toBeVisible();
   await expect(page.getByRole('img', {name: 'Public Inkubator project and signal radar'})).toBeVisible();
-  await expect(page.getByText('Need an external tester.')).toBeVisible();
-  await expect(page.getByText('EXTERNAL TEST RECORDED')).toBeVisible();
+  await expect(page.getByText('Need an external tester.')).toHaveCount(2);
+  await expect(page.getByText('EXTERNAL TEST RECORDED')).toHaveCount(2);
   await expect(page.locator('[data-truth="proven"]')).toHaveCount(0);
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-event-sequence', '0');
 
@@ -68,7 +71,7 @@ test('LIVE WORLD renders the public radar and animates only a newly observed fee
     {schema_version: 'world.signal.public.v1', signal_id: 'SIG-W-3', kind: 'ASSIST_ACCEPTED', project_id: 'P-W-1', project_name: 'WEIRD LITTLE THING', truth_state: 'OBSERVED', occurred_at: '2026-09-08T13:20:00Z'},
     ...initialSignals,
   ];
-  await expect(page.getByText('ASSIST ACCEPTED')).toBeVisible({timeout: 6000});
+  await expect(page.getByText('ASSIST ACCEPTED')).toHaveCount(2, {timeout: 6000});
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-event-sequence', '1');
   await expect(page.locator('[data-signal-id="SIG-W-3"]')).toHaveCount(2);
   await expectNoHorizontalOverflow(page);
@@ -87,7 +90,8 @@ test('LIVE WORLD keeps available public projects visible when other feeds fail o
 
   await page.goto('/?mode=world');
   await expect(page.getByRole('heading', {name: 'UNDERGROUND BUILD NETWORK'})).toBeVisible();
-  await expect(page.getByText('Need an external tester.')).toBeVisible();
+  await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
+  await expect(page.getByText('Need an external tester.')).toHaveCount(2);
   await expect(page.getByText('PLAYER FEED UNAVAILABLE')).toBeVisible({timeout: 6000});
   await expect(page.getByText('SIGNAL FEED UNAVAILABLE')).toBeVisible();
   await expect(page.locator('.world-radar')).toHaveAttribute('data-motion-policy', 'reduced');

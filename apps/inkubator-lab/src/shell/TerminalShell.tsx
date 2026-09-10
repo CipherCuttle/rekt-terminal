@@ -53,7 +53,7 @@ export function TerminalShell({
   eventSequence,
 }: TerminalShellProps) {
   const enabled = new Set(enabledModes);
-  const shellVariant = mode === 'COMMAND' || mode === 'PROJECT' ? 'v2' : 'legacy';
+  const shellVariant = mode === 'WORLD' || mode === 'COMMAND' || mode === 'PROJECT' ? 'v2' : 'legacy';
 
   return (
     <main

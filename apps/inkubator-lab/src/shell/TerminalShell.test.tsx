@@ -47,10 +47,18 @@ describe('TerminalShell', () => {
     expect((screen.getByRole('button', {name: /WORLD/}) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('keeps unmigrated modes on the legacy shell until they are explicitly productionized', () => {
-    render(
+  it('keeps WORLD on v2 while unmigrated PLAYER remains legacy', () => {
+    const {rerender} = render(
       <TerminalShell mode="WORLD" kicker="REKT" title="WORLD">
         <p>world payload</p>
+      </TerminalShell>,
+    );
+
+    expect(screen.getByRole('main').getAttribute('data-shell-variant')).toBe('v2');
+
+    rerender(
+      <TerminalShell mode="PLAYER" kicker="REKT" title="PLAYER">
+        <p>player payload</p>
       </TerminalShell>,
     );
 
