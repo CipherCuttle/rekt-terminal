@@ -1,4 +1,4 @@
-export type RektMascotState = 'SLEEP' | 'LAZY' | 'BORED' | 'WORK' | 'GRUMPY' | 'RELUCTANT_WIN';
+export type RektMascotState = 'SLEEP' | 'LAZY' | 'BORED' | 'WORK' | 'GRUMPY' | 'RELUCTANT_ACK';
 export type MascotPlayback = 'LOOP' | 'PING_PONG' | 'ONCE';
 export type MascotEyePose = 'closed' | 'half' | 'sideLeft' | 'sideRight' | 'focus' | 'squint' | 'grump';
 export type MascotEffect = 'none' | 'z' | 'zz' | 'zzz' | 'ellipsis' | 'question' | 'sigh' | 'grumble' | 'task';
@@ -58,7 +58,7 @@ export const REKT_MASCOT_MOTIONS: readonly MascotMotionDefinition[] = [
     frames: [F(0, 0, 'grump'), F(-1, 0, 'squint', 'grumble'), F(1, 0, 'grump', 'sigh'), F(0, 0, 'half', 'ellipsis')],
   },
   {
-    state: 'RELUCTANT_WIN', label: 'YEAH YEAH. IT WORKED. CAN I GO NOW?', playback: 'ONCE', frameMs: 300,
+    state: 'RELUCTANT_ACK', label: 'YEAH YEAH. I SAW IT. CAN I GO NOW?', playback: 'ONCE', frameMs: 300,
     frames: [F(0, 0, 'focus', 'task'), F(0, 0, 'grump'), F(0, 1, 'half', 'sigh'), F(0, 2, 'grump', 'ellipsis')],
   },
 ] as const;
