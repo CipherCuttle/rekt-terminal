@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_REFERENCE_FPS, MOTION_PERIOD_MS, sampleInstrumentMotion, stepReferenceTimeMs } from './motion';
+import {
+  DEFAULT_REFERENCE_FPS,
+  MOTION_PERIOD_MS,
+  TAPE_GEOMETRY,
+  predictMotionLandmark,
+  sampleInstrumentMotion,
+  stepReferenceTimeMs,
+} from './motion';
 
 describe('sampleInstrumentMotion', () => {
   it('is deterministic and periodic', () => {
@@ -21,6 +28,22 @@ describe('sampleInstrumentMotion', () => {
       expect(sample.pulse).toBeGreaterThanOrEqual(0);
       expect(sample.pulse).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('predictMotionLandmark', () => {
+  it('uses the same frozen geometry as the neutral renderer', () => {
+    const zero = sampleInstrumentMotion(0);
+    expect(predictMotionLandmark(zero, 'left-reel-center')).toEqual({ x: TAPE_GEOMETRY.leftReelX, y: TAPE_GEOMETRY.y });
+    expect(predictMotionLandmark(zero, 'right-reel-center')).toEqual({ x: TAPE_GEOMETRY.rightReelX, y: TAPE_GEOMETRY.y });
+    expect(predictMotionLandmark(zero, 'left-spoke-tip')).toEqual({ x: TAPE_GEOMETRY.leftReelX + TAPE_GEOMETRY.spokeRadius, y: TAPE_GEOMETRY.y });
+  });
+
+  it('puts the transport landmark at the tape midpoint halfway through the provisional cycle', () => {
+    const halfway = sampleInstrumentMotion(MOTION_PERIOD_MS / 2);
+    const point = predictMotionLandmark(halfway, 'transport');
+    expect(point.x).toBeCloseTo((TAPE_GEOMETRY.leftReelX + TAPE_GEOMETRY.rightReelX) / 2, 8);
+    expect(point.y).toBe(TAPE_GEOMETRY.y);
   });
 });
 
