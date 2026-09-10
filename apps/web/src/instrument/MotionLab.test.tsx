@@ -49,4 +49,14 @@ describe('MotionLab', () => {
     expect(screen.getByRole('spinbutton', { name: 'MOTION OFFSET MS' })).toHaveValue(0);
     expect(screen.getByRole('button', { name: '0.5×' })).toHaveAttribute('aria-pressed', 'true');
   });
+
+  it('keeps landmark measurement inert until a local reference is supplied', () => {
+    render(<MotionLab />);
+    expect(screen.getByRole('combobox', { name: 'LANDMARK' })).toHaveValue('transport');
+    expect(screen.getByRole('button', { name: 'MARK OFF' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'CLEAR MARKS' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'EXPORT JSON' })).toBeDisabled();
+    expect(screen.getByText('RMSE —')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Recent landmark measurements')).not.toBeInTheDocument();
+  });
 });
