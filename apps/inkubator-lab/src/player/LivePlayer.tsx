@@ -180,7 +180,7 @@ function EarnedEvidence({reputation, error}: {reputation?: PlayerReputationView;
 }
 
 function Cheevo({cheevo}: {cheevo: CheevoView}) {
-  return <li><span className="player-cheevo-mark" aria-hidden="true">✳</span><div><small>CHEEVO / {cheevo.rule_version}</small><strong>{cheevo.label}</strong><p>{cheevo.description}</p><code>{cheevo.evidence.map((item) => `${item.source_type}:${item.source_id}`).join(' · ')}</code></div><TruthLabel truth="PROVEN" /></li>;
+  return <li><span className="player-cheevo-mark" aria-hidden="true">✳</span><div><small>CHEEVO / {cheevo.rule_version}</small><strong>{cheevo.label}</strong><p>{cheevo.description}</p><code>{cheevo.evidence.source_type}:{cheevo.evidence.source_id}</code></div><TruthLabel truth="PROVEN" /></li>;
 }
 
 function PlayerProjection({me, profile, profileError, history, historyError, reputation, reputationError}: {
