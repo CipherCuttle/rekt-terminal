@@ -49,21 +49,22 @@
   font:700 7px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   letter-spacing:.02em;
 }
-.rektMascotFx--sleep{color:#f0edf8}
+.rektMascotFx--sleep{color:#f0edf8;fill:currentColor;stroke:none}
 .rektMascotFx--sleep text:nth-child(2){font-size:6px;opacity:.86}
 .rektMascotFx--sleep text:nth-child(3){font-size:5px;opacity:.68}
+.rektMascotFx--muted{color:#bcb7c4}
 .rektMascotFx--question{fill:#ffad63;stroke:none;font-size:9px}
-.rektMascotFx--anger{color:#ff806e;fill:none;stroke-width:1.7}
-.rektMascotFx--spark{color:#7ef4ff;fill:none;stroke-width:1.5}
-.rektMascotFx--spark .accent{color:#ffad63;stroke:currentColor}
+.rektMascotFx--sigh{color:#bcb7c4;fill:none;stroke-width:1.15}
+.rektMascotFx--grumble{color:#ffad63;fill:none;stroke-width:1.35}
+.rektMascotFx--task{color:#f0edf8;fill:none;stroke-width:1.05}
 
 .rektMascotPeripheral{
   position:absolute;
   inset:8%;
   width:84%;
   height:84%;
-  z-index:1;
-  opacity:.82;
+  z-index:3;
+  opacity:.92;
   pointer-events:none;
 }
 
