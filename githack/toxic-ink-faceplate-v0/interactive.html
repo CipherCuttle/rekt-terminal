@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>REKT Inkubator — Interactive SHIP calibration</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#e5e6e7}
+#stage{display:block;width:100%;height:100%;border:0;background:#e5e6e7}
+#boot{position:fixed;inset:0;display:grid;place-items:center;background:#e5e6e7;color:#0b0b0d;font:10px/1.5 ui-monospace,monospace;letter-spacing:.12em;z-index:3}
+#boot i{width:6px;height:6px;background:#ff1493;display:inline-block;margin-right:9px}
+</style>
+</head>
+<body>
+<div id="boot"><span><i></i>REKT // SHIP INTERACTION CALIBRATION</span></div>
+<iframe id="stage" title="REKT Inkubator interactive SHIP calibration"></iframe>
+<script>
+(()=>{
+  const SOURCE='https://raw.githack.com/CipherCuttle/rekt-terminal/a8edf7dc6356fbf3258f6aacac0246562e56f651/githack/toxic-ink-faceplate-v0/index.html?mode=ship';
+  const outer=document.getElementById('stage');
+  const boot=document.getElementById('boot');
+  outer.src=SOURCE;
+
+  const records=[
+    {
+      key:'submitted', truth:'claimed', truthLabel:'CLAIMED', title:'Artifact submitted',
+      body:'The artifact URL and player claim entered the SHIP instrument. Submission is a claim, not an observation.',
+      rows:[['ARTIFACT','fixture:artifact-01'],['SOURCE','PUBLIC URL / PROVIDED'],['ACCEPTANCE','NOT RECORDED'],['RECEIPT','NONE']],
+      boundary:'SUBMISSION / NOT OBSERVATION / NOT PROVEN', cue:'SHIP_SUBMITTED'
+    },
+    {
+      key:'observed', truth:'observed', truthLabel:'OBSERVED', title:'Verifier observation recorded',
+      body:'The verifier returned PASS and the supported observation was recorded. PASS alone does not mint PROVEN.',
+      rows:[['VERIFIER','PASS / observation'],['OBSERVATION','SUPPORTED'],['ACCEPTANCE','NOT RECORDED'],['RECEIPT','NONE']],
+      boundary:'VERIFIER PASS = OBSERVED EVIDENCE / NOT PROVEN', cue:'VERIFY_PASS'
+    },
+    {
+      key:'accepted', truth:'observed', truthLabel:'OBSERVED', title:'Acceptance recorded',
+      body:'The review rule accepted the observed evidence. Acceptance is recorded here without borrowing the green proof state.',
+      rows:[['VERIFIER','PASS / observation'],['REVIEW RULE','SATISFIED'],['ACCEPTANCE','RECORDED'],['RECEIPT','PENDING']],
+      boundary:'ACCEPTANCE RECORD / PROOF PROJECTION PENDING', cue:null
+    },
+    {
+      key:'proven', truth:'proven', truthLabel:'PROVEN', title:'Accepted receipt',
+      body:'The calibration scenario includes accepted proof semantics and an issued receipt. Only this state receives green.',
+      rows:[['VERIFIER','PASS / observation'],['ACCEPTANCE','RECORDED'],['RECEIPT','fixture:receipt-01'],['TRUTH','PROVEN']],
+      boundary:'FIXTURE PROOF CHAIN / NOT LIVE PRODUCT DATA', cue:'SHIP_PROVEN'
+    }
+  ];
+
+  function escapeHtml(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+  function patch(){
+    let shell;
+    try{shell=outer.contentDocument||outer.contentWindow.document}catch(e){return false}
+    if(!shell)return false;
+    const inner= shell.getElementById('stage');
+    if(!inner || !inner.contentDocument)return false;
+    const d=inner.contentDocument;
+    if(!d.querySelector('.verify-flow'))return false;
+    if(d.documentElement.dataset.shipInteractive==='v1')return true;
+    d.documentElement.dataset.shipInteractive='v1';
+
+    const brandStrong=d.querySelector('.brand strong');
+    const brandTail=d.querySelector('.brand > span');
+    if(brandStrong)brandStrong.innerHTML='REKT<i>//</i>';
+    if(brandTail)brandTail.textContent='INKUBATOR';
+
+    const style=d.createElement('style');
+    style.textContent=`
+      .verify-step{cursor:pointer;outline:0;transition:background .08s linear,box-shadow .08s linear}
+      .verify-step:hover{background:#0b0b0b}
+      .verify-step:focus-visible{box-shadow:inset 0 0 0 1px #f0f1f2}
+      .verify-step[aria-selected="true"]{background:#0d0d0d;box-shadow:inset 0 -2px #ff1493}
+      .verify-step[aria-selected="true"] .n{color:#ff1493!important}
+      .verify-step.proven[aria-selected="true"]{box-shadow:inset 0 -2px var(--rekt-green)}
+      .verify-step.proven[aria-selected="true"] .n{color:var(--rekt-green)!important}
+      .verify-step .select-mark{position:absolute;top:9px;right:10px;color:#777c7f;font:6px/1 ui-monospace,monospace;letter-spacing:.08em}
+      .verify-step[aria-selected="true"] .select-mark{color:#fff}
+      .ship-inspector-stage{color:#777b7f;font:8px/1.4 ui-monospace,monospace;letter-spacing:.08em}
+      .ship-inspector-stage b{color:#0b0b0d;font-weight:600}
+      @media(prefers-reduced-motion:reduce){.verify-step{transition:none}}
+    `;
+    d.head.appendChild(style);
+
+    const steps=[...d.querySelectorAll('.verify-flow .verify-step')];
+    const inspector=d.querySelector('.main-grid > .inspector');
+    if(steps.length!==4 || !inspector)return false;
+
+    steps.forEach((step,index)=>{
+      step.setAttribute('role','button');
+      step.setAttribute('tabindex',index===3?'0':'-1');
+      step.setAttribute('aria-selected',index===3?'true':'false');
+      step.setAttribute('aria-label',`Inspect stage ${index+1}: ${records[index].title}`);
+      const mark=d.createElement('span');mark.className='select-mark';mark.textContent=index===3?'SELECT':'OPEN';step.appendChild(mark);
+    });
+
+    function renderInspector(index,triggerMotion=true){
+      const r=records[index];
+      steps.forEach((step,i)=>{
+        step.setAttribute('aria-selected',String(i===index));
+        step.setAttribute('tabindex',i===index?'0':'-1');
+        const m=step.querySelector('.select-mark');if(m)m.textContent=i===index?'SELECT':'OPEN';
+      });
+      inspector.innerHTML=`
+        <div class="inspector-top"><span>SELECTED STAGE ${String(index+1).padStart(2,'0')}/04</span><b>↙</b></div>
+        <div class="ship-inspector-stage">SHIP / <b>${escapeHtml(r.key.toUpperCase())}</b></div>
+        <span class="truth ${escapeHtml(r.truth)}"><i></i>${escapeHtml(r.truthLabel)}</span>
+        <h3>${escapeHtml(r.title)}</h3>
+        <p>${escapeHtml(r.body)}</p>
+        <dl class="dl">${r.rows.map(([k,v])=>`<div><dt>${escapeHtml(k)}</dt><dd>${k==='RECEIPT'||k==='ARTIFACT'?`<code>${escapeHtml(v)}</code>`:escapeHtml(v)}</dd></div>`).join('')}</dl>
+        <div class="boundary"><b>READ THIS AS</b>${escapeHtml(r.boundary)}</div>
+        <span class="inspector-foot">CLICK DISPLAY STAGES · ← → KEYBOARD · FIXTURE ONLY</span>`;
+      if(triggerMotion && r.cue){
+        const cue=d.querySelector(`[data-motion-cue="${r.cue}"]`);
+        if(cue)cue.click();
+      }
+    }
+
+    steps.forEach((step,index)=>{
+      step.addEventListener('click',()=>renderInspector(index,true));
+      step.addEventListener('keydown',event=>{
+        if(event.key==='Enter'||event.key===' '){event.preventDefault();renderInspector(index,true);return}
+        if(event.key==='ArrowRight'||event.key==='ArrowDown'){
+          event.preventDefault();const next=(index+1)%steps.length;renderInspector(next,true);steps[next].focus();
+        }
+        if(event.key==='ArrowLeft'||event.key==='ArrowUp'){
+          event.preventDefault();const prev=(index-1+steps.length)%steps.length;renderInspector(prev,true);steps[prev].focus();
+        }
+      });
+    });
+
+    renderInspector(3,false);
+    return true;
+  }
+
+  outer.addEventListener('load',()=>{
+    let tries=0;
+    const timer=setInterval(()=>{
+      tries++;
+      if(patch()||tries>80){clearInterval(timer);boot.style.display='none'}
+    },100);
+  });
+})();
+</script>
+</body>
+</html>
