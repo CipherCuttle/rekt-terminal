@@ -26,6 +26,13 @@ Open the web app with `?motionLab=1`, then:
 6. Use 0.25x / 0.5x playback to inspect starts, stops, reversals and scrubbing.
 7. Record measurements outside the skin code, then replace provisional constants in the shared motion kernel only when supported by evidence.
 
+Preferred source material:
+
+- Teenage Engineering official OP-1 tape-mode training video (2013): https://www.youtube.com/watch?v=JLDP40_ZiI4
+- Teenage Engineering original OP-1 tape guide: https://teenage.engineering/guides/op-1/original/tape-mode
+
+Treat those as observation sources only. Do not redistribute their footage or artwork from this repository.
+
 The current 2400 ms period and easing curve are intentionally provisional. V0.1 provides the measuring surface; it does not claim OP-1 parity yet.
 
 Next evidence step: collect repeatable measurements for tape reel angular velocity, transport trajectory, start/stop latency, reverse response, cadence and any stepped animation behavior. Freeze those measurements as fixtures before adding Chibi or AppleInu skins.
