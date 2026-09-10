@@ -47,7 +47,7 @@ describe('TerminalShell', () => {
     expect((screen.getByRole('button', {name: /WORLD/}) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('keeps WORLD on v2 while unmigrated PLAYER remains legacy', () => {
+  it('keeps WORLD and PLAYER on v2 while unmigrated SHIP remains legacy', () => {
     const {rerender} = render(
       <TerminalShell mode="WORLD" kicker="REKT" title="WORLD">
         <p>world payload</p>
@@ -61,7 +61,13 @@ describe('TerminalShell', () => {
         <p>player payload</p>
       </TerminalShell>,
     );
+    expect(screen.getByRole('main').getAttribute('data-shell-variant')).toBe('v2');
 
+    rerender(
+      <TerminalShell mode="SHIP" kicker="REKT" title="SHIP">
+        <p>ship payload</p>
+      </TerminalShell>,
+    );
     expect(screen.getByRole('main').getAttribute('data-shell-variant')).toBe('legacy');
   });
 });
