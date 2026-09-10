@@ -92,6 +92,9 @@ jobs:
       - name: Source invariants
         run: npm run verify:source
 
+      - name: Product boundary invariants
+        run: npm run verify:product-boundaries
+
       - name: Inkubator foundation invariants
         run: npm run verify:inkubator-foundation
 

@@ -4,11 +4,12 @@ This repository is contract-first. Do not reopen product scope while executing a
 
 ## Authority order
 
-1. `docs/PROJECT_PLAN_V1.md`
-2. Active phase packet in `docs/agent-packets/`
-3. Domain contract for the active phase (`docs/SIM_CONTRACT_V0.md`, `docs/CAREER_CONTRACT_V0.md`, etc.)
-4. `docs/RPS_REUSE_MATRIX_V1.md` for donor semantics
-5. Existing runtime implementation
+1. `docs/PRODUCT_BOUNDARIES_V1.md` for repository-wide product identity, runtime-root, and deployment separation
+2. `docs/PROJECT_PLAN_V1.md`
+3. Active phase packet in `docs/agent-packets/`
+4. Domain contract for the active phase (`docs/SIM_CONTRACT_V0.md`, `docs/CAREER_CONTRACT_V0.md`, etc.)
+5. `docs/RPS_REUSE_MATRIX_V1.md` for donor semantics
+6. Existing runtime implementation
 
 If two authorities conflict, stop implementation at the conflicting surface and preserve evidence. Do not silently choose a convenient interpretation.
 
@@ -20,6 +21,7 @@ Medium/Low findings do not restart a phase unless they invalidate the stated obj
 
 ## Frozen invariants
 
+- REKT Terminal and REKT Inkubator are distinct products in one monorepo. Terminal runtime roots are `apps/web` + `apps/api`; Inkubator runtime roots are `apps/inkubator-lab` + `apps/inkubator-api` + `apps/inkubator-verifier`. Direct cross-product application imports/routing and a shared canonical deployment identity are forbidden. Shared packages/tooling do not merge product authority.
 - Practice simulation only. No private keys, wallet signing, approvals, transaction broadcast, or real-money execution.
 - Market state, simulator state, Career state, and presentation effects are separate domains.
 - React/UI must never be canonical accounting state.
@@ -39,3 +41,5 @@ Reuse architecture/patterns only as specified by `docs/RPS_REUSE_MATRIX_V1.md`. 
 ## Verification
 
 Before closing a phase, run the strongest available commands from repository scripts plus phase-specific tests. Record exact commands and results. A missing network/dependency capability is a limitation, not a PASS.
+
+Repository-wide changes must pass `npm run verify:product-boundaries` in addition to the active phase checks.

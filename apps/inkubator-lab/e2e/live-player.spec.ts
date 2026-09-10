@@ -76,10 +76,14 @@ test('LIVE PLAYER keeps optional failures isolated on mobile and never substitut
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });
 
-test('LIVE PLAYER fails closed when private identity is unavailable', async ({page}) => {
+test('LIVE PLAYER presents GitHub identity bootstrap when private identity is unavailable', async ({page}) => {
   await routePlayer(page, {'/v1/me': {status: 401, body: {error: 'session_required'}}});
   await page.goto('/?mode=player');
-  await expect(page.getByRole('heading', {name: 'PLAYER LINK UNAVAILABLE'})).toBeVisible();
-  await expect(page.getByText('session_required')).toBeVisible();
-  await expect(page.getByText(/No development fixture fallback is permitted/i)).toBeVisible();
+
+  await expect(page.getByRole('heading', {name: 'CONTINUE WITH GITHUB'})).toBeVisible();
+  await expect(page.getByRole('link', {name: /CONTINUE WITH GITHUB/})).toHaveAttribute('href', '/v1/auth/github/start');
+  await expect(page.getByRole('heading', {name: 'Builder history.'})).toHaveCount(0);
+  await expect(page.getByText(/Repository installation comes after login/i)).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });

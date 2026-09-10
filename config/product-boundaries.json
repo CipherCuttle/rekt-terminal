@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "repository": "CipherCuttle/rekt-terminal",
+  "products": {
+    "rekt-terminal": {
+      "display_name": "REKT Terminal",
+      "frontend": {
+        "path": "apps/web",
+        "workspace": "@rekt-ink/web",
+        "build_script": "build:terminal",
+        "output_directory": "apps/web/dist"
+      },
+      "services": [
+        {
+          "path": "apps/api",
+          "workspace": "@rekt-ink/api"
+        }
+      ]
+    },
+    "rekt-inkubator": {
+      "display_name": "REKT Inkubator",
+      "frontend": {
+        "path": "apps/inkubator-lab",
+        "workspace": "@rekt-ink/inkubator-lab",
+        "build_script": "build:inkubator",
+        "output_directory": "inkubator"
+      },
+      "services": [
+        {
+          "path": "apps/inkubator-api",
+          "workspace": "@rekt-ink/inkubator-api"
+        },
+        {
+          "path": "apps/inkubator-verifier",
+          "workspace": "@rekt-ink/inkubator-verifier"
+        }
+      ]
+    }
+  },
+  "shared": {
+    "packages_root": "packages",
+    "repository_toolchain": true,
+    "lockfile": true,
+    "ci": true
+  },
+  "forbidden": {
+    "cross_product_application_imports": true,
+    "cross_product_application_routing": true,
+    "shared_canonical_deployment_identity": true,
+    "shared_product_authority": true
+  }
+}
