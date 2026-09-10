@@ -1,0 +1,46 @@
+/*
+ * INSTRUMENT_OS_COHERENCE_RESET_V0
+ *
+ * Shared manufacturing/material roles for the launch-critical Inkubator surfaces.
+ * This layer is intentionally small and visual-no-op at introduction time: values
+ * mirror the currently approved v2 shell/display treatment so later convergence can
+ * replace page-local literals without changing semantics or inventing a new theme.
+ */
+
+.ios-shell-v2 {
+  /* typography roles */
+  --ios2-font-body: Arial, Helvetica, sans-serif;
+  --ios2-font-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+
+  /* dark display family: surface-aware values already proven in v2 descendants */
+  --ios2-display-violet: #b395ff;
+  --ios2-display-cyan: #7cdbe8;
+  --ios2-display-green: #c1f85b;
+  --ios2-display-red: #ff9c89;
+  --ios2-display-amber: #d29a55;
+  --ios2-display-edge: #39403d;
+  --ios2-display-edge-soft: #252a28;
+  --ios2-display-header: #090b0b;
+  --ios2-display-divider: #2d3431;
+
+  /* physical display manufacturing grammar */
+  --ios2-display-bezel: 7px;
+  --ios2-display-bezel-heavy: 10px;
+  --ios2-display-radius: 8px;
+  --ios2-display-inset-line: #292e2c;
+  --ios2-display-shadow:
+    0 1px #ffffffb8,
+    0 -1px var(--ios2-seam),
+    inset 0 0 0 1px var(--ios2-display-inset-line),
+    inset 0 8px 14px #000;
+  --ios2-display-scanlines:
+    repeating-linear-gradient(0deg, #ffffff03 0 1px, transparent 1px 4px);
+
+  /* shared printed/chassis rhythm */
+  --ios2-space-xs: 4px;
+  --ios2-space-sm: 8px;
+  --ios2-space-md: 12px;
+  --ios2-space-lg: 20px;
+  --ios2-space-xl: 28px;
+  --ios2-print-tracking: .1em;
+}
