@@ -13,7 +13,7 @@ function ActionForm({label, children, action, disabled = false, successMessage =
   return <form onSubmit={submit} onChange={() => {setRequestId(crypto.randomUUID()); mutation.reset();}}><fieldset disabled={mutation.isPending}>{children}<button type="submit" disabled={mutation.isPending || disabled}>{mutation.isPending ? 'Saving…' : label}</button>{mutation.isError ? <p role="alert">{mutationAlert(mutation.error)}</p> : null}{mutation.isSuccess ? <p role="status">{successMessage}</p> : null}</fieldset></form>;
 }
 
-type CommandActionsClient = Pick<InkubatorApiClient, 'updateMission' | 'listGitHubRepositories' | 'createGitHubInstall' | 'linkProjectGitHubRepository' | 'createHelpBeacon' | 'closeHelpBeacon' | 'getProjectHelpLoop' | 'acceptAssist' | 'createExternalTestRequest' | 'getProjectExternalTests'> & Pick<InkubatorProductApiClient, 'getProjectPendingAssists'>;
+type CommandActionsClient = Pick<InkubatorApiClient, 'updateMission' | 'listGitHubRepositories' | 'linkProjectGitHubRepository' | 'createHelpBeacon' | 'closeHelpBeacon' | 'getProjectHelpLoop' | 'acceptAssist' | 'createExternalTestRequest' | 'getProjectExternalTests'> & Pick<InkubatorProductApiClient, 'getProjectPendingAssists'>;
 
 export function CommandActions({command, client = createInkubatorApiClient()}: {command: CommandView; client?: CommandActionsClient}) {
   const cache = useQueryClient();
@@ -23,6 +23,7 @@ export function CommandActions({command, client = createInkubatorApiClient()}: {
   const returningFromAuthorization = new URLSearchParams(window.location.search).get('source') === 'authorized';
   const authorizationFailed = new URLSearchParams(window.location.search).get('source') === 'authorization_failed';
   const linkedSourceUnavailable = !command.project.source_connected && command.project.source_visibility !== 'NONE';
+  const [githubTransition, setGitHubTransition] = useState<'install' | 'reconcile' | null>(null);
 
   const repositories = useQuery({
     queryKey: ['inkubator', 'github', 'repositories'],
@@ -65,7 +66,6 @@ export function CommandActions({command, client = createInkubatorApiClient()}: {
     refetchOnReconnect: 'always',
   });
 
-  const install = useMutation({mutationFn: () => client.createGitHubInstall(), onSuccess: value => window.location.assign(value.install_url)});
   const closeHelp = useMutation({
     mutationFn: (beaconId: string) => client.closeHelpBeacon(beaconId, {request_id: crypto.randomUUID()}),
     onSuccess: async () => {await cache.invalidateQueries({queryKey: ['inkubator']});},
@@ -75,10 +75,17 @@ export function CommandActions({command, client = createInkubatorApiClient()}: {
     onSuccess: async () => {await cache.invalidateQueries({queryKey: ['inkubator']});},
   });
 
+  function openGitHubFlow(kind: 'install' | 'reconcile') {
+    if (githubTransition) return;
+    setGitHubTransition(kind);
+    window.location.assign(kind === 'install' ? '/v1/auth/github/install' : '/v1/auth/github/reconcile');
+  }
+
   useEffect(() => {
     if (!returningFromAuthorization || command.project.source_connected || !repositories.data?.length) return;
     const url = new URL(window.location.href);
     url.searchParams.delete('source');
+    url.searchParams.delete('reason');
     window.history.replaceState(window.history.state, '', url);
   }, [returningFromAuthorization, command.project.source_connected, repositories.data?.length]);
 
@@ -96,13 +103,13 @@ export function CommandActions({command, client = createInkubatorApiClient()}: {
       <label>Blocker / optional<input name="blocker" maxLength={240} defaultValue={mission.blocker ?? ''}/></label>
     </ActionForm></details> : null}
 
-    <details id="command-source-control" open={!command.project.source_connected || returningFromAuthorization || authorizationFailed}><summary>SOURCE / REPOSITORY ACCESS</summary><div><p>GitHub sign-in identifies you. Installing the read-only GitHub App separately authorizes selected repositories.</p>{authorizationFailed ? <p className="journey-source-status" role="alert">AUTHORIZATION DID NOT COMPLETE / {new URLSearchParams(window.location.search).get('reason') ?? 'TRY AGAIN'}</p> : null}<p className="journey-source-status">{command.project.source_connected ? `SOURCE CONNECTED / ${command.project.source_visibility} / ${command.project.observation_state}` : linkedSourceUnavailable ? `LINKED SOURCE / ACCESS REVOKED / ${command.project.source_visibility}` : repositoriesReady ? `REPOSITORY ACCESS READY / ${repositories.data!.length} AVAILABLE` : returningFromAuthorization ? 'AUTHORIZATION RETURNED / CHECKING REPOSITORY ACCESS' : 'NO REPOSITORY CONNECTED'}</p>
+    <details id="command-source-control" open={!command.project.source_connected || returningFromAuthorization || authorizationFailed}><summary>SOURCE / REPOSITORY ACCESS</summary><div><p>GitHub sign-in identifies you. The read-only GitHub App separately authorizes repository access. Existing App access is reconciled automatically at sign-in and can be synced without reinstalling it.</p>{authorizationFailed ? <p className="journey-source-status" role="alert">AUTHORIZATION DID NOT COMPLETE / {new URLSearchParams(window.location.search).get('reason') ?? 'TRY AGAIN'}</p> : null}<p className="journey-source-status">{command.project.source_connected ? `SOURCE CONNECTED / ${command.project.source_visibility} / ${command.project.observation_state}` : linkedSourceUnavailable ? `LINKED SOURCE / ACCESS REVOKED / ${command.project.source_visibility}` : repositoriesReady ? `REPOSITORY ACCESS READY / ${repositories.data!.length} AVAILABLE` : returningFromAuthorization ? 'GITHUB ACCESS RETURNED / RECONCILING REPOSITORIES' : 'NO REPOSITORY CONNECTED'}</p>
       {!command.project.source_connected ? <>
-        <button type="button" disabled={install.isPending} onClick={() => install.mutate()}>{install.isPending ? 'PENDING / OPENING AUTHORIZATION…' : repositoriesReady ? 'CHANGE REPOSITORY ACCESS' : linkedSourceUnavailable ? 'REAUTHORIZE SOURCE' : 'AUTHORIZE REPOSITORIES'}</button>{install.isError ? <p role="alert">Repository authorization unavailable: {mutationAlert(install.error)} Your sign-in remains separate.</p> : null}
+        <button type="button" disabled={Boolean(githubTransition)} onClick={() => openGitHubFlow('install')}>{githubTransition === 'install' ? 'PENDING / OPENING GITHUB…' : repositoriesReady ? 'MANAGE REPOSITORY ACCESS' : linkedSourceUnavailable ? 'RESTORE GITHUB ACCESS' : 'AUTHORIZE REPOSITORIES'}</button>
         <ActionForm label="LINK AUTHORIZED REPOSITORY" disabled={!repositoriesReady} action={(data) => client.linkProjectGitHubRepository(command.project.project_id, {repository_id: String(data.get('repository')).trim()})} successMessage="Repository linked. COMMAND will now watch the canonical source projection.">
           <label>Authorized repository<select aria-label="Authorized repository" name="repository" required disabled={!repositoriesReady}><option value="">Choose a repository</option>{repositories.data?.map(repository => <option key={repository.repository_id} value={repository.repository_id}>{repository.full_name} / {repository.private ? 'PRIVATE' : 'PUBLIC'}</option>)}</select></label>
-          {repositories.isPending ? <p role="status">Loading authorized repositories…</p> : repositories.isError ? <p role="alert">Authorized repositories unavailable. Inkubator will retry on focus, reconnect and while this source is unlinked.</p> : !repositoriesReady ? <p>{returningFromAuthorization ? 'GitHub returned successfully. Waiting for authorized repositories to appear…' : 'No repositories authorized yet. Authorize repositories above; this list refreshes automatically when permission changes.'}</p> : <p role="status">Authorization detected. Choose the repository this Mission should observe.</p>}
-          <button type="button" onClick={() => void repositories.refetch()}>CHECK NOW</button><p>Private repository details stay within your account. Linking a source does not make its contents public.</p>
+          {repositories.isPending ? <p role="status">Loading authorized repositories…</p> : repositories.isError ? <p role="alert">Authorized repositories unavailable. Inkubator will retry on focus and reconnect; use SYNC GITHUB ACCESS to reconcile directly with GitHub.</p> : !repositoriesReady ? <p>{returningFromAuthorization ? 'GitHub returned successfully. Reconciling the installation and repository list…' : 'No repositories are known to Inkubator yet. If the App is already installed, sync access; only authorize again when you actually need to change GitHub permissions.'}</p> : <p role="status">GitHub access detected. Choose the repository this Mission should observe.</p>}
+          <button type="button" disabled={Boolean(githubTransition)} onClick={() => openGitHubFlow('reconcile')}>{githubTransition === 'reconcile' ? 'SYNCING / OPENING GITHUB…' : 'SYNC GITHUB ACCESS'}</button><p>Private repository details stay within your account. Linking a source does not make its contents public.</p>
         </ActionForm>
       </> : <p>Source arrival is observed server-side. A connection alone is not evidence of completed work.</p>}
     </div></details>
