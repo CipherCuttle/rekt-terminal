@@ -128,7 +128,7 @@ test('LIVE COMMAND renders one Living Thread and ripples canonical deltas withou
   });
 
   await expect.poll(async () => page.locator('.command-live').getAttribute('data-event-sequence'), {timeout: 7000}).toBe('1');
-  await expect(page.getByText(/EVENT \/\/ GATE:QUALITY_TESTING → BLOCKER → MISSION → DAEMON/i)).toBeVisible();
+  await expect(page.getByText(/CHANGE \/\/ GATE:QUALITY_TESTING → BLOCKER → MISSION → DAEMON/i)).toBeVisible();
   await expect(page.getByText('Need an external tester before ship.')).toBeVisible();
   await expect(page.locator('.command-thread-break')).toBeVisible();
   await expect(page.getByText('ADVISORY ONLY')).toBeVisible();
