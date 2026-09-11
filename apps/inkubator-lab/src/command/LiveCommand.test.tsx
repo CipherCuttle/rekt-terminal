@@ -92,7 +92,7 @@ describe('Live Command', () => {
     expect(container.querySelector('.command-ratchet')).toBeNull();
     expect(container.querySelector('[data-renderer="pixi"]')).toBeNull();
     expect(container.querySelector('[data-motion-contract="v1"]')?.getAttribute('data-frame')).toBe('4');
-    expect(screen.getByRole('link', {name: 'OPEN PROJECT →'})).toBeTruthy();
+    expect(container.querySelector('.command-primary-action')).toBeNull();
     expect(container.querySelectorAll('.command-thread-gates [data-truth="proven"]')).toHaveLength(1);
     expect(screen.queryByText(/development fixture/i)).toBeNull();
   });
@@ -127,17 +127,16 @@ describe('Live Command', () => {
     expect(screen.queryByRole('region', {name: 'Mission work controls'})).toBeNull();
   });
 
-  it('routes the one primary move to Ship when canonical mission is ready', async () => {
+  it('routes the one primary move to Ship only when canonical mission state determines it', async () => {
     const first = commandView();
     renderCommand({getMyCommand: vi.fn().mockResolvedValue({...first, mission: {...first.mission, state: 'SHIP_READY'}})});
     expect(await screen.findByRole('link', {name: 'OPEN SHIP →'})).toBeTruthy();
-    expect(screen.queryByRole('link', {name: 'OPEN PROJECT →'})).toBeNull();
   });
 
-  it('routes missing source and blockers to the exact local controls instead of a generic project hop', () => {
+  it('does not infer a competing action from source or blocker context', () => {
     const base = commandView();
-    expect(commandPrimaryAction({...base, project: {...base.project, source_connected: false}})).toEqual({label: 'CONNECT SOURCE', href: '#command-source-control', targetId: 'command-source-control'});
-    expect(commandPrimaryAction({...base, mission: {...base.mission, blocker: 'Need a tester.'}})).toEqual({label: 'ASK FOR HELP', href: '#command-help-control', targetId: 'command-help-control'});
+    expect(commandPrimaryAction({...base, project: {...base.project, source_connected: false}})).toBeNull();
+    expect(commandPrimaryAction({...base, mission: {...base.mission, blocker: 'Need a tester.'}})).toBeNull();
   });
 
   it('fails closed when the canonical command endpoint is unavailable', async () => {
