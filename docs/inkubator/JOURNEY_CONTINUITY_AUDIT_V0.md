@@ -31,8 +31,8 @@ Truth remains:
 | 09 | Close Help Beacon | Open state disappears and create path becomes available again | Mutation invalidation + help-loop polling | REPAIRED |
 | 10 | Helper selects open Help in WORLD | Signed-in non-owner can offer an Assist; signed-out visitor is sent to GitHub login | WORLD project context + session check | REPAIRED |
 | 11 | Helper offers Assist | Helper sees CLAIMED confirmation and waits for owner acceptance | Mutation success + global query invalidation | REPAIRED |
-| 12 | Owner reviews pending Assist | Owner must see OFFERED Assist(s) and accept one | **No owner-private pending-Assist read projection exists yet** | BLOCKED_BY_CONTRACT |
-| 13 | Owner accepts Assist | Party membership becomes canonical; WORLD/PLAYER can observe accepted contribution | Existing `acceptAssist` mutation + downstream projections, once #12 is exposed | BLOCKED_BY_CONTRACT |
+| 12 | Owner reviews pending Assist | Owner sees only owner-private OFFERED Assist(s), including helper identity/message, and can accept one | authenticated owner-only pending-Assist projection + 4s polling + focus/reconnect + CHECK AGAIN on failure | REPAIRED |
+| 13 | Owner accepts Assist | Pending offer disappears; Party membership becomes canonical OBSERVED collaboration | existing `acceptAssist` mutation + global query invalidation + Help/WORLD/PLAYER/PROJECT reconciliation | REPAIRED |
 | 14 | Owner requests external test | Create form becomes canonical OPEN test request | external-tests polling + focus/reconnect + mutation invalidation | REPAIRED |
 | 15 | Tester selects project in WORLD | Signed-in non-owner can record result for an OPEN request | WORLD project external-test projection | REPAIRED |
 | 16 | Tester records result | Result reads OBSERVED; request stops being OPEN | Mutation invalidation + external-tests/WORLD polling | REPAIRED |
@@ -45,39 +45,33 @@ Truth remains:
 
 ## Verification receipt
 
-The repaired journey-continuity lineage passed all four repository gates before deployment:
+JCA-01 implementation head `fe2fec688c3746c6aab21041161d9eaeeabff803` passed all four repository gates before this closure note:
 
 - CI — PASS
 - Inkubator Verification — PASS
 - Inkubator Signal System — PASS
 - Inkubator Auth Foundation — PASS
 
-Signal-System verification included source invariants, unit/semantic tests, typecheck/build, bundle budgets, Storybook, Playwright journeys, axe, mobile and visual snapshots. The generated API client contract remained current.
+The final verification covered generated-client currency, typecheck, unit/semantic tests, canonical production build, source/product-boundary invariants, Lighthouse, bundle budgets, Storybook, Playwright journeys, axe, mobile and visual snapshots.
 
-## Remaining product gap
+The owner-private pending-Assist endpoint is canonical OpenAPI but intentionally uses an inline response schema plus a product-private web client wrapper. It is not added to the generated public SDK surface, so pending helper messages cannot accidentally become part of a broad/public client contract. The generated API client therefore remains current without exposing the owner-only inbox.
 
-### JCA-01 — Owner cannot discover pending Assist offers
+## JCA-01 — CLOSED
 
-Severity: **HIGH for full human rehearsal**
+The former HIGH continuity gap is repaired.
 
-The write path exists:
+The bounded implementation now provides:
 
-- helper can create `AssistView(state=OFFERED)`;
-- project owner can call `acceptAssist(assistId)`;
-- accepted Assist creates Party attribution and downstream history.
+1. `GET /v1/projects/{projectId}/pending-assists` as an authenticated owner-only, `no-store` projection.
+2. Anonymous access fails with 401; authenticated non-owners fail with 403.
+3. The public `project.help_loop.public.v1` projection remains unchanged and never includes pending Assist messages.
+4. COMMAND polls the private inbox while a Help Beacon is open, refreshes on focus/reconnect, and provides explicit retry on failure.
+5. OFFERED Assists render helper identity/message plus `ACCEPT ASSIST`.
+6. Acceptance uses the existing authoritative `acceptAssist` mutation, invalidates Inkubator projections, removes the pending offer and allows accepted Party state to reconcile.
+7. Acceptance remains OBSERVED collaboration; it does not mint PROVEN state or advance Mission gates.
+8. Integration coverage locks anonymous/non-owner denial, private-message non-leakage, owner read access, acceptance replay, pending-offer removal, Party attribution and truth-state ceilings.
 
-But the current public `project.help_loop.public.v1` projection intentionally exposes only the owner, open Help Beacon and already accepted Party members. It does **not** expose pending private Assist offers. Therefore the web product cannot truthfully give the owner an “Accept Assist” control without first adding an authenticated owner-only pending-Assist projection.
-
-Required bounded successor:
-
-1. Add owner-private pending Assist read contract (no public leak).
-2. Generate the client from the canonical OpenAPI contract.
-3. Show OFFERED Assist(s) in COMMAND Help follow-up.
-4. Wire `acceptAssist` from that canonical private projection.
-5. On acceptance, invalidate Help/WORLD/PLAYER/PROJECT projections and show accepted Party state.
-6. Test authorization, self-help prohibition, stale offer conflict and idempotent replay.
-
-Do not expose pending Assist messages through WORLD or another public projection.
+No pending Assist message is exposed through WORLD or the public Help projection.
 
 ## Operational continuity note
 
@@ -85,7 +79,7 @@ The rehearsal Render service still stores the legacy branch while exact PR heads
 
 ## Phase-9 journey acceptance
 
-A real rehearsal is ready only when a cold human can execute, without architecture coaching:
+The primary founding path now has an explicit product follow-up for every audited user state boundary. A real human rehearsal is still required before Phase 9 can close:
 
 `BECOME → DECLARE → CONNECT → BUILD → HELP → TEST → SHIP → REMEMBER → REPEAT`
 
@@ -97,4 +91,4 @@ For every click that crosses a state boundary, the tester must be able to answer
 - What should I do next?
 - Is what I am seeing CLAIMED, OBSERVED or PROVEN?
 
-No silent dead-end, duplicate-create form, stale authorization selector, or manual-refresh dependency is acceptable on the founding path.
+No silent dead-end, duplicate-create form, stale authorization selector, manual-refresh dependency or private-message leakage is acceptable on the founding path.
