@@ -2,7 +2,7 @@ import {cleanup, render, screen, waitFor} from '@testing-library/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import type {CommandView} from '../generated/inkubator-api-client';
-import LiveCommand, {commandCue} from './LiveCommand';
+import LiveCommand, {commandCue, commandPrimaryAction} from './LiveCommand';
 
 afterEach(cleanup);
 
@@ -110,7 +110,7 @@ describe('Live Command', () => {
     await queryClient.refetchQueries({queryKey: ['inkubator', 'command', 'me']});
 
     await waitFor(() => expect(container.querySelector('.command-live')?.getAttribute('data-event-sequence')).toBe('1'));
-    expect(screen.getByText(/EVENT \/\/ GATE:QUALITY_TESTING → BLOCKER → MISSION/i)).toBeTruthy();
+    expect(screen.getByText(/CHANGE \/\/ GATE:QUALITY_TESTING → BLOCKER → MISSION/i)).toBeTruthy();
     expect(screen.getByText('Verifier is red.')).toBeTruthy();
     expect(container.querySelector('.command-thread-break')).toBeTruthy();
     expect(container.querySelector('[data-delta="GATE:QUALITY_TESTING"]')?.getAttribute('data-truth')).toBe('blocked');
@@ -134,6 +134,12 @@ describe('Live Command', () => {
     expect(screen.queryByRole('link', {name: 'OPEN PROJECT →'})).toBeNull();
   });
 
+  it('routes missing source and blockers to the exact local controls instead of a generic project hop', () => {
+    const base = commandView();
+    expect(commandPrimaryAction({...base, project: {...base.project, source_connected: false}})).toEqual({label: 'CONNECT SOURCE', href: '#command-source-control', targetId: 'command-source-control'});
+    expect(commandPrimaryAction({...base, mission: {...base.mission, blocker: 'Need a tester.'}})).toEqual({label: 'ASK FOR HELP', href: '#command-help-control', targetId: 'command-help-control'});
+  });
+
   it('fails closed when the canonical command endpoint is unavailable', async () => {
     const client = {getMyCommand: vi.fn().mockRejectedValue(new Error('session_required'))};
     renderCommand(client);
@@ -147,14 +153,10 @@ describe('Live Command', () => {
 describe('commandCue event mapping', () => {
   it('maps core canonical events to cues keyed by canonical values', () => {
     const base = commandView();
-    // Stale / unavailable signal states are status cues without an event id (no replay).
     expect(commandCue(commandView({github_evidence: {...base.github_evidence, signal_state: 'STALE'}}), [])).toEqual({cue: 'STALE'});
     expect(commandCue(commandView({github_evidence: {...base.github_evidence, source_state: 'UNAVAILABLE'}}), [])).toEqual({cue: 'UNAVAILABLE'});
-    // Blocker arrival is keyed by mission id + blocker value.
     expect(commandCue(commandView({...base, mission: {...base.mission, blocker: 'Verifier is red.'}}), [])).toEqual({cue: 'MISSION_BLOCKED', eventId: 'M-001:Verifier is red.'});
-    // Next Move change is keyed by mission id + canonical next move value.
     expect(commandCue(base, [{kind: 'NEXT_MOVE'}])).toEqual({cue: 'NEXT_MOVE_CHANGED', eventId: 'M-001:CONNECT THE LIVE COMMAND BUS'});
-    // A new canonical observation is keyed by its observation id.
     expect(commandCue(base, [])).toEqual({cue: 'SOURCE_RX', eventId: 'OBS-001'});
   });
 
