@@ -1,18 +1,76 @@
-import {useEffect, useRef, useState, type KeyboardEvent} from 'react';
-import {useQuery} from '@tanstack/react-query';
-import type {InkubatorApiClient, WorldSignalView} from '../generated/inkubator-api-client';
+import {useEffect, useRef, useState, type FormEvent, type KeyboardEvent} from 'react';
+import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {InkubatorApiError, type InkubatorApiClient, type ProjectDiscoveryView, type WorldSignalView} from '../generated/inkubator-api-client';
 import {createInkubatorApiClient} from '../inkubator-api';
 import {PeripheralSignal} from '../instrument-os/PeripheralSignal';
 import {useReducedMotion} from '../instrument-os/use-reduced-motion';
+import {mutationAlert} from '../journey/mutation-alert';
 import {TerminalShell} from '../shell/TerminalShell';
+import '../journey/journey.css';
 import './live-world-v2.css';
 
-type WorldClient = Pick<InkubatorApiClient, 'discoverProjects' | 'listWorldSignals'>;
+type WorldClient = Pick<InkubatorApiClient, 'discoverProjects' | 'listWorldSignals' | 'getMe' | 'offerAssist' | 'getProjectExternalTests' | 'recordExternalTestResult'>;
 export type LiveWorldProps = {client?: WorldClient; refetchIntervalMs?: number | false};
 const signalKey = ['inkubator', 'world', 'signals'] as const;
 const projectKey = ['inkubator', 'world', 'projects'] as const;
 
 function signalLabel(signal: WorldSignalView) { return signal.kind.replaceAll('_', ' '); }
+
+function WorldParticipation({context, client, refetchIntervalMs}: {context: ProjectDiscoveryView; client: WorldClient; refetchIntervalMs: number | false}) {
+  const cache = useQueryClient();
+  const me = useQuery({queryKey: ['inkubator', 'world', 'me'], queryFn: () => client.getMe(), retry: false, staleTime: 30_000, refetchOnWindowFocus: 'always'});
+  const tests = useQuery({
+    queryKey: ['inkubator', 'world', context.project.project_id, 'tests'],
+    queryFn: () => client.getProjectExternalTests(context.project.project_id),
+    retry: false,
+    staleTime: 0,
+    refetchInterval: refetchIntervalMs,
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
+  });
+  const [assistMessage, setAssistMessage] = useState('');
+  const [testOutcome, setTestOutcome] = useState<'PASS' | 'ISSUE_FOUND' | 'BLOCKED'>('PASS');
+  const [testSummary, setTestSummary] = useState('');
+  const [assistRequestId, setAssistRequestId] = useState(() => crypto.randomUUID());
+  const [testRequestId, setTestRequestId] = useState(() => crypto.randomUUID());
+
+  const assist = useMutation({
+    mutationFn: () => client.offerAssist(context.open_help_beacon!.beacon_id, {request_id: assistRequestId, message: assistMessage.trim()}),
+    onSuccess: async () => {await cache.invalidateQueries({queryKey: ['inkubator']});},
+  });
+  const openTest = tests.data?.requests.find(request => request.state === 'OPEN');
+  const recordTest = useMutation({
+    mutationFn: () => client.recordExternalTestResult(openTest!.test_request_id, {request_id: testRequestId, outcome: testOutcome, summary: testSummary.trim()}),
+    onSuccess: async () => {await cache.invalidateQueries({queryKey: ['inkubator']});},
+  });
+
+  function submitAssist(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!assistMessage.trim() || assist.isPending || !context.open_help_beacon) return;
+    assist.mutate();
+  }
+  function submitTest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!testSummary.trim() || recordTest.isPending || !openTest) return;
+    recordTest.mutate();
+  }
+
+  if (me.isPending) return <section className="world-participation" role="status"><small>PARTICIPATION</small><p>Checking whether you can respond to this build…</p></section>;
+  if (me.error) {
+    const signedOut = me.error instanceof InkubatorApiError && me.error.status === 401;
+    return <section className="world-participation"><small>PARTICIPATION</small>{signedOut ? <><p>WORLD is public. Sign in when you want to help or record an external test.</p><a href="/v1/auth/github/start">ENTER WITH GITHUB →</a></> : <p role="status">Participation state unavailable. Public WORLD remains readable.</p>}</section>;
+  }
+
+  const isOwner = me.data?.player_id === context.owner.player_id;
+  if (isOwner) return <section className="world-participation"><small>YOUR PROJECT</small><p>Manage Help and external-test requests in COMMAND. WORLD stays the public receiver.</p><a href="?mode=command">OPEN COMMAND →</a></section>;
+
+  return <section className="world-participation" aria-label="Respond to selected project">
+    <small>RESPOND / REAL ACTIONS</small>
+    {context.open_help_beacon?.state === 'OPEN' ? assist.isSuccess ? <div role="status"><strong>ASSIST OFFER SENT</strong><p>Your offer is CLAIMED and is waiting for the project owner to accept it.</p></div> : <form onSubmit={submitAssist} onChange={() => {setAssistRequestId(crypto.randomUUID()); assist.reset();}}><fieldset disabled={assist.isPending}><label>Offer help<textarea aria-label="Assist message" value={assistMessage} maxLength={240} required onChange={event => setAssistMessage(event.target.value)} placeholder="What can you do to unblock this build?" /></label><button type="submit" disabled={!assistMessage.trim()}>{assist.isPending ? 'Sending…' : 'OFFER ASSIST →'}</button>{assist.isError ? <p role="alert">{mutationAlert(assist.error)}</p> : null}<p>An offer is a claim. Credit exists only after owner acceptance and later Ship attribution.</p></fieldset></form> : null}
+
+    {tests.isError ? <p role="status">EXTERNAL TEST STATE UNAVAILABLE. Public event context remains readable.</p> : tests.isPending ? <p role="status">Checking open external tests…</p> : openTest ? recordTest.isSuccess ? <div role="status"><strong>TEST RESULT RECORDED / OBSERVED</strong><p>{recordTest.data.outcome} / {recordTest.data.summary}</p></div> : <form onSubmit={submitTest} onChange={() => {setTestRequestId(crypto.randomUUID()); recordTest.reset();}}><fieldset disabled={recordTest.isPending}><p><strong>TEST REQUEST</strong><br />{openTest.prompt}</p><label>Outcome<select aria-label="External test outcome" value={testOutcome} onChange={event => setTestOutcome(event.target.value as 'PASS' | 'ISSUE_FOUND' | 'BLOCKED')}><option>PASS</option><option>ISSUE_FOUND</option><option>BLOCKED</option></select></label><label>What did you observe?<textarea aria-label="External test summary" value={testSummary} maxLength={500} required onChange={event => setTestSummary(event.target.value)} /></label><button type="submit" disabled={!testSummary.trim()}>{recordTest.isPending ? 'Recording…' : 'RECORD TEST RESULT →'}</button>{recordTest.isError ? <p role="alert">{mutationAlert(recordTest.error)}</p> : null}<p>Your result becomes OBSERVED evidence. PASS is still not PROVEN.</p></fieldset></form> : <p>No open external test request for this project.</p>}
+  </section>;
+}
 
 export default function LiveWorld({client = createInkubatorApiClient(), refetchIntervalMs = 2500}: LiveWorldProps) {
   const reducedMotion = useReducedMotion();
@@ -61,7 +119,7 @@ export default function LiveWorld({client = createInkubatorApiClient(), refetchI
         <span className="world-truth" data-truth={selected.truth_state.toLowerCase()}>{selected.truth_state}</span><h2>{signalLabel(selected)}</h2><p>{selected.project_name}</p>
         <dl><div><dt>OCCURRED / UTC</dt><dd><time dateTime={selected.occurred_at}>{selected.occurred_at}</time></dd></div><div><dt>REFERENCE</dt><dd><code>{selected.signal_id}</code></dd></div><div><dt>PUBLIC PROJECT</dt><dd>{selected.project_name}</dd></div></dl>
         <p>{selected.truth_state === 'OBSERVED' ? 'A supported public event was recorded. It does not establish an accepted Ship.' : 'A builder opened a public request for help. This is a declaration, not proof.'}</p>
-        {projects.error ? <p role="status">PROJECT CONTEXT UNAVAILABLE</p> : projects.isPending ? <p role="status">Loading public project context.</p> : context?.open_help_beacon?.state === 'OPEN' ? <section className="world-beacon-context"><small>CURRENT OPEN HELP</small><h3>{context.open_help_beacon.summary}</h3><p>{context.open_help_beacon.skills_needed.join(' / ') || 'No skills specified.'}</p><p>OWNER / {context.owner.display_name}</p></section> : <p>No open help request in the current public project record.</p>}
+        {projects.error ? <p role="status">PROJECT CONTEXT UNAVAILABLE</p> : projects.isPending ? <p role="status">Loading public project context.</p> : context ? <><section className="world-beacon-context"><small>{context.open_help_beacon?.state === 'OPEN' ? 'CURRENT OPEN HELP' : 'PUBLIC PROJECT'}</small><h3>{context.open_help_beacon?.summary ?? context.project.name}</h3>{context.open_help_beacon ? <><p>{context.open_help_beacon.skills_needed.join(' / ') || 'No skills specified.'}</p><p>OWNER / {context.owner.display_name}</p></> : <p>OWNER / {context.owner.display_name}</p>}</section><WorldParticipation key={context.project.project_id} context={context} client={client} refetchIntervalMs={refetchIntervalMs} /></> : <p>No public project context is available for this event.</p>}
       </> : <><h2>{signals.isPending ? 'Loading the channel.' : signals.error ? 'Channel unavailable.' : 'The channel is quiet.'}</h2><p>Select a public event to read its context.</p></>}</aside>
     </div>
   </TerminalShell>;
