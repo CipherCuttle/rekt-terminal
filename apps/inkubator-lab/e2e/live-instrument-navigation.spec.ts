@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page, type Route} from '@playwright/test';
+import {fixtureConnectionContext, fixturePendingAssists} from './fixture-connection';
 
 const command = {
   schema_version: 'command.private.v2',
@@ -111,9 +112,11 @@ async function routeIntegratedApp(page: Page) {
     '/v1/discover/players': players,
     '/v1/world/signals': signals,
     '/v1/me': me,
+    '/v1/me/connection': fixtureConnectionContext,
     '/v1/me/profile': profile,
     '/v1/me/history': history,
     '/v1/players/PLAYER-1/reputation': reputation,
+    '/v1/projects/P-LIVE-001/pending-assists': fixturePendingAssists('P-LIVE-001'),
   };
 
   await page.route('**/*', async (route) => {
@@ -124,6 +127,10 @@ async function routeIntegratedApp(page: Page) {
     }
     if (url.pathname in responses) {
       await fulfillJson(route, responses[url.pathname]);
+      return;
+    }
+    if (url.pathname.startsWith('/v1/')) {
+      await fulfillJson(route, {error: 'unmocked_v1_route'}, 500);
       return;
     }
     await route.continue();

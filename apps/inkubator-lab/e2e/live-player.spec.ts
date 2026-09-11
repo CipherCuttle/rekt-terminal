@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page} from '@playwright/test';
 import type {PlayerHistoryView, PlayerProfileView, PlayerReputationView, PrivatePlayer} from '../src/generated/inkubator-api-client';
+import {fixtureConnectionContext} from './fixture-connection';
 
 const me: PrivatePlayer = {schema_version: 'player.private.v1', player_id: 'PLAYER-E2E', display_name: 'CipherCuttle', created_at: '2026-09-01T08:00:00Z', updated_at: '2026-09-10T08:00:00Z'};
 const profile: PlayerProfileView = {schema_version: 'player.profile.v2', player_id: 'PLAYER-E2E', bio: 'Builds strange useful things.', character_name: 'ink.operator', character_archetype: 'BUILDER', skills_needed: ['QA'], can_help_with: ['UI', 'SYSTEMS']};
@@ -16,6 +17,7 @@ async function routePlayer(page: Page, overrides: Partial<Record<string, {status
     const pathname = new URL(route.request().url()).pathname;
     const defaults: Record<string, {status: number; body: unknown}> = {
       '/v1/me': {status: 200, body: me},
+      '/v1/me/connection': {status: 200, body: fixtureConnectionContext},
       '/v1/me/profile': {status: 200, body: profile},
       '/v1/me/history': {status: 200, body: history},
       '/v1/players/PLAYER-E2E/reputation': {status: 200, body: reputation},
@@ -79,7 +81,10 @@ test('LIVE PLAYER keeps optional failures isolated on mobile and never substitut
 });
 
 test('LIVE PLAYER presents GitHub identity bootstrap when private identity is unavailable', async ({page}) => {
-  await routePlayer(page, {'/v1/me': {status: 401, body: {error: 'session_required'}}});
+  await routePlayer(page, {
+    '/v1/me': {status: 401, body: {error: 'session_required'}},
+    '/v1/me/connection': {status: 401, body: {error: 'session_required'}},
+  });
   await page.goto('/?mode=player');
 
   await expect(page.getByLabel('PLAYER workspace').getByRole('heading', {name: 'KEEP YOUR RECORD.'})).toBeVisible();

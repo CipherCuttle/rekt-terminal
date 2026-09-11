@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page} from '@playwright/test';
 import type {ProjectDiscoveryList, PublicPlayerList, WorldSignalList} from '../src/generated/inkubator-api-client';
+import {fixtureConnectionContext} from './fixture-connection';
 
 const projects: ProjectDiscoveryList = [
   {
@@ -35,6 +36,7 @@ async function routeWorld(page: Page, getSignals: () => WorldSignalList, overrid
       '/v1/discover/projects': {status: 200, body: projects},
       '/v1/discover/players': {status: 200, body: players},
       '/v1/world/signals': {status: 200, body: getSignals()},
+      '/v1/me/connection': {status: 200, body: fixtureConnectionContext},
     };
     const response = overrides[url.pathname] ?? defaults[url.pathname];
     if (!response) {

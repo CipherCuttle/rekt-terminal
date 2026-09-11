@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page} from '@playwright/test';
 import type {CommandView, PrivateProject, ProjectExternalTestsView, ProjectHelpLoopView, ProjectShipStateView} from '../src/generated/inkubator-api-client';
+import {fixtureConnectionContext} from './fixture-connection';
 
 const command: CommandView = {
   schema_version: 'command.private.v2',
@@ -56,6 +57,7 @@ type Response = {status: number; body: unknown};
 async function routeProject(page: Page, override: Partial<Record<string, Response>> = {}) {
   const responses: Record<string, Response> = {
     '/v1/me': {status: 200, body: me},
+    '/v1/me/connection': {status: 200, body: fixtureConnectionContext},
     '/v1/me/command': {status: 200, body: command},
     '/v1/projects/P-LIVE-001/private': {status: 200, body: project},
     '/v1/projects/P-LIVE-001/help-loop': {status: 200, body: help},

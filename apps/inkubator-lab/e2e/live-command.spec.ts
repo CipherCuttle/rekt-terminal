@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page} from '@playwright/test';
 import type {CommandView} from '../src/generated/inkubator-api-client';
+import {fixtureConnectionContext, fixturePendingAssists} from './fixture-connection';
 
 function commandView(overrides: Partial<CommandView> = {}): CommandView {
   return {
@@ -75,6 +76,14 @@ async function routeCommand(page: Page, respond: () => CommandRouteResponse) {
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname !== '/v1/me/command') {
+      if (url.pathname === '/v1/me/connection') {
+        await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(fixtureConnectionContext)});
+        return;
+      }
+      if (url.pathname === '/v1/projects/P-LIVE-001/pending-assists') {
+        await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(fixturePendingAssists('P-LIVE-001'))});
+        return;
+      }
       // Never leak an unmocked /v1 route to the (absent) backend proxy: fail closed instead.
       if (url.pathname.startsWith('/v1/')) {
         await route.fulfill({status: 500, contentType: 'application/json', body: JSON.stringify({error: 'unmocked_v1_route'})});

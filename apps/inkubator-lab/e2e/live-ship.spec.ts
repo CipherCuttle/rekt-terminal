@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page, type Route} from '@playwright/test';
 import type {AcceptedShipArtifactView, CommandView, PrivateProject, ProjectShipStateView, ShipSubmissionPrivateView} from '../src/generated/inkubator-api-client';
+import {fixtureConnectionContext} from './fixture-connection';
 
 const readyCommand: CommandView = {
   schema_version: 'command.private.v2',
@@ -84,6 +85,7 @@ test('LIVE SHIP records a SHIP_READY owner submission then renders only server-p
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
     if (pathname === '/v1/me' && request.method() === 'GET') return fulfillJson(route, 200, authenticatedMe);
+    if (pathname === '/v1/me/connection' && request.method() === 'GET') return fulfillJson(route, 200, fixtureConnectionContext);
     if (pathname === '/v1/me/command' && request.method() === 'GET') return fulfillJson(route, 200, command);
     if (pathname === '/v1/projects/PROJECT-E2E/private' && request.method() === 'GET') return fulfillJson(route, 200, privateProject);
     if (pathname === '/v1/projects/PROJECT-E2E/ship' && request.method() === 'GET') return fulfillJson(route, 200, shipState);
@@ -128,6 +130,7 @@ test('LIVE SHIP keeps verifier PASS at OBSERVED without minting a receipt', asyn
   await page.route('**/v1/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/v1/me') return fulfillJson(route, 200, authenticatedMe);
+    if (pathname === '/v1/me/connection') return fulfillJson(route, 200, fixtureConnectionContext);
     if (pathname === '/v1/me/command') return fulfillJson(route, 200, {...readyCommand, mission: {...readyCommand.mission, state: 'SUBMITTED'}});
     if (pathname === '/v1/projects/PROJECT-E2E/private') return fulfillJson(route, 200, privateProject);
     if (pathname === '/v1/projects/PROJECT-E2E/ship') return fulfillJson(route, 200, observedShip);
@@ -148,6 +151,7 @@ test('LIVE SHIP renders the immutable PROVEN receipt as the dominant mobile arti
   await page.route('**/v1/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/v1/me') return fulfillJson(route, 200, authenticatedMe);
+    if (pathname === '/v1/me/connection') return fulfillJson(route, 200, fixtureConnectionContext);
     if (pathname === '/v1/me/command') return fulfillJson(route, 200, {...readyCommand, mission: {...readyCommand.mission, state: 'SHIPPED'}});
     if (pathname === '/v1/projects/PROJECT-E2E/private') return fulfillJson(route, 200, privateProject);
     if (pathname === '/v1/projects/PROJECT-E2E/ship') return fulfillJson(route, 200, provenShip);
@@ -173,6 +177,7 @@ test('LIVE SHIP fails closed on unknown Ship state and on missing private comman
   await page.route('**/v1/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/v1/me') return fulfillJson(route, 200, authenticatedMe);
+    if (pathname === '/v1/me/connection') return fulfillJson(route, 200, fixtureConnectionContext);
     if (pathname === '/v1/me/command') return fulfillJson(route, 200, readyCommand);
     if (pathname === '/v1/projects/PROJECT-E2E/private') return fulfillJson(route, 200, privateProject);
     if (pathname === '/v1/projects/PROJECT-E2E/ship') return fulfillJson(route, 503, {error: 'ship_state_offline'});
@@ -188,6 +193,7 @@ test('LIVE SHIP fails closed on unknown Ship state and on missing private comman
   await page.route('**/v1/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/v1/me') return fulfillJson(route, 200, authenticatedMe);
+    if (pathname === '/v1/me/connection') return fulfillJson(route, 200, fixtureConnectionContext);
     if (pathname === '/v1/me/command') return fulfillJson(route, 401, {error: 'authentication_required'});
     return fulfillJson(route, 500, {error: 'unmocked_v1_route'});
   });

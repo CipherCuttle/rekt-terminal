@@ -51,7 +51,9 @@ function IdentityGate({mode, children}: {mode: InstrumentMode; children: ReactNo
     enabled: requiresIdentity,
   });
 
-  if (!requiresIdentity) return <>{children}</>;
+  const withConnectionContext = () => <ConnectionContextProvider client={authClient}>{children}</ConnectionContextProvider>;
+
+  if (!requiresIdentity) return withConnectionContext();
 
   if (sessionQuery.isPending) {
     return (
@@ -98,7 +100,7 @@ function IdentityGate({mode, children}: {mode: InstrumentMode; children: ReactNo
     );
   }
 
-  return <>{children}</>;
+  return withConnectionContext();
 }
 
 export default function LiveInstrument({initialMode}: {initialMode: InstrumentMode}) {
@@ -124,9 +126,7 @@ export default function LiveInstrument({initialMode}: {initialMode: InstrumentMo
     },
   }), [mode]);
 
-  return <ConnectionContextProvider client={authClient}>
-    <InstrumentNavigationProvider value={navigation}>
-      <IdentityGate mode={mode}><MissionGate mode={mode}><Surface mode={mode} /></MissionGate></IdentityGate>
-    </InstrumentNavigationProvider>
-  </ConnectionContextProvider>;
+  return <InstrumentNavigationProvider value={navigation}>
+    <IdentityGate mode={mode}><MissionGate mode={mode}><Surface mode={mode} /></MissionGate></IdentityGate>
+  </InstrumentNavigationProvider>;
 }

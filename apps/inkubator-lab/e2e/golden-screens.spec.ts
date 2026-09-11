@@ -1,6 +1,22 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page} from '@playwright/test';
 
+const unexpectedApiRequests = new WeakMap<Page, string[]>();
+
+test.beforeEach(async ({page}) => {
+  const requests: string[] = [];
+  unexpectedApiRequests.set(page, requests);
+  await page.route('**/v1/**', async (route) => {
+    const request = route.request();
+    requests.push(`${request.method()} ${new URL(request.url()).pathname}`);
+    await route.fulfill({status: 599, contentType: 'application/json', body: JSON.stringify({error: 'golden_fixture_api_request_forbidden'})});
+  });
+});
+
+test.afterEach(async ({page}) => {
+  expect(unexpectedApiRequests.get(page) ?? []).toEqual([]);
+});
+
 const screens = ['world', 'command', 'project', 'player', 'ship'] as const;
 type GoldenScreen = (typeof screens)[number];
 
