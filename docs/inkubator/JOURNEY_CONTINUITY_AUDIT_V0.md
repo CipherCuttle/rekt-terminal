@@ -45,14 +45,14 @@ Truth remains:
 
 ## Verification receipt
 
-JCA-01 implementation head `fe2fec688c3746c6aab21041161d9eaeeabff803` passed all four repository gates before this closure note:
+JCA-01 implementation head `fe2fec688c3746c6aab21041161d9eaeeabff803` passed all four repository gates. The closure-note successor `104311ad282b7e8c03a099bdb0f11239b4314b4a` also passed the same four gates with no code changes after the implementation head:
 
 - CI — PASS
 - Inkubator Verification — PASS
 - Inkubator Signal System — PASS
 - Inkubator Auth Foundation — PASS
 
-The final verification covered generated-client currency, typecheck, unit/semantic tests, canonical production build, source/product-boundary invariants, Lighthouse, bundle budgets, Storybook, Playwright journeys, axe, mobile and visual snapshots.
+The final verification covered generated-client currency, typecheck, unit/semantic tests, canonical production build, source/product-boundary invariants, Postgres integration tests, Lighthouse, bundle budgets, Storybook, Playwright journeys, axe, mobile and visual snapshots.
 
 The owner-private pending-Assist endpoint is canonical OpenAPI but intentionally uses an inline response schema plus a product-private web client wrapper. It is not added to the generated public SDK surface, so pending helper messages cannot accidentally become part of a broad/public client contract. The generated API client therefore remains current without exposing the owner-only inbox.
 
