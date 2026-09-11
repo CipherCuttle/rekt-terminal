@@ -15,13 +15,15 @@ type CommandClient = Pick<InkubatorApiClient, 'getMyCommand'>;
 export type LiveCommandProps = {client?: CommandClient; refetchIntervalMs?: number | false};
 const QUERY_KEY = ['inkubator', 'command', 'me'] as const;
 
-type PrimaryAction = {label: string; href: string; mode?: InstrumentMode; targetId?: string};
+type PrimaryAction = {label: string; href: string; mode: InstrumentMode};
 
-export function commandPrimaryAction(command: CommandView): PrimaryAction {
+/**
+ * Only expose a button when canonical state determines its destination.
+ * Free-text Next Move stays the authority; source/blocker context must not invent a second priority.
+ */
+export function commandPrimaryAction(command: CommandView): PrimaryAction | null {
   if (command.mission.state === 'SHIP_READY') return {label: 'OPEN SHIP', href: '?mode=ship', mode: 'SHIP'};
-  if (!command.project.source_connected) return {label: 'CONNECT SOURCE', href: '#command-source-control', targetId: 'command-source-control'};
-  if (command.mission.blocker) return {label: 'ASK FOR HELP', href: '#command-help-control', targetId: 'command-help-control'};
-  return {label: 'OPEN PROJECT', href: '?mode=project', mode: 'PROJECT'};
+  return null;
 }
 
 /** One explanatory cue. Keys contain canonical values, never poll/lifecycle counters. */
@@ -52,21 +54,11 @@ function LiveProjection({command, deltas, eventSequence, channelError}: {command
       <section className="command-thread-instrument" aria-label="Living Thread mission instrument">
         <div className="command-mission-copy"><span>01 / CURRENT MISSION</span><h2>{command.mission.goal}</h2><p>{command.mission.current_focus}</p></div>
         <div className="command-next-move" data-delta="NEXT_MOVE"><span>NEXT MOVE / ONE ACTION</span><h2>{command.mission.next_move}</h2>
-          <a className="command-primary-action" href={primaryAction.href} onClick={event => {
-            if (primaryAction.mode && navigation) {
-              event.preventDefault();
-              navigation.onModeSelect(primaryAction.mode);
-              return;
-            }
-            if (primaryAction.targetId) {
-              const target = document.getElementById(primaryAction.targetId) as HTMLDetailsElement | null;
-              if (!target) return;
-              event.preventDefault();
-              target.open = true;
-              target.scrollIntoView({behavior: reducedMotion ? 'auto' : 'smooth', block: 'center'});
-              target.querySelector<HTMLElement>('button,input,textarea,select,summary')?.focus();
-            }
-          }}>{primaryAction.label} →</a>
+          {primaryAction ? <a className="command-primary-action" href={primaryAction.href} onClick={event => {
+            if (!navigation) return;
+            event.preventDefault();
+            navigation.onModeSelect(primaryAction.mode);
+          }}>{primaryAction.label} →</a> : null}
           {!channelError ? <CommandActions command={command}/> : null}
         </div>
         <div className="faceplate-display command-thread-stage">
