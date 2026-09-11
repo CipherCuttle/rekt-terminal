@@ -43,6 +43,17 @@ Truth remains:
 | 21 | Return after Ship | PLAYER/SHIP preserve durable builder record | PLAYER history/reputation polling + receipt recovery | PASS |
 | 22 | New WORLD activity arrives | New canonical signal appears and animates once | WORLD polling keyed by stable signal id | PASS |
 
+## Verification receipt
+
+The repaired journey-continuity lineage passed all four repository gates before deployment:
+
+- CI — PASS
+- Inkubator Verification — PASS
+- Inkubator Signal System — PASS
+- Inkubator Auth Foundation — PASS
+
+Signal-System verification included source invariants, unit/semantic tests, typecheck/build, bundle budgets, Storybook, Playwright journeys, axe, mobile and visual snapshots. The generated API client contract remained current.
+
 ## Remaining product gap
 
 ### JCA-01 — Owner cannot discover pending Assist offers
