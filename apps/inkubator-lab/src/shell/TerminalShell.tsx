@@ -9,6 +9,14 @@ import './faceplate.css';
 export {INSTRUMENT_MODES};
 export type {InstrumentMode};
 
+const MODE_CUES: Record<InstrumentMode, string> = {
+  WORLD: 'AROUND YOU',
+  COMMAND: 'WHAT NOW?',
+  PROJECT: 'THIS BUILD',
+  PLAYER: 'YOUR RECORD',
+  SHIP: 'PROVE IT',
+};
+
 export type TerminalReadout = {
   label: string;
   value: ReactNode;
@@ -121,7 +129,7 @@ export function TerminalShell({
               >
                 <span>{String(index + 1).padStart(2, '0')}</span>
                 <b>{item}</b>
-                <small>{isCurrent ? 'CURRENT' : isEnabled ? 'AVAILABLE' : 'PENDING'}</small>
+                <small>{MODE_CUES[item]} · {isCurrent ? 'CURRENT' : isEnabled ? 'AVAILABLE' : 'PENDING'}</small>
               </button>
             );
           })}
