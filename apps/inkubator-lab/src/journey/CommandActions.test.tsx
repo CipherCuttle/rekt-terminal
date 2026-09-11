@@ -100,7 +100,7 @@ describe('CommandActions journey mutations', () => {
   it('distinguishes GitHub sign-in from repository authorization and links an authorized repository', async () => {
     const linkProjectGitHubRepository = vi.fn().mockResolvedValue({});
     renderActions(commandView(), {listGitHubRepositories: vi.fn().mockResolvedValue(repositories), linkProjectGitHubRepository});
-    expect(screen.getByText('GitHub sign-in identifies you. Installing the read-only GitHub App separately authorizes selected repositories.')).toBeTruthy();
+    expect(screen.getByText(/GitHub sign-in identifies you\. The read-only GitHub App separately authorizes repository access\./)).toBeTruthy();
     expect(await screen.findByText('REPOSITORY ACCESS READY / 1 AVAILABLE')).toBeTruthy();
     expect(await screen.findByRole('option', {name: 'coherence/private-source / PRIVATE'})).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Authorized repository', {exact: true}), {target: {value: '11001'}});
@@ -110,15 +110,14 @@ describe('CommandActions journey mutations', () => {
     expect(await screen.findByText(/Repository linked\. COMMAND will now watch the canonical source projection\./)).toBeTruthy();
   });
 
-  it('renders the empty repository state fail-closed and keeps an explicit refresh path', async () => {
+  it('renders the empty repository state fail-closed and keeps an explicit GitHub sync path', async () => {
     const linkProjectGitHubRepository = vi.fn();
     renderActions(commandView(), {listGitHubRepositories: vi.fn().mockResolvedValue([]), linkProjectGitHubRepository});
-    expect(await screen.findByText(/No repositories authorized yet/)).toBeTruthy();
+    expect(await screen.findByText(/No repositories are known to Inkubator yet/)).toBeTruthy();
     const submit = screen.getByRole('button', {name: 'LINK AUTHORIZED REPOSITORY'}) as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
-    const checkNow = screen.getByRole('button', {name: 'CHECK NOW'}) as HTMLButtonElement;
-    expect(checkNow.disabled).toBe(false);
-    fireEvent.click(checkNow);
+    const sync = screen.getByRole('button', {name: 'SYNC GITHUB ACCESS'}) as HTMLButtonElement;
+    expect(sync.disabled).toBe(false);
     fireEvent.click(submit);
     expect(linkProjectGitHubRepository).not.toHaveBeenCalled();
   });
