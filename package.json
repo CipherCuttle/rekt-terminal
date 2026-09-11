@@ -13,6 +13,7 @@
     "build:core": "npm run build -w @rekt-ink/episodes && npm run build -w @rekt-ink/sim && npm run build -w @rekt-ink/career && npm run build -w @rekt-ink/learning && npm run build -w @rekt-ink/api && npm run build -w @rekt-ink/web && npm run build -w @rekt-ink/inkubator-api && npm run build -w @rekt-ink/inkubator-verifier",
     "build:inkubator": "npm run build -w @rekt-ink/inkubator-lab",
     "build:inkubator:services": "npm run build -w @rekt-ink/inkubator-api && npm run build -w @rekt-ink/inkubator-verifier",
+    "build:inkubator:render": "npm run build -w @rekt-ink/inkubator-api && npm run build -w @rekt-ink/inkubator-lab -- --outDir dist",
     "build:inkubator:product": "npm run build:inkubator:services && npm run build:inkubator && npm run build:devkit",
     "build:canonical": "npm run build:core && npm run build:inkubator && npm run build:devkit",
     "build": "npm run build:canonical",
