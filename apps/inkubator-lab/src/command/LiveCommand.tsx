@@ -6,7 +6,7 @@ import {PeripheralSignal} from '../instrument-os/PeripheralSignal';
 import type {PeripheralCueKind} from '../instrument-os/peripheral-motion';
 import {useReducedMotion} from '../instrument-os/use-reduced-motion';
 import {TerminalShell} from '../shell/TerminalShell';
-import {useInstrumentNavigation} from '../shell/InstrumentNavigation';
+import {useInstrumentNavigation, type InstrumentMode} from '../shell/InstrumentNavigation';
 import {diffCommandProjection, summarizeCommandDeltas, type CommandProjectionDelta} from './projection-delta';
 import {CommandActions} from '../journey/CommandActions';
 import './live-command.css';
@@ -14,6 +14,15 @@ import './live-command.css';
 type CommandClient = Pick<InkubatorApiClient, 'getMyCommand'>;
 export type LiveCommandProps = {client?: CommandClient; refetchIntervalMs?: number | false};
 const QUERY_KEY = ['inkubator', 'command', 'me'] as const;
+
+type PrimaryAction = {label: string; href: string; mode?: InstrumentMode; targetId?: string};
+
+export function commandPrimaryAction(command: CommandView): PrimaryAction {
+  if (command.mission.state === 'SHIP_READY') return {label: 'OPEN SHIP', href: '?mode=ship', mode: 'SHIP'};
+  if (!command.project.source_connected) return {label: 'CONNECT SOURCE', href: '#command-source-control', targetId: 'command-source-control'};
+  if (command.mission.blocker) return {label: 'ASK FOR HELP', href: '#command-help-control', targetId: 'command-help-control'};
+  return {label: 'OPEN PROJECT', href: '?mode=project', mode: 'PROJECT'};
+}
 
 /** One explanatory cue. Keys contain canonical values, never poll/lifecycle counters. */
 export function commandCue(command: CommandView, deltas: CommandProjectionDelta[]): {cue: PeripheralCueKind; eventId?: string} {
@@ -32,18 +41,32 @@ function LiveProjection({command, deltas, eventSequence, channelError}: {command
   const gates = command.gates.slice().sort((a, b) => a.position - b.position);
   const signal = channelError ? {cue: 'UNAVAILABLE' as const} : commandCue(command, deltas);
   const latest = command.github_evidence.latest_observation;
-  const destination = command.mission.state === 'SHIP_READY' ? 'SHIP' : 'PROJECT';
+  const primaryAction = commandPrimaryAction(command);
   return (
-    <TerminalShell mode="COMMAND" kicker="REKT / COMMAND" title={command.project.name}
+    <TerminalShell mode="COMMAND" kicker="REKT / COMMAND / WHAT NOW?" title={command.project.name}
       readout={[{label: 'LINK', value: command.github_evidence.source_state}, {label: 'STATE', value: command.mission.state}]}
-      eventStatus={<>EVENT // {eventSequence === 0 ? 'CANONICAL PROJECTION LOADED' : summarizeCommandDeltas(deltas)}</>}
+      eventStatus={<>CHANGE // {eventSequence === 0 ? 'CANONICAL PROJECTION LOADED' : summarizeCommandDeltas(deltas)}</>}
       workspaceClassName="command-console" className="command-live" motion="peripheral-v1" eventSequence={eventSequence}
       motionPolicy={reducedMotion ? 'reduced' : 'full'}
       footerItems={['MISSION // CANONICAL PROJECTION', 'CLAIMED ≠ OBSERVED ≠ PROVEN']}>
       <section className="command-thread-instrument" aria-label="Living Thread mission instrument">
         <div className="command-mission-copy"><span>01 / CURRENT MISSION</span><h2>{command.mission.goal}</h2><p>{command.mission.current_focus}</p></div>
         <div className="command-next-move" data-delta="NEXT_MOVE"><span>NEXT MOVE / ONE ACTION</span><h2>{command.mission.next_move}</h2>
-          <a className="command-primary-action" href={`?mode=${destination.toLowerCase()}`} onClick={event => {if (navigation) {event.preventDefault(); navigation.onModeSelect(destination);}}}>OPEN {destination} →</a>
+          <a className="command-primary-action" href={primaryAction.href} onClick={event => {
+            if (primaryAction.mode && navigation) {
+              event.preventDefault();
+              navigation.onModeSelect(primaryAction.mode);
+              return;
+            }
+            if (primaryAction.targetId) {
+              const target = document.getElementById(primaryAction.targetId) as HTMLDetailsElement | null;
+              if (!target) return;
+              event.preventDefault();
+              target.open = true;
+              target.scrollIntoView({behavior: reducedMotion ? 'auto' : 'smooth', block: 'center'});
+              target.querySelector<HTMLElement>('button,input,textarea,select,summary')?.focus();
+            }
+          }}>{primaryAction.label} →</a>
           {!channelError ? <CommandActions command={command}/> : null}
         </div>
         <div className="faceplate-display command-thread-stage">
@@ -65,7 +88,7 @@ function CommandLoadingState({error}: {error?: string}) {
   return (
     <TerminalShell
       mode="COMMAND"
-      kicker="REKT / COMMAND"
+      kicker="REKT / COMMAND / WHAT NOW?"
       title={failed ? 'COMMAND LINK UNAVAILABLE' : 'CONNECTING COMMAND BUS'}
       description={failed ? 'Canonical private command projection is unavailable; the machine remains fail-closed.' : 'Waiting for canonical `/v1/me/command` projection.'}
       readout={[
