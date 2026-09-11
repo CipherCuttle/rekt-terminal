@@ -9,6 +9,11 @@
   padding: clamp(1rem, 4vw, 2.25rem);
   border: 1px solid var(--ios2-line, #b8b8b3);
   background: var(--ios2-paper, #f3f3ef);
+  color: var(--ios2-ink, #141719);
+}
+
+.inkubator-auth-card small {
+  color: var(--ios2-muted, #565c5f);
 }
 
 .inkubator-auth-card h2 {

@@ -230,7 +230,7 @@ export default function LivePlayer({client = createInkubatorApiClient(), refetch
   }
 
   if (meQuery.isError || !meQuery.data) {
-    return <TerminalShell mode="PLAYER" kicker="REKT INK(CUBATOR) // LIVE PLAYER" title="Builder history." description="Canonical player identity unavailable." workspaceClassName="player-loading player-loading--error" className="player-live" role="alert"><div><small>PLAYER RECORD</small><h2>PLAYER LINK UNAVAILABLE</h2><p>{errorMessage(meQuery.error, 'player_projection_unavailable')}</p><p>No development fixture fallback is permitted.</p></div></TerminalShell>;
+    return <TerminalShell mode="PLAYER" kicker="REKT INK(CUBATOR) // LIVE PLAYER" title="Builder history." description="Canonical player identity unavailable." workspaceClassName="player-loading player-loading--error" className="player-live"><div role="alert"><small>PLAYER RECORD</small><h2>PLAYER LINK UNAVAILABLE</h2><p>{errorMessage(meQuery.error, 'player_projection_unavailable')}</p><p>No development fixture fallback is permitted.</p></div></TerminalShell>;
   }
 
   return <PlayerProjection me={meQuery.data} profile={profileQuery.data} profileError={profileQuery.error} history={historyQuery.data} historyError={historyQuery.error} reputation={reputationQuery.data} reputationError={reputationQuery.error} />;

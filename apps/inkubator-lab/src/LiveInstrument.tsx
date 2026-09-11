@@ -71,8 +71,8 @@ function IdentityGate({mode, children}: {mode: InstrumentMode; children: ReactNo
     }
 
     return (
-      <TerminalShell mode={mode} kicker="REKT INK(CUBATOR) // IDENTITY" title="SERVICE OFFLINE" description="The private Inkubator runtime is not reachable from this origin." workspaceClassName="inkubator-auth-state inkubator-auth-state--offline" role="alert">
-        <div className="inkubator-auth-card">
+      <TerminalShell mode={mode} kicker="REKT INK(CUBATOR) // IDENTITY" title="SERVICE OFFLINE" description="The private Inkubator runtime is not reachable from this origin." workspaceClassName="inkubator-auth-state inkubator-auth-state--offline">
+      <div className="inkubator-auth-card" role="alert">
           <small>AUTH / API</small><h2>INKUBATOR BACKEND REQUIRED</h2>
           <p>{status === 404 ? 'This static preview has no /v1 backend. GitHub login requires the same-origin Inkubator API.' : sessionQuery.error.message}</p>
           <button type="button" className="journey-auth-retry" onClick={() => void sessionQuery.refetch()}>RETRY CONNECTION</button>
