@@ -2,6 +2,7 @@ import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/reac
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {InkubatorApiError, type CommandView, type GitHubRepositoryChoices, type InkubatorApiClient} from '../generated/inkubator-api-client';
+import type {InkubatorProductApiClient} from '../inkubator-api';
 import {CommandActions} from './CommandActions';
 
 afterEach(cleanup);
@@ -30,7 +31,7 @@ const repositories: GitHubRepositoryChoices = [
   {repository_id: '11001', full_name: 'coherence/private-source', private: true},
 ];
 
-type ActionClient = Pick<InkubatorApiClient, 'updateMission' | 'listGitHubRepositories' | 'createGitHubInstall' | 'linkProjectGitHubRepository' | 'createHelpBeacon' | 'closeHelpBeacon' | 'getProjectHelpLoop' | 'createExternalTestRequest' | 'getProjectExternalTests'>;
+type ActionClient = Pick<InkubatorApiClient, 'updateMission' | 'listGitHubRepositories' | 'createGitHubInstall' | 'linkProjectGitHubRepository' | 'createHelpBeacon' | 'closeHelpBeacon' | 'getProjectHelpLoop' | 'acceptAssist' | 'createExternalTestRequest' | 'getProjectExternalTests'> & Pick<InkubatorProductApiClient, 'getProjectPendingAssists'>;
 
 function client(overrides: Partial<ActionClient> = {}): ActionClient {
   return {
@@ -41,6 +42,8 @@ function client(overrides: Partial<ActionClient> = {}): ActionClient {
     createHelpBeacon: vi.fn().mockResolvedValue({}),
     closeHelpBeacon: vi.fn().mockResolvedValue({}),
     getProjectHelpLoop: vi.fn().mockResolvedValue({schema_version: 'project.help_loop.public.v1', project_id: 'P-001', owner: {schema_version: 'player.public.v2', player_id: 'OWNER-1', display_name: 'Owner', skills_needed: [], can_help_with: []}, party_members: []}),
+    getProjectPendingAssists: vi.fn().mockResolvedValue({schema_version: 'project.pending_assists.private.v1', project_id: 'P-001', assists: []}),
+    acceptAssist: vi.fn().mockResolvedValue({}),
     createExternalTestRequest: vi.fn().mockResolvedValue({}),
     getProjectExternalTests: vi.fn().mockResolvedValue({schema_version: 'project.external_tests.public.v1', project_id: 'P-001', requests: [], results: []}),
     ...overrides,
@@ -143,6 +146,41 @@ describe('CommandActions journey mutations', () => {
     expect(screen.getByText('Review the mobile journey.')).toBeTruthy();
     expect(screen.queryByRole('button', {name: 'OPEN HELP BEACON'})).toBeNull();
     expect(screen.getByRole('button', {name: 'CLOSE HELP BEACON'})).toBeTruthy();
+  });
+
+  it('surfaces an owner-private pending Assist and reconciles after acceptance', async () => {
+    const beacon = {schema_version: 'help_beacon.public.v1' as const, beacon_id: 'B-1', project_id: 'P-001', summary: 'Need QA.', skills_needed: [], state: 'OPEN' as const};
+    const offer = {assist_id: 'A-1', beacon_id: 'B-1', project_id: 'P-001', offered_by_player_id: 'HELPER-1', offered_by_display_name: 'Helpful Goblin', message: 'I can reproduce the mobile bug.', state: 'OFFERED' as const, offered_at: '2026-09-11T19:00:00Z'};
+    const getProjectPendingAssists = vi.fn()
+      .mockResolvedValueOnce({schema_version: 'project.pending_assists.private.v1' as const, project_id: 'P-001', assists: [offer]})
+      .mockResolvedValue({schema_version: 'project.pending_assists.private.v1' as const, project_id: 'P-001', assists: []});
+    const acceptAssist = vi.fn().mockResolvedValue({schema_version: 'assist.private.v1', assist_id: 'A-1', state: 'ACCEPTED'});
+    renderActions(commandView(), {
+      getProjectHelpLoop: vi.fn().mockResolvedValue({schema_version: 'project.help_loop.public.v1', project_id: 'P-001', owner: {schema_version: 'player.public.v2', player_id: 'OWNER-1', display_name: 'Owner', skills_needed: [], can_help_with: []}, open_help_beacon: beacon, party_members: []}),
+      getProjectPendingAssists,
+      acceptAssist,
+    });
+    expect(await screen.findByText('ASSIST OFFERS / 1 PENDING')).toBeTruthy();
+    expect(screen.getByText('Helpful Goblin')).toBeTruthy();
+    expect(screen.getByText('I can reproduce the mobile bug.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', {name: 'ACCEPT ASSIST'}));
+    await waitFor(() => expect(acceptAssist).toHaveBeenCalledTimes(1));
+    const [assistId, body] = acceptAssist.mock.calls[0] as [string, {request_id:string}];
+    expect(assistId).toBe('A-1');
+    expect(body.request_id).toBeTruthy();
+    expect(await screen.findByText('Assist accepted. Party state will reconcile automatically.')).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText('I can reproduce the mobile bug.')).toBeNull());
+  });
+
+  it('fails closed if pending Assist authority is lost', async () => {
+    const beacon = {schema_version: 'help_beacon.public.v1' as const, beacon_id: 'B-1', project_id: 'P-001', summary: 'Need QA.', skills_needed: [], state: 'OPEN' as const};
+    renderActions(commandView(), {
+      getProjectHelpLoop: vi.fn().mockResolvedValue({schema_version: 'project.help_loop.public.v1', project_id: 'P-001', owner: {schema_version: 'player.public.v2', player_id: 'OWNER-1', display_name: 'Owner', skills_needed: [], can_help_with: []}, open_help_beacon: beacon, party_members: []}),
+      getProjectPendingAssists: vi.fn().mockRejectedValue(new InkubatorApiError(403, 'authorization_denied')),
+    });
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('PENDING ASSISTS UNAVAILABLE');
+    expect(alert.textContent).toContain('UNAUTHORIZED');
   });
 
   it('closes the live Help Beacon and invalidates the journey projections', async () => {
