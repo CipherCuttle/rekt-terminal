@@ -57,14 +57,22 @@ function IdentityGate({mode, children}: {mode: InstrumentMode; children: ReactNo
     const status = sessionQuery.error instanceof InkubatorApiError ? sessionQuery.error.status : 0;
     if (status === 401) {
       return (
-        <TerminalShell mode={mode} kicker="REKT INK(CUBATOR) // IDENTITY" title="SIGN IN" description="GitHub establishes player identity. Repository access remains a separate permission step." workspaceClassName="inkubator-auth-state">
+        <TerminalShell mode={mode} kicker="REKT INKUBATOR // ENTER" title="SHIP SOMETHING REAL." description="Build it. Get unstuck. Prove it worked. Keep the receipt." workspaceClassName="inkubator-auth-state">
           <div className="inkubator-auth-card">
-            <small>PLAYER IDENTITY // UNAUTHENTICATED</small>
-            <h2>CONTINUE WITH GITHUB</h2>
+            <small>PLAYER IDENTITY // GITHUB</small>
+            <h2>YOUR BUILD STARTS HERE.</h2>
             {new URLSearchParams(window.location.search).get('auth') === 'github_failed' ? <p role="alert">GitHub sign-in did not complete. Try again to connect your identity.</p> : null}
-            <p>Sign in to restore or create your PLAYER. Your builder identity and durable history are restored after sign-in.</p>
-            <a className="inkubator-auth-action" href="/v1/auth/github/start">CONTINUE WITH GITHUB →</a>
-            <p className="inkubator-auth-footnote">Repository installation comes after login and remains read-only / separately authorized.</p>
+            <p>GitHub signs you in. Then declare what you are shipping and Inkubator keeps your current move, evidence, help and Ship history in one place.</p>
+            <div className="inkubator-auth-actions">
+              <a className="inkubator-auth-action" href="/v1/auth/github/start">ENTER WITH GITHUB →</a>
+              <a className="inkubator-auth-action inkubator-auth-action--secondary" href="?mode=world">EXPLORE WORLD</a>
+            </div>
+            <dl className="inkubator-auth-loop" aria-label="Inkubator loop">
+              <div><dt>01</dt><dd>DECLARE THE BUILD</dd></div>
+              <div><dt>02</dt><dd>FOLLOW THE NEXT MOVE</dd></div>
+              <div><dt>03</dt><dd>SHIP + KEEP THE RECEIPT</dd></div>
+            </dl>
+            <p className="inkubator-auth-footnote">Repository access is a separate read-only GitHub App permission after sign-in.</p>
           </div>
         </TerminalShell>
       );
