@@ -172,16 +172,17 @@ export async function establishGitHubLoginSession(
       const currentGithubId = bound.rows[0]?.github_user_id ?? null;
       if (currentGithubId && currentGithubId !== identity.githubUserId) throw new Error('github_identity_conflict');
       await sql`
-        update players set github_user_id = ${identity.githubUserId}::bigint, updated_at = clock_timestamp()
+        update players set github_user_id = ${identity.githubUserId}::bigint, github_login = ${identity.login}, updated_at = clock_timestamp()
         where player_id = ${existingPlayerId}::uuid
       `.execute(transaction);
       player = await getPlayer(transaction, existingPlayerId);
     } else {
       player = await createPlayer(transaction, identity.login);
       await sql`
-        update players set github_user_id = ${identity.githubUserId}::bigint, updated_at = clock_timestamp()
+        update players set github_user_id = ${identity.githubUserId}::bigint, github_login = ${identity.login}, updated_at = clock_timestamp()
         where player_id = ${player.player_id}::uuid
       `.execute(transaction);
+      player = await getPlayer(transaction, player.player_id);
       created = true;
     }
 

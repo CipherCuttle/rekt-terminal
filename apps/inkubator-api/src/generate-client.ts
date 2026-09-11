@@ -41,6 +41,7 @@ const clientOperations = [
   ['/v1/dev/session', 'post'],
   ['/v1/session', 'delete'],
   ['/v1/me', 'get'],
+  ['/v1/me/connection', 'get'],
   ['/v1/me/profile', 'get'],
   ['/v1/me/profile', 'patch'],
   ['/v1/me/command', 'get'],

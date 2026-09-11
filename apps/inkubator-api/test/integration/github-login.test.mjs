@@ -50,6 +50,12 @@ test('GitHub login creates, reuses and adopts exactly one PLAYER while ambiguity
       .where('player_id', '=', first.player.player_id)
       .executeTakeFirstOrThrow();
     assert.equal(firstStored.github_user_id, firstIdentity.githubUserId);
+    const firstDisplayMetadata = await db
+      .selectFrom('players')
+      .select('github_login')
+      .where('player_id', '=', first.player.player_id)
+      .executeTakeFirstOrThrow();
+    assert.equal(firstDisplayMetadata.github_login, firstIdentity.login);
 
     const repeated = await establishGitHubLoginSession(db, firstIdentity, 3600);
     assert.equal(repeated.created, false);
@@ -82,10 +88,11 @@ test('GitHub login creates, reuses and adopts exactly one PLAYER while ambiguity
     assert.equal(adopted.player.player_id, legacyPlayer.player_id);
     const adoptedStored = await db
       .selectFrom('players')
-      .select('github_user_id')
+      .select(['github_user_id', 'github_login'])
       .where('player_id', '=', legacyPlayer.player_id)
       .executeTakeFirstOrThrow();
     assert.equal(adoptedStored.github_user_id, '987650002');
+    assert.equal(adoptedStored.github_login, 'renamed-github-handle');
 
     const ambiguousA = await createPlayer(db, 'OAuth Ambiguous A');
     const ambiguousB = await createPlayer(db, 'OAuth Ambiguous B');

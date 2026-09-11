@@ -82,7 +82,7 @@ test('LIVE PLAYER presents GitHub identity bootstrap when private identity is un
   await routePlayer(page, {'/v1/me': {status: 401, body: {error: 'session_required'}}});
   await page.goto('/?mode=player');
 
-  await expect(page.getByRole('heading', {name: 'SHIP SOMETHING REAL.'})).toBeVisible();
+  await expect(page.getByLabel('PLAYER workspace').getByRole('heading', {name: 'KEEP YOUR RECORD.'})).toBeVisible();
   await expect(page.getByRole('link', {name: /ENTER WITH GITHUB/})).toHaveAttribute('href', '/v1/auth/github/start');
   await expect(page.getByRole('heading', {name: 'Builder history.'})).toHaveCount(0);
   await expect(page.getByText(/Repository access is a separate read-only GitHub App permission after sign-in/i)).toBeVisible();

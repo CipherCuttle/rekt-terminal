@@ -48,6 +48,20 @@ schemas.GitHubRepositoryChoice = {type:'object',additionalProperties:false,requi
 schemas.GitHubRepositoryChoices = {type:'array',items:ref('GitHubRepositoryChoice')};
 paths['/v1/github/repositories'] = {get:{operationId:'listGitHubRepositories',security:[{sessionCookie:[]}],responses:{'200':{description:'Active repositories authorized to the current Player; private projection only',content:{'application/json':{schema:ref('GitHubRepositoryChoices')}}},'401':errorResponse('Session required')}}};
 
+schemas.ConnectionContext = {
+  type:'object', additionalProperties:false,
+  required:['schema_version','player','github','states','source'],
+  properties:{
+    schema_version:{type:'string',const:'player.connection_context.private.v1'},
+    player:ref('ConnectionContextPlayer'), github:ref('ConnectionContextGithub'), states:ref('ConnectionContextStates'), source:ref('ConnectionContextSource'),
+  },
+};
+schemas.ConnectionContextPlayer = {type:'object',additionalProperties:false,required:['player_id','display_name'],properties:{player_id:ref('PlayerId'),display_name:{type:'string'}}};
+schemas.ConnectionContextGithub = {type:'object',additionalProperties:false,required:['user_id','login'],properties:{user_id:{type:['string','null']},login:{type:['string','null']}}};
+schemas.ConnectionContextStates = {type:'object',additionalProperties:false,required:['signed_in','app_access','repository_authorized','project_linked','observing'],properties:{signed_in:{type:'string',const:'SIGNED_IN'},app_access:{type:'string',enum:['GRANTED','NOT_GRANTED','REVOKED']},repository_authorized:{type:'string',enum:['AUTHORIZED','NOT_AUTHORIZED','REVOKED']},project_linked:{type:'string',enum:['LINKED','NOT_LINKED','ACCESS_REVOKED']},observing:{type:'string',enum:['OBSERVING','NOT_OBSERVING','UNAVAILABLE']}}};
+schemas.ConnectionContextSource = {type:'object',additionalProperties:false,required:['repository_id','repository_full_name','visibility','availability','last_observed_at'],properties:{repository_id:{type:['string','null']},repository_full_name:{type:['string','null']},visibility:{type:'string',enum:['NONE','PUBLIC','PRIVATE']},availability:{type:'string',enum:['NONE','AVAILABLE','REVOKED']},last_observed_at:{type:['string','null'],format:'date-time'}}};
+paths['/v1/me/connection'] = {get:{operationId:'getMyConnectionContext',security:[{sessionCookie:[]}],responses:{'200':{description:'Private canonical connection context for the shared Instrument shell',content:{'application/json':{schema:ref('ConnectionContext')}}},'401':errorResponse('Session required')}}};
+
 // Owner-private Assist inbox. Keep this schema inline so the generated public SDK surface does not accidentally expose owner-only messages.
 const pendingAssistSchema = {type:'object',additionalProperties:false,required:['assist_id','beacon_id','project_id','offered_by_player_id','offered_by_display_name','message','state','offered_at'],properties:{assist_id:{type:'string',format:'uuid'},beacon_id:{type:'string',format:'uuid'},project_id:ref('ProjectId'),offered_by_player_id:ref('PlayerId'),offered_by_display_name:{type:'string'},message:{type:'string'},state:{type:'string',const:'OFFERED'},offered_at:{type:'string',format:'date-time'}}};
 const pendingAssistsSchema = {type:'object',additionalProperties:false,required:['schema_version','project_id','assists'],properties:{schema_version:{type:'string',const:'project.pending_assists.private.v1'},project_id:ref('ProjectId'),assists:{type:'array',maxItems:50,items:pendingAssistSchema}}};

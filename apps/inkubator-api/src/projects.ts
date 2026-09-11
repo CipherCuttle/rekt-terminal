@@ -213,10 +213,16 @@ export async function linkDevelopmentProjectRepository(
     if (!repository) throw new Error('github_repository_not_available');
 
     if (project.repository_id) {
-      if (project.repository_id !== repositoryId) throw new Error('project_repository_already_linked');
-      const snapshot = await getDevelopmentProject(transaction, projectId);
-      if (!snapshot) throw new Error('project_not_found');
-      return snapshot;
+      const existingRepository = await transaction
+        .selectFrom('github_repositories as existing_repository')
+        .innerJoin('github_installations as existing_installation', 'existing_installation.installation_id', 'existing_repository.installation_id')
+        .select(['existing_repository.active', 'existing_installation.revoked_at'])
+        .where('existing_repository.repository_id', '=', project.repository_id)
+        .executeTakeFirst();
+      if (existingRepository?.active && !existingRepository.revoked_at) throw new Error('project_repository_already_linked');
+      // A revoked or removed source may be replaced by a newly authorized
+      // repository. The old repository ID remains in its history/tombstone;
+      // only the current Project link moves to the fresh authorized source.
     }
 
     const existingProjectId = await findLinkedProjectIdForRepository(transaction, repositoryId);
@@ -229,7 +235,7 @@ export async function linkDevelopmentProjectRepository(
     await appendHistoryEvent(transaction, {
       eventFamily: 'activity',
       eventType: 'project.github_repository.linked',
-      dedupeKey: `activity:project.github_repository.linked:${projectId}`,
+      dedupeKey: `activity:project.github_repository.linked:${projectId}:${repositoryId}`,
       actorPlayerId: ownerPlayerId,
       subjectType: 'project',
       subjectId: projectId,

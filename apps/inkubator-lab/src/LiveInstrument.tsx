@@ -7,6 +7,7 @@ import {TerminalShell} from './shell/TerminalShell';
 import './auth/live-auth.css';
 import MissionBootstrap from './journey/MissionBootstrap';
 import {isActiveMissionNotFound} from './journey/active-mission';
+import {ConnectionContextProvider} from './shell/ConnectionContext';
 
 const LiveCommand = lazy(() => import('./command/LiveCommand'));
 const LiveProject = lazy(() => import('./project/LiveProject'));
@@ -14,6 +15,13 @@ const LiveWorld = lazy(() => import('./world/LiveWorld'));
 const LivePlayer = lazy(() => import('./player/LivePlayer'));
 const LiveShip = lazy(() => import('./ship/LiveShip'));
 const authClient = createInkubatorApiClient();
+
+const PRIVATE_MODE_COPY: Record<Exclude<InstrumentMode, 'WORLD'>, {kicker: string; title: string; body: string}> = {
+  COMMAND: {kicker: 'COMMAND / PRIVATE MISSION', title: 'DECLARE YOUR MISSION.', body: 'Sign in to create or resume the one canonical build control loop.'},
+  PROJECT: {kicker: 'PROJECT / PRIVATE BUILD', title: 'OPEN YOUR BUILD.', body: 'Sign in to inspect private source context, tests, help and artifact records.'},
+  PLAYER: {kicker: 'PLAYER / PRIVATE RECORD', title: 'KEEP YOUR RECORD.', body: 'Sign in to read your durable builder history and evidence-linked recognition.'},
+  SHIP: {kicker: 'SHIP / PRIVATE SUBMISSION', title: 'READ YOUR RECEIPT.', body: 'Sign in to submit a claim or inspect the accepted artifact lineage.'},
+};
 
 function modeFromLocation(fallback: InstrumentMode) {
   return parseInstrumentMode(new URLSearchParams(window.location.search).get('mode')) ?? fallback;
@@ -56,13 +64,14 @@ function IdentityGate({mode, children}: {mode: InstrumentMode; children: ReactNo
   if (sessionQuery.error) {
     const status = sessionQuery.error instanceof InkubatorApiError ? sessionQuery.error.status : 0;
     if (status === 401) {
+      const copy = PRIVATE_MODE_COPY[mode as Exclude<InstrumentMode, 'WORLD'>];
       return (
-        <TerminalShell mode={mode} kicker="REKT INKUBATOR // ENTER" title="SHIP SOMETHING REAL." description="Build it. Get unstuck. Prove it worked. Keep the receipt." workspaceClassName="inkubator-auth-state">
+        <TerminalShell mode={mode} kicker={copy.kicker} title={copy.title} description={copy.body} workspaceClassName="inkubator-auth-state">
           <div className="inkubator-auth-card">
             <small>PLAYER IDENTITY // GITHUB</small>
-            <h2>YOUR BUILD STARTS HERE.</h2>
+            <h2>{copy.title}</h2>
             {new URLSearchParams(window.location.search).get('auth') === 'github_failed' ? <p role="alert">GitHub sign-in did not complete. Try again to connect your identity.</p> : null}
-            <p>GitHub signs you in. Then declare what you are shipping and Inkubator keeps your current move, evidence, help and Ship history in one place.</p>
+            <p>{copy.body} GitHub signs you in with a server-owned session.</p>
             <div className="inkubator-auth-actions">
               <a className="inkubator-auth-action" href="/v1/auth/github/start">ENTER WITH GITHUB →</a>
               <a className="inkubator-auth-action inkubator-auth-action--secondary" href="?mode=world">EXPLORE WORLD</a>
@@ -82,7 +91,7 @@ function IdentityGate({mode, children}: {mode: InstrumentMode; children: ReactNo
       <TerminalShell mode={mode} kicker="REKT INK(CUBATOR) // IDENTITY" title="SERVICE OFFLINE" description="The private Inkubator runtime is not reachable from this origin." workspaceClassName="inkubator-auth-state inkubator-auth-state--offline">
       <div className="inkubator-auth-card" role="alert">
           <small>AUTH / API</small><h2>INKUBATOR BACKEND REQUIRED</h2>
-          <p>{status === 404 ? 'This static preview has no /v1 backend. GitHub login requires the same-origin Inkubator API.' : sessionQuery.error.message}</p>
+          <p>{status === 404 ? 'This static preview has no /v1 backend. GitHub login requires the same-origin Inkubator API.' : sessionQuery.error instanceof Error ? sessionQuery.error.message : 'The private connection projection could not be read.'}</p>
           <button type="button" className="journey-auth-retry" onClick={() => void sessionQuery.refetch()}>RETRY CONNECTION</button>
         </div>
       </TerminalShell>
@@ -115,9 +124,9 @@ export default function LiveInstrument({initialMode}: {initialMode: InstrumentMo
     },
   }), [mode]);
 
-  return (
+  return <ConnectionContextProvider client={authClient}>
     <InstrumentNavigationProvider value={navigation}>
       <IdentityGate mode={mode}><MissionGate mode={mode}><Surface mode={mode} /></MissionGate></IdentityGate>
     </InstrumentNavigationProvider>
-  );
+  </ConnectionContextProvider>;
 }

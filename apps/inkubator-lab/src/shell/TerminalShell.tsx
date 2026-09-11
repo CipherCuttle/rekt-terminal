@@ -6,6 +6,8 @@ import './terminal-shell-v2.css';
 import './coherence-foundation-v0.css';
 import './faceplate.css';
 import './faceplate-a11y.css';
+import './connection-context.css';
+import {ConnectionContextStrip} from './ConnectionContext';
 
 export {INSTRUMENT_MODES};
 export type {InstrumentMode};
@@ -111,6 +113,7 @@ export function TerminalShell({
       </header>
 
       {eventStatus ? <div className="ios-event-status ios-shell-event" aria-live="polite">{eventStatus}</div> : null}
+      <ConnectionContextStrip />
 
       <section className="ios-shell-chassis">
         <nav className="ios-mode-rail ios-shell-mode-rail" aria-label="Instrument mode">
