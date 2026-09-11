@@ -81,6 +81,6 @@ test('GitHub reconciliation fails closed on excessive App permissions', async ()
 
   await assert.rejects(
     () => discoverGitHubAppInstallations(runtime, 'ghu_test', '97258089', fetchImpl),
-    /github_write_permission_forbidden/,
+    /github_contents_read_permission_required/,
   );
 });
