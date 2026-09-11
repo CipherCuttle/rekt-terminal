@@ -10,7 +10,7 @@ function ActionForm({label, children, action, disabled = false, successMessage =
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const mutation = useMutation({mutationFn: (data: FormData) => action(data, requestId), onSuccess: async () => {await cache.invalidateQueries({queryKey: ['inkubator']});}});
   function submit(event: FormEvent<HTMLFormElement>) {event.preventDefault(); if (mutation.isPending) return; mutation.mutate(new FormData(event.currentTarget));}
-  return <form onSubmit={submit} onChange={() => {setRequestId(crypto.randomUUID()); mutation.reset();}}><fieldset disabled={mutation.isPending || disabled}>{children}<button type="submit" disabled={mutation.isPending || disabled}>{mutation.isPending ? 'Saving…' : label}</button>{mutation.isError ? <p role="alert">{mutationAlert(mutation.error)}</p> : null}{mutation.isSuccess ? <p role="status">{successMessage}</p> : null}</fieldset></form>;
+  return <form onSubmit={submit} onChange={() => {setRequestId(crypto.randomUUID()); mutation.reset();}}><fieldset disabled={mutation.isPending}>{children}<button type="submit" disabled={mutation.isPending || disabled}>{mutation.isPending ? 'Saving…' : label}</button>{mutation.isError ? <p role="alert">{mutationAlert(mutation.error)}</p> : null}{mutation.isSuccess ? <p role="status">{successMessage}</p> : null}</fieldset></form>;
 }
 
 export function CommandActions({command, client = createInkubatorApiClient()}: {command: CommandView; client?: Pick<InkubatorApiClient, 'updateMission' | 'listGitHubRepositories' | 'createGitHubInstall' | 'linkProjectGitHubRepository' | 'createHelpBeacon' | 'closeHelpBeacon' | 'getProjectHelpLoop' | 'createExternalTestRequest' | 'getProjectExternalTests'>}) {
