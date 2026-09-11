@@ -5,6 +5,7 @@ import './terminal-shell.css';
 import './terminal-shell-v2.css';
 import './coherence-foundation-v0.css';
 import './faceplate.css';
+import './faceplate-a11y.css';
 
 export {INSTRUMENT_MODES};
 export type {InstrumentMode};
