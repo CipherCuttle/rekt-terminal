@@ -104,7 +104,7 @@ describe('CommandActions journey mutations', () => {
     fireEvent.click(screen.getByRole('button', {name: 'LINK AUTHORIZED REPOSITORY'}));
     await waitFor(() => expect(linkProjectGitHubRepository).toHaveBeenCalledTimes(1));
     expect(linkProjectGitHubRepository.mock.calls[0]).toEqual(['P-001', {repository_id: '11001'}]);
-    expect((await screen.findByRole('status')).textContent).toContain('Repository linked');
+    expect(await screen.findByText(/Repository linked\. COMMAND will now watch the canonical source projection\./)).toBeTruthy();
   });
 
   it('renders the empty repository state fail-closed and keeps an explicit refresh path', async () => {
@@ -113,7 +113,9 @@ describe('CommandActions journey mutations', () => {
     expect(await screen.findByText(/No repositories authorized yet/)).toBeTruthy();
     const submit = screen.getByRole('button', {name: 'LINK AUTHORIZED REPOSITORY'}) as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
-    expect(screen.getByRole('button', {name: 'CHECK NOW'})).toBeTruthy();
+    const checkNow = screen.getByRole('button', {name: 'CHECK NOW'}) as HTMLButtonElement;
+    expect(checkNow.disabled).toBe(false);
+    fireEvent.click(checkNow);
     fireEvent.click(submit);
     expect(linkProjectGitHubRepository).not.toHaveBeenCalled();
   });
