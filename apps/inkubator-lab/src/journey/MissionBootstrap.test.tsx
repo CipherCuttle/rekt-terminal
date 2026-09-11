@@ -16,7 +16,7 @@ const createdCommand: CommandView = {
   project: {project_id: 'P-001', name: 'Coherence workbench', source_connected: false, source_visibility: 'NONE', observation_state: 'UNKNOWN'},
   mission: {
     mission_id: 'M-001', state: 'DECLARED', goal: 'Make a useful public artifact.', ship_condition: 'A public HTTPS artifact.',
-    current_focus: 'Wire the complete journey.', next_move: 'Connect the repository.',
+    current_focus: 'Connect the repository.', next_move: 'Connect the repository.',
     progress_model_version: 'mission.progress.v1', stack_labels: [], stack_source: 'UNKNOWN',
   },
   round: {round_id: 'R-001', code: 'R1', title: 'FOUNDING', constraint: 'Ship one working thing.', state: 'OPEN'},
@@ -37,36 +37,52 @@ function renderBootstrap(client: Record<string, unknown>) {
   );
 }
 
-function fillAndSubmit() {
+async function fillAndSubmit() {
+  await screen.findByLabelText('Project name');
   fireEvent.change(screen.getByLabelText('Project name'), {target: {value: 'Coherence workbench'}});
   fireEvent.change(screen.getByLabelText('What are you building?'), {target: {value: 'Make a useful public artifact.'}});
-  fireEvent.change(screen.getByLabelText('What must be true to Ship?'), {target: {value: 'A public HTTPS artifact.'}});
-  fireEvent.change(screen.getByLabelText('Current focus'), {target: {value: 'Wire the complete journey.'}});
-  fireEvent.change(screen.getByLabelText('Your next move'), {target: {value: 'Connect the repository.'}});
+  fireEvent.click(screen.getByRole('button', {name: 'CONTINUE →'}));
+  fireEvent.change(screen.getByLabelText('What must work for this to count as shipped?'), {target: {value: 'A public HTTPS artifact.'}});
+  fireEvent.change(screen.getByLabelText('What are you doing next?'), {target: {value: 'Connect the repository.'}});
   fireEvent.click(screen.getByRole('button', {name: 'DECLARE MISSION'}));
 }
 
 describe('MissionBootstrap first mission setup', () => {
-  it('shows rounds with states and only offers OPEN rounds', async () => {
+  it('keeps a single open Round out of the decision path', async () => {
     renderBootstrap({listRounds: vi.fn().mockResolvedValue(rounds), joinRound: vi.fn(), createMission: vi.fn()});
-    expect(await screen.findByRole('combobox')).toBeTruthy();
-    const options = screen.getAllByRole('option');
-    expect(options).toHaveLength(1);
-    expect(options[0].textContent).toBe('FOUNDING');
+    await screen.findByLabelText('Project name');
+    expect(screen.queryByRole('combobox')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Project name'), {target: {value: 'Thing'}});
+    fireEvent.change(screen.getByLabelText('What are you building?'), {target: {value: 'Build it'}});
+    fireEvent.click(screen.getByRole('button', {name: 'CONTINUE →'}));
+    expect(screen.getByText('FOUNDING')).toBeTruthy();
+    expect(screen.getByText('Ship one working thing.')).toBeTruthy();
   });
 
-  it('joins the round and creates the mission with a fresh request id', async () => {
+  it('offers Round choice only when multiple Rounds are open', async () => {
+    const multiRound: RoundList = [...rounds, {schema_version: 'round.private.v1', round_id: 'R-003', code: 'R3', title: 'SECOND OPEN', constraint: 'Another constraint.', state: 'OPEN', joined: false}];
+    renderBootstrap({listRounds: vi.fn().mockResolvedValue(multiRound), joinRound: vi.fn(), createMission: vi.fn()});
+    await screen.findByLabelText('Project name');
+    fireEvent.change(screen.getByLabelText('Project name'), {target: {value: 'Thing'}});
+    fireEvent.change(screen.getByLabelText('What are you building?'), {target: {value: 'Build it'}});
+    fireEvent.click(screen.getByRole('button', {name: 'CONTINUE →'}));
+    const roundSelect = screen.getByLabelText('Round');
+    expect(roundSelect).toBeTruthy();
+    expect(screen.getAllByRole('option')).toHaveLength(2);
+  });
+
+  it('joins the round and creates the mission with the first Next Move as current focus', async () => {
     const joinRound = vi.fn().mockResolvedValue(rounds[0]);
     const createMission = vi.fn().mockResolvedValue(createdCommand);
     renderBootstrap({listRounds: vi.fn().mockResolvedValue(rounds), joinRound, createMission});
-    await screen.findByRole('combobox');
-    fillAndSubmit();
+    await fillAndSubmit();
     await waitFor(() => expect(createMission).toHaveBeenCalledTimes(1));
     expect(joinRound).toHaveBeenCalledWith('R-001');
     const body = createMission.mock.calls[0][0] as {request_id: string; round_id: string; project_name: string; goal: string; ship_condition: string; current_focus: string; next_move: string};
     expect(body.request_id).toBeTruthy();
     expect(body.round_id).toBe('R-001');
     expect(body.project_name).toBe('Coherence workbench');
+    expect(body.current_focus).toBe('Connect the repository.');
     expect(body.next_move).toBe('Connect the repository.');
   });
 
@@ -74,17 +90,16 @@ describe('MissionBootstrap first mission setup', () => {
     const joinRound = vi.fn().mockResolvedValue(rounds[0]);
     const createMission = vi.fn().mockRejectedValue(new InkubatorApiError(403, 'authorization_denied'));
     renderBootstrap({listRounds: vi.fn().mockResolvedValue(rounds), joinRound, createMission});
-    await screen.findByRole('combobox');
-    fillAndSubmit();
+    await fillAndSubmit();
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('UNAUTHORIZED');
     expect(alert.textContent).toContain('authorization_denied');
-    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('renders the no-open-round state as an EMPTY record and blocks submission', async () => {
     renderBootstrap({listRounds: vi.fn().mockResolvedValue(rounds.filter(round => round.state !== 'OPEN')), joinRound: vi.fn(), createMission: vi.fn()});
     expect(await screen.findByText('No Round is open. Your identity is saved; return when a Round opens.')).toBeTruthy();
+    expect(screen.queryByRole('button', {name: 'CONTINUE →'})).toBeNull();
     expect(screen.queryByRole('button', {name: 'DECLARE MISSION'})).toBeNull();
   });
 
