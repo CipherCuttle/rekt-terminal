@@ -66,20 +66,50 @@
 .fixture-banner {position:sticky;top:0;z-index:200;padding:12px;background:#f4e9ef;color:#5b1839;font:700 12px monospace;text-align:center}
 @media(min-width:1600px){.faceplate-split {grid-template-columns:minmax(0,1fr) 330px;gap:36px}}
 @media(max-width:1050px){.faceplate-split {grid-template-columns:minmax(0,1fr) 250px;gap:18px}.ios-shell-v2.ios-shell .ios-shell-header {padding-left:108px}}
+
+/* Handheld instrument contract: translate the faceplate instead of shrinking desktop. */
 @media(max-width:700px){
- .ios-shell-v2.ios-shell {padding:0}.faceplate-topbar {border-radius:0;padding:14px 16px}.faceplate-topbar>span {font-size:8px;max-width:95px;text-align:right}
- .ios-shell-v2.ios-shell .ios-shell-header {padding:24px 18px 20px;display:block;min-height:0}
- .ios-shell-v2.ios-shell .ios-shell-header h1 {font-size:48px}.ios-shell-v2.ios-shell .ios-shell-header p {font-size:14px}
- .ios-shell-v2.ios-shell .ios-shell-readout {display:none}.ios-shell-v2.ios-shell .ios-shell-event {padding:10px 18px;font-size:10px}
- .ios-shell-v2.ios-shell .ios-shell-chassis {display:flex;flex-direction:column;min-height:0;border-radius:0}
- .ios-shell-v2.ios-shell .ios-shell-mode-rail {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border:0;border-bottom:1px solid var(--ios2-seam);min-height:0;padding:0}
+ .ios-shell-v2.ios-shell {padding:0;overflow-x:hidden;min-height:100dvh}
+ .faceplate-topbar {min-height:44px;border-radius:0;padding:9px 12px;gap:8px}
+ .faceplate-brand {gap:8px;font-size:9px;letter-spacing:.08em;white-space:nowrap}.faceplate-brand strong {font-size:20px}
+ .faceplate-topbar>span {font-size:7px;line-height:1.25;max-width:88px;text-align:right;letter-spacing:.07em}
+ .ios-shell-v2.ios-shell .ios-shell-header {padding:14px 14px 12px;display:block;min-height:0;border-inline:1px solid var(--ios2-edge)}
+ .ios-shell-v2.ios-shell .ios-shell-header small {font-size:8px}.ios-shell-v2.ios-shell .ios-shell-header h1 {font-size:clamp(32px,9.5vw,38px);line-height:.92;max-width:none;margin-top:5px}
+ .ios-shell-v2.ios-shell .ios-shell-header p {font-size:12.5px;line-height:1.38;margin:8px 0 0;max-width:34rem}
+ .ios-shell-v2.ios-shell .ios-shell-readout {display:none}.ios-shell-v2.ios-shell .ios-shell-event {padding:8px 14px;font-size:9px;line-height:1.35;min-height:0}
+ .ios-shell-v2.ios-shell .ios-shell-chassis {display:flex;flex-direction:column;min-height:0;border-radius:0;overflow:visible}
+ .ios-shell-v2.ios-shell .ios-shell-mode-rail {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));order:0;border:0;border-bottom:1px solid var(--ios2-seam);min-height:0;padding:0;background:var(--ios2-chassis)}
  .ios-shell-v2.ios-shell .ios-shell-mode-rail :is(.ios-rail-label,.ios-rail-tail,button>span) {display:none}
- .ios-shell-v2.ios-shell .ios-shell-mode-rail button {min-height:48px;padding:6px 0;border:0;border-right:1px solid var(--ios2-seam)}
- .ios-shell-v2.ios-shell .ios-shell-mode-rail button[aria-pressed='true'] {box-shadow:inset 0 -3px var(--ios2-selection)}
- .faceplate-split {grid-template-columns:minmax(0,1fr);gap:20px}.ios-shell-v2 .faceplate-display {padding:16px;border-width:6px;border-bottom-width:13px;min-height:300px}
- .faceplate-inspector {border-left:0;border-top:1px solid var(--ios2-seam);padding:20px 2px}.faceplate-print-head {flex-wrap:wrap}
- .faceplate-display>footer {font-size:9px;flex-wrap:wrap}.faceplate-record {min-height:64px;padding:12px 8px;gap:10px}
+ .ios-shell-v2.ios-shell .ios-shell-mode-rail button {min-height:50px;padding:4px 2px;border:0;border-right:1px solid var(--ios2-seam);background:var(--ios2-chassis)}
+ .ios-shell-v2.ios-shell .ios-shell-mode-rail button:last-of-type {border-right:0}.ios-shell-v2.ios-shell .ios-shell-mode-rail button b {display:block;font-size:8px;line-height:1;letter-spacing:.015em}
+ .ios-shell-v2.ios-shell .ios-shell-mode-rail button[aria-pressed='true'] {box-shadow:inset 0 -3px var(--ios2-selection);background:var(--ios2-recessed)}
+ .ios-shell-v2.ios-shell .ios-shell-mode-rail button:disabled {opacity:.45}
+ .ios-shell-v2.ios-shell .ios-shell-workspace {order:1;min-width:0;max-width:100%;overflow-x:hidden}
+ .faceplate-split {grid-template-columns:minmax(0,1fr);gap:0;max-width:100%}
+ .faceplate-print-head {padding:11px 0;margin-bottom:11px;gap:8px;flex-wrap:wrap;font-size:8px}.faceplate-print-head h2 {font-size:11px}
+ .ios-shell-v2 .faceplate-display {padding:12px;min-height:245px;border-width:4px;border-bottom-width:10px;border-radius:3px;max-width:100%;box-sizing:border-box}
+ .faceplate-display::before,.faceplate-display::after {bottom:-10px;font-size:8px}
+ .faceplate-display>header {gap:8px;padding-bottom:11px;margin-bottom:10px;align-items:flex-start}.faceplate-display h3 {font-size:clamp(22px,7vw,28px);margin-top:5px}
+ .faceplate-display :is(small,time) {font-size:8px}.faceplate-display>footer {font-size:8px;line-height:1.35;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:10px}
+ .faceplate-record {min-height:56px;padding:10px 6px;gap:9px}.faceplate-record strong {font-size:15px}.faceplate-record small {font-size:8px}
+ .faceplate-inspector {border-left:0;border-top:1px solid var(--ios2-seam);padding:14px 2px 20px;margin-top:0}.faceplate-inspector>small {font-size:8px}
+ .faceplate-inspector h3 {font-size:22px;margin:12px 0 8px}.faceplate-inspector p {font-size:13px;line-height:1.48}.faceplate-inspector dl {gap:10px;margin-top:16px}.faceplate-inspector dt {font-size:8px}.faceplate-inspector dd {font-size:12px}
+ .ios-shell-v2.ios-shell .ios-shell-footer {padding:8px 12px 12px;font-size:8px}
  .ios-shell-v2.ios-shell :is(input,select,textarea) {font-size:16px;max-width:100%}.ios-shell-v2.ios-shell :is(button,summary) {min-height:44px}
+
+ /* Surface compaction keeps the black instrument above the fold. */
+ .ios-shell-v2.command-live .command-thread-instrument {padding:12px;gap:14px}.ios-shell-v2.command-live .command-mission-copy {padding-bottom:12px}.ios-shell-v2.command-live .command-mission-copy h2 {font-size:24px}.ios-shell-v2.command-live .command-next-move h2 {font-size:clamp(30px,9vw,36px);margin:10px 0 16px}.ios-shell-v2.command-live .command-thread-stage {padding:12px}.ios-shell-v2.command-live .command-thread-gate {min-height:56px}.ios-shell-v2.command-live .command-source-status .rektPeripheralSignal {width:72px;height:44px}
+ .ios-shell-v2.project-live .project-workstation {padding:0 12px 18px}.ios-shell-v2.project-live .project-focus {padding:12px 0;gap:6px}.ios-shell-v2.project-live .project-focus p {font-size:16px}.ios-shell-v2.project-live .project-index button {min-height:74px;padding-block:8px}
+ .ios-shell-v2.player-live .player-workspace {padding:0 12px 16px}.ios-shell-v2.player-live .player-identity {padding:12px 0}.ios-shell-v2.player-live .player-history-display {min-height:300px;padding:12px 8px 0}.ios-shell-v2.player-live .player-inspector {margin-top:0;padding:14px 12px}
+ .ios-shell-v2.ship-live .ship-workspace {padding:0 12px 18px}.ios-shell-v2.ship-live .ship-context {padding:12px 0}.ios-shell-v2.ship-live .ship-stage-index {grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px}.ios-shell-v2.ship-live .ship-stage-index button {min-height:76px;gap:5px;padding:9px 5px}.ios-shell-v2.ship-live .ship-stage-index button strong {font-size:10px}.ios-shell-v2.ship-live .ship-stage-index button small {font-size:8px}.ios-shell-v2.ship-live .ship-channel {min-height:92px;margin:12px 0;gap:10px}.ios-shell-v2.ship-live .ship-channel svg {width:64px;height:42px}.ios-shell-v2.ship-live .ship-artifact-stage {min-height:220px;padding:28px 16px}
 }
+
+@media(max-width:420px){
+ .faceplate-topbar>span {display:none}.faceplate-brand {width:100%;justify-content:space-between}.faceplate-brand::after {content:'HANDHELD / LIVE';color:var(--ios2-muted);font:7px var(--ios2-font-mono);letter-spacing:.08em}
+ .ios-shell-v2.ios-shell .ios-shell-header h1 {font-size:34px}
+ .ios-shell-v2.ios-shell .ios-shell-mode-rail button b {font-size:7.5px;letter-spacing:0}
+ .ios-shell-v2.ship-live .ship-stage-index button {min-height:72px;padding-inline:3px}
+}
+
 @media(prefers-reduced-motion:reduce){.faceplate-selection-response {animation:none}}
 @media(prefers-contrast:more){.ios-shell-v2.ios-shell {--ios2-muted:#303743;--ios2-seam:#7c8695;--ios2-display-muted:#d7dce4}}
