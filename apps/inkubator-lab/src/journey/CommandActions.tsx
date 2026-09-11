@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useState, type FormEvent} from 'react';
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {InkubatorApiClient, type CommandView, type MissionUpdateRequest} from '../generated/inkubator-api-client';
-import {createInkubatorApiClient} from '../inkubator-api';
+import {createInkubatorApiClient, type InkubatorProductApiClient} from '../inkubator-api';
 import {mutationAlert} from './mutation-alert';
 import './journey.css';
 
@@ -13,7 +13,9 @@ function ActionForm({label, children, action, disabled = false, successMessage =
   return <form onSubmit={submit} onChange={() => {setRequestId(crypto.randomUUID()); mutation.reset();}}><fieldset disabled={mutation.isPending}>{children}<button type="submit" disabled={mutation.isPending || disabled}>{mutation.isPending ? 'Saving…' : label}</button>{mutation.isError ? <p role="alert">{mutationAlert(mutation.error)}</p> : null}{mutation.isSuccess ? <p role="status">{successMessage}</p> : null}</fieldset></form>;
 }
 
-export function CommandActions({command, client = createInkubatorApiClient()}: {command: CommandView; client?: Pick<InkubatorApiClient, 'updateMission' | 'listGitHubRepositories' | 'createGitHubInstall' | 'linkProjectGitHubRepository' | 'createHelpBeacon' | 'closeHelpBeacon' | 'getProjectHelpLoop' | 'createExternalTestRequest' | 'getProjectExternalTests'>}) {
+type CommandActionsClient = Pick<InkubatorApiClient, 'updateMission' | 'listGitHubRepositories' | 'createGitHubInstall' | 'linkProjectGitHubRepository' | 'createHelpBeacon' | 'closeHelpBeacon' | 'getProjectHelpLoop' | 'acceptAssist' | 'createExternalTestRequest' | 'getProjectExternalTests'> & Pick<InkubatorProductApiClient, 'getProjectPendingAssists'>;
+
+export function CommandActions({command, client = createInkubatorApiClient()}: {command: CommandView; client?: CommandActionsClient}) {
   const cache = useQueryClient();
   const mission = command.mission;
   const canEdit = ['DECLARED', 'BUILDING', 'BLOCKED', 'SHIP_READY'].includes(mission.state);
@@ -40,6 +42,16 @@ export function CommandActions({command, client = createInkubatorApiClient()}: {
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
   });
+  const pendingAssists = useQuery({
+    queryKey: ['inkubator', 'project', command.project.project_id, 'pending-assists'],
+    queryFn: () => client.getProjectPendingAssists(command.project.project_id),
+    retry: false,
+    enabled: canEdit && Boolean(helpLoop.data?.open_help_beacon),
+    staleTime: 0,
+    refetchInterval: canEdit && helpLoop.data?.open_help_beacon ? 4000 : false,
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
+  });
   const externalTests = useQuery({
     queryKey: ['inkubator', 'project', command.project.project_id, 'tests'],
     queryFn: () => client.getProjectExternalTests(command.project.project_id),
@@ -54,6 +66,10 @@ export function CommandActions({command, client = createInkubatorApiClient()}: {
   const install = useMutation({mutationFn: () => client.createGitHubInstall(), onSuccess: value => window.location.assign(value.install_url)});
   const closeHelp = useMutation({
     mutationFn: (beaconId: string) => client.closeHelpBeacon(beaconId, {request_id: crypto.randomUUID()}),
+    onSuccess: async () => {await cache.invalidateQueries({queryKey: ['inkubator']});},
+  });
+  const acceptAssist = useMutation({
+    mutationFn: (assistId: string) => client.acceptAssist(assistId, {request_id: crypto.randomUUID()}),
     onSuccess: async () => {await cache.invalidateQueries({queryKey: ['inkubator']});},
   });
 
@@ -92,6 +108,8 @@ export function CommandActions({command, client = createInkubatorApiClient()}: {
     {canEdit ? <>
       <details id="command-help-control" open={Boolean(mission.blocker || openBeacon)}><summary>HELP / ASK FOR A CONTRIBUTION</summary>
         {helpLoop.isError ? <p role="alert">HELP STATE UNAVAILABLE. <button type="button" onClick={() => void helpLoop.refetch()}>CHECK AGAIN</button></p> : openBeacon ? <div className="journey-followup" role="status"><small>HELP BEACON / OPEN</small><strong>{openBeacon.summary}</strong><p>This request is live in WORLD. Inkubator keeps checking for accepted collaboration.</p><button type="button" disabled={closeHelp.isPending} onClick={() => closeHelp.mutate(openBeacon.beacon_id)}>{closeHelp.isPending ? 'Closing…' : 'CLOSE HELP BEACON'}</button>{closeHelp.isError ? <p role="alert">{mutationAlert(closeHelp.error)}</p> : null}</div> : helpLoop.isPending ? <p role="status">Checking current Help state…</p> : <ActionForm label="OPEN HELP BEACON" action={(data, requestId) => client.createHelpBeacon(command.project.project_id, {request_id: requestId, summary: String(data.get('summary')), skills_needed: []})} successMessage="Help Beacon opened. WORLD and PROJECT will reconcile automatically."><label>What help would move this build forward?<textarea name="summary" required maxLength={240}/></label><p>A public request invites help. It grants no earned progress.</p></ActionForm>}
+        {openBeacon ? pendingAssists.isError ? <p role="alert">PENDING ASSISTS UNAVAILABLE. {mutationAlert(pendingAssists.error)} <button type="button" onClick={() => void pendingAssists.refetch()}>CHECK AGAIN</button></p> : pendingAssists.isPending ? <p role="status">Checking pending Assist offers…</p> : pendingAssists.data?.assists.length ? <div className="journey-pending-assists"><small>ASSIST OFFERS / {pendingAssists.data.assists.length} PENDING</small>{pendingAssists.data.assists.map(assist => <article key={assist.assist_id}><strong>{assist.offered_by_display_name}</strong><p>{assist.message}</p><button type="button" disabled={acceptAssist.isPending} onClick={() => acceptAssist.mutate(assist.assist_id)}>{acceptAssist.isPending && acceptAssist.variables === assist.assist_id ? 'Accepting…' : 'ACCEPT ASSIST'}</button></article>)}</div> : <p className="journey-followup-note">NO PENDING ASSISTS / waiting for another builder. This state refreshes automatically.</p> : null}
+        {acceptAssist.isError ? <p role="alert">{mutationAlert(acceptAssist.error)}</p> : null}{acceptAssist.isSuccess ? <p role="status">Assist accepted. Party state will reconcile automatically.</p> : null}
       </details>
 
       <details id="command-test-control" open={Boolean(openTest)}><summary>EXTERNAL TEST / ASK FOR EVIDENCE</summary>
