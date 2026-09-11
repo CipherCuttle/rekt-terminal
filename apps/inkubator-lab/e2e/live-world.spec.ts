@@ -38,6 +38,11 @@ async function routeWorld(page: Page, getSignals: () => WorldSignalList, overrid
     };
     const response = overrides[url.pathname] ?? defaults[url.pathname];
     if (!response) {
+      // Never leak an unmocked /v1 route to the (absent) backend proxy: fail closed instead.
+      if (url.pathname.startsWith('/v1/')) {
+        await route.fulfill({status: 500, contentType: 'application/json', body: JSON.stringify({error: 'unmocked_v1_route'})});
+        return;
+      }
       await route.continue();
       return;
     }
@@ -56,24 +61,31 @@ test('LIVE WORLD renders the v2 public pulse/radar and animates only a newly obs
   await routeWorld(page, () => currentSignals);
 
   await page.goto('/?mode=world');
-  await expect(page.getByRole('heading', {name: 'UNDERGROUND BUILD NETWORK'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Public signal.'})).toBeVisible();
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-mode', 'world');
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
-  await expect(page.getByRole('region', {name: 'Public network pulse'})).toBeVisible();
-  await expect(page.getByText('1 OPEN HELP BEACON')).toBeVisible();
-  await expect(page.getByRole('img', {name: 'Public Inkubator project and signal radar'})).toBeVisible();
-  await expect(page.getByText('Need an external tester.')).toHaveCount(2);
+  await expect(page.getByRole('region', {name: 'Public event index'})).toBeVisible();
+  await expect(page.getByText('2 EVENTS')).toBeVisible();
+  await expect(page.getByRole('complementary', {name: 'Selected public event'})).toBeVisible();
   await expect(page.getByText('EXTERNAL TEST RECORDED')).toHaveCount(2);
   await expect(page.locator('[data-truth="proven"]')).toHaveCount(0);
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-event-sequence', '0');
+
+  // Public help context stays inspectable from the selected event's project record.
+  await page.locator('[data-signal-id="SIG-W-1"] button').click();
+  await expect(page.getByText('Need an external tester.')).toBeVisible();
+  await expect(page.getByText('CLAIMED').first()).toBeVisible();
 
   currentSignals = [
     {schema_version: 'world.signal.public.v1', signal_id: 'SIG-W-3', kind: 'ASSIST_ACCEPTED', project_id: 'P-W-1', project_name: 'WEIRD LITTLE THING', truth_state: 'OBSERVED', occurred_at: '2026-09-08T13:20:00Z'},
     ...initialSignals,
   ];
-  await expect(page.getByText('ASSIST ACCEPTED')).toHaveCount(2, {timeout: 6000});
+  // Only the newly observed feed signal arrives; the tape ripples once, in place.
+  await expect(page.locator('[data-signal-id="SIG-W-3"]')).toHaveCount(1, {timeout: 6000});
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-event-sequence', '1');
-  await expect(page.locator('[data-signal-id="SIG-W-3"]')).toHaveCount(2);
+  await expect(page.getByText('ASSIST ACCEPTED')).toHaveCount(1);
+  await page.locator('[data-signal-id="SIG-W-3"] button').click();
+  await expect(page.getByText('ASSIST ACCEPTED')).toHaveCount(2);
   await expectNoHorizontalOverflow(page);
 
   const results = await new AxeBuilder({page}).analyze();
@@ -84,16 +96,16 @@ test('LIVE WORLD keeps available public projects visible when other feeds fail o
   await page.setViewportSize({width: 390, height: 844});
   await page.emulateMedia({reducedMotion: 'reduce'});
   await routeWorld(page, () => initialSignals, {
-    '/v1/discover/players': {status: 503, body: {error: 'players_unavailable'}},
     '/v1/world/signals': {status: 503, body: {error: 'signals_unavailable'}},
   });
 
   await page.goto('/?mode=world');
-  await expect(page.getByRole('heading', {name: 'UNDERGROUND BUILD NETWORK'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Public signal.'})).toBeVisible();
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
-  await expect(page.getByText('Need an external tester.')).toHaveCount(2);
-  await expect(page.getByText('PLAYER FEED UNAVAILABLE')).toBeVisible({timeout: 6000});
-  await expect(page.getByText('SIGNAL FEED UNAVAILABLE')).toBeVisible();
-  await expect(page.locator('.world-radar')).toHaveAttribute('data-motion-policy', 'reduced');
+  // The failed public feed is visible and recoverable; no fixture events are fabricated.
+  await expect(page.getByText('WORLD LINK UNAVAILABLE')).toBeVisible({timeout: 6000});
+  await expect(page.getByRole('button', {name: 'Retry public events'})).toBeVisible();
+  await expect(page.locator('.world-event-list button')).toHaveCount(0);
+  await expect(page.locator('.world-live')).toHaveAttribute('data-motion-policy', 'reduced');
   await expectNoHorizontalOverflow(page);
 });

@@ -75,6 +75,11 @@ async function routeCommand(page: Page, respond: () => CommandRouteResponse) {
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname !== '/v1/me/command') {
+      // Never leak an unmocked /v1 route to the (absent) backend proxy: fail closed instead.
+      if (url.pathname.startsWith('/v1/')) {
+        await route.fulfill({status: 500, contentType: 'application/json', body: JSON.stringify({error: 'unmocked_v1_route'})});
+        return;
+      }
       await route.continue();
       return;
     }
@@ -100,14 +105,12 @@ test('LIVE COMMAND renders one Living Thread and ripples canonical deltas withou
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
   await expect(page.getByRole('heading', {name: 'Ship one real working thing.'})).toBeVisible();
   await expect(page.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeVisible();
-  await expect(page.getByText('PRIVATE', {exact: true})).toBeVisible();
+  await expect(page.getByText('GITHUB / PRIVATE')).toBeVisible();
   await expect(page.getByText('ADVISORY ONLY')).toBeVisible();
   await expect(page.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeVisible();
   await expect(page.getByLabel('Living Thread mission instrument')).toBeVisible();
-  await expect(page.locator('.command-sector')).toHaveCount(0);
-  await expect(page.locator('.command-ratchet')).toHaveCount(0);
-  await expect(page.locator('[data-renderer="pixi"] canvas')).toBeVisible();
-  await expect(page.locator('[data-renderer="pixi"]')).toHaveAttribute('data-app-generation', '1');
+  // One retained instrument shell: canonical deltas ripple in place, no surface recreation.
+  await expect(page.locator('[data-shell="terminal"]')).toHaveCount(1);
 
   const provenGate = page.locator('.command-thread-gates [data-truth="proven"]');
   await expect(provenGate).toHaveCount(1);
@@ -129,7 +132,7 @@ test('LIVE COMMAND renders one Living Thread and ripples canonical deltas withou
   await expect(page.getByText('Need an external tester before ship.')).toBeVisible();
   await expect(page.locator('.command-thread-break')).toBeVisible();
   await expect(page.getByText('ADVISORY ONLY')).toBeVisible();
-  await expect(page.locator('[data-renderer="pixi"]')).toHaveAttribute('data-app-generation', '1');
+  await expect(page.locator('[data-shell="terminal"]')).toHaveCount(1);
 
   const results = await new AxeBuilder({page}).analyze();
   expect(results.violations).toEqual([]);
@@ -154,10 +157,8 @@ test('LIVE COMMAND proof projection stays readable on mobile and reduced motion'
   await page.goto('/?mode=command');
   await expect(page.getByRole('heading', {name: 'OPEN SHIP REVIEW'})).toBeVisible();
   await expect(page.locator('.command-live')).toHaveAttribute('data-motion-policy', 'reduced');
-  await expect(page.locator('[data-renderer="pixi"]')).toHaveAttribute('data-motion-policy', 'reduced');
   await expect(page.locator('.command-thread-gates [data-truth="proven"]')).toHaveCount(4);
-  await expect(page.locator('.command-ship-endpoint')).toContainText('PROVEN');
-  await expect(page.locator('[data-renderer="pixi"] canvas')).toBeVisible();
+  await expect(page.getByRole('link', {name: 'OPEN SHIP →'})).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 

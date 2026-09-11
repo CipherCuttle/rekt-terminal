@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page, type Route} from '@playwright/test';
-import type {AcceptedShipArtifactView, CommandView, ProjectShipStateView, ShipSubmissionPrivateView} from '../src/generated/inkubator-api-client';
+import type {AcceptedShipArtifactView, CommandView, PrivateProject, ProjectShipStateView, ShipSubmissionPrivateView} from '../src/generated/inkubator-api-client';
 
 const readyCommand: CommandView = {
   schema_version: 'command.private.v2',
@@ -29,6 +29,15 @@ const authenticatedMe = {
 };
 
 const emptyShip: ProjectShipStateView = {schema_version: 'project.ship.public.v2', project_id: 'PROJECT-E2E'};
+
+// The SHIP surface recovers its authorized project context from the private project
+// record before it can render any server-projected Ship state.
+const privateProject: PrivateProject = {
+  schema_version: 'project.private.v2', project_id: 'PROJECT-E2E', owner_player_id: 'PLAYER-OWNER', name: 'REKT MACHINE',
+  mission_id: 'MISSION-E2E', mission_state: 'SHIP_READY', goal: 'Ship a working strange thing.',
+  ship_condition: 'Public HTTPS artifact that survives external verification.', current_focus: 'Submit the bounded artifact.',
+  next_move: 'Submit the artifact for verification.', source_connected: true, source_visibility: 'PUBLIC', observation_state: 'OBSERVED',
+};
 
 const acceptedArtifact: AcceptedShipArtifactView = {
   schema_version: 'ship.artifact.public.v1', receipt_id: 'RECEIPT-E2E', receipt_schema_version: 'inkubator.ship-receipt/1.0', submission_id: 'SUBMISSION-E2E',
@@ -76,6 +85,7 @@ test('LIVE SHIP records a SHIP_READY owner submission then renders only server-p
     const pathname = new URL(request.url()).pathname;
     if (pathname === '/v1/me' && request.method() === 'GET') return fulfillJson(route, 200, authenticatedMe);
     if (pathname === '/v1/me/command' && request.method() === 'GET') return fulfillJson(route, 200, command);
+    if (pathname === '/v1/projects/PROJECT-E2E/private' && request.method() === 'GET') return fulfillJson(route, 200, privateProject);
     if (pathname === '/v1/projects/PROJECT-E2E/ship' && request.method() === 'GET') return fulfillJson(route, 200, shipState);
     if (pathname === '/v1/missions/MISSION-E2E/ship-submissions' && request.method() === 'POST') {
       submittedBody = request.postDataJSON() as Record<string, unknown>;
@@ -91,11 +101,11 @@ test('LIVE SHIP records a SHIP_READY owner submission then renders only server-p
       }};
       return fulfillJson(route, 201, privateSubmission);
     }
-    return route.continue();
+    return fulfillJson(route, 500, {error: 'unmocked_v1_route'});
   });
 
   await page.goto('/?mode=ship');
-  await expect(page.getByRole('heading', {name: 'Ship the thing.'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'REKT MACHINE'})).toBeVisible();
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
   await expect(page.getByText('NO SUBMISSION RECORDED')).toBeVisible();
 
@@ -119,8 +129,9 @@ test('LIVE SHIP keeps verifier PASS at OBSERVED without minting a receipt', asyn
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/v1/me') return fulfillJson(route, 200, authenticatedMe);
     if (pathname === '/v1/me/command') return fulfillJson(route, 200, {...readyCommand, mission: {...readyCommand.mission, state: 'SUBMITTED'}});
+    if (pathname === '/v1/projects/PROJECT-E2E/private') return fulfillJson(route, 200, privateProject);
     if (pathname === '/v1/projects/PROJECT-E2E/ship') return fulfillJson(route, 200, observedShip);
-    return route.continue();
+    return fulfillJson(route, 500, {error: 'unmocked_v1_route'});
   });
 
   await page.goto('/?mode=ship');
@@ -138,13 +149,14 @@ test('LIVE SHIP renders the immutable PROVEN receipt as the dominant mobile arti
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/v1/me') return fulfillJson(route, 200, authenticatedMe);
     if (pathname === '/v1/me/command') return fulfillJson(route, 200, {...readyCommand, mission: {...readyCommand.mission, state: 'SHIPPED'}});
+    if (pathname === '/v1/projects/PROJECT-E2E/private') return fulfillJson(route, 200, privateProject);
     if (pathname === '/v1/projects/PROJECT-E2E/ship') return fulfillJson(route, 200, provenShip);
-    return route.continue();
+    return fulfillJson(route, 500, {error: 'unmocked_v1_route'});
   });
 
   await page.goto('/?mode=ship');
   await expect(page.locator('.ship-artifact-stage')).toContainText('REKT MACHINE');
-  await expect(page.getByText('RECEIPT-E2E')).toBeVisible();
+  await expect(page.getByLabel('Accepted receipt').getByText('RECEIPT-E2E')).toBeVisible();
   await expect(page.getByText('OBS-E2E')).toBeVisible();
   await expect(page.getByText('REVIEW-E2E')).toBeVisible();
   await expect(page.getByText('CipherCuttle').first()).toBeVisible();
@@ -162,8 +174,9 @@ test('LIVE SHIP fails closed on unknown Ship state and on missing private comman
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/v1/me') return fulfillJson(route, 200, authenticatedMe);
     if (pathname === '/v1/me/command') return fulfillJson(route, 200, readyCommand);
+    if (pathname === '/v1/projects/PROJECT-E2E/private') return fulfillJson(route, 200, privateProject);
     if (pathname === '/v1/projects/PROJECT-E2E/ship') return fulfillJson(route, 503, {error: 'ship_state_offline'});
-    return route.continue();
+    return fulfillJson(route, 500, {error: 'unmocked_v1_route'});
   });
   await page.goto('/?mode=ship');
   await expect(page.getByText('SHIP STATE UNAVAILABLE — SUBMISSION DISABLED')).toBeVisible();
@@ -176,7 +189,7 @@ test('LIVE SHIP fails closed on unknown Ship state and on missing private comman
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/v1/me') return fulfillJson(route, 200, authenticatedMe);
     if (pathname === '/v1/me/command') return fulfillJson(route, 401, {error: 'authentication_required'});
-    return route.continue();
+    return fulfillJson(route, 500, {error: 'unmocked_v1_route'});
   });
   await page.goto('/?mode=ship');
   await expect(page.getByRole('heading', {name: 'SHIP LINK UNAVAILABLE'})).toBeVisible();

@@ -156,11 +156,11 @@ test('integrated Instrument OS switches all five live surfaces in-place and pres
 
   await page.locator('button[data-mode="project"]').click();
   await expectMode(page, 'project');
-  await expect(page.getByRole('heading', {name: 'PROVE PROJECT'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Current records'})).toBeVisible();
 
   await page.locator('button[data-mode="world"]').click();
   await expectMode(page, 'world');
-  await expect(page.getByRole('heading', {name: 'UNDERGROUND BUILD NETWORK'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Public signal.'})).toBeVisible();
 
   await page.locator('button[data-mode="player"]').click();
   await expectMode(page, 'player');
@@ -168,7 +168,7 @@ test('integrated Instrument OS switches all five live surfaces in-place and pres
 
   await page.locator('button[data-mode="ship"]').click();
   await expectMode(page, 'ship');
-  await expect(page.getByRole('heading', {name: 'Ship the thing.'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
 
   await page.evaluate(() => window.history.back());
   await expectMode(page, 'player');

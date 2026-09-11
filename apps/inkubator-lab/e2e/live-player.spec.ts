@@ -21,7 +21,8 @@ async function routePlayer(page: Page, overrides: Partial<Record<string, {status
       '/v1/players/PLAYER-E2E/reputation': {status: 200, body: reputation},
     };
     const response = overrides[pathname] ?? defaults[pathname];
-    if (!response) return route.continue();
+    // Never leak an unmocked /v1 route to the (absent) backend proxy: fail closed instead.
+    if (!response) return route.fulfill({status: 500, contentType: 'application/json', body: JSON.stringify({error: 'unmocked_v1_route'})});
     await route.fulfill({status: response.status, contentType: 'application/json', body: JSON.stringify(response.body)});
   });
 }
@@ -39,7 +40,8 @@ test('LIVE PLAYER renders the approved durable-record composition from canonical
   await expect(page.getByRole('heading', {name: 'Builder history.'})).toBeVisible();
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
   await expect(page.getByRole('heading', {name: 'ink.operator'})).toBeVisible();
-  await expect(page.locator('.player-mascot img')).toBeVisible();
+  await expect(page.getByText('Builds strange useful things.')).toBeVisible();
+  await expect(page.getByText('BUILDER', {exact: true})).toBeVisible();
   await expect(page.getByText('Working URL or GTFO')).toBeVisible();
   await expect(page.getByText('RECEIPT:R-1')).toBeVisible();
   await expect(page.getByText('SEQUENCE, NOT A PROGRESS SCORE')).toBeVisible();

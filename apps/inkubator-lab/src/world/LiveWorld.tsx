@@ -3,6 +3,7 @@ import {useQuery} from '@tanstack/react-query';
 import type {InkubatorApiClient, WorldSignalView} from '../generated/inkubator-api-client';
 import {createInkubatorApiClient} from '../inkubator-api';
 import {PeripheralSignal} from '../instrument-os/PeripheralSignal';
+import {useReducedMotion} from '../instrument-os/use-reduced-motion';
 import {TerminalShell} from '../shell/TerminalShell';
 import './live-world-v2.css';
 
@@ -14,6 +15,7 @@ const projectKey = ['inkubator', 'world', 'projects'] as const;
 function signalLabel(signal: WorldSignalView) { return signal.kind.replaceAll('_', ' '); }
 
 export default function LiveWorld({client = createInkubatorApiClient(), refetchIntervalMs = 2500}: LiveWorldProps) {
+  const reducedMotion = useReducedMotion();
   const signals = useQuery({queryKey: signalKey, queryFn: () => client.listWorldSignals(), refetchInterval: refetchIntervalMs, retry: false});
   const projects = useQuery({queryKey: projectKey, queryFn: () => client.discoverProjects(), refetchInterval: refetchIntervalMs, retry: false});
   const [selectedId, setSelectedId] = useState<string>();
@@ -45,14 +47,14 @@ export default function LiveWorld({client = createInkubatorApiClient(), refetchI
     event.currentTarget.closest('ol')?.querySelectorAll<HTMLButtonElement>('button')[next]?.focus();
   }
 
-  return <TerminalShell mode="WORLD" kicker="WORLD / PUBLIC EVENTS" title="Public signal." description="Useful events around you. Public evidence, in time order." workspaceClassName="world-workspace" className="world-live" eventSequence={eventSequence} footerItems={['PUBLIC EVENTS / UTC', 'CLAIMED ≠ OBSERVED ≠ PROVEN']}>
+  return <TerminalShell mode="WORLD" kicker="WORLD / PUBLIC EVENTS" title="Public signal." description="Useful events around you. Public evidence, in time order." workspaceClassName="world-workspace" className="world-live" eventSequence={eventSequence} motionPolicy={reducedMotion ? 'reduced' : 'full'} footerItems={['PUBLIC EVENTS / UTC', 'CLAIMED ≠ OBSERVED ≠ PROVEN']}>
     <header className="faceplate-print-head"><span>01 /</span><h2>RECEIVER / SIGNAL TAPE</h2><small>NEWEST FIRST · SELECT TO INSPECT</small></header>
     <div className="faceplate-split">
       <section className="faceplate-display world-tape" aria-label="Public event index" data-stale={stale}>
         <header className="world-display-head"><div><small>PUBLIC CHANNEL</small><h2>World receiver<span aria-hidden="true">_</span></h2></div><span>{signals.isPending ? 'LOADING' : signals.error ? stale ? 'STALE' : 'UNAVAILABLE' : `${ordered.length} EVENTS`}</span></header>
         <div className="world-receiver-status"><span>{signals.error ? 'INPUT UNAVAILABLE' : signals.isPending ? 'READING PUBLIC EVENTS' : 'PUBLIC EVENT RECORD'}</span>{!signals.error && !signals.isPending && <PeripheralSignal cue="SOURCE_RX" eventId={arrivalId} />}</div>
         {signals.error ? <div className="world-input-state" role="status"><strong>{stale ? 'STALE PUBLIC SNAPSHOT' : 'WORLD LINK UNAVAILABLE'}</strong><p>{stale ? 'The last received records remain available for inspection. New events cannot be checked.' : 'Public events could not be loaded.'}</p>{signals.dataUpdatedAt > 0 && <time dateTime={new Date(signals.dataUpdatedAt).toISOString()}>LAST RECEIVED / {new Date(signals.dataUpdatedAt).toISOString()}</time>}<button type="button" onClick={() => void signals.refetch()}>Retry public events</button></div> : signals.isPending ? <div className="world-input-state" role="status"><strong>READING PUBLIC EVENTS</strong><p>The public channel is loading.</p></div> : !ordered.length ? <div className="world-input-state"><strong>NO PUBLIC SIGNALS</strong><p>New public help and evidence records will appear here.</p></div> : null}
-        <ol className="world-event-list">{ordered.map((signal, index) => <li key={signal.signal_id}><button className="faceplate-record" type="button" aria-pressed={selected?.signal_id === signal.signal_id} onClick={() => setSelectedId(signal.signal_id)} onKeyDown={event => navigate(event, index)}><time dateTime={signal.occurred_at}>{signal.occurred_at.slice(0, 10)}<small>{signal.occurred_at.slice(11, 16)} UTC</small></time><span><strong>{signalLabel(signal)}</strong><small>{signal.project_name}</small></span><b data-truth={signal.truth_state.toLowerCase()}>{signal.truth_state}</b><span aria-hidden="true">↗</span></button></li>)}</ol>
+        <ol className="world-event-list">{ordered.map((signal, index) => <li key={signal.signal_id} data-signal-id={signal.signal_id}><button className="faceplate-record" type="button" aria-pressed={selected?.signal_id === signal.signal_id} onClick={() => setSelectedId(signal.signal_id)} onKeyDown={event => navigate(event, index)}><time dateTime={signal.occurred_at}>{signal.occurred_at.slice(0, 10)}<small>{signal.occurred_at.slice(11, 16)} UTC</small></time><span><strong>{signalLabel(signal)}</strong><small>{signal.project_name}</small></span><b data-truth={signal.truth_state.toLowerCase()}>{signal.truth_state}</b><span aria-hidden="true">↗</span></button></li>)}</ol>
         <footer>↑ ↓ HOME END TO INSPECT / TIME ORDER, NO RANKING</footer>
       </section>
       <aside className="faceplate-inspector" aria-label="Selected public event"><small>SELECTED EVENT{stale ? ' / STALE SNAPSHOT' : ''}</small>{selected ? <>

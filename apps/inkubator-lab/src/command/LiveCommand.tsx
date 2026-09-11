@@ -4,6 +4,7 @@ import {InkubatorApiError, type CommandView, type InkubatorApiClient} from '../g
 import {createInkubatorApiClient} from '../inkubator-api';
 import {PeripheralSignal} from '../instrument-os/PeripheralSignal';
 import type {PeripheralCueKind} from '../instrument-os/peripheral-motion';
+import {useReducedMotion} from '../instrument-os/use-reduced-motion';
 import {TerminalShell} from '../shell/TerminalShell';
 import {useInstrumentNavigation} from '../shell/InstrumentNavigation';
 import {diffCommandProjection, summarizeCommandDeltas, type CommandProjectionDelta} from './projection-delta';
@@ -27,6 +28,7 @@ export function commandCue(command: CommandView, deltas: CommandProjectionDelta[
 
 function LiveProjection({command, deltas, eventSequence, channelError}: {command: CommandView; deltas: CommandProjectionDelta[]; eventSequence: number; channelError?: string}) {
   const navigation = useInstrumentNavigation();
+  const reducedMotion = useReducedMotion();
   const gates = command.gates.slice().sort((a, b) => a.position - b.position);
   const signal = channelError ? {cue: 'UNAVAILABLE' as const} : commandCue(command, deltas);
   const latest = command.github_evidence.latest_observation;
@@ -36,6 +38,7 @@ function LiveProjection({command, deltas, eventSequence, channelError}: {command
       readout={[{label: 'LINK', value: command.github_evidence.source_state}, {label: 'STATE', value: command.mission.state}]}
       eventStatus={<>EVENT // {eventSequence === 0 ? 'CANONICAL PROJECTION LOADED' : summarizeCommandDeltas(deltas)}</>}
       workspaceClassName="command-console" className="command-live" motion="peripheral-v1" eventSequence={eventSequence}
+      motionPolicy={reducedMotion ? 'reduced' : 'full'}
       footerItems={['MISSION // CANONICAL PROJECTION', 'CLAIMED ≠ OBSERVED ≠ PROVEN']}>
       <section className="command-thread-instrument" aria-label="Living Thread mission instrument">
         <div className="command-mission-copy"><span>01 / CURRENT MISSION</span><h2>{command.mission.goal}</h2><p>{command.mission.current_focus}</p></div>

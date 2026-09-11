@@ -72,6 +72,11 @@ async function routeProject(page: Page, override: Partial<Record<string, Respons
     }
     const response = responses[url.pathname];
     if (!response) {
+      // Never leak an unmocked /v1 route to the (absent) backend proxy: fail closed instead.
+      if (url.pathname.startsWith('/v1/')) {
+        await route.fulfill({status: 500, contentType: 'application/json', body: JSON.stringify({error: 'unmocked_v1_route'})});
+        return;
+      }
       await route.continue();
       return;
     }
@@ -93,14 +98,15 @@ test('LIVE PROJECT renders canonical v2 workstation projections without promotin
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-mode', 'project');
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
   await expect(page.getByText('Wire project.', {exact: true})).toBeVisible();
-  await expect(page.getByRole('heading', {name: 'PROVE PROJECT'})).toBeVisible();
-  await expect(page.getByText('CipherCuttle/weird-little-thing')).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Current records'})).toBeVisible();
+  await expect(page.getByText('CipherCuttle/weird-little-thing').first()).toBeVisible();
   await expect(page.getByText('Need one external tester.')).toBeVisible();
-  await expect(page.getByText('Helper')).toBeVisible();
   await expect(page.getByText('Core flow works.')).toBeVisible();
-  await expect(page.locator('.project-artifact')).toHaveAttribute('data-truth', 'unproven');
-  await expect(page.locator('.project-artifact iframe')).toBeVisible();
-  await expect(page.locator('.project-artifact [data-truth="proven"]')).toHaveCount(0);
+  await page.getByRole('button', {name: /Help \/ party/}).click();
+  await expect(page.getByText('Helper')).toBeVisible();
+  // An observed Ship submission is never promoted to PROVEN in the project record index.
+  await expect(page.locator('.project-index [data-truth="proven"]')).toHaveCount(0);
+  await expect(page.getByRole('button', {name: /Ship artifact/})).toHaveAttribute('data-truth', 'observed');
   await expect(page.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
@@ -120,10 +126,10 @@ test('LIVE PROJECT keeps optional projection failures visible and usable on mobi
   await page.goto('/?mode=project');
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
-  await expect(page.getByRole('heading', {name: 'PROVE PROJECT'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Current records'})).toBeVisible();
   await expect(page.getByText('HELP LINK UNAVAILABLE')).toBeVisible({timeout: 6000});
   await expect(page.getByText('TEST LINK UNAVAILABLE')).toBeVisible();
   await expect(page.getByText('SHIP LINK UNAVAILABLE').first()).toBeVisible();
-  await expect(page.getByText('CipherCuttle/weird-little-thing')).toBeVisible();
+  await expect(page.getByText('CipherCuttle/weird-little-thing').first()).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
