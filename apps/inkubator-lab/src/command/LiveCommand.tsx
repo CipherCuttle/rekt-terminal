@@ -15,8 +15,43 @@ import './live-command.css';
 type CommandClient = Pick<InkubatorApiClient, 'getMyCommand'>;
 export type LiveCommandProps = {client?: CommandClient; refetchIntervalMs?: number | false};
 const QUERY_KEY = ['inkubator', 'command', 'me'] as const;
+const COMMAND_UI_MODE_KEY = 'rekt.inkubator.command.ui-mode.v1';
 
 type PrimaryAction = {label: string; href: string; mode: InstrumentMode};
+type CommandUiMode = 'LITE' | 'ADVANCED';
+type ProjectionProps = {
+  command: CommandView;
+  deltas: CommandProjectionDelta[];
+  eventSequence: number;
+  channelError?: string;
+  onModeChange: (mode: CommandUiMode) => void;
+};
+
+function readCommandUiMode(): CommandUiMode {
+  try {
+    return window.localStorage.getItem(COMMAND_UI_MODE_KEY) === 'ADVANCED' ? 'ADVANCED' : 'LITE';
+  } catch {
+    return 'LITE';
+  }
+}
+
+function CommandUiModeToggle({mode, onModeChange}: {mode: CommandUiMode; onModeChange: (mode: CommandUiMode) => void}) {
+  return <div className="command-ui-mode-toggle" aria-label="Command detail level">
+    <span>VIEW</span>
+    <div role="group" aria-label="Choose Command detail level">
+      <button type="button" aria-pressed={mode === 'LITE'} onClick={() => onModeChange('LITE')}>LITE</button>
+      <button type="button" aria-pressed={mode === 'ADVANCED'} onClick={() => onModeChange('ADVANCED')}>ADVANCED</button>
+    </div>
+  </div>;
+}
+
+function revealCommandControl(targetId: string, reducedMotion: boolean) {
+  const target = document.getElementById(targetId);
+  const drawer = target?.closest('details.command-lite-control-drawer');
+  if (drawer instanceof HTMLDetailsElement) drawer.open = true;
+  if (target instanceof HTMLDetailsElement) target.open = true;
+  target?.scrollIntoView({behavior: reducedMotion ? 'auto' : 'smooth', block: 'start'});
+}
 
 /**
  * Only expose an authority-changing destination when canonical state determines it.
@@ -39,7 +74,95 @@ export function commandCue(command: CommandView, deltas: CommandProjectionDelta[
   return {cue: 'SOURCE_LINK', eventId: command.project.source_connected ? command.project.project_id : undefined};
 }
 
-function LiveProjection({command, deltas, eventSequence, channelError}: {command: CommandView; deltas: CommandProjectionDelta[]; eventSequence: number; channelError?: string}) {
+function LiteProjection({command, channelError, onModeChange}: ProjectionProps) {
+  const navigation = useInstrumentNavigation();
+  const reducedMotion = useReducedMotion();
+  const [copyState, setCopyState] = useState<'IDLE' | 'COPIED' | 'FAILED'>('IDLE');
+  const primaryAction = commandPrimaryAction(command);
+  const guidanceAction = channelError ? null : commandGuidanceAction(command);
+  const canEdit = ['DECLARED', 'BUILDING', 'BLOCKED', 'SHIP_READY'].includes(command.mission.state);
+  const sourceLabel = command.project.source_connected
+    ? command.github_evidence.source_state === 'AVAILABLE' ? 'CONNECTED' : 'CHECK SOURCE'
+    : 'NOT CONNECTED';
+  const evidenceLabel = command.github_evidence.signal_state === 'OBSERVED' ? 'OBSERVED' : command.github_evidence.signal_state;
+
+  useEffect(() => {
+    setCopyState('IDLE');
+  }, [command.mission.next_move]);
+
+  async function copyNextMove() {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('clipboard_unavailable');
+      await navigator.clipboard.writeText(command.mission.next_move);
+      setCopyState('COPIED');
+    } catch {
+      setCopyState('FAILED');
+    }
+  }
+
+  return (
+    <TerminalShell
+      mode="COMMAND"
+      kicker="REKT / COMMAND / LITE"
+      title={command.project.name}
+      description="One Mission. One Next Move. Keep building in your normal repo."
+      workspaceClassName="command-console"
+      className="command-live command-lite"
+      motionPolicy={reducedMotion ? 'reduced' : 'full'}
+      footerItems={['LITE // SAME CANONICAL STATE', 'ADVANCED // INSPECT THE MACHINE']}
+    >
+      <section className="command-lite-panel" aria-label="Lite Mission command">
+        <CommandUiModeToggle mode="LITE" onModeChange={onModeChange} />
+
+        {channelError ? <p className="command-lite-alert" role="alert">COMMAND LINK UNAVAILABLE / Last known state retained. Refresh before trusting new progress.</p> : null}
+
+        <div className="command-lite-mission">
+          <small>YOU'RE BUILDING</small>
+          <h2>{command.mission.goal}</h2>
+          <p>{command.mission.current_focus}</p>
+        </div>
+
+        <div className="command-lite-next" data-delta="NEXT_MOVE">
+          <small>NEXT MOVE</small>
+          <h2>{command.mission.next_move}</h2>
+          <p className="command-lite-hint">Do this in your normal repo, editor or coding agent. Inkubator keeps the Mission and surrounding evidence in sync.</p>
+
+          {command.mission.blocker ? <div className="command-lite-blocker" role="status"><small>BLOCKED</small><p>{command.mission.blocker}</p></div> : null}
+
+          {primaryAction ? <a className="command-lite-primary" href={primaryAction.href} onClick={event => {
+            if (!navigation) return;
+            event.preventDefault();
+            navigation.onModeSelect(primaryAction.mode);
+          }}>{primaryAction.label} →</a> : guidanceAction?.kind === 'CONTROL'
+            ? <button type="button" className="command-lite-primary" onClick={() => revealCommandControl(guidanceAction.targetId, reducedMotion)}>{guidanceAction.label} →</button>
+            : guidanceAction?.kind === 'COPY_NEXT_MOVE'
+              ? <button type="button" className="command-lite-primary" onClick={() => void copyNextMove()}>{copyState === 'COPIED' ? 'NEXT MOVE COPIED ✓' : guidanceAction.label}</button>
+              : null}
+          {copyState === 'FAILED' ? <span className="command-lite-copy-status" role="status">COPY UNAVAILABLE / select the Next Move above.</span> : null}
+        </div>
+
+        <div className="command-lite-status" aria-label="Mission status">
+          <div><small>STATE</small><strong>{command.mission.state.replaceAll('_', ' ')}</strong></div>
+          <div><small>REPO</small><strong>{sourceLabel}</strong></div>
+          <div><small>EVIDENCE</small><strong>{evidenceLabel}</strong></div>
+        </div>
+
+        {canEdit && !channelError ? <div className="command-lite-secondary" aria-label="Common Mission actions">
+          <button type="button" onClick={() => revealCommandControl('command-work-control', reducedMotion)}>UPDATE WORK</button>
+          <button type="button" onClick={() => revealCommandControl('command-help-control', reducedMotion)}>GET HELP</button>
+          <button type="button" onClick={() => revealCommandControl('command-test-control', reducedMotion)}>REQUEST TEST</button>
+        </div> : null}
+
+        {!channelError ? <details className="command-lite-control-drawer">
+          <summary>MORE CONTROLS</summary>
+          <CommandActions command={command}/>
+        </details> : null}
+      </section>
+    </TerminalShell>
+  );
+}
+
+function AdvancedProjection({command, deltas, eventSequence, channelError, onModeChange}: ProjectionProps) {
   const navigation = useInstrumentNavigation();
   const reducedMotion = useReducedMotion();
   const [copyState, setCopyState] = useState<'IDLE' | 'COPIED' | 'FAILED'>('IDLE');
@@ -52,12 +175,6 @@ function LiveProjection({command, deltas, eventSequence, channelError}: {command
   useEffect(() => {
     setCopyState('IDLE');
   }, [command.mission.next_move]);
-
-  function revealGuidanceControl(targetId: string) {
-    const target = document.getElementById(targetId);
-    if (target instanceof HTMLDetailsElement) target.open = true;
-    target?.scrollIntoView({behavior: reducedMotion ? 'auto' : 'smooth', block: 'start'});
-  }
 
   async function copyNextMove() {
     try {
@@ -73,11 +190,11 @@ function LiveProjection({command, deltas, eventSequence, channelError}: {command
     <TerminalShell mode="COMMAND" kicker="REKT / COMMAND / WHAT NOW?" title={command.project.name}
       readout={[{label: 'LINK', value: command.github_evidence.source_state}, {label: 'STATE', value: command.mission.state}]}
       eventStatus={<>CHANGE // {eventSequence === 0 ? 'CANONICAL PROJECTION LOADED' : summarizeCommandDeltas(deltas)}</>}
-      workspaceClassName="command-console" className="command-live" motion="peripheral-v1" eventSequence={eventSequence}
+      workspaceClassName="command-console" className="command-live command-advanced" motion="peripheral-v1" eventSequence={eventSequence}
       motionPolicy={reducedMotion ? 'reduced' : 'full'}
       footerItems={['MISSION // CANONICAL PROJECTION', 'CLAIMED ≠ OBSERVED ≠ PROVEN']}>
       <section className="command-thread-instrument" aria-label="Living Thread mission instrument">
-        <div className="command-mission-copy"><span>01 / CURRENT MISSION</span><h2>{command.mission.goal}</h2><p>{command.mission.current_focus}</p></div>
+        <div className="command-mission-copy"><CommandUiModeToggle mode="ADVANCED" onModeChange={onModeChange} /><span>01 / CURRENT MISSION</span><h2>{command.mission.goal}</h2><p>{command.mission.current_focus}</p></div>
         <div className="command-next-move" data-delta="NEXT_MOVE"><span>NEXT MOVE / ONE ACTION</span><h2>{command.mission.next_move}</h2>
           {primaryAction ? <a className="command-primary-action" href={primaryAction.href} onClick={event => {
             if (!navigation) return;
@@ -87,7 +204,7 @@ function LiveProjection({command, deltas, eventSequence, channelError}: {command
           {guidanceAction ? <div className="command-guidance" data-phase={guidanceAction.phase.toLowerCase()}>
             <small>INKUBATOR / {guidanceAction.phase}</small>
             <p>{guidanceAction.explanation}</p>
-            {guidanceAction.kind === 'CONTROL' ? <button type="button" className="command-guidance-action" onClick={() => revealGuidanceControl(guidanceAction.targetId)}>{guidanceAction.label} →</button> : <button type="button" className="command-guidance-action" onClick={() => void copyNextMove()}>{copyState === 'COPIED' ? 'NEXT MOVE COPIED' : guidanceAction.label}</button>}
+            {guidanceAction.kind === 'CONTROL' ? <button type="button" className="command-guidance-action" onClick={() => revealCommandControl(guidanceAction.targetId, reducedMotion)}>{guidanceAction.label} →</button> : <button type="button" className="command-guidance-action" onClick={() => void copyNextMove()}>{copyState === 'COPIED' ? 'NEXT MOVE COPIED' : guidanceAction.label}</button>}
             {guidanceAction.kind === 'COPY_NEXT_MOVE' && copyState === 'FAILED' ? <span className="command-guidance-status" role="status">COPY UNAVAILABLE / select the Next Move above.</span> : null}
           </div> : null}
           {!channelError ? <CommandActions command={command}/> : null}
@@ -141,6 +258,7 @@ export default function LiveCommand({
   const previousRef = useRef<CommandView | null>(null);
   const [deltas, setDeltas] = useState<CommandProjectionDelta[]>([]);
   const [eventSequence, setEventSequence] = useState(0);
+  const [uiMode, setUiMode] = useState<CommandUiMode>(() => readCommandUiMode());
 
   const query = useQuery({
     queryKey: QUERY_KEY,
@@ -166,8 +284,25 @@ export default function LiveCommand({
     return query.error.message;
   }, [query.error]);
 
+  function changeUiMode(mode: CommandUiMode) {
+    setUiMode(mode);
+    try {
+      window.localStorage.setItem(COMMAND_UI_MODE_KEY, mode);
+    } catch {
+      // Presentation preference persistence is best-effort only.
+    }
+  }
+
   if (query.isPending) return <CommandLoadingState />;
   if (!query.data || (query.error instanceof InkubatorApiError && [401, 403].includes(query.error.status))) return <CommandLoadingState error={errorMessage} />;
 
-  return <LiveProjection command={query.data} deltas={deltas} eventSequence={eventSequence} channelError={query.isError ? errorMessage : undefined} />;
+  const projectionProps = {
+    command: query.data,
+    deltas,
+    eventSequence,
+    channelError: query.isError ? errorMessage : undefined,
+    onModeChange: changeUiMode,
+  };
+
+  return uiMode === 'LITE' ? <LiteProjection {...projectionProps} /> : <AdvancedProjection {...projectionProps} />;
 }
