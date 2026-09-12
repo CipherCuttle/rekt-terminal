@@ -1,0 +1,27 @@
+.inkubator-view-mode{display:flex;align-items:center;gap:8px;margin-left:auto;font:700 8px/1.2 'IBM Plex Mono','SFMono-Regular',Consolas,monospace;letter-spacing:.1em;color:var(--ios2-muted,#565c5f)}
+.inkubator-view-mode>div{display:inline-flex;border:1px solid var(--ios2-edge,#c9ccca);background:var(--ios2-recessed,#eaebe9)}
+.inkubator-view-mode button{min-height:30px;padding:0 9px;border:0;border-right:1px solid var(--ios2-edge,#c9ccca);background:transparent;color:var(--ios2-muted,#565c5f);font:700 8px/1 'IBM Plex Mono','SFMono-Regular',Consolas,monospace;letter-spacing:.05em;cursor:pointer}
+.inkubator-view-mode button:last-child{border-right:0}.inkubator-view-mode button[aria-pressed=true]{background:var(--ios2-ink,#141719);color:var(--ios2-panel,#f8f8f6)}.inkubator-view-mode button:focus-visible{outline:3px solid #d51570;outline-offset:2px}
+
+/* Global Lite law: preserve the instrument, suppress secondary explanation/audit chrome. */
+.ios-shell-v2[data-view-mode=lite] .ios-shell-footer,.ios-shell-v2[data-view-mode=lite] .faceplate-purpose,.ios-shell-v2[data-view-mode=lite] .faceplate-series{display:none}
+.ios-shell-v2[data-view-mode=lite] .ios-shell-header p{max-width:62ch}
+
+/* PROJECT: current focus + record index stay primary; deep provenance becomes Advanced territory. */
+.project-live[data-view-mode=lite] .faceplate-print-head small,.project-live[data-view-mode=lite] .project-index footer,.project-live[data-view-mode=lite] .project-inspector dl{display:none}
+.project-live[data-view-mode=lite] .project-inspector{padding-bottom:18px}
+.project-live[data-view-mode=lite] .project-inspector>p{max-width:54ch}
+
+/* WORLD: keep the public tape and participation actions, trim audit metadata and receiver instructions. */
+.world-live[data-view-mode=lite] .faceplate-print-head small,.world-live[data-view-mode=lite] .world-tape footer,.world-live[data-view-mode=lite] .faceplate-inspector>dl{display:none}
+.world-live[data-view-mode=lite] .world-beacon-context p:last-child{display:none}
+.world-live[data-view-mode=lite] .world-participation fieldset>p:last-child{display:none}
+
+/* PLAYER: history remains primary; profile taxonomy and provenance detail are opt-in via Advanced. */
+.player-live[data-view-mode=lite] .player-capabilities,.player-live[data-view-mode=lite] .player-record-grid .player-inspector dl,.player-live[data-view-mode=lite] .player-boundary,.player-live[data-view-mode=lite] .player-history-display footer,.player-live[data-view-mode=lite] .player-printed-head small{display:none}
+.player-live[data-view-mode=lite] .player-cheevos p,.player-live[data-view-mode=lite] .player-cheevos code{display:none}
+
+/* SHIP: never hide submission/readiness or truth state; hide only forensic metadata and credit expansion. */
+.ship-live[data-view-mode=lite] .faceplate-print-head small,.ship-live[data-view-mode=lite] .ship-signal-display footer,.ship-live[data-view-mode=lite] .faceplate-inspector dl,.ship-live[data-view-mode=lite] .ship-observation dl,.ship-live[data-view-mode=lite] .ship-receipt-meta,.ship-live[data-view-mode=lite] .ship-credit,.ship-live[data-view-mode=lite] .ship-assists{display:none}
+
+@media(max-width:600px){.inkubator-view-mode{gap:5px}.inkubator-view-mode>span{display:none}.inkubator-view-mode button{min-height:28px;padding:0 7px;font-size:7px}}

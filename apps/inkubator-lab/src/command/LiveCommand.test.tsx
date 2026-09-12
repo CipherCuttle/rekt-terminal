@@ -1,10 +1,14 @@
-import {cleanup, render, screen, waitFor} from '@testing-library/react';
+import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import type {CommandView} from '../generated/inkubator-api-client';
+import {INKUBATOR_VIEW_MODE_KEY, ViewModeProvider} from '../shell/ViewMode';
 import LiveCommand, {commandCue, commandPrimaryAction} from './LiveCommand';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+});
 
 function commandView(overrides: Partial<CommandView> = {}): CommandView {
   return {
@@ -65,18 +69,43 @@ function commandView(overrides: Partial<CommandView> = {}): CommandView {
   };
 }
 
-function renderCommand(client: {getMyCommand: () => Promise<CommandView>}, queryClient = new QueryClient({
-  defaultOptions: {queries: {retry: false}},
-})) {
+function renderCommand(
+  client: {getMyCommand: () => Promise<CommandView>},
+  queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}}),
+  uiMode: 'LITE' | 'ADVANCED' = 'ADVANCED',
+) {
   const result = render(
     <QueryClientProvider client={queryClient}>
-      <LiveCommand client={client} refetchIntervalMs={false} />
+      <ViewModeProvider initialMode={uiMode}>
+        <LiveCommand client={client} refetchIntervalMs={false} />
+      </ViewModeProvider>
     </QueryClientProvider>,
   );
   return {...result, queryClient};
 }
 
 describe('Live Command', () => {
+  it('renders Lite as a bounded projection of the same canonical CommandView', async () => {
+    const client = {getMyCommand: vi.fn().mockResolvedValue(commandView())};
+    const {container} = renderCommand(client, undefined, 'LITE');
+
+    expect(await screen.findByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeTruthy();
+    expect(screen.getByRole('region', {name: 'Lite Mission command'})).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'Make the thing real.'})).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'COPY NEXT MOVE'})).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'UPDATE WORK'})).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'GET HELP'})).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'REQUEST TEST'})).toBeTruthy();
+    expect(screen.getByText('MORE CONTROLS')).toBeTruthy();
+    expect(container.querySelector('.command-lite')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Living Thread mission instrument"]')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', {name: 'ADVANCED'}));
+    expect(container.querySelector('[aria-label="Living Thread mission instrument"]')).toBeTruthy();
+    expect(window.localStorage.getItem(INKUBATOR_VIEW_MODE_KEY)).toBe('ADVANCED');
+  });
+
   it('renders canonical CommandView as one Living Thread instead of a sector dashboard', async () => {
     const client = {getMyCommand: vi.fn().mockResolvedValue(commandView())};
     const {container} = renderCommand(client);

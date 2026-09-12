@@ -8,7 +8,9 @@ import './faceplate.css';
 import './faceplate-a11y.css';
 import './connection-context.css';
 import './readability-v1.css';
+import './view-mode.css';
 import {ConnectionContextStrip} from './ConnectionContext';
+import {useViewMode, ViewModeToggle} from './ViewMode';
 
 export {INSTRUMENT_MODES};
 export type {InstrumentMode};
@@ -68,6 +70,7 @@ export function TerminalShell({
   eventSequence,
 }: TerminalShellProps) {
   const integratedNavigation = useInstrumentNavigation();
+  const viewMode = useViewMode();
   const effectiveModes = enabledModes ?? integratedNavigation?.enabledModes ?? [mode];
   const effectiveSelect = onModeSelect ?? integratedNavigation?.onModeSelect;
   const enabled = new Set(effectiveModes);
@@ -81,6 +84,7 @@ export function TerminalShell({
       data-shell="terminal"
       data-shell-variant={shellVariant}
       data-mode={mode.toLowerCase()}
+      data-view-mode={viewMode?.mode.toLowerCase() ?? 'advanced'}
       data-motion={motion}
       data-motion-policy={motionPolicy}
       data-crt={crt}
@@ -91,6 +95,7 @@ export function TerminalShell({
         <a className="faceplate-brand" href="?mode=command"><strong>REKT<i>//</i></strong><span className="faceplate-brand-label">INKUBATOR</span></a>
         <span className="faceplate-purpose">TECHNICAL FACEPLATE / LIVE PRODUCT</span>
         <span className="faceplate-series">{mode} / INSTRUMENT SERIES</span>
+        <ViewModeToggle />
         <span className="faceplate-registration" aria-hidden="true" />
       </div>
 
