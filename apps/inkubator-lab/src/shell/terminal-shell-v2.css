@@ -1,0 +1,180 @@
+.ios-shell-v2 {
+  --ios2-page: #e3e5e3;
+  --ios2-chassis: #f4f5f3;
+  --ios2-panel: #f8f8f6;
+  --ios2-recessed: #eaebe9;
+  --ios2-edge: #c9ccca;
+  --ios2-seam: #d8dad8;
+  --ios2-ink: #141719;
+  --ios2-muted: #565c5f;
+  --ios2-display: #010203;
+  --ios2-display-text: #eceeea;
+  --ios2-display-muted: #9caaa9;
+  --ios2-orange: #c8461b;
+  --ios2-violet: #6845a6;
+  --ios2-cyan: #007889;
+  --ios2-green: #4e7900;
+  --ios2-red: #a52d27;
+  --ios2-amber: #8a5d12;
+  min-height: 100dvh;
+  padding: 16px;
+  overflow-x: hidden;
+  background: var(--ios2-page);
+  color: var(--ios2-ink);
+  color-scheme: light;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.ios-shell-v2 .ios-crt {
+  display: none;
+}
+
+.ios-shell-v2 .ios-shell-header {
+  min-height: 68px;
+  align-items: center;
+  padding: 0 20px 12px;
+  border-bottom: 1px solid var(--ios2-seam);
+  background: var(--ios2-chassis);
+}
+
+.ios-shell-v2 .ios-shell-header small,
+.ios-shell-v2 .ios-shell-readout span {
+  color: var(--ios2-muted);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 9px;
+  letter-spacing: .12em;
+}
+
+.ios-shell-v2 .ios-shell-header h1 {
+  margin: 5px 0 0;
+  color: var(--ios2-ink);
+  font-size: clamp(27px, 3vw, 44px);
+  font-weight: 800;
+  letter-spacing: -.055em;
+  line-height: .95;
+  text-transform: none;
+}
+
+.ios-shell-v2 .ios-shell-header p {
+  color: var(--ios2-muted);
+  font: 10px/1.5 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+}
+
+.ios-shell-v2 .ios-shell-readout {
+  min-width: 220px;
+  gap: 5px;
+}
+
+.ios-shell-v2 .ios-shell-readout > div {
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 9px;
+}
+
+.ios-shell-v2 .ios-shell-readout b {
+  color: var(--ios2-ink);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 9px;
+}
+
+.ios-shell-v2 .ios-shell-event {
+  min-height: 32px;
+  margin: 0;
+  padding: 9px 20px;
+  border: 0;
+  border-bottom: 1px solid var(--ios2-seam);
+  background: var(--ios2-recessed);
+  color: var(--ios2-muted);
+  font: 9px/1.4 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  letter-spacing: .08em;
+}
+
+.ios-shell-v2 .ios-shell-chassis {
+  isolation: isolate;
+  grid-template-columns: 116px minmax(0, 1fr);
+  min-height: 690px;
+  border: 1px solid var(--ios2-edge);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+  background: var(--ios2-chassis);
+  box-shadow: 0 12px 35px #171a1914, inset 0 1px #ffffffb8;
+}
+
+.ios-shell-v2 .ios-shell-mode-rail {
+  position: relative;
+  z-index: 2;
+  border-right: 1px solid var(--ios2-seam);
+  background: var(--ios2-chassis);
+}
+
+.ios-shell-v2 .ios-rail-label,
+.ios-shell-v2 .ios-rail-tail {
+  color: var(--ios2-muted);
+  font: 8px/1.4 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+}
+
+.ios-shell-v2 .ios-rail-tail {
+  border-top-color: var(--ios2-seam);
+}
+
+.ios-shell-v2 .ios-shell-mode-rail button {
+  min-height: 64px;
+  border-top-color: var(--ios2-seam);
+  background: var(--ios2-chassis);
+  color: var(--ios2-muted);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.ios-shell-v2 .ios-shell-mode-rail button:last-of-type {
+  border-bottom-color: var(--ios2-seam);
+}
+
+.ios-shell-v2 .ios-shell-mode-rail button span {
+  color: var(--ios2-muted);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+}
+
+.ios-shell-v2 .ios-shell-mode-rail button b {
+  font-size: 9px;
+  letter-spacing: .04em;
+}
+
+.ios-shell-v2 .ios-shell-mode-rail button[aria-pressed='true'] {
+  color: var(--ios2-ink);
+  background: var(--ios2-recessed);
+  box-shadow: inset 3px 0 var(--ios2-orange);
+}
+
+.ios-shell-v2 .ios-shell-mode-rail button[aria-pressed='true'] span {
+  color: var(--ios2-orange);
+}
+
+.ios-shell-v2 .ios-shell-workspace {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  background: var(--ios2-chassis);
+}
+
+.ios-shell-v2 .ios-shell-footer {
+  margin: 0;
+  padding: 10px 20px 0;
+  color: var(--ios2-muted);
+  font: 8px/1.4 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  letter-spacing: .07em;
+}
+
+@media (max-width: 860px) {
+  .ios-shell-v2 {
+    padding: 10px;
+  }
+
+  .ios-shell-v2 .ios-shell-chassis {
+    grid-template-columns: 54px minmax(0, 1fr);
+  }
+
+  .ios-shell-v2 .ios-shell-mode-rail button {
+    min-height: 54px;
+    padding: 5px;
+  }
+}

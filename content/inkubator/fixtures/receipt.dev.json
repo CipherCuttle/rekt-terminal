@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "inkubator.ship-receipt/0.1",
+  "receiptId": "RDEV-S001",
+  "roundId": "RDEV",
+  "playerId": "PDEV-001",
+  "artifact": {
+    "title": "DEVELOPMENT ARTIFACT",
+    "url": "https://example.com/",
+    "demoUrl": "https://example.com/"
+  },
+  "shippedAt": "2026-09-06T18:00:00Z",
+  "evidence": [
+    {
+      "type": "LIVE_URL",
+      "status": "SUPPLIED",
+      "observedAt": "2026-09-06T18:00:00Z",
+      "claim": "Fixture URL supplied; no automated live verification has run."
+    },
+    {
+      "type": "DEMO",
+      "status": "SUPPLIED",
+      "observedAt": "2026-09-06T18:00:00Z",
+      "claim": "Fixture demo URL supplied; no automated demo verification has run."
+    }
+  ]
+}

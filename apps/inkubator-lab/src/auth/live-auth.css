@@ -1,0 +1,97 @@
+.inkubator-auth-state {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+}
+
+.inkubator-auth-card {
+  width: min(42rem, 100%);
+  padding: clamp(1rem, 4vw, 2.25rem);
+  border: 1px solid var(--ios2-line, #b8b8b3);
+  background: var(--ios2-paper, #f3f3ef);
+  color: var(--ios2-ink, #141719);
+}
+
+.inkubator-auth-card small {
+  color: var(--ios2-muted, #565c5f);
+}
+
+.inkubator-auth-card h2 {
+  margin: .45rem 0 .75rem;
+  font-size: clamp(1.5rem, 6vw, 3.5rem);
+  line-height: .9;
+}
+
+.inkubator-auth-card p {
+  max-width: 52ch;
+}
+
+.inkubator-auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem;
+  margin-top: 1rem;
+}
+
+.inkubator-auth-action {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: .8rem 1rem;
+  border: 1px solid currentColor;
+  background: var(--ios2-ink, #141719);
+  color: var(--ios2-paper, #f3f3ef);
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.inkubator-auth-action--secondary {
+  background: transparent;
+  color: inherit;
+}
+
+.inkubator-auth-action:focus-visible {
+  outline: 3px solid var(--ios2-selection, #ff1493);
+  outline-offset: 3px;
+}
+
+.inkubator-auth-loop {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 1.5rem 0 0;
+  border: 1px solid var(--ios2-line, #b8b8b3);
+  background: var(--ios2-line, #b8b8b3);
+}
+
+.inkubator-auth-loop > div {
+  display: grid;
+  gap: .35rem;
+  min-width: 0;
+  padding: .75rem;
+  border-top: 3px solid var(--ios2-selection, #ff1493);
+  background: var(--ios2-paper, #f3f3ef);
+}
+
+.inkubator-auth-loop dt {
+  color: var(--ios2-ink, #141719);
+  font: 700 .7rem/1 monospace;
+}
+
+.inkubator-auth-loop dd {
+  margin: 0;
+  font: 700 .72rem/1.25 monospace;
+}
+
+.inkubator-auth-footnote {
+  margin-top: 1rem;
+  font-size: .78rem;
+  opacity: .72;
+}
+
+@media (max-width: 700px) {
+  .inkubator-auth-actions {display: grid;}
+  .inkubator-auth-action {justify-content: center;}
+  .inkubator-auth-loop {grid-template-columns: 1fr;}
+}

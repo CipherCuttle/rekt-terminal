@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "inkubator.round/0.1",
+  "roundId": "RDEV",
+  "title": "DEVELOPMENT ROUND",
+  "status": "DRAFT",
+  "constraint": "Development fixture only. No public round constraint is locked.",
+  "rules": {
+    "workingUrlRequired": true,
+    "demoRequired": true,
+    "aiAllowed": true
+  }
+}

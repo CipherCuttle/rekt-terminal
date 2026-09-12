@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "inkubator.player/0.1",
+  "playerId": "PDEV-001",
+  "handle": "@fixture",
+  "displayName": "Fixture Player",
+  "character": {
+    "callSign": "NULL GHOST",
+    "archetype": "BUILDER"
+  }
+}

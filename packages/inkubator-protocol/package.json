@@ -1,0 +1,29 @@
+{
+  "name": "@rekt-ink/protocol",
+  "private": false,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  },
+  "files": [
+    "src",
+    "schema"
+  ],
+  "types": "./src/constants.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/constants.d.ts",
+      "import": "./src/constants.mjs"
+    },
+    "./server": "./src/index.mjs",
+    "./schema/*": "./schema/*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

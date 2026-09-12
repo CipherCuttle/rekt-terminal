@@ -1,0 +1,13 @@
+/* Selection feedback may move, but it must not temporarily weaken semantic text contrast. */
+.faceplate-selection-response {
+  animation: faceplate-select-accessible 160ms steps(4, end) both;
+}
+
+@keyframes faceplate-select-accessible {
+  from { transform: translateX(2px); }
+  to { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .faceplate-selection-response { animation: none; }
+}

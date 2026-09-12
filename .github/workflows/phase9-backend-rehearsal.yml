@@ -1,0 +1,83 @@
+name: Phase 9 Backend Rehearsal
+
+on:
+  push:
+    branches: [agent/inkubator-phase9-backend-rehearsal-v0]
+    paths:
+      - '.github/workflows/phase9-backend-rehearsal.yml'
+      - 'apps/inkubator-api/**'
+      - 'apps/inkubator-verifier/**'
+      - 'packages/inkubator-protocol/**'
+      - 'packages/sdk/**'
+      - 'packages/cli/**'
+      - 'packages/mcp/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_USER: rekt
+          POSTGRES_PASSWORD: rekt_test
+          POSTGRES_DB: rekt_inkubator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rekt -d rekt_inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://rekt:rekt_test@127.0.0.1:5432/rekt_inkubator
+      INKUBATOR_APP_ORIGIN: https://inkubator.test
+      INKUBATOR_DEV_AUTH: '1'
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+
+      - name: API contract and clean migration
+        run: |
+          npm run typecheck -w @rekt-ink/inkubator-api
+          npm run build -w @rekt-ink/inkubator-api
+          npm run verify:client -w @rekt-ink/inkubator-api
+          npm run migrate -w @rekt-ink/inkubator-api
+
+      - name: DevKit compatibility and hostile authority surfaces
+        run: |
+          npm run build:devkit
+          npm run test:devkit
+
+      - name: P9-H06 browser/server SDK authority separation
+        run: node --test apps/inkubator-lab/e2e/server-sdk-browser-boundary.test.mjs
+
+      - name: P9-H10 immutable historical rule-version continuity
+        run: node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase9-cheevo-rule-version.test.mjs
+
+      - name: P9-H01/H08/H12/H17 founding rehearsal composition
+        run: timeout 180s node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase9-founding-rehearsal.test.mjs
+
+      - name: Phase 9 PLAYER durable history projection
+        run: node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase9-player-history-projection.test.mjs
+
+      - name: P9-H18 supported crash/reclaim recovery
+        run: timeout 180s node --test --test-concurrency=1 apps/inkubator-api/test/integration/phase9-ops-recovery.test.mjs
+
+      - name: Full API Postgres regression
+        run: timeout 480s npm run test:integration -w @rekt-ink/inkubator-api
+
+      - name: P9-H07 verifier hostile attack matrix
+        run: npm run test -w @rekt-ink/inkubator-verifier

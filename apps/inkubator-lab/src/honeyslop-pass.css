@@ -1,0 +1,289 @@
+/* Creator-feedback compression pass: fewer words, fewer giant headlines, faster scroll rhythm. */
+
+.d2-compressed .d2-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(100%, 540px);
+}
+
+.d2-compressed .d2-hero-lede {
+  max-width: 48ch;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.d2-compressed .d2-section-head {
+  margin-bottom: 34px;
+}
+
+.d2-compressed .d2-section-head > p {
+  max-width: 42ch;
+  margin-top: 24px !important;
+  font-size: .98rem;
+  line-height: 1.52;
+}
+
+.d2-compressed .d2-signal-copy h2,
+.d2-compressed .d2-section-head h2,
+.d2-compressed .d2-open h2,
+.d2-compressed .d2-collection-copy h2 {
+  font-size: clamp(2.35rem, 4vw, 4.35rem);
+  line-height: .94;
+  letter-spacing: -.045em;
+}
+
+.d2-compressed .d2-build-section,
+.d2-compressed .d2-signal-section,
+.d2-compressed .d2-weight-section,
+.d2-compressed .d2-collection-section {
+  padding-block: clamp(62px, 6vw, 86px);
+}
+
+.d2-compressed .d2-build-card {
+  min-height: 262px;
+  padding: 18px;
+}
+
+.d2-compressed .d2-card-mark {
+  min-height: 82px;
+  font-size: clamp(4rem, 7vw, 6rem);
+}
+
+.d2-compressed .d2-build-card p {
+  min-height: 48px;
+  font-size: .93rem;
+  line-height: 1.42;
+}
+
+.d2-compressed .d2-signal-grid {
+  grid-template-columns: minmax(230px, .52fr) minmax(0, 1.48fr);
+  gap: clamp(40px, 5vw, 72px);
+}
+
+.d2-compressed .d2-signal-copy p {
+  max-width: 30ch;
+  font-size: .98rem;
+  line-height: 1.5;
+}
+
+.d2-compressed .d2-loop-instrument {
+  min-height: 500px;
+}
+
+.d2-compressed .d2-signal-statement {
+  font-size: clamp(3.6rem, 7vw, 7.4rem);
+}
+
+.d2-compressed .d2-loop-readout {
+  margin-bottom: 22px;
+}
+
+.d2-compressed .d2-loop-tabs button {
+  min-height: 78px;
+}
+
+.d2-compressed .d2-weight-grid article {
+  min-height: 300px;
+  padding: clamp(24px, 3vw, 36px);
+}
+
+.d2-compressed .d2-weight-grid h3 {
+  margin-top: 34px !important;
+  font-size: clamp(2.9rem, 4.6vw, 4.7rem);
+  line-height: .84;
+}
+
+.d2-compressed .d2-weight-grid ul {
+  margin-top: 26px;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.d2-deal-section {
+  overflow: hidden;
+}
+
+.d2-deal-flow {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  margin-top: 30px;
+  padding: 22px 0 34px;
+  border-top: 1px solid var(--d2-seam);
+}
+
+.d2-deal-flow > span {
+  color: var(--d2-acid);
+  font: 800 10px/1 var(--d2-mono);
+  letter-spacing: .1em;
+}
+
+.d2-deal-flow .d2-broadcast-flow {
+  margin: 0;
+  font-size: clamp(1.45rem, 2.25vw, 2.45rem);
+}
+
+.d2-compressed .d2-marquee > div {
+  padding-block: 9px;
+  font-size: clamp(1rem, 1.7vw, 1.65rem);
+}
+
+.d2-compressed .d2-collection-shell {
+  min-height: 520px;
+}
+
+.d2-compressed .d2-collection-copy {
+  padding: clamp(26px, 3vw, 36px);
+}
+
+.d2-compressed .d2-collection-copy p {
+  max-width: 28ch;
+  font-size: .96rem;
+  line-height: 1.5;
+}
+
+.d2-compressed .d2-collection-switch {
+  margin-top: 22px;
+}
+
+.d2-fit-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 18px 0 4px;
+}
+
+.d2-fit-strip span {
+  padding: 7px 9px;
+  border: 1px solid var(--d2-edge);
+  background: rgba(13, 11, 24, .5);
+  color: var(--d2-lilac);
+  font: 800 9px/1 var(--d2-mono);
+  letter-spacing: .08em;
+}
+
+.d2-compressed .d2-open {
+  min-height: 380px;
+}
+
+.d2-compressed .d2-open-inner {
+  padding-block: 64px;
+}
+
+.d2-compressed .d2-open p {
+  max-width: 34ch;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 1100px) {
+  .d2-compressed .d2-signal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .d2-compressed .d2-signal-copy p {
+    max-width: 42ch;
+  }
+
+  .d2-deal-flow {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 720px) {
+  .d2-compressed .d2-hero-grid {
+    padding-block: 42px 56px;
+  }
+
+  .d2-compressed .d2-actions b {
+    font-size: clamp(1.45rem, 7.4vw, 2rem);
+  }
+
+  .d2-compressed .d2-metrics {
+    grid-template-columns: 1fr 1fr 1fr;
+    margin-top: 22px;
+  }
+
+  .d2-compressed .d2-metrics span {
+    min-height: 38px;
+    padding: 8px;
+    font-size: 8px;
+  }
+
+  .d2-compressed .d2-build-section,
+  .d2-compressed .d2-signal-section,
+  .d2-compressed .d2-weight-section,
+  .d2-compressed .d2-collection-section {
+    padding-block: 54px;
+  }
+
+  .d2-compressed .d2-section-head {
+    margin-bottom: 26px;
+  }
+
+  .d2-compressed .d2-section-head h2,
+  .d2-compressed .d2-signal-copy h2,
+  .d2-compressed .d2-open h2,
+  .d2-compressed .d2-collection-copy h2 {
+    font-size: clamp(2.25rem, 10.5vw, 3.4rem);
+  }
+
+  .d2-compressed .d2-build-card {
+    min-height: 220px;
+  }
+
+  .d2-compressed .d2-card-mark {
+    min-height: 64px;
+  }
+
+  .d2-compressed .d2-loop-instrument {
+    min-height: 450px;
+  }
+
+  .d2-compressed .d2-loop-tabs button {
+    min-height: 68px;
+  }
+
+  .d2-compressed .d2-weight-grid article {
+    min-height: 245px;
+  }
+
+  .d2-compressed .d2-weight-grid h3 {
+    margin-top: 28px !important;
+    font-size: clamp(2.8rem, 13vw, 4.25rem);
+  }
+
+  .d2-compressed .d2-weight-grid ul {
+    margin-top: 22px;
+  }
+
+  .d2-deal-flow {
+    padding-bottom: 26px;
+  }
+
+  .d2-deal-flow .d2-broadcast-flow {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    font-size: clamp(1.35rem, 7vw, 2rem);
+    white-space: normal;
+  }
+
+  .d2-deal-flow .d2-broadcast-flow b {
+    margin: 0;
+    transform: none;
+  }
+
+  .d2-compressed .d2-collection-shell {
+    min-height: 0;
+  }
+
+  .d2-compressed .d2-open {
+    min-height: 340px;
+  }
+
+  .d2-compressed .d2-open-inner {
+    padding-block: 52px;
+  }
+}

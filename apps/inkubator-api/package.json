@@ -1,0 +1,32 @@
+{
+  "name": "@rekt-ink/inkubator-api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/server.js",
+    "worker": "node dist/worker.js",
+    "ops:recover": "node dist/ops-recover-cli.js",
+    "migrate": "node dist/migrate-cli.js",
+    "generate:client": "node --import ./dist/contract-phase8.js ./dist/generate-client.js",
+    "verify:client": "node --import ./dist/contract-phase8.js ./dist/generate-client.js --check",
+    "test": "node --test test/unit/*.test.mjs",
+    "pretest": "npm run build",
+    "test:integration": "node --test --test-concurrency=1 test/integration/*.test.mjs",
+    "pretest:integration": "npm run build"
+  },
+  "dependencies": {
+    "fastify": "5.0.0",
+    "kysely": "0.29.5",
+    "kysely-postgres-js": "4.0.0",
+    "postgres": "3.4.9"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "tsx": "4.19.0",
+    "typescript": "5.8.3"
+  }
+}
