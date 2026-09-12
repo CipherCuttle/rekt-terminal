@@ -2,6 +2,8 @@ import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page, type Route} from '@playwright/test';
 import {fixtureConnectionContext, fixturePendingAssists} from './fixture-connection';
 
+const COMMAND_UI_MODE_KEY = 'rekt.inkubator.command.ui-mode.v1';
+
 const command = {
   schema_version: 'command.private.v2',
   project: {
@@ -101,6 +103,10 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
   await route.fulfill({status, contentType: 'application/json', body: JSON.stringify(body)});
 }
 
+async function useAdvancedCommand(page: Page) {
+  await page.addInitScript((key) => window.localStorage.setItem(key, 'ADVANCED'), COMMAND_UI_MODE_KEY);
+}
+
 async function routeIntegratedApp(page: Page) {
   const responses: Record<string, unknown> = {
     '/v1/me/command': command,
@@ -155,6 +161,7 @@ async function expectNoHorizontalOverflow(page: Page) {
 
 test('integrated Instrument OS switches all five live surfaces in-place and preserves browser history', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
+  await useAdvancedCommand(page);
   await routeIntegratedApp(page);
 
   await page.goto('/?mode=command');
@@ -189,6 +196,7 @@ test('integrated Instrument OS switches all five live surfaces in-place and pres
 test('integrated Instrument OS keeps every live mode usable on the 390px rehearsal viewport', async ({page}) => {
   await page.setViewportSize({width: 390, height: 844});
   await page.emulateMedia({reducedMotion: 'reduce'});
+  await useAdvancedCommand(page);
   await routeIntegratedApp(page);
 
   await page.goto('/?mode=world');
