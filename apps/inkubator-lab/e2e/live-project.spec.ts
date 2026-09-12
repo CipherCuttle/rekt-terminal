@@ -3,6 +3,8 @@ import {expect, test, type Page} from '@playwright/test';
 import type {CommandView, PrivateProject, ProjectExternalTestsView, ProjectHelpLoopView, ProjectShipStateView} from '../src/generated/inkubator-api-client';
 import {fixtureConnectionContext} from './fixture-connection';
 
+const INKUBATOR_VIEW_MODE_KEY = 'rekt.inkubator.ui-mode.v1';
+
 const command: CommandView = {
   schema_version: 'command.private.v2',
   project: {project_id: 'P-LIVE-001', name: 'WEIRD LITTLE THING', source_connected: true, source_visibility: 'PRIVATE', observation_state: 'OBSERVED'},
@@ -74,7 +76,6 @@ async function routeProject(page: Page, override: Partial<Record<string, Respons
     }
     const response = responses[url.pathname];
     if (!response) {
-      // Never leak an unmocked /v1 route to the (absent) backend proxy: fail closed instead.
       if (url.pathname.startsWith('/v1/')) {
         await route.fulfill({status: 500, contentType: 'application/json', body: JSON.stringify({error: 'unmocked_v1_route'})});
         return;
@@ -91,6 +92,10 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
 }
 
+test.beforeEach(async ({page}) => {
+  await page.addInitScript((key) => window.localStorage.setItem(key, 'ADVANCED'), INKUBATOR_VIEW_MODE_KEY);
+});
+
 test('LIVE PROJECT renders canonical v2 workstation projections without promoting observed ship state', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
   await routeProject(page);
@@ -106,7 +111,6 @@ test('LIVE PROJECT renders canonical v2 workstation projections without promotin
   await expect(page.getByText('Core flow works.')).toBeVisible();
   await page.getByRole('button', {name: /Help \/ party/}).click();
   await expect(page.getByText('Helper')).toBeVisible();
-  // An observed Ship submission is never promoted to PROVEN in the project record index.
   await expect(page.locator('.project-index [data-truth="proven"]')).toHaveCount(0);
   await expect(page.getByRole('button', {name: /Ship artifact/})).toHaveAttribute('data-truth', 'observed');
   await expect(page.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeVisible();
