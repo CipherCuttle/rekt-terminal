@@ -1,0 +1,86 @@
+/*
+ * REKT Instrument OS readability floor.
+ * Operational text must remain readable on handheld widths. Decorative registration
+ * marks, screws, barcode motifs and purely ornamental imprints are intentionally
+ * excluded so the instrument can keep its micrographic character.
+ */
+
+/* Shared orientation + navigation. */
+.ios-shell-v2 .ios-shell-header small,
+.ios-shell-v2 .ios-shell-readout span,
+.ios-shell-v2 .ios-shell-readout b,
+.ios-shell-v2 .ios-shell-event {font-size:12px!important;letter-spacing:.05em!important;line-height:1.45!important}
+.ios-shell-v2 .ios-shell-header p {font-size:14px!important;line-height:1.55!important}
+.ios-shell-v2 .ios-rail-label {font-size:11px!important;letter-spacing:.06em!important}
+.ios-shell-v2 .ios-shell-mode-rail button b {font-size:13px!important}
+.ios-shell-v2 .ios-shell-mode-rail button small {font-size:11px!important;line-height:1.4!important}
+.ios-shell-v2 .ios-shell-footer {font-size:11px!important;line-height:1.45!important}
+.faceplate-purpose,.faceplate-series {font-size:11px!important;line-height:1.4!important}
+
+/* Shared record / evidence construction. */
+.faceplate-print-head {font-size:12px!important;letter-spacing:.05em!important}
+.faceplate-print-head h2 {font-size:14px!important}
+.faceplate-display :is(small,time) {font-size:12px!important;line-height:1.45!important}
+.faceplate-display>footer {font-size:11px!important;line-height:1.45!important}
+.faceplate-inspector>small,.faceplate-inspector dt {font-size:12px!important;letter-spacing:.04em!important}
+.faceplate-inspector p {font-size:14px!important;line-height:1.6!important}
+.faceplate-inspector dd {font-size:13px!important;line-height:1.5!important}
+.faceplate-inspector :is(code,time) {font-size:12px!important}
+.faceplate-truth {font-size:12px!important}
+
+/* COMMAND — Mission state, source state and recovery controls are operational. */
+.command-mission-copy span,.command-next-move>span,.command-advisory>span,.command-ship-condition>span {font-size:12px!important;letter-spacing:.06em!important}
+.command-primary-action {font-size:14px!important}
+.command-display-title {font-size:12px!important;letter-spacing:.05em!important}
+.command-thread-gate {font-size:13px!important}.command-thread-gate small {font-size:12px!important}
+.command-source-status small,.command-source-status time {font-size:12px!important}.command-source-status p {font-size:13px!important}
+.command-thread-break small,.command-advisory small {font-size:12px!important}.command-channel-error {font-size:13px!important}
+
+/* PROJECT — source/evidence record index. */
+.project-focus small,.project-index small,.project-record-state {font-size:12px!important;line-height:1.45!important}
+.project-index footer {font-size:11px!important;line-height:1.45!important}
+.project-focus a,.project-inspector a {font-size:14px!important}
+.project-index button b,.project-record-number {font-size:12px!important}
+.project-index button small {font-size:12px!important}
+.project-inspector ul {font-size:14px!important}
+
+/* WORLD — public signal receiver. */
+.world-display-head small,.world-display-head>span,.world-receiver-status,
+.world-event-list time,.world-event-list small,.world-event-list b,.world-input-state time {font-size:12px!important;line-height:1.45!important}
+.world-tape footer {font-size:11px!important}.world-truth {font-size:12px!important}
+
+/* PLAYER — durable record, chronology and evidence-linked identity. */
+.player-identity-copy>small,.player-capabilities small,.player-printed-head span,.player-printed-head small,
+.player-history-display small,.player-inspector>span,.player-inspector dt,.player-boundary small,.player-earned small,
+.player-projection-error small,.player-empty small,.player-loading small {font-size:12px!important;line-height:1.45!important;letter-spacing:.04em!important}
+.player-identity-copy p,.player-inspector>p {font-size:14px!important;line-height:1.55!important}
+.player-capabilities strong {font-size:13px!important;line-height:1.45!important}
+.player-printed-head h2 {font-size:14px!important}
+.player-history-ruler,.player-history-list time,.player-truth {font-size:12px!important;line-height:1.4!important}
+.player-history-copy small {font-size:12px!important}.player-history-display>footer {font-size:11px!important}
+.player-inspector dd {font-size:13px!important}.player-boundary p,.player-cheevos p {font-size:13px!important}
+.player-metrics dt {font-size:12px!important}.player-cheevos code {font-size:11px!important}.player-empty p,.player-loading p {font-size:13px!important}
+
+/* SHIP — verifier state and receipt interpretation are never decorative microcopy. */
+.ship-context small,.ship-live .ship-stage-index button small,
+.ship-live .ship-printed-head>span,.ship-live .ship-printed-head>small,
+.ship-live .ship-condition small,.ship-live .ship-next small,.ship-live .ship-gates span,.ship-live .ship-gates b,
+.ship-live .ship-submit label span,.ship-live .ship-submit-control small,.ship-live .ship-submit-status,
+.ship-live .ship-submit-error small,.ship-live .ship-submit-success small,.ship-live .ship-no-submission small,
+.ship-live .ship-signal-display small,.ship-live .ship-observation small,.ship-live .ship-artifact-stage small,
+.ship-live .ship-receipt>span,.ship-live .ship-credit small,.ship-live .ship-credit-summary small,
+.ship-live .ship-assists small,.ship-live .ship-proof-boundary small {font-size:12px!important;line-height:1.4!important;letter-spacing:.04em!important}
+.ship-context a {font-size:13px!important}.ship-live .ship-channel p,.ship-live .ship-condition p,.ship-live .ship-next span,
+.ship-live .ship-no-submission p,.ship-live .ship-signal-core p {font-size:13px!important;line-height:1.5!important}
+.ship-live .ship-gates strong {font-size:13px!important}
+.ship-live .ship-signal-display>header span {font-size:12px!important}
+.ship-live .ship-signal-display dt,.ship-live .ship-observation dt,.ship-live .ship-receipt-meta dt {font-size:12px!important}
+.ship-live .ship-signal-display dd,.ship-live .ship-observation dd {font-size:12px!important;line-height:1.45!important}
+.ship-live .ship-signal-display>a,.ship-live .ship-artifact-stage>a {font-size:12px!important}
+.ship-live .ship-observation time,.ship-live .ship-observation p,.ship-live .ship-proof-boundary p {font-size:12px!important;line-height:1.5!important}
+
+@media(max-width:700px){
+  /* Recompose on mobile; never shrink essential type to preserve density. */
+  .ios-shell-v2 .ios-shell-mode-rail button small {font-size:11px!important}
+  .faceplate-display :is(small,time),.faceplate-inspector dt,.faceplate-inspector>small {font-size:12px!important}
+}
