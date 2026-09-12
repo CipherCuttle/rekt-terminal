@@ -3,7 +3,6 @@ import type {InkubatorDatabase} from './database.js';
 import {readDatabaseNow} from './database.js';
 import {
   finalizeGitHubSetup,
-  validateGitHubInstallationPolicy,
   type GitHubRuntimeOptions,
   type VerifiedGitHubInstallation,
   type VerifiedGitHubRepository,
@@ -39,6 +38,35 @@ async function readJson(response: Response, errorName: string): Promise<unknown>
   return response.json();
 }
 
+export function validateGitHubRepositoryAccessPolicy(permissions: unknown): void {
+  if (!permissions || typeof permissions !== 'object' || Array.isArray(permissions)) {
+    throw new Error('github_installation_permissions_invalid');
+  }
+  const permissionEntries = Object.entries(permissions as Record<string, unknown>);
+  if ((permissions as Record<string, unknown>).contents !== 'read') {
+    throw new Error('github_contents_read_permission_required');
+  }
+  const allowedReadPermissions = new Set(['contents', 'metadata']);
+  for (const [name, level] of permissionEntries) {
+    if (level === 'write' || level === 'admin') throw new Error('github_write_permission_forbidden');
+    if (level !== 'read' && level !== 'none') throw new Error('github_installation_permissions_invalid');
+    if (level === 'read' && !allowedReadPermissions.has(name)) {
+      throw new Error(`github_read_permission_excessive:${name}`);
+    }
+  }
+}
+
+export function githubObservationPolicyWarnings(events: unknown): string[] {
+  if (!Array.isArray(events) || events.some((event) => typeof event !== 'string')) {
+    return ['github_installation_events_invalid'];
+  }
+  const warnings: string[] = [];
+  if (!events.includes('push')) warnings.push('github_push_event_required');
+  const extraEvents = events.filter((event) => event !== 'push');
+  if (extraEvents.length > 0) warnings.push(`github_event_subscription_excessive:${extraEvents.join(',')}`);
+  return warnings;
+}
+
 async function repositoriesForInstallation(
   installationId: string,
   token: string,
@@ -67,17 +95,25 @@ async function repositoriesForInstallation(
   throw new Error('github_repository_list_too_large');
 }
 
+export interface GitHubInstallationDiscovery {
+  installations: VerifiedGitHubInstallation[];
+  warnings: string[];
+}
+
 /**
- * Reads the GitHub user's current installations for this App. The access token
- * is deliberately caller-owned and ephemeral: this module never persists it.
+ * Reads the GitHub user's current installations for this App. Repository access
+ * authority and observation/webhook health are deliberately separate: a missing
+ * Push subscription degrades evidence capability but does not erase authorized
+ * repository access.
  */
-export async function discoverGitHubAppInstallations(
+export async function discoverGitHubAppInstallationsWithHealth(
   runtime: GitHubRuntimeOptions,
   accessToken: string,
   expectedGithubUserId: string,
   fetchImpl: FetchLike = fetch,
-): Promise<VerifiedGitHubInstallation[]> {
-  const verified: VerifiedGitHubInstallation[] = [];
+): Promise<GitHubInstallationDiscovery> {
+  const installations: VerifiedGitHubInstallation[] = [];
+  const warnings = new Set<string>();
   let complete = false;
 
   for (let page = 1; page <= 10; page += 1) {
@@ -92,7 +128,8 @@ export async function discoverGitHubAppInstallations(
       const installation = candidate as Record<string, unknown>;
       if (installation.app_slug !== runtime.appSlug) continue;
 
-      validateGitHubInstallationPolicy(installation.permissions, installation.events);
+      validateGitHubRepositoryAccessPolicy(installation.permissions);
+      for (const warning of githubObservationPolicyWarnings(installation.events)) warnings.add(warning);
       const account = installation.account;
       if (!account || typeof account !== 'object') throw new Error('github_installation_account_invalid');
       const repositorySelection = installation.repository_selection;
@@ -100,7 +137,7 @@ export async function discoverGitHubAppInstallations(
         throw new Error('github_repository_selection_invalid');
       }
       const installationId = positiveIntegerId(installation.id, 'github_installation_id');
-      verified.push({
+      installations.push({
         githubUserId: expectedGithubUserId,
         installationId,
         accountId: positiveIntegerId((account as {id?: unknown}).id, 'github_account_id'),
@@ -117,13 +154,23 @@ export async function discoverGitHubAppInstallations(
   }
 
   if (!complete) throw new Error('github_installation_list_too_large');
-  return verified;
+  return {installations, warnings: [...warnings]};
+}
+
+export async function discoverGitHubAppInstallations(
+  runtime: GitHubRuntimeOptions,
+  accessToken: string,
+  expectedGithubUserId: string,
+  fetchImpl: FetchLike = fetch,
+): Promise<VerifiedGitHubInstallation[]> {
+  return (await discoverGitHubAppInstallationsWithHealth(runtime, accessToken, expectedGithubUserId, fetchImpl)).installations;
 }
 
 /**
  * Anti-entropy reconciliation against GitHub's current user-access-token view.
- * Webhooks remain the normal continuous path; this is used after login,
- * installation/update return, and an explicit manual sync.
+ * Webhooks remain the normal continuous path; this is used after login and the
+ * installation/update return. Observation-health warnings never launder into
+ * repository authorization failures.
  */
 export async function reconcileGitHubAppInstallations(
   db: InkubatorDatabase,
@@ -132,17 +179,17 @@ export async function reconcileGitHubAppInstallations(
   githubUserId: string,
   accessToken: string,
   fetchImpl: FetchLike = fetch,
-): Promise<{installationIds: string[]; repositoriesConnected: number}> {
+): Promise<{installationIds: string[]; repositoriesConnected: number; warnings: string[]}> {
   const reconciledAt = await readDatabaseNow(db);
-  const installations = await discoverGitHubAppInstallations(runtime, accessToken, githubUserId, fetchImpl);
+  const discovered = await discoverGitHubAppInstallationsWithHealth(runtime, accessToken, githubUserId, fetchImpl);
   let repositoriesConnected = 0;
 
-  for (const installation of installations) {
+  for (const installation of discovered.installations) {
     const result = await finalizeGitHubSetup(db, playerId, reconciledAt, installation);
     repositoriesConnected += result.repositoriesConnected;
   }
 
-  const installationIds = installations.map((installation) => installation.installationId);
+  const installationIds = discovered.installations.map((installation) => installation.installationId);
   await db.transaction().execute(async (transaction) => {
     const known = await transaction
       .selectFrom('github_installations')
@@ -166,5 +213,5 @@ export async function reconcileGitHubAppInstallations(
       .execute();
   });
 
-  return {installationIds, repositoriesConnected};
+  return {installationIds, repositoriesConnected, warnings: discovered.warnings};
 }

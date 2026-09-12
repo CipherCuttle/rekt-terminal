@@ -19,6 +19,13 @@ export interface ProjectPendingAssistsView {
   assists: ProjectPendingAssistView[];
 }
 
+export interface GitHubReconcileView {
+  schema_version: 'github.reconcile.private.v1';
+  installation_count: number;
+  repositories_connected: number;
+  warnings: string[];
+}
+
 export class InkubatorProductApiClient extends InkubatorApiClient {
   constructor(
     private readonly productBaseUrl = '',
@@ -38,6 +45,19 @@ export class InkubatorProductApiClient extends InkubatorApiClient {
       throw new InkubatorApiError(response.status, message);
     }
     return await response.json() as ProjectPendingAssistsView;
+  }
+
+  async syncGitHubAccess(): Promise<GitHubReconcileView> {
+    const response = await this.productFetch(
+      `${this.productBaseUrl.replace(/\/$/, '')}/v1/github/reconcile`,
+      {method: 'POST', credentials: 'include'},
+    );
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as {error?: unknown} | null;
+      const message = typeof body?.error === 'string' ? body.error : `request_failed_${response.status}`;
+      throw new InkubatorApiError(response.status, message);
+    }
+    return await response.json() as GitHubReconcileView;
   }
 }
 

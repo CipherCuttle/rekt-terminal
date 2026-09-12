@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {discoverGitHubAppInstallations} from '../../dist/github-reconcile.js';
+import {
+  discoverGitHubAppInstallations,
+  discoverGitHubAppInstallationsWithHealth,
+} from '../../dist/github-reconcile.js';
 
 const runtime = {
   appSlug: 'rekt-inkubator',
@@ -61,6 +64,31 @@ test('GitHub reconciliation discovers only this App and its currently authorized
     ],
   });
   assert.equal(calls.some((url) => url.includes('/user/installations/111/repositories')), false);
+});
+
+test('missing Push subscription degrades observation health without erasing repository authorization', async () => {
+  const fetchImpl = async (input) => {
+    const url = String(input);
+    if (url.includes('/user/installations?')) {
+      return json({installations: [{
+        id: 444,
+        app_slug: 'rekt-inkubator',
+        account: {id: 1004, type: 'Organization'},
+        repository_selection: 'selected',
+        permissions: {contents: 'read', metadata: 'read'},
+        events: [],
+      }]});
+    }
+    if (url.includes('/user/installations/444/repositories?')) {
+      return json({repositories: [{id: 9004, full_name: 'CipherCuttle/rekt-terminal', private: true}]});
+    }
+    throw new Error(`unexpected_fetch:${url}`);
+  };
+
+  const discovered = await discoverGitHubAppInstallationsWithHealth(runtime, 'ghu_test', '97258089', fetchImpl);
+  assert.equal(discovered.installations.length, 1);
+  assert.equal(discovered.installations[0].installationId, '444');
+  assert.deepEqual(discovered.warnings, ['github_push_event_required']);
 });
 
 test('GitHub reconciliation fails closed on excessive App permissions', async () => {

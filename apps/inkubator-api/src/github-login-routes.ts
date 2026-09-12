@@ -1,6 +1,10 @@
 import type {FastifyInstance, FastifyReply, FastifyRequest} from 'fastify';
 import type {InkubatorDatabase} from './database.js';
 import {
+  reconcileKnownGitHubAppInstallations,
+  type GitHubAppServerAuthOptions,
+} from './github-app-auth.js';
+import {
   buildGitHubInstallUrl,
   claimGitHubSetupState,
   createGitHubSetupState,
@@ -26,12 +30,13 @@ export interface RegisterGitHubLoginRoutesOptions {
   appOrigin: string;
   sessionTtlSeconds: number;
   github: GitHubRuntimeOptions;
+  githubAppAuth?: GitHubAppServerAuthOptions | null;
 }
 
 const FLOW_TTL_SECONDS = 10 * 60;
 const GITHUB_FLOW_COOKIE = '__Host-rekt_github_oauth_flow';
 const GITHUB_PENDING_INSTALLATION_COOKIE = '__Host-rekt_github_pending_installation';
-type GitHubOAuthFlow = 'login' | 'reconcile' | 'install';
+type GitHubOAuthFlow = 'login' | 'install';
 
 function serializeTransientCookie(name: string, value: string): string {
   return `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${FLOW_TTL_SECONDS}`;
@@ -84,26 +89,38 @@ function callbackCookies(extra: string[] = []): string[] {
   ];
 }
 
-function sourceResultUrl(appOrigin: string, source: 'authorized' | 'authorization_failed', reason?: string): string {
+function boundedReason(reason: string): string {
+  return reason.replace(/[^a-z0-9_:\-.,]/gi, '_').slice(0, 160);
+}
+
+function sourceResultUrl(
+  appOrigin: string,
+  source: 'authorized' | 'authorization_failed',
+  reason?: string,
+  observationWarnings: string[] = [],
+): string {
   const url = new URL('/', appOrigin);
   url.searchParams.set('mode', 'command');
   url.searchParams.set('source', source);
-  if (reason) url.searchParams.set('reason', reason.replace(/[^a-z0-9_:-]/gi, '_').slice(0, 100));
+  if (reason) url.searchParams.set('reason', boundedReason(reason));
+  if (source === 'authorized' && observationWarnings.length > 0) {
+    url.searchParams.set('github_observation', 'degraded');
+    url.searchParams.set('github_observation_reason', boundedReason(observationWarnings[0]!));
+  }
   url.hash = 'command-source-control';
   return url.toString();
+}
+
+function syncError(reply: FastifyReply, cause: unknown) {
+  const reason = cause instanceof Error ? cause.message.split(':')[0]! : 'github_reconciliation_failed';
+  const status = reason === 'github_identity_missing' ? 409 : 502;
+  return reply.code(status).send({error: reason});
 }
 
 export function registerGitHubLoginRoutes(app: FastifyInstance, options: RegisterGitHubLoginRoutesOptions): void {
   app.get('/v1/auth/github/start', async (request, reply) => {
     const query = request.query as {switch?: string};
     return beginOAuth(reply, options, 'login', [], query.switch === '1');
-  });
-
-  app.get('/v1/auth/github/reconcile', async (request, reply) => {
-    if (!await currentPlayerId(request, options.db)) {
-      return reply.redirect(new URL('/?mode=command&auth=github_required', options.appOrigin).toString());
-    }
-    return beginOAuth(reply, options, 'reconcile');
   });
 
   app.get('/v1/auth/github/install', async (request, reply) => {
@@ -114,10 +131,11 @@ export function registerGitHubLoginRoutes(app: FastifyInstance, options: Registe
     return reply.redirect(buildGitHubInstallUrl(options.github.appSlug, setup.state));
   });
 
-  app.get('/v1/auth/github/install-complete', async (request, reply) => {
+  const completeInstallation = async (request: FastifyRequest, reply: FastifyReply) => {
     const playerId = await currentPlayerId(request, options.db);
-    const query = request.query as {installation_id?: string; state?: string};
-    if (!playerId || !query.installation_id || !/^\d+$/.test(query.installation_id) || !query.state) {
+    const query = request.query as {installation_id?: string; state?: string; setup_action?: string};
+    const setupActionValid = !query.setup_action || query.setup_action === 'install' || query.setup_action === 'update';
+    if (!playerId || !query.installation_id || !/^\d+$/.test(query.installation_id) || !query.state || !setupActionValid) {
       return reply.redirect(sourceResultUrl(options.appOrigin, 'authorization_failed', 'github_setup_invalid'));
     }
     try {
@@ -131,6 +149,34 @@ export function registerGitHubLoginRoutes(app: FastifyInstance, options: Registe
     } catch (cause) {
       const reason = cause instanceof Error && cause.message.startsWith('github_') ? cause.message : 'github_setup_failed';
       return reply.redirect(sourceResultUrl(options.appOrigin, 'authorization_failed', reason));
+    }
+  };
+
+  // Canonical GitHub App Setup URL. Keep the previous path as a temporary alias
+  // so provider configuration can migrate without maintaining two state machines.
+  app.get('/v1/github/install/callback', completeInstallation);
+  app.get('/v1/auth/github/install-complete', completeInstallation);
+
+  app.post('/v1/github/reconcile', async (request, reply) => {
+    const playerId = await currentPlayerId(request, options.db);
+    if (!playerId) return reply.code(401).send({error: 'authentication_required'});
+    if (!options.githubAppAuth) return reply.code(503).send({error: 'github_server_auth_unavailable'});
+    reply.header('cache-control', 'no-store');
+    try {
+      const result = await reconcileKnownGitHubAppInstallations(
+        options.db,
+        options.github,
+        options.githubAppAuth,
+        playerId,
+      );
+      return reply.send({
+        schema_version: 'github.reconcile.private.v1',
+        installation_count: result.installationIds.length,
+        repositories_connected: result.repositoriesConnected,
+        warnings: result.warnings,
+      });
+    } catch (cause) {
+      return syncError(reply, cause);
     }
   });
 
@@ -158,14 +204,16 @@ export function registerGitHubLoginRoutes(app: FastifyInstance, options: Registe
       if (flow === 'login') {
         const result = await establishGitHubLoginSession(options.db, verification.identity, options.sessionTtlSeconds);
         let syncFailed = false;
+        let observationWarnings: string[] = [];
         try {
-          await reconcileGitHubAppInstallations(
+          const reconciled = await reconcileGitHubAppInstallations(
             options.db,
             options.github,
             result.player.player_id,
             verification.identity.githubUserId,
             verification.accessToken,
           );
+          observationWarnings = reconciled.warnings;
         } catch {
           syncFailed = true;
         }
@@ -173,6 +221,10 @@ export function registerGitHubLoginRoutes(app: FastifyInstance, options: Registe
         success.searchParams.set('mode', 'command');
         success.searchParams.set('auth', 'github');
         if (syncFailed) success.searchParams.set('github_sync', 'failed');
+        if (observationWarnings.length > 0) {
+          success.searchParams.set('github_observation', 'degraded');
+          success.searchParams.set('github_observation_reason', boundedReason(observationWarnings[0]!));
+        }
         reply.header('set-cookie', callbackCookies([
           serializeSessionCookie(result.session.token, options.sessionTtlSeconds),
         ]));
@@ -193,14 +245,12 @@ export function registerGitHubLoginRoutes(app: FastifyInstance, options: Registe
         verification.identity.githubUserId,
         verification.accessToken,
       );
-      if (flow === 'install') {
-        const pendingInstallationId = readCookie(request.headers.cookie, GITHUB_PENDING_INSTALLATION_COOKIE);
-        if (!pendingInstallationId || !reconciled.installationIds.includes(pendingInstallationId)) {
-          throw new Error('github_installation_not_accessible_to_user');
-        }
+      const pendingInstallationId = readCookie(request.headers.cookie, GITHUB_PENDING_INSTALLATION_COOKIE);
+      if (!pendingInstallationId || !reconciled.installationIds.includes(pendingInstallationId)) {
+        throw new Error('github_installation_not_accessible_to_user');
       }
       reply.header('set-cookie', callbackCookies());
-      reply.redirect(sourceResultUrl(options.appOrigin, 'authorized'));
+      reply.redirect(sourceResultUrl(options.appOrigin, 'authorized', undefined, reconciled.warnings));
     } catch (cause) {
       const reason = cause instanceof Error && cause.message.startsWith('github_') ? cause.message.split(':')[0] : 'github_oauth_failed';
       reply.header('set-cookie', callbackCookies());
