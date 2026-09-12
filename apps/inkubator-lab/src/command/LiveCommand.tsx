@@ -7,6 +7,7 @@ import type {PeripheralCueKind} from '../instrument-os/peripheral-motion';
 import {useReducedMotion} from '../instrument-os/use-reduced-motion';
 import {TerminalShell} from '../shell/TerminalShell';
 import {useInstrumentNavigation, type InstrumentMode} from '../shell/InstrumentNavigation';
+import {useViewMode} from '../shell/ViewMode';
 import {diffCommandProjection, summarizeCommandDeltas, type CommandProjectionDelta} from './projection-delta';
 import {commandGuidanceAction} from './command-guidance';
 import {CommandActions} from '../journey/CommandActions';
@@ -15,35 +16,14 @@ import './live-command.css';
 type CommandClient = Pick<InkubatorApiClient, 'getMyCommand'>;
 export type LiveCommandProps = {client?: CommandClient; refetchIntervalMs?: number | false};
 const QUERY_KEY = ['inkubator', 'command', 'me'] as const;
-const COMMAND_UI_MODE_KEY = 'rekt.inkubator.command.ui-mode.v1';
 
 type PrimaryAction = {label: string; href: string; mode: InstrumentMode};
-type CommandUiMode = 'LITE' | 'ADVANCED';
 type ProjectionProps = {
   command: CommandView;
   deltas: CommandProjectionDelta[];
   eventSequence: number;
   channelError?: string;
-  onModeChange: (mode: CommandUiMode) => void;
 };
-
-function readCommandUiMode(): CommandUiMode {
-  try {
-    return window.localStorage.getItem(COMMAND_UI_MODE_KEY) === 'ADVANCED' ? 'ADVANCED' : 'LITE';
-  } catch {
-    return 'LITE';
-  }
-}
-
-function CommandUiModeToggle({mode, onModeChange}: {mode: CommandUiMode; onModeChange: (mode: CommandUiMode) => void}) {
-  return <div className="command-ui-mode-toggle" aria-label="Command detail level">
-    <span>VIEW</span>
-    <div role="group" aria-label="Choose Command detail level">
-      <button type="button" aria-pressed={mode === 'LITE'} onClick={() => onModeChange('LITE')}>LITE</button>
-      <button type="button" aria-pressed={mode === 'ADVANCED'} onClick={() => onModeChange('ADVANCED')}>ADVANCED</button>
-    </div>
-  </div>;
-}
 
 function revealCommandControl(targetId: string, reducedMotion: boolean) {
   const target = document.getElementById(targetId);
@@ -74,7 +54,7 @@ export function commandCue(command: CommandView, deltas: CommandProjectionDelta[
   return {cue: 'SOURCE_LINK', eventId: command.project.source_connected ? command.project.project_id : undefined};
 }
 
-function LiteProjection({command, channelError, onModeChange}: ProjectionProps) {
+function LiteProjection({command, channelError}: ProjectionProps) {
   const navigation = useInstrumentNavigation();
   const reducedMotion = useReducedMotion();
   const [copyState, setCopyState] = useState<'IDLE' | 'COPIED' | 'FAILED'>('IDLE');
@@ -112,8 +92,6 @@ function LiteProjection({command, channelError, onModeChange}: ProjectionProps) 
       footerItems={['LITE // SAME CANONICAL STATE', 'ADVANCED // INSPECT THE MACHINE']}
     >
       <section className="command-lite-panel" aria-label="Lite Mission command">
-        <CommandUiModeToggle mode="LITE" onModeChange={onModeChange} />
-
         {channelError ? <p className="command-lite-alert" role="alert">COMMAND LINK UNAVAILABLE / Last known state retained. Refresh before trusting new progress.</p> : null}
 
         <div className="command-lite-mission">
@@ -162,7 +140,7 @@ function LiteProjection({command, channelError, onModeChange}: ProjectionProps) 
   );
 }
 
-function AdvancedProjection({command, deltas, eventSequence, channelError, onModeChange}: ProjectionProps) {
+function AdvancedProjection({command, deltas, eventSequence, channelError}: ProjectionProps) {
   const navigation = useInstrumentNavigation();
   const reducedMotion = useReducedMotion();
   const [copyState, setCopyState] = useState<'IDLE' | 'COPIED' | 'FAILED'>('IDLE');
@@ -194,7 +172,7 @@ function AdvancedProjection({command, deltas, eventSequence, channelError, onMod
       motionPolicy={reducedMotion ? 'reduced' : 'full'}
       footerItems={['MISSION // CANONICAL PROJECTION', 'CLAIMED ≠ OBSERVED ≠ PROVEN']}>
       <section className="command-thread-instrument" aria-label="Living Thread mission instrument">
-        <div className="command-mission-copy"><CommandUiModeToggle mode="ADVANCED" onModeChange={onModeChange} /><span>01 / CURRENT MISSION</span><h2>{command.mission.goal}</h2><p>{command.mission.current_focus}</p></div>
+        <div className="command-mission-copy"><span>01 / CURRENT MISSION</span><h2>{command.mission.goal}</h2><p>{command.mission.current_focus}</p></div>
         <div className="command-next-move" data-delta="NEXT_MOVE"><span>NEXT MOVE / ONE ACTION</span><h2>{command.mission.next_move}</h2>
           {primaryAction ? <a className="command-primary-action" href={primaryAction.href} onClick={event => {
             if (!navigation) return;
@@ -258,7 +236,7 @@ export default function LiveCommand({
   const previousRef = useRef<CommandView | null>(null);
   const [deltas, setDeltas] = useState<CommandProjectionDelta[]>([]);
   const [eventSequence, setEventSequence] = useState(0);
-  const [uiMode, setUiMode] = useState<CommandUiMode>(() => readCommandUiMode());
+  const viewMode = useViewMode();
 
   const query = useQuery({
     queryKey: QUERY_KEY,
@@ -284,15 +262,6 @@ export default function LiveCommand({
     return query.error.message;
   }, [query.error]);
 
-  function changeUiMode(mode: CommandUiMode) {
-    setUiMode(mode);
-    try {
-      window.localStorage.setItem(COMMAND_UI_MODE_KEY, mode);
-    } catch {
-      // Presentation preference persistence is best-effort only.
-    }
-  }
-
   if (query.isPending) return <CommandLoadingState />;
   if (!query.data || (query.error instanceof InkubatorApiError && [401, 403].includes(query.error.status))) return <CommandLoadingState error={errorMessage} />;
 
@@ -301,8 +270,7 @@ export default function LiveCommand({
     deltas,
     eventSequence,
     channelError: query.isError ? errorMessage : undefined,
-    onModeChange: changeUiMode,
   };
 
-  return uiMode === 'LITE' ? <LiteProjection {...projectionProps} /> : <AdvancedProjection {...projectionProps} />;
+  return viewMode?.mode === 'LITE' ? <LiteProjection {...projectionProps} /> : <AdvancedProjection {...projectionProps} />;
 }
