@@ -15,8 +15,8 @@ function numericId(offset) {
 }
 
 async function cleanup(db, {playerId, projectId, missionId, installationId}) {
+  await db.deleteFrom('history_events').where('actor_player_id', '=', playerId).execute();
   if (projectId) {
-    await db.deleteFrom('history_events').where('subject_id', '=', projectId).execute();
     await db.deleteFrom('mission_gates').where('mission_id', '=', missionId).execute();
     await db.deleteFrom('missions').where('mission_id', '=', missionId).execute();
     await db.deleteFrom('projects').where('project_id', '=', projectId).execute();
