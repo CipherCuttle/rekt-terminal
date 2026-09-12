@@ -2,9 +2,8 @@ import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/reac
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import type {CommandView} from '../generated/inkubator-api-client';
+import {INKUBATOR_VIEW_MODE_KEY, ViewModeProvider} from '../shell/ViewMode';
 import LiveCommand, {commandCue, commandPrimaryAction} from './LiveCommand';
-
-const COMMAND_UI_MODE_KEY = 'rekt.inkubator.command.ui-mode.v1';
 
 afterEach(() => {
   cleanup();
@@ -75,10 +74,11 @@ function renderCommand(
   queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}}),
   uiMode: 'LITE' | 'ADVANCED' = 'ADVANCED',
 ) {
-  window.localStorage.setItem(COMMAND_UI_MODE_KEY, uiMode);
   const result = render(
     <QueryClientProvider client={queryClient}>
-      <LiveCommand client={client} refetchIntervalMs={false} />
+      <ViewModeProvider initialMode={uiMode}>
+        <LiveCommand client={client} refetchIntervalMs={false} />
+      </ViewModeProvider>
     </QueryClientProvider>,
   );
   return {...result, queryClient};
@@ -103,7 +103,7 @@ describe('Live Command', () => {
 
     fireEvent.click(screen.getByRole('button', {name: 'ADVANCED'}));
     expect(container.querySelector('[aria-label="Living Thread mission instrument"]')).toBeTruthy();
-    expect(window.localStorage.getItem(COMMAND_UI_MODE_KEY)).toBe('ADVANCED');
+    expect(window.localStorage.getItem(INKUBATOR_VIEW_MODE_KEY)).toBe('ADVANCED');
   });
 
   it('renders canonical CommandView as one Living Thread instead of a sector dashboard', async () => {
