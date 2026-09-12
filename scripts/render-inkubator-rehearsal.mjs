@@ -36,11 +36,30 @@ const types = new Map([
   ['.woff2', 'font/woff2'],
 ]);
 
+function upstreamPath(rawUrl) {
+  const source = rawUrl || '/';
+  const url = new URL(source, 'http://localhost');
+  if (
+    url.pathname === '/v1/github/setup' &&
+    !url.searchParams.has('code') &&
+    url.searchParams.has('installation_id') &&
+    url.searchParams.has('state')
+  ) {
+    // Temporary provider-config compatibility: the GitHub App still points at
+    // the old Setup URL. Provider-shaped callbacks are routed into the single
+    // canonical installation state machine; legacy code-bearing setup remains
+    // fail-closed in the production API.
+    url.pathname = '/v1/github/install/callback';
+    return `${url.pathname}${url.search}`;
+  }
+  return source;
+}
+
 function proxy(req, res) {
   const upstream = httpRequest({
     hostname: '127.0.0.1',
     port: apiPort,
-    path: req.url,
+    path: upstreamPath(req.url),
     method: req.method,
     headers: req.headers,
   }, (upstreamRes) => {
