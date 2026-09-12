@@ -3,6 +3,8 @@ import {expect, test, type Page, type Route} from '@playwright/test';
 import type {AcceptedShipArtifactView, CommandView, PrivateProject, ProjectShipStateView, ShipSubmissionPrivateView} from '../src/generated/inkubator-api-client';
 import {fixtureConnectionContext} from './fixture-connection';
 
+const INKUBATOR_VIEW_MODE_KEY = 'rekt.inkubator.ui-mode.v1';
+
 const readyCommand: CommandView = {
   schema_version: 'command.private.v2',
   project: {project_id: 'PROJECT-E2E', name: 'REKT MACHINE', source_connected: true, source_visibility: 'PUBLIC', observation_state: 'OBSERVED'},
@@ -31,8 +33,6 @@ const authenticatedMe = {
 
 const emptyShip: ProjectShipStateView = {schema_version: 'project.ship.public.v2', project_id: 'PROJECT-E2E'};
 
-// The SHIP surface recovers its authorized project context from the private project
-// record before it can render any server-projected Ship state.
 const privateProject: PrivateProject = {
   schema_version: 'project.private.v2', project_id: 'PROJECT-E2E', owner_player_id: 'PLAYER-OWNER', name: 'REKT MACHINE',
   mission_id: 'MISSION-E2E', mission_state: 'SHIP_READY', goal: 'Ship a working strange thing.',
@@ -74,6 +74,10 @@ async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => ({scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth}));
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
 }
+
+test.beforeEach(async ({page}) => {
+  await page.addInitScript((key) => window.localStorage.setItem(key, 'ADVANCED'), INKUBATOR_VIEW_MODE_KEY);
+});
 
 test('LIVE SHIP records a SHIP_READY owner submission then renders only server-projected SUBMITTED state', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
