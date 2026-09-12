@@ -3,6 +3,8 @@ import {expect, test, type Page} from '@playwright/test';
 import type {CommandView} from '../src/generated/inkubator-api-client';
 import {fixtureConnectionContext, fixturePendingAssists} from './fixture-connection';
 
+const COMMAND_UI_MODE_KEY = 'rekt.inkubator.command.ui-mode.v1';
+
 function commandView(overrides: Partial<CommandView> = {}): CommandView {
   return {
     schema_version: 'command.private.v2',
@@ -72,6 +74,10 @@ const authenticatedMe = {
   updated_at: '2026-09-10T08:00:00Z',
 };
 
+async function useCommandUiMode(page: Page, mode: 'LITE' | 'ADVANCED') {
+  await page.addInitScript(({key, value}) => window.localStorage.setItem(key, value), {key: COMMAND_UI_MODE_KEY, value: mode});
+}
+
 async function routeCommand(page: Page, respond: () => CommandRouteResponse) {
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -105,8 +111,35 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
 }
 
+test('LIVE COMMAND Lite keeps one Next Move and common actions readable on mobile', async ({page}) => {
+  await page.setViewportSize({width: 390, height: 844});
+  await page.emulateMedia({reducedMotion: 'reduce'});
+  await useCommandUiMode(page, 'LITE');
+  await routeCommand(page, () => ({status: 200, body: commandView()}));
+
+  await page.goto('/?mode=command');
+  await expect(page.getByRole('region', {name: 'Lite Mission command'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Ship one real working thing.'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'COPY NEXT MOVE'})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'UPDATE WORK'})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'GET HELP'})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'REQUEST TEST'})).toBeVisible();
+  await expect(page.getByText('MORE CONTROLS')).toBeVisible();
+  await expect(page.locator('.ios-shell-mode-rail')).toBeHidden();
+
+  await page.getByRole('button', {name: 'GET HELP'}).click();
+  await expect(page.locator('.command-lite-control-drawer')).toHaveAttribute('open', '');
+  await expect(page.locator('#command-help-control')).toHaveAttribute('open', '');
+
+  const results = await new AxeBuilder({page}).analyze();
+  expect(results.violations).toEqual([]);
+  await expectNoHorizontalOverflow(page);
+});
+
 test('LIVE COMMAND renders one Living Thread and ripples canonical deltas without recreating Pixi', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
+  await useCommandUiMode(page, 'ADVANCED');
   let current = commandView();
   await routeCommand(page, () => ({status: 200, body: current}));
 
@@ -151,6 +184,7 @@ test('LIVE COMMAND renders one Living Thread and ripples canonical deltas withou
 test('LIVE COMMAND proof projection stays readable on mobile and reduced motion', async ({page}) => {
   await page.setViewportSize({width: 390, height: 844});
   await page.emulateMedia({reducedMotion: 'reduce'});
+  await useCommandUiMode(page, 'ADVANCED');
   const base = commandView();
   const shipReady = commandView({
     mission: {
