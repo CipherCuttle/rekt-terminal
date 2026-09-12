@@ -1,23 +1,23 @@
 /* Lite keeps the approved COMMAND instrument proportions and removes detail by projection, not by shrinking the surface into a narrow card. */
-@media (min-width:861px){.ios-shell-v2.command-lite .ios-shell-chassis{grid-template-columns:116px minmax(0,1fr);min-height:690px}.ios-shell-v2.command-lite .ios-shell-mode-rail{display:block!important}}
-@media (min-width:601px) and (max-width:860px){.ios-shell-v2.command-lite .ios-shell-chassis{grid-template-columns:54px minmax(0,1fr);min-height:690px}.ios-shell-v2.command-lite .ios-shell-mode-rail{display:block!important}}
-.command-lite-panel{box-sizing:border-box;width:auto;max-width:none;margin:0;padding:28px;display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,.36fr);gap:24px;align-items:start;color:var(--ios2-ink,#141719)}
-.command-lite-panel>.command-ui-mode-toggle{grid-column:1/-1;margin:0 0 -4px}
-.command-lite-alert{grid-column:1/-1}
-.command-lite-mission{grid-column:1/-1;padding-bottom:20px;border-bottom:1px solid var(--ios2-line,#b7babe)}
-.command-lite-mission h2{margin:8px 0;font:600 clamp(26px,3vw,44px)/1.05 Arial,sans-serif;letter-spacing:-.04em}
-.command-lite-mission p{margin:10px 0 0;max-width:70ch;font:15px/1.5 Arial,sans-serif;color:var(--ios2-muted,#565c5f)}
-.command-lite-next{grid-column:1;grid-row:3;padding:0;border:0;background:transparent}
-.command-lite-next h2{margin:14px 0 18px;font:600 clamp(34px,4vw,62px)/1.02 Arial,sans-serif;letter-spacing:-.045em}
-.command-lite-hint{max-width:52ch;margin:0 0 18px}
-.command-lite-status{grid-column:2;grid-row:3/span 2;display:grid;grid-template-columns:1fr;gap:0;padding:10px 14px;border:1px solid #262b2e;background:var(--ios2-display,#010203);color:var(--ios2-display-text,#eceeea);box-shadow:inset 0 0 0 1px #ffffff08,inset 0 12px 30px #ffffff03}
-.command-lite-status::before{content:'LIVE STATUS / FOCUS VIEW';display:block;padding:3px 2px 10px;border-bottom:1px solid #303639;font:700 8px/1.4 var(--ios-mono,monospace);letter-spacing:.12em;color:var(--ios2-display-muted,#9caaa9)}
-.command-lite-status>div{min-width:0;padding:14px 2px;border-bottom:1px solid #303639;background:transparent}
-.command-lite-status>div:last-child{border-bottom:0}
-.command-lite-status small{color:var(--ios2-display-muted,#9caaa9)!important}
-.command-lite-status strong{margin-top:5px;color:var(--ios2-display-text,#eceeea);font:700 13px/1.25 var(--ios-mono,monospace)}
-.command-lite-secondary{grid-column:1;grid-row:4;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.command-lite-control-drawer{grid-column:1/-1;grid-row:5;margin-top:2px;padding-top:14px;border-top:1px solid var(--ios2-line,#b7babe)}
-.command-lite-control-drawer>summary{width:max-content;max-width:100%;padding:8px 0}
-@media(max-width:900px){.command-lite-panel{grid-template-columns:minmax(0,1fr);padding:20px;gap:20px}.command-lite-next,.command-lite-status,.command-lite-secondary,.command-lite-control-drawer{grid-column:1;grid-row:auto}.command-lite-status{padding:10px 14px}}
-@media(max-width:600px){.command-lite-panel{padding:16px 12px;gap:16px}.command-lite-status{grid-template-columns:1fr}.command-lite-secondary{grid-template-columns:1fr}}
+@media (min-width:861px){.ios-shell-v2.command-live.command-lite .ios-shell-chassis{grid-template-columns:116px minmax(0,1fr);min-height:690px}.ios-shell-v2.command-live.command-lite .ios-shell-mode-rail{display:block!important}}
+@media (min-width:601px) and (max-width:860px){.ios-shell-v2.command-live.command-lite .ios-shell-chassis{grid-template-columns:54px minmax(0,1fr);min-height:690px}.ios-shell-v2.command-live.command-lite .ios-shell-mode-rail{display:block!important}}
+.command-lite .command-lite-panel{box-sizing:border-box;width:auto;max-width:none;margin:0;padding:28px;display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,.36fr);gap:24px;align-items:start;color:var(--ios2-ink,#141719)}
+.command-lite .command-lite-panel>.command-ui-mode-toggle{grid-column:1/-1;margin:0 0 -4px}
+.command-lite .command-lite-alert{grid-column:1/-1}
+.command-lite .command-lite-mission{grid-column:1/-1;padding-bottom:20px;border-bottom:1px solid var(--ios2-line,#b7babe)}
+.command-lite .command-lite-mission h2{margin:8px 0;font:600 clamp(26px,3vw,44px)/1.05 Arial,sans-serif;letter-spacing:-.04em}
+.command-lite .command-lite-mission p{margin:10px 0 0;max-width:70ch;font:15px/1.5 Arial,sans-serif;color:var(--ios2-muted,#565c5f)}
+.command-lite .command-lite-next{grid-column:1;grid-row:3;padding:0;border:0;background:transparent}
+.command-lite .command-lite-next h2{margin:14px 0 18px;font:600 clamp(34px,4vw,62px)/1.02 Arial,sans-serif;letter-spacing:-.045em}
+.command-lite .command-lite-hint{max-width:52ch;margin:0 0 18px}
+.command-lite .command-lite-status{grid-column:2;grid-row:3/span 2;display:grid;grid-template-columns:1fr;gap:0;padding:10px 14px;border:1px solid #262b2e;background:var(--ios2-display,#010203);color:var(--ios2-display-text,#eceeea);box-shadow:inset 0 0 0 1px #ffffff08,inset 0 12px 30px #ffffff03}
+.command-lite .command-lite-status::before{content:'LIVE STATUS / FOCUS VIEW';display:block;padding:3px 2px 10px;border-bottom:1px solid #303639;font:700 8px/1.4 var(--ios-mono,monospace);letter-spacing:.12em;color:var(--ios2-display-muted,#9caaa9)}
+.command-lite .command-lite-status>div{min-width:0;padding:14px 2px;border-bottom:1px solid #303639;background:transparent}
+.command-lite .command-lite-status>div:last-child{border-bottom:0}
+.command-lite .command-lite-status small{color:var(--ios2-display-muted,#9caaa9)!important}
+.command-lite .command-lite-status strong{margin-top:5px;color:var(--ios2-display-text,#eceeea);font:700 13px/1.25 var(--ios-mono,monospace)}
+.command-lite .command-lite-secondary{grid-column:1;grid-row:4;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.command-lite .command-lite-control-drawer{grid-column:1/-1;grid-row:5;margin-top:2px;padding-top:14px;border-top:1px solid var(--ios2-line,#b7babe)}
+.command-lite .command-lite-control-drawer>summary{width:max-content;max-width:100%;padding:8px 0}
+@media(max-width:900px){.command-lite .command-lite-panel{grid-template-columns:minmax(0,1fr);padding:20px;gap:20px}.command-lite .command-lite-next,.command-lite .command-lite-status,.command-lite .command-lite-secondary,.command-lite .command-lite-control-drawer{grid-column:1;grid-row:auto}.command-lite .command-lite-status{padding:10px 14px}}
+@media(max-width:600px){.command-lite .command-lite-panel{padding:16px 12px;gap:16px}.command-lite .command-lite-status{grid-template-columns:1fr}.command-lite .command-lite-secondary{grid-template-columns:1fr}}
