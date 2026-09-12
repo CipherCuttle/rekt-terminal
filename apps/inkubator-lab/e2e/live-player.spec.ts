@@ -3,6 +3,7 @@ import {expect, test, type Page} from '@playwright/test';
 import type {PlayerHistoryView, PlayerProfileView, PlayerReputationView, PrivatePlayer} from '../src/generated/inkubator-api-client';
 import {fixtureConnectionContext} from './fixture-connection';
 
+const INKUBATOR_VIEW_MODE_KEY = 'rekt.inkubator.ui-mode.v1';
 const me: PrivatePlayer = {schema_version: 'player.private.v1', player_id: 'PLAYER-E2E', display_name: 'CipherCuttle', created_at: '2026-09-01T08:00:00Z', updated_at: '2026-09-10T08:00:00Z'};
 const profile: PlayerProfileView = {schema_version: 'player.profile.v2', player_id: 'PLAYER-E2E', bio: 'Builds strange useful things.', character_name: 'ink.operator', character_archetype: 'BUILDER', skills_needed: ['QA'], can_help_with: ['UI', 'SYSTEMS']};
 const history: PlayerHistoryView = {schema_version: 'player.history.private.v1', player_id: 'PLAYER-E2E', entries: [
@@ -23,7 +24,6 @@ async function routePlayer(page: Page, overrides: Partial<Record<string, {status
       '/v1/players/PLAYER-E2E/reputation': {status: 200, body: reputation},
     };
     const response = overrides[pathname] ?? defaults[pathname];
-    // Never leak an unmocked /v1 route to the (absent) backend proxy: fail closed instead.
     if (!response) return route.fulfill({status: 500, contentType: 'application/json', body: JSON.stringify({error: 'unmocked_v1_route'})});
     await route.fulfill({status: response.status, contentType: 'application/json', body: JSON.stringify(response.body)});
   });
@@ -33,6 +33,10 @@ async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => ({scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth}));
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
 }
+
+test.beforeEach(async ({page}) => {
+  await page.addInitScript((key) => window.localStorage.setItem(key, 'ADVANCED'), INKUBATOR_VIEW_MODE_KEY);
+});
 
 test('LIVE PLAYER renders the approved durable-record composition from canonical projections', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
