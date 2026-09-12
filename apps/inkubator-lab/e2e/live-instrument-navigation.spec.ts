@@ -208,12 +208,12 @@ test('integrated Instrument OS keeps every live mode usable in Lite on the 390px
   await useViewMode(page, 'LITE');
   await routeIntegratedApp(page);
 
-  await page.goto('/?mode=world');
   for (const mode of ['world', 'command', 'project', 'player', 'ship'] as const) {
-    if (mode !== 'world') await page.locator(`button[data-mode="${mode}"]`).click();
+    await page.goto(`/?mode=${mode}`);
     await expectMode(page, mode, 'lite');
     await expectNoHorizontalOverflow(page);
   }
 
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), INKUBATOR_VIEW_MODE_KEY)).toBe('LITE');
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });
