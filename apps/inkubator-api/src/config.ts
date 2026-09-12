@@ -1,3 +1,4 @@
+import type {GitHubAppServerAuthOptions} from './github-app-auth.js';
 import type {GitHubRuntimeOptions} from './github.js';
 
 export interface RuntimeConfig {
@@ -8,6 +9,7 @@ export interface RuntimeConfig {
   host: string;
   port: number;
   github: GitHubRuntimeOptions | null;
+  githubAppAuth: GitHubAppServerAuthOptions | null;
 }
 
 function requireValue(env: NodeJS.ProcessEnv, name: string): string {
@@ -53,12 +55,27 @@ function parseGitHub(env: NodeJS.ProcessEnv): GitHubRuntimeOptions | null {
   return {appSlug, clientId, clientSecret, webhookSecret};
 }
 
+function parseGitHubAppAuth(env: NodeJS.ProcessEnv, github: GitHubRuntimeOptions | null): GitHubAppServerAuthOptions | null {
+  const appId = env.GITHUB_APP_ID?.trim() || '';
+  const rawPrivateKey = env.GITHUB_APP_PRIVATE_KEY?.trim() || '';
+  if (!appId && !rawPrivateKey) return null;
+  if (!github) throw new Error('GitHub App server authentication requires the GitHub integration configuration');
+  if (!appId || !rawPrivateKey) throw new Error('GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY must be configured together');
+  if (!/^\d+$/.test(appId) || appId === '0') throw new Error('GITHUB_APP_ID is invalid');
+  const privateKey = rawPrivateKey.replace(/\\n/g, '\n');
+  if (!/-----BEGIN (?:RSA )?PRIVATE KEY-----/.test(privateKey) || !/-----END (?:RSA )?PRIVATE KEY-----/.test(privateKey)) {
+    throw new Error('GITHUB_APP_PRIVATE_KEY is invalid');
+  }
+  return {appId, privateKey};
+}
+
 export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
   const nodeEnv = env.NODE_ENV ?? 'development';
   const allowDevAuth = env.INKUBATOR_DEV_AUTH === '1';
   if (nodeEnv === 'production' && allowDevAuth) {
     throw new Error('INKUBATOR_DEV_AUTH must never be enabled in production');
   }
+  const github = parseGitHub(env);
 
   return {
     databaseUrl: requireValue(env, 'DATABASE_URL'),
@@ -67,6 +84,7 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
     sessionTtlSeconds: parseSessionTtl(env.INKUBATOR_SESSION_TTL_SECONDS),
     host: env.HOST?.trim() || '127.0.0.1',
     port: parsePort(env.PORT),
-    github: parseGitHub(env),
+    github,
+    githubAppAuth: parseGitHubAppAuth(env, github),
   };
 }

@@ -22,6 +22,7 @@ if (config.github) {
     appOrigin: config.appOrigin,
     sessionTtlSeconds: config.sessionTtlSeconds,
     github: config.github,
+    githubAppAuth: config.githubAppAuth,
   });
 }
 
