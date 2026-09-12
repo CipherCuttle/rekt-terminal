@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page, type Route} from '@playwright/test';
 import {fixtureConnectionContext, fixturePendingAssists} from './fixture-connection';
 
-const COMMAND_UI_MODE_KEY = 'rekt.inkubator.command.ui-mode.v1';
+const INKUBATOR_VIEW_MODE_KEY = 'rekt.inkubator.ui-mode.v1';
 
 const command = {
   schema_version: 'command.private.v2',
@@ -103,8 +103,8 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
   await route.fulfill({status, contentType: 'application/json', body: JSON.stringify(body)});
 }
 
-async function useAdvancedCommand(page: Page) {
-  await page.addInitScript((key) => window.localStorage.setItem(key, 'ADVANCED'), COMMAND_UI_MODE_KEY);
+async function useViewMode(page: Page, mode: 'LITE' | 'ADVANCED') {
+  await page.addInitScript(({key, value}) => window.localStorage.setItem(key, value), {key: INKUBATOR_VIEW_MODE_KEY, value: mode});
 }
 
 async function routeIntegratedApp(page: Page) {
@@ -143,10 +143,11 @@ async function routeIntegratedApp(page: Page) {
   });
 }
 
-async function expectMode(page: Page, mode: 'world' | 'command' | 'project' | 'player' | 'ship') {
+async function expectMode(page: Page, mode: 'world' | 'command' | 'project' | 'player' | 'ship', view?: 'lite' | 'advanced') {
   const shell = page.locator('[data-shell="terminal"]');
   await expect(shell).toHaveAttribute('data-shell-variant', 'v2');
   await expect(shell).toHaveAttribute('data-mode', mode);
+  if (view) await expect(shell).toHaveAttribute('data-view-mode', view);
   await expect(page).toHaveURL(new RegExp(`[?&]mode=${mode}(?:&|$)`));
   await expect(page.locator(`button[data-mode="${mode}"]`)).toHaveAttribute('aria-pressed', 'true');
   for (const candidate of ['world', 'command', 'project', 'player', 'ship']) {
@@ -159,50 +160,58 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
 }
 
-test('integrated Instrument OS switches all five live surfaces in-place and preserves browser history', async ({page}) => {
+test('integrated Instrument OS keeps one Lite Advanced preference while switching all five live surfaces', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
-  await useAdvancedCommand(page);
+  await useViewMode(page, 'ADVANCED');
   await routeIntegratedApp(page);
 
   await page.goto('/?mode=command');
-  await expectMode(page, 'command');
+  await expectMode(page, 'command', 'advanced');
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'}).first()).toBeVisible();
 
+  await page.getByRole('button', {name: 'LITE'}).click();
+  await expectMode(page, 'command', 'lite');
+
   await page.locator('button[data-mode="project"]').click();
-  await expectMode(page, 'project');
+  await expectMode(page, 'project', 'lite');
   await expect(page.getByRole('heading', {name: 'Current records'})).toBeVisible();
 
   await page.locator('button[data-mode="world"]').click();
-  await expectMode(page, 'world');
+  await expectMode(page, 'world', 'lite');
   await expect(page.getByRole('heading', {name: 'Public signal.'})).toBeVisible();
 
   await page.locator('button[data-mode="player"]').click();
-  await expectMode(page, 'player');
+  await expectMode(page, 'player', 'lite');
   await expect(page.getByRole('heading', {name: 'Builder history.'})).toBeVisible();
 
+  await page.getByRole('button', {name: 'ADVANCED'}).click();
+  await expectMode(page, 'player', 'advanced');
+
   await page.locator('button[data-mode="ship"]').click();
-  await expectMode(page, 'ship');
+  await expectMode(page, 'ship', 'advanced');
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
 
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), INKUBATOR_VIEW_MODE_KEY)).toBe('ADVANCED');
+
   await page.evaluate(() => window.history.back());
-  await expectMode(page, 'player');
+  await expectMode(page, 'player', 'advanced');
   await page.evaluate(() => window.history.forward());
-  await expectMode(page, 'ship');
+  await expectMode(page, 'ship', 'advanced');
 
   await expectNoHorizontalOverflow(page);
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });
 
-test('integrated Instrument OS keeps every live mode usable on the 390px rehearsal viewport', async ({page}) => {
+test('integrated Instrument OS keeps every live mode usable in Lite on the 390px rehearsal viewport', async ({page}) => {
   await page.setViewportSize({width: 390, height: 844});
   await page.emulateMedia({reducedMotion: 'reduce'});
-  await useAdvancedCommand(page);
+  await useViewMode(page, 'LITE');
   await routeIntegratedApp(page);
 
   await page.goto('/?mode=world');
   for (const mode of ['world', 'command', 'project', 'player', 'ship'] as const) {
     if (mode !== 'world') await page.locator(`button[data-mode="${mode}"]`).click();
-    await expectMode(page, mode);
+    await expectMode(page, mode, 'lite');
     await expectNoHorizontalOverflow(page);
   }
 
