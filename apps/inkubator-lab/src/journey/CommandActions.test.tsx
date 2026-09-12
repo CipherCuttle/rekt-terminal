@@ -100,7 +100,7 @@ describe('CommandActions journey mutations', () => {
   it('distinguishes GitHub sign-in from repository authorization and links an authorized repository', async () => {
     const linkProjectGitHubRepository = vi.fn().mockResolvedValue({});
     renderActions(commandView(), {listGitHubRepositories: vi.fn().mockResolvedValue(repositories), linkProjectGitHubRepository});
-    expect(screen.getByText(/GitHub sign-in identifies you\. The read-only GitHub App separately authorizes repository access\./)).toBeTruthy();
+    expect(screen.getByText(/GitHub sign-in identifies you\. GitHub App access controls which repositories REKT may read\./)).toBeTruthy();
     expect(await screen.findByText('REPOSITORY ACCESS READY / 1 AVAILABLE')).toBeTruthy();
     expect(await screen.findByRole('option', {name: 'coherence/private-source / PRIVATE'})).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Authorized repository', {exact: true}), {target: {value: '11001'}});
@@ -240,9 +240,11 @@ describe('CommandActions journey mutations', () => {
   it('keeps repository authorization outside the mission edit boundary when the source is already connected', () => {
     renderActions(commandView({project: {project_id: 'P-001', name: 'WEIRD LITTLE THING', source_connected: true, source_visibility: 'PRIVATE', observation_state: 'OBSERVED'}}));
     openSection('SOURCE / REPOSITORY ACCESS');
-    expect(screen.getByText(/SOURCE CONNECTED \/ PRIVATE/)).toBeTruthy();
+    expect(screen.getByText(/MISSION SOURCE LINKED \/ PRIVATE \/ OBSERVED/)).toBeTruthy();
     expect(screen.queryByRole('button', {name: 'AUTHORIZE REPOSITORIES'})).toBeNull();
     expect(screen.queryByRole('button', {name: 'LINK AUTHORIZED REPOSITORY'})).toBeNull();
+    expect(screen.getByRole('button', {name: 'MANAGE GITHUB ACCESS'})).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'CHANGE MISSION SOURCE'})).toBeTruthy();
     expect(screen.getByText('Source arrival is observed server-side. A connection alone is not evidence of completed work.')).toBeTruthy();
   });
 });
