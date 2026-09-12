@@ -4,6 +4,7 @@ import {InkubatorApiError, type InkubatorApiClient} from './generated/inkubator-
 import {createInkubatorApiClient} from './inkubator-api';
 import {INSTRUMENT_MODES, InstrumentNavigationProvider, parseInstrumentMode, type InstrumentMode} from './shell/InstrumentNavigation';
 import {TerminalShell} from './shell/TerminalShell';
+import {ViewModeProvider} from './shell/ViewMode';
 import './auth/live-auth.css';
 import './command/lite-layout-repair.css';
 import MissionBootstrap from './journey/MissionBootstrap';
@@ -137,7 +138,9 @@ export default function LiveInstrument({initialMode}: {initialMode: InstrumentMo
     },
   }), [mode]);
 
-  return <InstrumentNavigationProvider value={navigation}>
-    <IdentityGate mode={mode}><MissionGate mode={mode}><Surface mode={mode} /></MissionGate></IdentityGate>
-  </InstrumentNavigationProvider>;
+  return <ViewModeProvider>
+    <InstrumentNavigationProvider value={navigation}>
+      <IdentityGate mode={mode}><MissionGate mode={mode}><Surface mode={mode} /></MissionGate></IdentityGate>
+    </InstrumentNavigationProvider>
+  </ViewModeProvider>;
 }
