@@ -7,6 +7,7 @@ import './coherence-foundation-v0.css';
 import './faceplate.css';
 import './faceplate-a11y.css';
 import './connection-context.css';
+import './readability-v1.css';
 import {ConnectionContextStrip} from './ConnectionContext';
 
 export {INSTRUMENT_MODES};
