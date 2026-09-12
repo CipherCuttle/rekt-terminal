@@ -11,6 +11,7 @@ const MISSION_CURRENT_SCHEMA_VERSION = 'mission.current.v1';
 const PROJECT_LINK_SCHEMA_VERSION = 'project.github_repository_link.v1';
 const PROJECT_OBSERVATION_EVENT = 'project.github_repository_push.observed';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SOURCE_CHANGEABLE_MISSION_STATES = new Set<MissionState>(['DECLARED', 'BUILDING', 'BLOCKED', 'SHIP_READY']);
 
 const DEFAULT_GATES = [
   {gate_key: 'FOUNDATION', label: 'FOUNDATION', position: 0},
@@ -78,7 +79,8 @@ async function lockKeys(db: Kysely<DatabaseSchema>, keys: string[]): Promise<voi
   }
 }
 
-async function latestProjectObservation(db: Kysely<DatabaseSchema>, projectId: string) {
+async function latestProjectObservation(db: Kysely<DatabaseSchema>, projectId: string, repositoryId: string | null) {
+  if (!repositoryId) return null;
   return (
     (await db
       .selectFrom('history_events')
@@ -86,6 +88,7 @@ async function latestProjectObservation(db: Kysely<DatabaseSchema>, projectId: s
       .where('event_type', '=', PROJECT_OBSERVATION_EVENT)
       .where('subject_type', '=', 'project')
       .where('subject_id', '=', projectId)
+      .where(sql<string>`payload ->> 'repository_id'`, '=', repositoryId)
       .orderBy('occurred_at', 'desc')
       .executeTakeFirst()) ?? null
   );
@@ -212,36 +215,52 @@ export async function linkDevelopmentProjectRepository(
       .executeTakeFirst();
     if (!repository) throw new Error('github_repository_not_available');
 
-    if (project.repository_id) {
-      const existingRepository = await transaction
-        .selectFrom('github_repositories as existing_repository')
-        .innerJoin('github_installations as existing_installation', 'existing_installation.installation_id', 'existing_repository.installation_id')
-        .select(['existing_repository.active', 'existing_installation.revoked_at'])
-        .where('existing_repository.repository_id', '=', project.repository_id)
+    if (project.repository_id === repositoryId) {
+      const snapshot = await getDevelopmentProject(transaction, projectId);
+      if (!snapshot) throw new Error('project_not_found');
+      return snapshot;
+    }
+
+    const replacingSource = Boolean(project.repository_id);
+    if (replacingSource) {
+      const mission = await transaction.selectFrom('missions')
+        .select('state')
+        .where('project_id', '=', projectId)
+        .orderBy('updated_at', 'desc')
         .executeTakeFirst();
-      if (existingRepository?.active && !existingRepository.revoked_at) throw new Error('project_repository_already_linked');
-      // A revoked or removed source may be replaced by a newly authorized
-      // repository. The old repository ID remains in its history/tombstone;
-      // only the current Project link moves to the fresh authorized source.
+      if (!mission || !SOURCE_CHANGEABLE_MISSION_STATES.has(mission.state)) {
+        // Keep the existing 409 contract for immutable/verification states.
+        throw new Error('project_repository_already_linked');
+      }
     }
 
     const existingProjectId = await findLinkedProjectIdForRepository(transaction, repositoryId);
     if (existingProjectId && existingProjectId !== projectId) throw new Error('github_repository_already_linked');
 
+    const previousRepositoryId = project.repository_id;
     await transaction.updateTable('projects')
-      .set({repository_id: repositoryId, updated_at: sql`clock_timestamp()`})
+      .set({
+        repository_id: repositoryId,
+        ...(replacingSource
+          ? {observed_stack_labels: [], observed_manifest_fingerprints: {}, observed_manifest_ref: null}
+          : {}),
+        updated_at: sql`clock_timestamp()`,
+      })
       .where('project_id', '=', projectId)
       .execute();
     await appendHistoryEvent(transaction, {
       eventFamily: 'activity',
       eventType: 'project.github_repository.linked',
-      dedupeKey: `activity:project.github_repository.linked:${projectId}:${repositoryId}`,
+      dedupeKey: replacingSource
+        ? `activity:project.github_repository.linked:${projectId}:${repositoryId}:${randomUUID()}`
+        : `activity:project.github_repository.linked:${projectId}:${repositoryId}`,
       actorPlayerId: ownerPlayerId,
       subjectType: 'project',
       subjectId: projectId,
       payload: {
         schema_version: PROJECT_LINK_SCHEMA_VERSION,
         repository_id: repositoryId,
+        ...(previousRepositoryId ? {previous_repository_id: previousRepositoryId} : {}),
       },
     });
 
@@ -271,7 +290,7 @@ export async function getDevelopmentProject(
     if (!repository) throw new Error('project_repository_link_invalid');
   }
 
-  const observationEvent = await latestProjectObservation(db, projectId);
+  const observationEvent = await latestProjectObservation(db, projectId, project.repository_id);
   let observation: DevelopmentProjectSnapshot['observation'] = null;
   if (observationEvent) {
     const payload = objectPayload(observationEvent.payload);
