@@ -5,9 +5,11 @@ import {createInkubatorApiClient} from './inkubator-api';
 import {INSTRUMENT_MODES, InstrumentNavigationProvider, parseInstrumentMode, type InstrumentMode} from './shell/InstrumentNavigation';
 import {TerminalShell} from './shell/TerminalShell';
 import './auth/live-auth.css';
+import './command/lite-layout-repair.css';
 import MissionBootstrap from './journey/MissionBootstrap';
 import {isActiveMissionNotFound} from './journey/active-mission';
 import {ConnectionContextProvider} from './shell/ConnectionContext';
+import RektGuide from './guide/RektGuide';
 
 const LiveCommand = lazy(() => import('./command/LiveCommand'));
 const LiveProject = lazy(() => import('./project/LiveProject'));
@@ -51,7 +53,10 @@ function IdentityGate({mode, children}: {mode: InstrumentMode; children: ReactNo
     enabled: requiresIdentity,
   });
 
-  const withConnectionContext = () => <ConnectionContextProvider client={authClient}>{children}</ConnectionContextProvider>;
+  const withConnectionContext = () => <ConnectionContextProvider client={authClient}>
+    {children}
+    <RektGuide currentMode={mode}/>
+  </ConnectionContextProvider>;
 
   if (!requiresIdentity) return withConnectionContext();
 
