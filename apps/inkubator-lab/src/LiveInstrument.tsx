@@ -74,18 +74,22 @@ function IdentityGate({mode, children}: {mode: InstrumentMode; children: ReactNo
             <h2>{copy.title}</h2>
             {new URLSearchParams(window.location.search).get('auth') === 'github_failed' ? <p role="alert">GitHub sign-in did not complete. Try again to connect your identity.</p> : null}
             <p>{copy.body} GitHub signs you in with a server-owned session.</p>
+            <div className="inkubator-auth-loop-label">
+              <strong>YOUR BUILD LOOP</strong>
+              <span>WHAT YOU DO</span>
+            </div>
+            <dl className="inkubator-auth-loop" aria-label="Your build loop">
+              <div><dt>01</dt><dd>DECLARE</dd></div>
+              <div><dt>02</dt><dd>CONNECT</dd></div>
+              <div><dt>03</dt><dd>BUILD</dd></div>
+              <div><dt>04</dt><dd>HELP / TEST</dd></div>
+              <div><dt>05</dt><dd>SHIP</dd></div>
+            </dl>
             <div className="inkubator-auth-actions">
               <a className="inkubator-auth-action" href="/v1/auth/github/start">ENTER WITH GITHUB →</a>
               <a className="inkubator-auth-action inkubator-auth-action--secondary" href="?mode=world">EXPLORE WORLD</a>
             </div>
-            <dl className="inkubator-auth-loop" aria-label="Inkubator loop">
-              <div><dt>01</dt><dd>DECLARE WHAT YOU ARE SHIPPING</dd></div>
-              <div><dt>02</dt><dd>CONNECT THE REPOSITORY</dd></div>
-              <div><dt>03</dt><dd>BUILD NORMALLY + FOLLOW NEXT MOVE</dd></div>
-              <div><dt>04</dt><dd>GET HELP OR AN EXTERNAL TEST</dd></div>
-              <div><dt>05</dt><dd>SHIP + KEEP THE RECEIPT</dd></div>
-            </dl>
-            <p className="inkubator-auth-footnote">Repository access is a separate read-only GitHub App permission after sign-in. Inkubator observes work around your build; it is not where you write the code.</p>
+            <p className="inkubator-auth-footnote">The instrument tabs are views, not onboarding steps. Repository access is a separate read-only GitHub App permission after sign-in. Inkubator observes work around your build; it is not where you write the code.</p>
           </div>
         </TerminalShell>
       );
