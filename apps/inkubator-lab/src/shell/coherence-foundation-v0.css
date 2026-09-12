@@ -1,0 +1,73 @@
+/*
+ * INSTRUMENT_OS_COHERENCE_RESET_V0
+ *
+ * Shared manufacturing/material roles for the launch-critical Inkubator surfaces.
+ * This layer is intentionally small and visual-no-op at introduction time: values
+ * mirror the currently approved v2 shell/display treatment so later convergence can
+ * replace page-local literals without changing semantics or inventing a new theme.
+ */
+
+.ios-shell-v2 {
+  /* typography roles */
+  --ios2-font-body: Arial, Helvetica, sans-serif;
+  --ios2-font-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+
+  /* dark display family: surface-aware values already proven in v2 descendants */
+  --ios2-display-violet: #b395ff;
+  --ios2-display-cyan: #7cdbe8;
+  --ios2-display-green: #c1f85b;
+  --ios2-display-red: #ff9c89;
+  --ios2-display-amber: #d29a55;
+  --ios2-display-edge: #39403d;
+  --ios2-display-edge-soft: #252a28;
+  --ios2-display-header: #090b0b;
+  --ios2-display-divider: #2d3431;
+
+  /* physical display manufacturing grammar */
+  --ios2-display-bezel: 7px;
+  --ios2-display-bezel-heavy: 10px;
+  --ios2-display-radius: 8px;
+  --ios2-display-inset-line: #292e2c;
+  --ios2-display-shadow:
+    0 1px #ffffffb8,
+    0 -1px var(--ios2-seam),
+    inset 0 0 0 1px var(--ios2-display-inset-line),
+    inset 0 8px 14px #000;
+  --ios2-display-scanlines:
+    repeating-linear-gradient(0deg, #ffffff03 0 1px, transparent 1px 4px);
+
+  /* shared printed/chassis rhythm */
+  --ios2-space-xs: 4px;
+  --ios2-space-sm: 8px;
+  --ios2-space-md: 12px;
+  --ios2-space-lg: 20px;
+  --ios2-space-xl: 28px;
+  --ios2-print-tracking: .1em;
+}
+
+/*
+ * COMMAND convergence slice 1.
+ *
+ * These aliases intentionally override only values that are exact matches with the
+ * shared v2 manufacturing palette. COMMAND's printed muted text remains local for now
+ * because its approved #606568 differs from the shell's #565c5f; changing that would
+ * be a visual decision rather than a mechanical deduplication.
+ */
+.command-live.ios-shell-v2 {
+  --command-page: var(--ios2-page);
+  --command-chassis: var(--ios2-chassis);
+  --command-panel: var(--ios2-panel);
+  --command-recessed: var(--ios2-recessed);
+  --command-edge: var(--ios2-edge);
+  --command-seam: var(--ios2-seam);
+  --command-ink: var(--ios2-ink);
+  --command-display: var(--ios2-display);
+  --command-display-text: var(--ios2-display-text);
+  --command-display-muted: var(--ios2-display-muted);
+  --command-orange: var(--ios2-orange);
+  --command-violet: var(--ios2-display-violet);
+  --command-cyan: var(--ios2-display-cyan);
+  --command-green: var(--ios2-display-green);
+  --command-red: var(--ios2-display-red);
+  --command-amber: var(--ios2-display-amber);
+}

@@ -1,6 +1,7 @@
 import Fastify, {type FastifyReply, type FastifyRequest} from 'fastify';
 import {authorize, type Actor} from './authorization.js';
 import {componentSchemas, openapiDocument} from './contract.js';
+import {getPrivateConnectionContext} from './connection.js';
 import type {InkubatorDatabase, MissionGateRow} from './database.js';
 import {appendHistoryEvent} from './events.js';
 import {
@@ -254,6 +255,15 @@ export function buildApp(options: BuildAppOptions) {
     if (!player) return error(reply, 401, 'authentication_required');
     reply.header('cache-control', 'no-store');
     return toPrivatePlayer(player);
+  });
+
+  app.get('/v1/me/connection', async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    const player = await getPlayer(options.db, authenticated.actor.playerId);
+    if (!player) return error(reply, 401, 'authentication_required');
+    reply.header('cache-control', 'no-store');
+    return getPrivateConnectionContext(options.db, player);
   });
 
   app.get('/v1/me/profile', async (request, reply) => {
@@ -573,6 +583,20 @@ export function buildApp(options: BuildAppOptions) {
     return toPrivatePlayer(player);
   });
 
+  app.get('/v1/github/repositories', async (request, reply) => {
+    const authenticated = await authenticate(request, options.db);
+    if (!authenticated) return error(reply, 401, 'authentication_required');
+    reply.header('cache-control', 'no-store');
+    const repositories = await options.db.selectFrom('github_repositories as repository')
+      .innerJoin('github_installations as installation', 'installation.installation_id', 'repository.installation_id')
+      .select(['repository.repository_id', 'repository.full_name', 'repository.private'])
+      .where('installation.player_id', '=', authenticated.actor.playerId)
+      .where('installation.revoked_at', 'is', null)
+      .where('repository.active', '=', true)
+      .orderBy('repository.full_name', 'asc').execute();
+    return repositories.map(repository => ({...repository, repository_id: String(repository.repository_id)}));
+  });
+
   if (options.github) {
     app.post('/v1/github/install', async (request, reply) => {
       const authenticated = await authenticate(request, options.db);
@@ -590,7 +614,14 @@ export function buildApp(options: BuildAppOptions) {
       const authenticated = await authenticate(request, options.db);
       if (!authenticated) return error(reply, 401, 'authentication_required');
       const query = request.query as {code?: string; installation_id?: string; state?: string};
+      const wantsHtml = request.headers.accept?.includes('text/html') ?? false;
+      const setupFailure = (reason: string) => {
+        const location = new URL('/?mode=command&source=authorization_failed', options.appOrigin);
+        location.searchParams.set('reason', reason.replace(/[^a-z0-9_:-]/gi, '_').slice(0, 100));
+        return reply.redirect(location.toString());
+      };
       if (!query.code || !query.installation_id || !/^\d+$/.test(query.installation_id) || !query.state) {
+        if (wantsHtml) return setupFailure('github_setup_invalid');
         return error(reply, 400, 'github_setup_invalid');
       }
       try {
@@ -598,6 +629,7 @@ export function buildApp(options: BuildAppOptions) {
         const verified = await options.github!.verifier.verifyInstallation(query.code, query.installation_id);
         const finalized = await finalizeGitHubSetup(options.db, authenticated.actor.playerId, claimed.createdAt, verified);
         reply.header('cache-control', 'no-store');
+        if (request.headers.accept?.includes('text/html')) return reply.redirect(new URL('/?mode=command&source=authorized', options.appOrigin).toString());
         return {
           schema_version: 'github.installation.private.v1',
           installation_id: verified.installationId,
@@ -605,7 +637,9 @@ export function buildApp(options: BuildAppOptions) {
         };
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : 'github_setup_failed';
-        if (message.startsWith('github_')) return error(reply, 400, message.split(':')[0]);
+        const safeMessage = message.startsWith('github_') ? message.split(':')[0] : 'github_setup_failed';
+        if (wantsHtml) return setupFailure(safeMessage);
+        if (message.startsWith('github_')) return error(reply, 400, safeMessage);
         throw cause;
       }
     });

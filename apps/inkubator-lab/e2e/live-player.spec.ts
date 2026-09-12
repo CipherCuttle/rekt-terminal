@@ -1,7 +1,9 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page} from '@playwright/test';
 import type {PlayerHistoryView, PlayerProfileView, PlayerReputationView, PrivatePlayer} from '../src/generated/inkubator-api-client';
+import {fixtureConnectionContext} from './fixture-connection';
 
+const INKUBATOR_VIEW_MODE_KEY = 'rekt.inkubator.ui-mode.v1';
 const me: PrivatePlayer = {schema_version: 'player.private.v1', player_id: 'PLAYER-E2E', display_name: 'CipherCuttle', created_at: '2026-09-01T08:00:00Z', updated_at: '2026-09-10T08:00:00Z'};
 const profile: PlayerProfileView = {schema_version: 'player.profile.v2', player_id: 'PLAYER-E2E', bio: 'Builds strange useful things.', character_name: 'ink.operator', character_archetype: 'BUILDER', skills_needed: ['QA'], can_help_with: ['UI', 'SYSTEMS']};
 const history: PlayerHistoryView = {schema_version: 'player.history.private.v1', player_id: 'PLAYER-E2E', entries: [
@@ -16,12 +18,13 @@ async function routePlayer(page: Page, overrides: Partial<Record<string, {status
     const pathname = new URL(route.request().url()).pathname;
     const defaults: Record<string, {status: number; body: unknown}> = {
       '/v1/me': {status: 200, body: me},
+      '/v1/me/connection': {status: 200, body: fixtureConnectionContext},
       '/v1/me/profile': {status: 200, body: profile},
       '/v1/me/history': {status: 200, body: history},
       '/v1/players/PLAYER-E2E/reputation': {status: 200, body: reputation},
     };
     const response = overrides[pathname] ?? defaults[pathname];
-    if (!response) return route.continue();
+    if (!response) return route.fulfill({status: 500, contentType: 'application/json', body: JSON.stringify({error: 'unmocked_v1_route'})});
     await route.fulfill({status: response.status, contentType: 'application/json', body: JSON.stringify(response.body)});
   });
 }
@@ -31,6 +34,10 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
 }
 
+test.beforeEach(async ({page}) => {
+  await page.addInitScript((key) => window.localStorage.setItem(key, 'ADVANCED'), INKUBATOR_VIEW_MODE_KEY);
+});
+
 test('LIVE PLAYER renders the approved durable-record composition from canonical projections', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
   await routePlayer(page);
@@ -39,7 +46,8 @@ test('LIVE PLAYER renders the approved durable-record composition from canonical
   await expect(page.getByRole('heading', {name: 'Builder history.'})).toBeVisible();
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
   await expect(page.getByRole('heading', {name: 'ink.operator'})).toBeVisible();
-  await expect(page.locator('.player-mascot img')).toBeVisible();
+  await expect(page.getByText('Builds strange useful things.')).toBeVisible();
+  await expect(page.getByText('BUILDER', {exact: true})).toBeVisible();
   await expect(page.getByText('Working URL or GTFO')).toBeVisible();
   await expect(page.getByText('RECEIPT:R-1')).toBeVisible();
   await expect(page.getByText('SEQUENCE, NOT A PROGRESS SCORE')).toBeVisible();
@@ -77,13 +85,16 @@ test('LIVE PLAYER keeps optional failures isolated on mobile and never substitut
 });
 
 test('LIVE PLAYER presents GitHub identity bootstrap when private identity is unavailable', async ({page}) => {
-  await routePlayer(page, {'/v1/me': {status: 401, body: {error: 'session_required'}}});
+  await routePlayer(page, {
+    '/v1/me': {status: 401, body: {error: 'session_required'}},
+    '/v1/me/connection': {status: 401, body: {error: 'session_required'}},
+  });
   await page.goto('/?mode=player');
 
-  await expect(page.getByRole('heading', {name: 'CONTINUE WITH GITHUB'})).toBeVisible();
-  await expect(page.getByRole('link', {name: /CONTINUE WITH GITHUB/})).toHaveAttribute('href', '/v1/auth/github/start');
+  await expect(page.getByLabel('PLAYER workspace').getByRole('heading', {name: 'KEEP YOUR RECORD.'})).toBeVisible();
+  await expect(page.getByRole('link', {name: /ENTER WITH GITHUB/})).toHaveAttribute('href', '/v1/auth/github/start');
   await expect(page.getByRole('heading', {name: 'Builder history.'})).toHaveCount(0);
-  await expect(page.getByText(/Repository installation comes after login/i)).toBeVisible();
+  await expect(page.getByText(/Repository access is a separate read-only GitHub App permission after sign-in/i)).toBeVisible();
   await expectNoHorizontalOverflow(page);
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });

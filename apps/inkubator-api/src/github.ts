@@ -309,6 +309,9 @@ export async function finalizeGitHubSetup(
   verified: VerifiedGitHubInstallation,
 ): Promise<{repositoriesConnected: number}> {
   return db.transaction().execute(async (transaction) => {
+    const player = await transaction.selectFrom('players').select('github_user_id').where('player_id', '=', playerId).executeTakeFirst();
+    if (!player) throw new Error('github_player_not_found');
+    if (player.github_user_id && player.github_user_id !== verified.githubUserId) throw new Error('github_identity_conflict');
     await lockGitHubInstallation(transaction, verified.installationId);
     const repositoriesConnected = await bindVerifiedInstallation(transaction, playerId, setupCreatedAt, verified);
     return {repositoriesConnected};

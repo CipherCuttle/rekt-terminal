@@ -1,4 +1,4 @@
-import {cleanup, render, screen} from '@testing-library/react';
+import {cleanup, fireEvent, render, screen} from '@testing-library/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import type {
@@ -90,42 +90,39 @@ function renderProject(projectClient = client()) {
 }
 
 describe('Live Project', () => {
-  it('renders canonical project, source, help, test and ship projections in the v2 shell without fixture fallback', async () => {
+  it('uses a selectable source index and keeps artifact loading under explicit user control', async () => {
     const {container} = renderProject();
-
     expect(await screen.findByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeTruthy();
-    expect(container.querySelector('[data-shell-variant="v2"]')).toBeTruthy();
     expect(await screen.findByText('Wire the project workstation.')).toBeTruthy();
-    expect(await screen.findByRole('heading', {name: 'PROVE THE PROJECT SURFACE'})).toBeTruthy();
-    expect(await screen.findByText('CipherCuttle/weird-little-thing')).toBeTruthy();
-    expect(screen.getByText('Need one external tester.')).toBeTruthy();
-    expect(screen.getByText('Helper')).toBeTruthy();
-    expect(screen.getByText('Core flow works.')).toBeTruthy();
-    expect(screen.getAllByText('OBSERVED').length).toBeGreaterThan(0);
-    expect(screen.getByTitle('Weird Little Thing v1 artifact preview')).toBeTruthy();
-    expect(container.querySelector('.project-artifact')?.getAttribute('data-truth')).toBe('unproven');
-    expect(screen.queryByText(/development fixture/i)).toBeNull();
+    expect(screen.queryByRole('heading', {name: 'PROVE THE PROJECT SURFACE'})).toBeNull();
+    expect(screen.getByRole('link', {name: 'Next Move in COMMAND →'})).toBeTruthy();
+    expect(screen.getByRole('complementary', {name: 'Selected project record'}).textContent).toContain('CipherCuttle/weird-little-thing');
+    expect(container.querySelector('iframe')).toBeNull();
+    const source = screen.getByRole('button', {name: /GitHub source/});
+    fireEvent.keyDown(source, {key: 'ArrowDown'});
+    expect(screen.getByRole('button', {name: /External tests/}).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('complementary').textContent).toContain('Core flow works.');
+    fireEvent.click(screen.getByRole('button', {name: /Help \/ party/}));
+    expect(screen.getByRole('complementary').textContent).toContain('Helper');
+    fireEvent.click(screen.getByRole('button', {name: /Ship artifact/}));
+    expect(screen.getByRole('link', {name: 'Open artifact ↗'}).getAttribute('href')).toBe('https://artifact.example/app');
+    expect(container.querySelectorAll('[data-truth="proven"]')).toHaveLength(0);
   });
 
-  it('keeps optional help/test/ship projections visibly fail-closed without collapsing project core', async () => {
-    renderProject(client({
-      getProjectHelpLoop: vi.fn().mockRejectedValue(new Error('help_unavailable')),
-      getProjectExternalTests: vi.fn().mockRejectedValue(new Error('tests_unavailable')),
-      getProjectShipState: vi.fn().mockRejectedValue(new Error('ship_unavailable')),
-    }));
-
-    expect(await screen.findByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeTruthy();
-    expect(await screen.findByText('HELP LINK UNAVAILABLE', {}, {timeout: 3000})).toBeTruthy();
+  it('keeps each failed optional projection unavailable while preserving the source', async () => {
+    renderProject(client({getProjectHelpLoop: vi.fn().mockRejectedValue(new Error('help_unavailable')), getProjectExternalTests: vi.fn().mockRejectedValue(new Error('tests_unavailable')), getProjectShipState: vi.fn().mockRejectedValue(new Error('ship_unavailable'))}));
+    expect(await screen.findByText('HELP LINK UNAVAILABLE')).toBeTruthy();
     expect(screen.getByText('TEST LINK UNAVAILABLE')).toBeTruthy();
-    expect(screen.getAllByText('SHIP LINK UNAVAILABLE').length).toBeGreaterThan(0);
-    expect(screen.getByText('CipherCuttle/weird-little-thing')).toBeTruthy();
+    expect(screen.getByText('SHIP LINK UNAVAILABLE')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', {name: /Ship artifact/}));
+    expect(screen.getByRole('complementary').textContent).toContain('SHIP LINK UNAVAILABLE');
+    expect(screen.queryByRole('link', {name: 'Open artifact ↗'})).toBeNull();
   });
 
-  it('fails closed when the current/private project projection is unavailable', async () => {
+  it('fails closed when the current/private project projection is unavailable and offers recovery', async () => {
     renderProject(client({getMyCommand: vi.fn().mockRejectedValue(new Error('session_required'))}));
-
-    expect(await screen.findByRole('heading', {name: 'PROJECT LINK UNAVAILABLE'}, {timeout: 3000})).toBeTruthy();
-    expect(screen.getByText('session_required')).toBeTruthy();
-    expect(screen.getByText(/No development fixture fallback is permitted/i)).toBeTruthy();
+    expect(await screen.findByRole('heading', {name: 'PROJECT LINK UNAVAILABLE'})).toBeTruthy();
+    expect(screen.getByRole('link', {name: 'Open COMMAND →'})).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'Retry project'})).toBeTruthy();
   });
 });

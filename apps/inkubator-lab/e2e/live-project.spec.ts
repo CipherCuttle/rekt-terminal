@@ -1,6 +1,9 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page} from '@playwright/test';
 import type {CommandView, PrivateProject, ProjectExternalTestsView, ProjectHelpLoopView, ProjectShipStateView} from '../src/generated/inkubator-api-client';
+import {fixtureConnectionContext} from './fixture-connection';
+
+const INKUBATOR_VIEW_MODE_KEY = 'rekt.inkubator.ui-mode.v1';
 
 const command: CommandView = {
   schema_version: 'command.private.v2',
@@ -56,6 +59,7 @@ type Response = {status: number; body: unknown};
 async function routeProject(page: Page, override: Partial<Record<string, Response>> = {}) {
   const responses: Record<string, Response> = {
     '/v1/me': {status: 200, body: me},
+    '/v1/me/connection': {status: 200, body: fixtureConnectionContext},
     '/v1/me/command': {status: 200, body: command},
     '/v1/projects/P-LIVE-001/private': {status: 200, body: project},
     '/v1/projects/P-LIVE-001/help-loop': {status: 200, body: help},
@@ -72,6 +76,10 @@ async function routeProject(page: Page, override: Partial<Record<string, Respons
     }
     const response = responses[url.pathname];
     if (!response) {
+      if (url.pathname.startsWith('/v1/')) {
+        await route.fulfill({status: 500, contentType: 'application/json', body: JSON.stringify({error: 'unmocked_v1_route'})});
+        return;
+      }
       await route.continue();
       return;
     }
@@ -84,6 +92,10 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
 }
 
+test.beforeEach(async ({page}) => {
+  await page.addInitScript((key) => window.localStorage.setItem(key, 'ADVANCED'), INKUBATOR_VIEW_MODE_KEY);
+});
+
 test('LIVE PROJECT renders canonical v2 workstation projections without promoting observed ship state', async ({page}) => {
   await page.setViewportSize({width: 1440, height: 900});
   await routeProject(page);
@@ -93,14 +105,14 @@ test('LIVE PROJECT renders canonical v2 workstation projections without promotin
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-mode', 'project');
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
   await expect(page.getByText('Wire project.', {exact: true})).toBeVisible();
-  await expect(page.getByRole('heading', {name: 'PROVE PROJECT'})).toBeVisible();
-  await expect(page.getByText('CipherCuttle/weird-little-thing')).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Current records'})).toBeVisible();
+  await expect(page.getByText('CipherCuttle/weird-little-thing').first()).toBeVisible();
   await expect(page.getByText('Need one external tester.')).toBeVisible();
-  await expect(page.getByText('Helper')).toBeVisible();
   await expect(page.getByText('Core flow works.')).toBeVisible();
-  await expect(page.locator('.project-artifact')).toHaveAttribute('data-truth', 'unproven');
-  await expect(page.locator('.project-artifact iframe')).toBeVisible();
-  await expect(page.locator('.project-artifact [data-truth="proven"]')).toHaveCount(0);
+  await page.getByRole('button', {name: /Help \/ party/}).click();
+  await expect(page.getByText('Helper')).toBeVisible();
+  await expect(page.locator('.project-index [data-truth="proven"]')).toHaveCount(0);
+  await expect(page.getByRole('button', {name: /Ship artifact/})).toHaveAttribute('data-truth', 'observed');
   await expect(page.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
@@ -120,10 +132,10 @@ test('LIVE PROJECT keeps optional projection failures visible and usable on mobi
   await page.goto('/?mode=project');
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
-  await expect(page.getByRole('heading', {name: 'PROVE PROJECT'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Current records'})).toBeVisible();
   await expect(page.getByText('HELP LINK UNAVAILABLE')).toBeVisible({timeout: 6000});
   await expect(page.getByText('TEST LINK UNAVAILABLE')).toBeVisible();
   await expect(page.getByText('SHIP LINK UNAVAILABLE').first()).toBeVisible();
-  await expect(page.getByText('CipherCuttle/weird-little-thing')).toBeVisible();
+  await expect(page.getByText('CipherCuttle/weird-little-thing').first()).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });

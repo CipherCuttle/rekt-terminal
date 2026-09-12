@@ -11,6 +11,7 @@ import {submitShip} from './ship.js';
 import {readSessionToken, resolveSessionActor} from './session.js';
 
 const GATE_KEYS = new Set<MissionGateRow['gate_key']>(['FOUNDATION','CORE_EXPERIENCE','QUALITY_TESTING','SHIPABILITY']);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function error(reply: FastifyReply, status: number, message: string) { return reply.code(status).send({error: message}); }
 
@@ -21,6 +22,14 @@ function domainError(reply: FastifyReply, cause: unknown) {
   if (message.includes('idempotency_conflict') || message.includes('_conflict') || message.endsWith('_already_open') || message.endsWith('_already_offered') || message === 'ship_submission_active') return error(reply, 409, message);
   if (message.startsWith('invalid_') || message.endsWith('_empty') || message === 'mission_transition_invalid') return error(reply, 400, message);
   throw cause;
+}
+
+async function browserSessionPlayer(request: FastifyRequest, reply: FastifyReply, db: Kysely<DatabaseSchema>): Promise<string | null> {
+  const token = readSessionToken(request.headers.cookie);
+  if (!token) { error(reply, 401, 'authentication_required'); return null; }
+  const actor = await resolveSessionActor(db, token);
+  if (!actor) { error(reply, 401, 'authentication_required'); return null; }
+  return actor.playerId;
 }
 
 async function sessionPlayer(request: FastifyRequest, reply: FastifyReply, db: Kysely<DatabaseSchema>, appOrigin: string): Promise<string | null> {
@@ -61,6 +70,22 @@ async function currentCommand(db: Kysely<DatabaseSchema>, playerId: string) {
 }
 
 export function registerPhase8DevkitRoutes(app: FastifyInstance, db: Kysely<DatabaseSchema>, options: {appOrigin: string}): void {
+  app.get('/v1/projects/:projectId/pending-assists', async (request, reply) => {
+    const playerId = await browserSessionPlayer(request, reply, db); if (!playerId) return;
+    const {projectId} = request.params as {projectId:string};
+    if (!UUID_PATTERN.test(projectId)) return error(reply, 400, 'invalid_project_id');
+    const project = await db.selectFrom('projects').select(['project_id','owner_player_id']).where('project_id','=',projectId).executeTakeFirst();
+    if (!project) return error(reply, 404, 'project_not_found');
+    if (project.owner_player_id !== playerId) return error(reply, 403, 'authorization_denied');
+    const rows = await db.selectFrom('assist_offers as assist')
+      .innerJoin('players as player','player.player_id','assist.offered_by_player_id')
+      .select(['assist.assist_id','assist.beacon_id','assist.project_id','assist.offered_by_player_id','assist.message','assist.state','assist.offered_at','player.display_name'])
+      .where('assist.project_id','=',projectId).where('assist.state','=','OFFERED')
+      .orderBy('assist.offered_at','asc').orderBy('assist.assist_id','asc').limit(50).execute();
+    reply.header('cache-control','no-store');
+    return {schema_version:'project.pending_assists.private.v1',project_id:projectId,assists:rows.map(row=>({assist_id:row.assist_id,beacon_id:row.beacon_id,project_id:row.project_id,offered_by_player_id:row.offered_by_player_id,offered_by_display_name:row.display_name,message:row.message,state:'OFFERED' as const,offered_at:row.offered_at.toISOString()}))};
+  });
+
   app.post('/v1/devkit/tokens', async (request, reply) => {
     const playerId = await sessionPlayer(request, reply, db, options.appOrigin); if (!playerId) return;
     const body = request.body as {request_id:string;credential_class:'CLI'|'MCP'|'AUTOMATION';label:string;scopes:string[];expires_in_seconds:number};

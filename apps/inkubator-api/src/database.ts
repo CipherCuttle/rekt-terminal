@@ -6,6 +6,7 @@ export interface PlayerTable {
   player_id: string;
   display_name: string;
   github_user_id: Generated<string | null>;
+  github_login: Generated<string | null>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

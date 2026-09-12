@@ -1,0 +1,149 @@
+/* Shared production construction. Color denotes selection or explicit proof only. */
+.ios-shell-v2.ios-shell {
+  --ios2-page: #e5e6e7; --ios2-chassis: #f0f1f2; --ios2-panel: #f6f7f7;
+  --ios2-recessed: #e9eaeb; --ios2-edge: #c7c9ca; --ios2-seam: #d5d7d8;
+  --ios2-ink: #0b0b0d; --ios2-muted: #62666b;
+  --ios2-display: #030303; --ios2-display-text: #f0f1f2; --ios2-display-muted: #9a9da0;
+  --ios2-selection: #ff1493; --ios2-display-selection: #ff87bd;
+  --ios2-orange: #d45727; --ios2-violet: var(--ios2-muted);
+  --ios2-cyan: var(--ios2-ink); --ios2-red: #9a2835; --ios2-amber: #8b6532;
+  --ios2-green: #486600; --ios2-display-green: #c1f85b;
+  --ios2-display-violet: var(--ios2-display-selection); --ios2-display-cyan: #78dce8;
+  --ios2-display-red: #ff9b89; --ios2-display-amber: #d4a15e;
+  --ios2-display-edge: #343943; --ios2-display-edge-soft: #242932;
+  --ios2-display-header: #030303; --ios2-display-divider: #303435;
+  --ios2-display-bezel: 7px; --ios2-display-radius: 8px;
+  position: relative; padding: 16px; max-width: 1640px; margin-inline: auto; overflow-x: visible;
+  font-family: var(--ios2-font-body); background: var(--ios2-page);
+}
+.ios-shell-v2.ios-shell::after {content:'FACEPLATE / RKT-01';position:absolute;right:5px;top:176px;writing-mode:vertical-rl;color:#8a8d90;font:7px/1 var(--ios2-font-mono);letter-spacing:.18em;pointer-events:none;z-index:30}
+.faceplate-topbar {position:relative;height:68px;display:flex;align-items:center;gap:30px;padding:0 28px;border:1px solid var(--ios2-edge);border-bottom-color:var(--ios2-seam);background:var(--ios2-chassis);border-radius:9px 9px 0 0;box-shadow:inset 0 1px #fff}
+.faceplate-brand {display:flex;align-items:center;gap:22px;color:var(--ios2-ink);text-decoration:none}
+.faceplate-brand strong {font:900 39px/1 var(--ios2-font-body);letter-spacing:-.085em;white-space:nowrap}
+.faceplate-brand strong i {color:var(--ios2-selection);font-style:normal;font-size:.87em}
+.faceplate-brand-label {font:12px/1 var(--ios2-font-mono);letter-spacing:.19em}
+.faceplate-purpose {border-left:1px solid var(--ios2-seam);padding-left:24px;color:var(--ios2-muted);font:9px/1.4 var(--ios2-font-mono);letter-spacing:.08em}
+.faceplate-series {margin-left:auto;color:var(--ios2-muted);font:9px/1.4 var(--ios2-font-mono);letter-spacing:.08em}
+.faceplate-registration {width:10px;height:10px;opacity:.55;background:repeating-linear-gradient(135deg,var(--ios2-ink) 0 1px,transparent 1px 3px)}
+.ios-shell-v2.ios-shell .ios-shell-header {position:relative;padding:28px 32px 24px 196px;min-height:150px;border-inline:1px solid var(--ios2-edge);gap:28px;background:var(--ios2-chassis)}
+.ios-shell-v2.ios-shell .ios-shell-header h1 {font-size:clamp(42px,4.5vw,64px);line-height:.95;letter-spacing:-.066em;max-width:1000px}
+.ios-shell-v2.ios-shell .ios-shell-header p {max-width:700px;font:13px/1.55 var(--ios2-font-body);margin:12px 0 0;color:var(--ios2-muted)}
+.ios-shell-v2.ios-shell .ios-shell-header small {font:9px/1.5 var(--ios2-font-mono);letter-spacing:.08em;color:var(--ios2-muted)}
+.faceplate-head-reg {position:absolute;left:166px;top:20px;width:10px;height:10px;opacity:.55;background:repeating-linear-gradient(135deg,var(--ios2-ink) 0 1px,transparent 1px 3px)}
+.ios-shell-v2.ios-shell .ios-shell-readout {min-width:190px;max-width:260px}
+.ios-shell-v2.ios-shell .ios-shell-readout :is(span,b) {font-size:9px;white-space:normal;overflow-wrap:anywhere}
+.ios-shell-v2.ios-shell .ios-shell-event {padding:9px 32px 9px 196px;font-size:9px;overflow-wrap:anywhere;background:var(--ios2-chassis);border-inline:1px solid var(--ios2-edge)}
+.ios-shell-v2.ios-shell .ios-shell-chassis {grid-template-columns:166px minmax(0,1fr);min-height:790px;box-shadow:0 12px 35px #13151712;background:var(--ios2-chassis)}
+.ios-shell-v2.ios-shell .ios-shell-mode-rail {display:flex;flex-direction:column;min-height:790px;padding-top:26px;border-right:1px solid var(--ios2-seam);background:var(--ios2-chassis)}
+.ios-shell-v2.ios-shell .ios-rail-label {padding:0 18px 12px;color:var(--ios2-muted);font:8px/1.35 var(--ios2-font-mono);letter-spacing:.12em}
+.ios-shell-v2.ios-shell .ios-shell-mode-rail button {display:grid;grid-template-columns:24px minmax(0,1fr);gap:3px 8px;align-items:start;min-height:0;padding:17px 16px;border:0;border-left:3px solid transparent;background:transparent;color:var(--ios2-ink);text-align:left}
+.ios-shell-v2.ios-shell .ios-shell-mode-rail button:hover:not(:disabled) {background:#eceeef}
+.ios-shell-v2.ios-shell .ios-shell-mode-rail button[aria-pressed='true'] {border-left-color:var(--ios2-selection);background:var(--ios2-recessed);box-shadow:none}
+.ios-shell-v2.ios-shell .ios-shell-mode-rail button>span {color:var(--ios2-muted);font:10px/1.5 var(--ios2-font-mono)}
+.ios-shell-v2.ios-shell .ios-shell-mode-rail button b {font:700 12px/1.35 var(--ios2-font-body);letter-spacing:.02em}
+.ios-shell-v2.ios-shell .ios-shell-mode-rail button small {grid-column:2;color:var(--ios2-muted);font:8px/1.35 var(--ios2-font-mono);letter-spacing:.03em}
+.ios-shell-v2.ios-shell .ios-shell-mode-rail button:disabled {opacity:.42}
+.ios-shell-v2.ios-shell .ios-rail-tail {padding:14px 20px;color:var(--ios2-muted);font:8px/1.4 var(--ios2-font-mono);letter-spacing:.08em}
+.faceplate-rail-imprint {margin-top:auto;padding:34px 22px 30px;color:var(--ios2-ink)}
+.faceplate-reg {display:block;width:35px;height:35px;background:repeating-linear-gradient(135deg,var(--ios2-ink) 0 3px,transparent 3px 7px)}
+.faceplate-rail-imprint p {margin:20px 0 22px;font-size:21px;line-height:1.02;letter-spacing:-.04em}
+.faceplate-rail-imprint p b {font-weight:900}
+.faceplate-rail-imprint small {display:block;color:var(--ios2-muted);font:8px/1.5 var(--ios2-font-mono);letter-spacing:.07em}
+.ios-shell-v2.ios-shell .ios-shell-footer {font-size:8px;line-height:1.5;letter-spacing:.06em}
+.ios-shell-v2.ios-shell .ios-shell-footer::before {content:'';display:inline-block;width:18px;height:5px;margin-right:10px;background:repeating-linear-gradient(135deg,var(--ios2-selection) 0 1px,transparent 1px 3px);vertical-align:1px}
+.ios-shell-v2.ios-shell :is(button,a,input,select,textarea,summary):focus-visible {outline:3px solid var(--ios2-selection);outline-offset:3px}
+.faceplate-skip {position:absolute;left:24px;top:-100px;z-index:100;background:#fff;color:var(--ios2-ink);padding:12px}
+.faceplate-skip:focus {top:8px}
+.faceplate-split {display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,305px);gap:26px;align-items:start}
+.faceplate-print-head {color:var(--ios2-ink);display:flex;gap:12px;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--ios2-seam);padding:16px 0;margin-bottom:16px;font:9px/1.5 var(--ios2-font-mono);letter-spacing:.08em}
+.faceplate-print-head::before {content:'';display:block;width:18px;height:5px;background:repeating-linear-gradient(135deg,var(--ios2-selection) 0 1px,transparent 1px 3px);opacity:.86;flex:none}
+.faceplate-print-head h2 {margin:0;margin-right:auto;font:800 12px var(--ios2-font-body);letter-spacing:.05em}
+.ios-shell-v2 .faceplate-display {position:relative;min-width:0;min-height:350px;padding:25px;background:repeating-linear-gradient(0deg,#ffffff04 0 1px,transparent 1px 4px),var(--ios2-display);color:var(--ios2-display-text);border:var(--ios2-display-bezel) solid var(--ios2-edge);border-bottom-width:10px;border-radius:var(--ios2-display-radius);box-shadow:0 1px #fff,0 -1px var(--ios2-seam),inset 0 0 0 1px #292e2c,inset 0 8px 14px #000}
+.faceplate-display::before,.faceplate-display::after {content:'•';position:absolute;bottom:-9px;color:#777c72;font:9px/1 monospace}
+.faceplate-display::before {left:2px}.faceplate-display::after {right:2px}
+.faceplate-display>header {display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid var(--ios2-display-divider);padding-bottom:20px;margin-bottom:16px}
+.faceplate-display h3 {margin:8px 0 0;font:500 clamp(26px,3vw,40px)/1.05 var(--ios2-font-body);letter-spacing:-.04em}
+.faceplate-display :is(small,time) {font:9px/1.5 var(--ios2-font-mono);color:var(--ios2-display-muted)}
+.faceplate-display a {color:var(--ios2-display-text);text-underline-offset:4px}
+.faceplate-display>footer {display:flex;justify-content:space-between;gap:16px;margin-top:24px;padding-top:14px;border-top:1px solid var(--ios2-display-divider);font:8px/1.5 var(--ios2-font-mono);color:var(--ios2-display-muted)}
+.faceplate-record {display:flex;align-items:center;gap:14px;width:100%;min-height:64px;padding:12px 10px;text-align:left;border:0;border-bottom:1px solid var(--ios2-display-divider);border-radius:0;background:transparent;color:var(--ios2-display-text);cursor:pointer}
+.faceplate-record[aria-pressed='true'] {background:#0d0d0d;box-shadow:inset 3px 0 var(--ios2-display-selection)}
+.faceplate-record:focus-visible {outline-color:var(--ios2-display-selection)!important;outline-offset:-3px!important}
+.faceplate-record>span {min-width:0}.faceplate-record strong {display:block;font:500 16px/1.35 var(--ios2-font-body)}
+.faceplate-record small {display:block;margin-top:4px}
+.faceplate-record:disabled {cursor:default;color:var(--ios2-display-muted)}
+.faceplate-inspector {color:var(--ios2-ink);min-width:0;border-left:1px solid var(--ios2-seam);padding:15px 0 15px 22px;overflow-wrap:anywhere}
+.faceplate-inspector>small {font:9px var(--ios2-font-mono);color:var(--ios2-muted);letter-spacing:.08em}
+.faceplate-inspector h3 {font-size:28px;line-height:1.1;letter-spacing:-.04em;margin:18px 0 12px}
+.faceplate-inspector p {font:13px/1.6 var(--ios2-font-body);color:var(--ios2-muted)}
+.faceplate-inspector dl {display:grid;gap:14px;margin-top:24px}.faceplate-inspector dt {font:9px/1.5 var(--ios2-font-mono);color:var(--ios2-muted)}
+.faceplate-inspector dd {margin:4px 0 0;font-size:12px;line-height:1.5}.faceplate-inspector :is(code,time) {font-size:10px}
+.faceplate-inspector a {color:var(--ios2-ink);text-underline-offset:4px}
+.faceplate-truth {display:inline-flex;gap:7px;align-items:center;font:9px var(--ios2-font-mono);padding:6px 0}
+.faceplate-truth::before {content:'';width:5px;height:5px;border:1px solid currentColor}
+.faceplate-truth[data-truth='proven'] {color:var(--ios2-green)}
+.faceplate-display .faceplate-truth[data-truth='proven'] {color:var(--ios2-display-green)}
+.faceplate-selection-response {animation:faceplate-select 160ms steps(4,end) both}
+@keyframes faceplate-select {from {transform:translateX(2px);opacity:.65}to {transform:none;opacity:1}}
+.fixture-banner {position:sticky;top:0;z-index:200;padding:12px;background:#f4e9ef;color:#5b1839;font:700 12px monospace;text-align:center}
+@media(min-width:1600px){.faceplate-split {grid-template-columns:minmax(0,1fr) 340px;gap:36px}}
+@media(max-width:1050px){
+ .ios-shell-v2.ios-shell .ios-shell-chassis {grid-template-columns:132px minmax(0,1fr)}
+ .ios-shell-v2.ios-shell .ios-shell-header {padding-left:162px}
+ .ios-shell-v2.ios-shell .ios-shell-event {padding-left:162px}
+ .faceplate-head-reg {left:132px}
+ .faceplate-split {grid-template-columns:minmax(0,1fr) 250px;gap:18px}
+ .faceplate-purpose {display:none}
+ .ios-shell-v2.ios-shell .ios-shell-mode-rail button {padding-inline:12px}
+ .faceplate-rail-imprint {padding-inline:16px}
+}
+
+/* Handheld instrument contract: translate the faceplate instead of shrinking desktop. */
+@media(max-width:700px){
+ .ios-shell-v2.ios-shell {padding:0;overflow-x:hidden;min-height:100dvh}
+ .ios-shell-v2.ios-shell::after {display:none}
+ .faceplate-topbar {height:auto;min-height:44px;border-radius:0;padding:9px 12px;gap:8px}
+ .faceplate-brand {gap:8px;white-space:nowrap}.faceplate-brand strong {font-size:20px}.faceplate-brand-label {font-size:9px;letter-spacing:.08em}
+ .faceplate-series {font-size:7px;line-height:1.25;max-width:88px;text-align:right;letter-spacing:.07em}
+ .faceplate-registration,.faceplate-purpose {display:none}
+ .ios-shell-v2.ios-shell .ios-shell-header {padding:14px 14px 12px;display:block;min-height:0;border-inline:1px solid var(--ios2-edge)}
+ .faceplate-head-reg {display:none}
+ .ios-shell-v2.ios-shell .ios-shell-header small {font-size:8px}.ios-shell-v2.ios-shell .ios-shell-header h1 {font-size:clamp(32px,9.5vw,38px);line-height:.92;max-width:none;margin-top:5px}
+ .ios-shell-v2.ios-shell .ios-shell-header p {font-size:12.5px;line-height:1.38;margin:8px 0 0;max-width:34rem}
+ .ios-shell-v2.ios-shell .ios-shell-readout {display:none}.ios-shell-v2.ios-shell .ios-shell-event {padding:8px 14px;font-size:9px;line-height:1.35;min-height:0}
+ .ios-shell-v2.ios-shell .ios-shell-chassis {display:flex;flex-direction:column;min-height:0;border-radius:0;overflow:visible}
+ .ios-shell-v2.ios-shell .ios-shell-mode-rail {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));order:0;border:0;border-bottom:1px solid var(--ios2-seam);min-height:0;padding:0;background:var(--ios2-chassis)}
+ .ios-shell-v2.ios-shell .ios-shell-mode-rail :is(.ios-rail-label,.ios-rail-tail,.faceplate-rail-imprint,button>span,button>small) {display:none}
+ .ios-shell-v2.ios-shell .ios-shell-mode-rail button {display:block;min-height:50px;padding:4px 2px;border:0;border-right:1px solid var(--ios2-seam);background:var(--ios2-chassis);text-align:center}
+ .ios-shell-v2.ios-shell .ios-shell-mode-rail button:last-of-type {border-right:0}.ios-shell-v2.ios-shell .ios-shell-mode-rail button b {display:block;font-size:8px;line-height:1;letter-spacing:.015em}
+ .ios-shell-v2.ios-shell .ios-shell-mode-rail button[aria-pressed='true'] {box-shadow:inset 0 -3px var(--ios2-selection);background:var(--ios2-recessed)}
+ .ios-shell-v2.ios-shell .ios-shell-mode-rail button:disabled {opacity:.45}
+ .ios-shell-v2.ios-shell .ios-shell-workspace {order:1;min-width:0;max-width:100%;overflow-x:hidden}
+ .faceplate-split {grid-template-columns:minmax(0,1fr);gap:0;max-width:100%}
+ .faceplate-print-head {padding:11px 0;margin-bottom:11px;gap:8px;flex-wrap:wrap;font-size:8px}.faceplate-print-head h2 {font-size:11px}.faceplate-print-head::before {width:12px}
+ .ios-shell-v2 .faceplate-display {padding:12px;min-height:245px;border-width:4px;border-bottom-width:8px;border-radius:5px;max-width:100%;box-sizing:border-box}
+ .faceplate-display::before,.faceplate-display::after {bottom:-7px;font-size:7px}
+ .faceplate-display>header {gap:8px;padding-bottom:11px;margin-bottom:10px;align-items:flex-start}.faceplate-display h3 {font-size:clamp(22px,7vw,28px);margin-top:5px}
+ .faceplate-display :is(small,time) {font-size:8px}.faceplate-display>footer {font-size:8px;line-height:1.35;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:10px}
+ .faceplate-record {min-height:56px;padding:10px 6px;gap:9px}.faceplate-record strong {font-size:15px}.faceplate-record small {font-size:8px}
+ .faceplate-inspector {border-left:0;border-top:1px solid var(--ios2-seam);padding:14px 2px 20px;margin-top:0}.faceplate-inspector>small {font-size:8px}
+ .faceplate-inspector h3 {font-size:22px;margin:12px 0 8px}.faceplate-inspector p {font-size:13px;line-height:1.48}.faceplate-inspector dl {gap:10px;margin-top:16px}.faceplate-inspector dt {font-size:8px}.faceplate-inspector dd {font-size:12px}
+ .ios-shell-v2.ios-shell .ios-shell-footer {padding:8px 12px 12px;font-size:8px}
+ .ios-shell-v2.ios-shell :is(input,select,textarea) {font-size:16px;max-width:100%}.ios-shell-v2.ios-shell :is(button,summary) {min-height:44px}
+
+ /* Surface compaction keeps the black instrument above the fold. */
+ .ios-shell-v2.command-live .command-thread-instrument {padding:12px;gap:14px}.ios-shell-v2.command-live .command-mission-copy {padding-bottom:12px}.ios-shell-v2.command-live .command-mission-copy h2 {font-size:24px}.ios-shell-v2.command-live .command-next-move h2 {font-size:clamp(30px,9vw,36px);margin:10px 0 16px}.ios-shell-v2.command-live .command-thread-stage {padding:12px}.ios-shell-v2.command-live .command-thread-gate {min-height:56px}.ios-shell-v2.command-live .command-source-status .rektPeripheralSignal {width:72px;height:44px}
+ .ios-shell-v2.project-live .project-workstation {padding:0 12px 18px}.ios-shell-v2.project-live .project-focus {padding:12px 0;gap:6px}.ios-shell-v2.project-live .project-focus p {font-size:16px}.ios-shell-v2.project-live .project-index button {min-height:74px;padding-block:8px}
+ .ios-shell-v2.player-live .player-workspace {padding:0 12px 16px}.ios-shell-v2.player-live .player-identity {padding:12px 0}.ios-shell-v2.player-live .player-history-display {min-height:300px;padding:12px 8px 0}.ios-shell-v2.player-live .player-inspector {margin-top:0;padding:14px 12px}
+ .ios-shell-v2.ship-live .ship-workspace {padding:0 12px 18px}.ios-shell-v2.ship-live .ship-context {padding:12px 0}.ios-shell-v2.ship-live .ship-stage-index {grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px}.ios-shell-v2.ship-live .ship-stage-index button {min-height:76px;gap:5px;padding:9px 5px}.ios-shell-v2.ship-live .ship-stage-index button strong {font-size:10px}.ios-shell-v2.ship-live .ship-stage-index button small {font-size:8px}.ios-shell-v2.ship-live .ship-channel {min-height:92px;margin:12px 0;gap:10px}.ios-shell-v2.ship-live .ship-channel svg {width:64px;height:42px}.ios-shell-v2.ship-live .ship-artifact-stage {min-height:220px;padding:28px 16px}
+}
+
+@media(max-width:420px){
+ .faceplate-series {display:none}.faceplate-brand {width:100%;justify-content:space-between}.faceplate-brand::after {content:'HANDHELD / LIVE';color:var(--ios2-muted);font:7px var(--ios2-font-mono);letter-spacing:.08em}
+ .ios-shell-v2.ios-shell .ios-shell-header h1 {font-size:34px}
+ .ios-shell-v2.ios-shell .ios-shell-mode-rail button b {font-size:7.5px;letter-spacing:0}
+ .ios-shell-v2.ship-live .ship-stage-index button {min-height:72px;padding-inline:3px}
+}
+
+@media(prefers-reduced-motion:reduce){.faceplate-selection-response {animation:none}}
+@media(prefers-contrast:more){.ios-shell-v2.ios-shell {--ios2-muted:#303743;--ios2-seam:#7c8695;--ios2-display-muted:#d7dce4}}

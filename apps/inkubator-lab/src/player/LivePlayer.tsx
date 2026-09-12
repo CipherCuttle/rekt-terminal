@@ -9,6 +9,7 @@ import type {
   PlayerReputationView,
   PrivatePlayer,
 } from '../generated/inkubator-api-client';
+import {InkubatorApiError} from '../generated/inkubator-api-client';
 import {createInkubatorApiClient} from '../inkubator-api';
 import {TerminalShell} from '../shell/TerminalShell';
 import './live-player-v2.css';
@@ -63,16 +64,6 @@ function truthBoundary(truth: PlayerHistoryEntryView['truth_state']) {
   return 'A declaration or state transition is recorded. It does not establish observation or proof.';
 }
 
-function PlayerMascot() {
-  const [failed, setFailed] = useState(false);
-  return (
-    <div className="player-mascot" data-state="idle">
-      {!failed ? <img src={`${import.meta.env.BASE_URL}assets/rekt-mascot.png`} alt="" onError={() => setFailed(true)} /> : null}
-      {failed ? <span className="player-mascot-unavailable"><b>REKT</b><small>ART UNAVAILABLE</small></span> : null}
-    </div>
-  );
-}
-
 function TruthLabel({truth}: {truth: PlayerHistoryEntryView['truth_state'] | 'PROVEN'}) {
   return <span className="player-truth" data-truth={truth.toLowerCase()}><i aria-hidden="true" />{truth}</span>;
 }
@@ -84,10 +75,10 @@ function ProjectionUnavailable({label, error}: {label: string; error: unknown}) 
 function HistoryInspector({entry}: {entry?: PlayerHistoryEntryView}) {
   if (!entry) return <aside className="player-inspector player-inspector--empty"><span>PROVENANCE INSPECTOR</span><h3>No record selected.</h3><p>Context appears when a canonical history record is available.</p></aside>;
   return (
-    <aside className="player-inspector" aria-label="Selected builder record">
+    <aside className="player-inspector faceplate-inspector" aria-label="Selected builder record">
       <span>SELECTED RECORD</span>
       <TruthLabel truth={entry.truth_state} />
-      <h3>{HISTORY_LABELS[entry.kind]}</h3>
+      <h3 key={entry.entry_id} className="faceplate-selection-response">{HISTORY_LABELS[entry.kind]}</h3>
       <p>{entryDetail(entry)}</p>
       <dl>
         <div><dt>RECORDED / UTC</dt><dd><time dateTime={entry.occurred_at}>{entry.occurred_at}</time></dd></div>
@@ -95,13 +86,16 @@ function HistoryInspector({entry}: {entry?: PlayerHistoryEntryView}) {
         <div><dt>REFERENCE</dt><dd><code>{entryReference(entry)}</code></dd></div>
         {entry.role ? <div><dt>ROLE</dt><dd>{entry.role}</dd></div> : null}
       </dl>
+      {entry.project_id ? <a href={`?mode=${entry.kind === 'SHIP_ACCEPTED' ? 'ship' : 'project'}&project=${encodeURIComponent(entry.project_id)}${entry.kind === 'SHIP_ACCEPTED' && entry.receipt_id ? `&receipt=${encodeURIComponent(entry.receipt_id)}` : ''}`}>Open {entry.kind === 'SHIP_ACCEPTED' ? 'receipt' : 'project'} ↗</a> : null}
       <div className="player-boundary"><small>READ THIS AS</small><p>{truthBoundary(entry.truth_state)}</p></div>
     </aside>
   );
 }
 
 function HistoryInstrument({history, error}: {history?: PlayerHistoryView; error?: unknown}) {
-  const entries = useMemo(() => [...(history?.entries ?? [])].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at)), [history]);
+  const denied = error instanceof InkubatorApiError && [401,403].includes(error.status);
+  const visibleHistory = denied ? undefined : history;
+  const entries = useMemo(() => [...(visibleHistory?.entries ?? [])].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at)), [visibleHistory]);
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const selected = entries.find((entry) => entry.entry_id === selectedId) ?? entries.at(-1);
 
@@ -126,16 +120,19 @@ function HistoryInstrument({history, error}: {history?: PlayerHistoryView; error
   return (
     <section className="player-history-section" aria-labelledby="player-history-heading">
       <header className="player-printed-head"><span>01 /</span><h2 id="player-history-heading">THE BUILDER RECORD</h2><small>SEQUENCE, NOT A PROGRESS SCORE</small></header>
-      <div className="player-record-grid">
-        <section className="player-history-display" aria-label="Chronological builder history">
+      <div className="player-record-grid faceplate-split">
+        <section className="player-history-display faceplate-display" aria-label="Chronological builder history">
           <header><div><small>CAREER THREAD / CANONICAL</small><h3>Build history<span aria-hidden="true">_</span></h3></div><b>{String(entries.length).padStart(2, '0')}<small>RECORDS</small></b></header>
           <div className="player-history-ruler"><span>OLDEST</span><span>→</span><span>NEWEST</span></div>
-          {error ? <ProjectionUnavailable label="HISTORY" error={error} /> : entries.length ? (
+          {error ? <ProjectionUnavailable label="HISTORY" error={error} /> : null}
+          {error && visibleHistory ? <p role="status">STALE HISTORY SNAPSHOT / Last received records.</p> : null}
+          {!visibleHistory ? error ? null : <div className="player-empty player-empty--dark" role="status"><strong>CONNECTING HISTORY</strong><p>Waiting for the builder record.</p></div> : entries.length ? (
             <ol className="player-history-list">
               {entries.map((entry, index) => (
                 <li key={entry.entry_id}>
                   <button
                     type="button"
+                    className="faceplate-record"
                     data-player-history-id={entry.entry_id}
                     aria-pressed={entry.entry_id === selected?.entry_id}
                     onClick={() => setSelectedId(entry.entry_id)}
@@ -153,7 +150,7 @@ function HistoryInstrument({history, error}: {history?: PlayerHistoryView; error
           ) : <div className="player-empty player-empty--dark"><strong>NO HISTORY RECORDED</strong><p>The canonical PLAYER history projection contains no records.</p></div>}
           <footer><span>↑ ↓ HOME END TO INSPECT</span><span>CLAIMED ≠ OBSERVED ≠ PROVEN</span></footer>
         </section>
-        <HistoryInspector entry={error ? undefined : selected} />
+        <HistoryInspector entry={denied ? undefined : selected} />
       </div>
     </section>
   );
@@ -180,7 +177,7 @@ function EarnedEvidence({reputation, error}: {reputation?: PlayerReputationView;
 }
 
 function Cheevo({cheevo}: {cheevo: CheevoView}) {
-  return <li><span className="player-cheevo-mark" aria-hidden="true">✳</span><div><small>CHEEVO / {cheevo.rule_version}</small><strong>{cheevo.label}</strong><p>{cheevo.description}</p><code>{cheevo.evidence.source_type}:{cheevo.evidence.source_id}</code></div><TruthLabel truth="PROVEN" /></li>;
+  return <li><span className="player-cheevo-mark" aria-hidden="true">↗</span><div><small>CHEEVO / {cheevo.rule_version}</small><strong>{cheevo.label}</strong><p>{cheevo.description}</p><code>{cheevo.evidence.source_type}:{cheevo.evidence.source_id}</code></div><TruthLabel truth="PROVEN" /></li>;
 }
 
 function PlayerProjection({me, profile, profileError, history, historyError, reputation, reputationError}: {
@@ -192,7 +189,7 @@ function PlayerProjection({me, profile, profileError, history, historyError, rep
   reputation?: PlayerReputationView;
   reputationError?: unknown;
 }) {
-  const identity = profile?.character_name?.trim() || me.display_name;
+  const identity = (!profileError && profile?.character_name?.trim()) || me.display_name;
   return (
     <TerminalShell
       mode="PLAYER"
@@ -210,8 +207,7 @@ function PlayerProjection({me, profile, profileError, history, historyError, rep
       className="player-live"
     >
       <section className="player-identity" aria-labelledby="player-identity-name">
-        <PlayerMascot />
-        <div className="player-identity-copy"><small>PLAYER / THE DURABLE RECORD</small><h2 id="player-identity-name">{identity}</h2><p>{profile?.bio ?? 'Builder identity. History and evidence remain separate from self-description.'}</p></div>
+        <div className="player-identity-copy"><small>PLAYER / THE DURABLE RECORD</small><h2 id="player-identity-name">{identity}</h2><p>{(!profileError && profile?.bio) || 'Builder identity. History and evidence remain separate from self-description.'}</p></div>
         <div className="player-capabilities">
           {profileError ? <ProjectionUnavailable label="PROFILE" error={profileError} /> : <><div><small>CAN HELP WITH</small><strong>{profile?.can_help_with.join(' / ') || 'UNDECLARED'}</strong></div><div><small>SKILLS NEEDED</small><strong>{profile?.skills_needed.join(' / ') || 'NONE DECLARED'}</strong></div>{profile?.character_archetype ? <div><small>ARCHETYPE</small><strong>{profile.character_archetype}</strong></div> : null}</>}
         </div>
@@ -234,7 +230,7 @@ export default function LivePlayer({client = createInkubatorApiClient(), refetch
   }
 
   if (meQuery.isError || !meQuery.data) {
-    return <TerminalShell mode="PLAYER" kicker="REKT INK(CUBATOR) // LIVE PLAYER" title="Builder history." description="Canonical player identity unavailable." workspaceClassName="player-loading player-loading--error" className="player-live" role="alert"><div><small>PLAYER RECORD</small><h2>PLAYER LINK UNAVAILABLE</h2><p>{errorMessage(meQuery.error, 'player_projection_unavailable')}</p><p>No development fixture fallback is permitted.</p></div></TerminalShell>;
+    return <TerminalShell mode="PLAYER" kicker="REKT INK(CUBATOR) // LIVE PLAYER" title="Builder history." description="Canonical player identity unavailable." workspaceClassName="player-loading player-loading--error" className="player-live"><div role="alert"><small>PLAYER RECORD</small><h2>PLAYER LINK UNAVAILABLE</h2><p>{errorMessage(meQuery.error, 'player_projection_unavailable')}</p><p>No development fixture fallback is permitted.</p></div></TerminalShell>;
   }
 
   return <PlayerProjection me={meQuery.data} profile={profileQuery.data} profileError={profileQuery.error} history={historyQuery.data} historyError={historyQuery.error} reputation={reputationQuery.data} reputationError={reputationQuery.error} />;

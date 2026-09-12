@@ -694,6 +694,48 @@ export interface DevkitHelpBeaconList {
   beacons: HelpBeaconView[];
 }
 
+export interface GitHubRepositoryChoice {
+  repository_id: string;
+  full_name: string;
+  private: boolean;
+}
+
+export type GitHubRepositoryChoices = GitHubRepositoryChoice[];
+
+export interface ConnectionContext {
+  schema_version: "player.connection_context.private.v1";
+  player: ConnectionContextPlayer;
+  github: ConnectionContextGithub;
+  states: ConnectionContextStates;
+  source: ConnectionContextSource;
+}
+
+export interface ConnectionContextPlayer {
+  player_id: PlayerId;
+  display_name: string;
+}
+
+export interface ConnectionContextGithub {
+  user_id: string | null;
+  login: string | null;
+}
+
+export interface ConnectionContextStates {
+  signed_in: "SIGNED_IN";
+  app_access: "GRANTED" | "NOT_GRANTED" | "REVOKED";
+  repository_authorized: "AUTHORIZED" | "NOT_AUTHORIZED" | "REVOKED";
+  project_linked: "LINKED" | "NOT_LINKED" | "ACCESS_REVOKED";
+  observing: "OBSERVING" | "NOT_OBSERVING" | "UNAVAILABLE";
+}
+
+export interface ConnectionContextSource {
+  repository_id: string | null;
+  repository_full_name: string | null;
+  visibility: "NONE" | "PUBLIC" | "PRIVATE";
+  availability: "NONE" | "AVAILABLE" | "REVOKED";
+  last_observed_at: string | null;
+}
+
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export class InkubatorApiError extends Error {
@@ -738,6 +780,10 @@ export class InkubatorApiClient {
 
   getMe(): Promise<PrivatePlayer> {
     return this.request<PrivatePlayer>("/v1/me", {method: 'GET'});
+  }
+
+  getMyConnectionContext(): Promise<ConnectionContext> {
+    return this.request<ConnectionContext>("/v1/me/connection", {method: 'GET'});
   }
 
   getMyProfile(): Promise<PlayerProfileView> {
@@ -818,6 +864,10 @@ export class InkubatorApiClient {
 
   createGitHubInstall(): Promise<GitHubInstallView> {
     return this.request<GitHubInstallView>("/v1/github/install", {method: 'POST'});
+  }
+
+  listGitHubRepositories(): Promise<GitHubRepositoryChoices> {
+    return this.request<GitHubRepositoryChoices>("/v1/github/repositories", {method: 'GET'});
   }
 
   discoverPlayers(): Promise<PublicPlayerList> {

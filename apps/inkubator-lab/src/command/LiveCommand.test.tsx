@@ -1,10 +1,14 @@
-import {cleanup, render, screen, waitFor} from '@testing-library/react';
+import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import type {CommandView} from '../generated/inkubator-api-client';
-import LiveCommand from './LiveCommand';
+import {INKUBATOR_VIEW_MODE_KEY, ViewModeProvider} from '../shell/ViewMode';
+import LiveCommand, {commandCue, commandPrimaryAction} from './LiveCommand';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+});
 
 function commandView(overrides: Partial<CommandView> = {}): CommandView {
   return {
@@ -65,18 +69,43 @@ function commandView(overrides: Partial<CommandView> = {}): CommandView {
   };
 }
 
-function renderCommand(client: {getMyCommand: () => Promise<CommandView>}, queryClient = new QueryClient({
-  defaultOptions: {queries: {retry: false}},
-})) {
+function renderCommand(
+  client: {getMyCommand: () => Promise<CommandView>},
+  queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}}),
+  uiMode: 'LITE' | 'ADVANCED' = 'ADVANCED',
+) {
   const result = render(
     <QueryClientProvider client={queryClient}>
-      <LiveCommand client={client} refetchIntervalMs={false} />
+      <ViewModeProvider initialMode={uiMode}>
+        <LiveCommand client={client} refetchIntervalMs={false} />
+      </ViewModeProvider>
     </QueryClientProvider>,
   );
   return {...result, queryClient};
 }
 
 describe('Live Command', () => {
+  it('renders Lite as a bounded projection of the same canonical CommandView', async () => {
+    const client = {getMyCommand: vi.fn().mockResolvedValue(commandView())};
+    const {container} = renderCommand(client, undefined, 'LITE');
+
+    expect(await screen.findByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeTruthy();
+    expect(screen.getByRole('region', {name: 'Lite Mission command'})).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'Make the thing real.'})).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'COPY NEXT MOVE'})).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'UPDATE WORK'})).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'GET HELP'})).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'REQUEST TEST'})).toBeTruthy();
+    expect(screen.getByText('MORE CONTROLS')).toBeTruthy();
+    expect(container.querySelector('.command-lite')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Living Thread mission instrument"]')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', {name: 'ADVANCED'}));
+    expect(container.querySelector('[aria-label="Living Thread mission instrument"]')).toBeTruthy();
+    expect(window.localStorage.getItem(INKUBATOR_VIEW_MODE_KEY)).toBe('ADVANCED');
+  });
+
   it('renders canonical CommandView as one Living Thread instead of a sector dashboard', async () => {
     const client = {getMyCommand: vi.fn().mockResolvedValue(commandView())};
     const {container} = renderCommand(client);
@@ -84,13 +113,15 @@ describe('Live Command', () => {
     expect(await screen.findByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeTruthy();
     expect(screen.getByRole('heading', {name: 'Make the thing real.'})).toBeTruthy();
     expect(screen.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeTruthy();
-    expect(screen.getByText('PRIVATE')).toBeTruthy();
+    expect(screen.getByText('GITHUB / PRIVATE')).toBeTruthy();
     expect(screen.getByText('ADVISORY ONLY')).toBeTruthy();
     expect(screen.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeTruthy();
     expect(container.querySelector('[aria-label="Living Thread mission instrument"]')).toBeTruthy();
     expect(container.querySelector('.command-sector')).toBeNull();
     expect(container.querySelector('.command-ratchet')).toBeNull();
-    expect(container.querySelector('[data-renderer="pixi"]')?.getAttribute('data-renderer-lifecycle')).toBe('retained');
+    expect(container.querySelector('[data-renderer="pixi"]')).toBeNull();
+    expect(container.querySelector('[data-motion-contract="v1"]')?.getAttribute('data-frame')).toBe('4');
+    expect(container.querySelector('.command-primary-action')).toBeNull();
     expect(container.querySelectorAll('.command-thread-gates [data-truth="proven"]')).toHaveLength(1);
     expect(screen.queryByText(/development fixture/i)).toBeNull();
   });
@@ -108,10 +139,33 @@ describe('Live Command', () => {
     await queryClient.refetchQueries({queryKey: ['inkubator', 'command', 'me']});
 
     await waitFor(() => expect(container.querySelector('.command-live')?.getAttribute('data-event-sequence')).toBe('1'));
-    expect(screen.getByText(/EVENT \/\/ GATE:QUALITY_TESTING → BLOCKER → MISSION/i)).toBeTruthy();
+    expect(screen.getByText(/CHANGE \/\/ GATE:QUALITY_TESTING → BLOCKER → MISSION/i)).toBeTruthy();
     expect(screen.getByText('Verifier is red.')).toBeTruthy();
     expect(container.querySelector('.command-thread-break')).toBeTruthy();
     expect(container.querySelector('[data-delta="GATE:QUALITY_TESTING"]')?.getAttribute('data-truth')).toBe('blocked');
+  });
+
+  it('preserves the last known projection and settles motion after a channel error', async () => {
+    const client = {getMyCommand: vi.fn().mockResolvedValueOnce(commandView()).mockRejectedValue(new Error('network_unavailable'))};
+    const {container, queryClient} = renderCommand(client);
+    await screen.findByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'});
+    await queryClient.refetchQueries({queryKey: ['inkubator', 'command', 'me']});
+    expect((await screen.findByRole('alert')).textContent).toContain('Last known state retained');
+    expect(screen.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeTruthy();
+    expect(container.querySelector('[data-cue="UNAVAILABLE"]')?.getAttribute('data-frame')).toBe('4');
+    expect(screen.queryByRole('region', {name: 'Mission work controls'})).toBeNull();
+  });
+
+  it('routes the one primary move to Ship only when canonical mission state determines it', async () => {
+    const first = commandView();
+    renderCommand({getMyCommand: vi.fn().mockResolvedValue({...first, mission: {...first.mission, state: 'SHIP_READY'}})});
+    expect(await screen.findByRole('link', {name: 'OPEN SHIP →'})).toBeTruthy();
+  });
+
+  it('does not infer a competing action from source or blocker context', () => {
+    const base = commandView();
+    expect(commandPrimaryAction({...base, project: {...base.project, source_connected: false}})).toBeNull();
+    expect(commandPrimaryAction({...base, mission: {...base.mission, blocker: 'Need a tester.'}})).toBeNull();
   });
 
   it('fails closed when the canonical command endpoint is unavailable', async () => {
@@ -121,5 +175,24 @@ describe('Live Command', () => {
     expect(await screen.findByRole('heading', {name: 'COMMAND LINK UNAVAILABLE'}, {timeout: 3000})).toBeTruthy();
     expect(screen.getByText('session_required')).toBeTruthy();
     expect(screen.getByText(/No development fixture fallback is permitted/i)).toBeTruthy();
+  });
+});
+
+describe('commandCue event mapping', () => {
+  it('maps core canonical events to cues keyed by canonical values', () => {
+    const base = commandView();
+    expect(commandCue(commandView({github_evidence: {...base.github_evidence, signal_state: 'STALE'}}), [])).toEqual({cue: 'STALE'});
+    expect(commandCue(commandView({github_evidence: {...base.github_evidence, source_state: 'UNAVAILABLE'}}), [])).toEqual({cue: 'UNAVAILABLE'});
+    expect(commandCue(commandView({...base, mission: {...base.mission, blocker: 'Verifier is red.'}}), [])).toEqual({cue: 'MISSION_BLOCKED', eventId: 'M-001:Verifier is red.'});
+    expect(commandCue(base, [{kind: 'NEXT_MOVE'}])).toEqual({cue: 'NEXT_MOVE_CHANGED', eventId: 'M-001:CONNECT THE LIVE COMMAND BUS'});
+    expect(commandCue(base, [])).toEqual({cue: 'SOURCE_RX', eventId: 'OBS-001'});
+  });
+
+  it('maps a connected source to SOURCE_LINK and a disconnected source to no event at all', () => {
+    const base = commandView();
+    const quiet = commandView({github_evidence: {...base.github_evidence, signal_state: 'ACTIVE'}});
+    expect(commandCue(quiet, [])).toEqual({cue: 'SOURCE_LINK', eventId: 'P-001'});
+    const disconnected = commandView({...quiet, project: {...quiet.project, source_connected: false}});
+    expect(commandCue(disconnected, [])).toEqual({cue: 'SOURCE_LINK'});
   });
 });
