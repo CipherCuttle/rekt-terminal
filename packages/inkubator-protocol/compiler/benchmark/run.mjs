@@ -4,6 +4,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {
   buildCompilerInterpretationPrompt,
+  buildCompilerInterpretationResponseFormat,
   COMPILER_INTERPRETATION_SYSTEM_PROMPT,
   createOpenAICompatibleInterpreter,
   estimateRunCostUsd,
@@ -50,15 +51,19 @@ function routingCeilings(provider) {
   fail(Number.isFinite(completion) && completion >= 0, `BUDGET_CONFIG: ${provider.name} requires provider max_price.completion`);
   return {prompt, completion};
 }
-function requestInputTokenUpperBound(sourceIntent) {
-  // A token cannot encode fewer than one UTF-8 byte. Add generous chat-framing headroom.
-  const contentBytes = Buffer.byteLength(COMPILER_INTERPRETATION_SYSTEM_PROMPT, 'utf8')
+function requestInputTokenUpperBound(sourceIntent, provider) {
+  // A token cannot encode fewer than one UTF-8 byte. Count prompt plus strict response schema when used,
+  // then add generous chat-framing headroom. This intentionally over-reserves the paid smoke budget.
+  let contentBytes = Buffer.byteLength(COMPILER_INTERPRETATION_SYSTEM_PROMPT, 'utf8')
     + Buffer.byteLength(buildCompilerInterpretationPrompt(sourceIntent), 'utf8');
+  if ((provider.structured_output ?? 'json_object') === 'json_schema') {
+    contentBytes += Buffer.byteLength(JSON.stringify(buildCompilerInterpretationResponseFormat(sourceIntent)), 'utf8');
+  }
   return contentBytes + 1024;
 }
 function reservedCallCostUsd(task, provider, maxTokens) {
   const ceilings = routingCeilings(provider);
-  return ((requestInputTokenUpperBound(task.input) * ceilings.prompt) + (maxTokens * ceilings.completion)) / 1_000_000;
+  return ((requestInputTokenUpperBound(task.input, provider) * ceilings.prompt) + (maxTokens * ceilings.completion)) / 1_000_000;
 }
 function estimateAtRoutingCeiling(run, provider) {
   const ceilings = routingCeilings(provider);
