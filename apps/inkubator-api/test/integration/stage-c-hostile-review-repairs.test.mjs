@@ -58,6 +58,8 @@ function createInput(organizer, contract, overrides = {}) {
     requestId: randomUUID(),
     challengeId: contract.challenge_id,
     organizerPlayerId: organizer,
+    organizerPayoutIdentity: `organizer-pay-${contract.challenge_id}`,
+    funderPayoutIdentity: `funder-pay-${contract.challenge_id}`,
     mechanismVersion: contract.mechanism_version,
     settlementPolicyVersion: contract.settlement_policy_version,
     ipTermsVersion: contract.ip_terms_version,
@@ -76,11 +78,18 @@ async function preparedChallenge(db, overrides = {}) {
   const organizer = await player(db, 'organizer');
   const challengeId = randomUUID();
   const contract = contractFor(challengeId, overrides);
-  await challengeStore.createChallenge(db, createInput(organizer, contract));
+  const create = createInput(organizer, contract);
+  await challengeStore.createChallenge(db, create);
   await challengeStore.persistFrozenBuildContract(db, {
     requestId: randomUUID(), actorPlayerId: organizer, challengeId, contract,
   });
-  return {organizer, challengeId, contract};
+  return {
+    organizer,
+    organizerPayoutIdentity: create.organizerPayoutIdentity,
+    funderPayoutIdentity: create.funderPayoutIdentity,
+    challengeId,
+    contract,
+  };
 }
 
 async function seatedBuilder(db, fixture) {
@@ -291,7 +300,7 @@ test('Stage C persists only protocol-validated authoritative decision shapes and
   }
 });
 
-test('Stage C migration 022 round-trips persisted qualification vocabulary safely', async () => {
+test('Stage C migration 022 round-trips persisted qualification and payout authority safely', async () => {
   const db = createDatabase(databaseUrl);
   await migrateToLatest(db);
   try {
@@ -329,6 +338,12 @@ test('Stage C migration 022 round-trips persisted qualification vocabulary safel
     const up = await db.selectFrom('challenge_qualifications').select(['result', 'qualification_json']).where('qualification_id', '=', qualificationId).executeTakeFirstOrThrow();
     assert.equal(up.result, 'QUALIFIED');
     assert.equal(up.qualification_json.overall, 'QUALIFIED');
+    const payouts = await sql`
+      select organizer_payout_identity, funder_payout_identity
+      from challenges where challenge_id = ${fixture.challengeId}
+    `.execute(db);
+    assert.equal(payouts.rows[0].organizer_payout_identity, fixture.organizerPayoutIdentity);
+    assert.equal(payouts.rows[0].funder_payout_identity, fixture.funderPayoutIdentity);
   } finally {
     await db.destroy();
   }
