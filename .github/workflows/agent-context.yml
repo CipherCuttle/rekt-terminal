@@ -92,7 +92,7 @@ jobs:
 
           source_dir="$GITHUB_WORKSPACE/source"
           policy_dir="$GITHUB_WORKSPACE/policy"
-          context_dir="$source_dir/agent-context"
+          context_dir="$RUNNER_TEMP/agent-context"
           config="$policy_dir/repomix.config.json"
 
           test -f "$config"
@@ -107,7 +107,11 @@ jobs:
           token_budget="$(jq -r '.output.tokenBudget' "$config")"
           tool="$RUNNER_TEMP/dev-spine-repomix/node_modules/.bin/repomix"
 
-          mkdir -p "$context_dir"
+          # Generated artifacts live outside both checkouts. Recreate the directory
+          # so SOURCE_SHA cannot pre-seed files/symlinks that later get uploaded.
+          rm -rf -- "$context_dir"
+          mkdir -m 0700 -p "$context_dir"
+
           cd "$source_dir"
           git ls-files | LC_ALL=C sort > "$context_dir/structure.txt"
 
@@ -260,10 +264,29 @@ jobs:
               }
             }' > "$context_dir/metadata.json"
 
+          # Enforce the exact artifact shape before upload. No symlinks, nested files,
+          # or source-owned extras are allowed to cross the boundary.
+          if find "$context_dir" -mindepth 1 -type l -print -quit | grep -q .; then
+            echo "refusing context artifact containing symlinks" >&2
+            exit 1
+          fi
+          expected_files="$(printf '%s\n' authority.xml inkubator-runtime.xml metadata.json structure.txt terminal-runtime.xml | LC_ALL=C sort)"
+          actual_files="$(find "$context_dir" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)"
+          if [ "$actual_files" != "$expected_files" ]; then
+            echo "unexpected context artifact contents" >&2
+            printf 'expected:\n%s\nactual:\n%s\n' "$expected_files" "$actual_files" >&2
+            exit 1
+          fi
+
       - name: Upload short-lived context artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dev-spine-context-${{ env.SOURCE_SHA }}
-          path: source/agent-context/
+          path: |
+            ${{ runner.temp }}/agent-context/metadata.json
+            ${{ runner.temp }}/agent-context/authority.xml
+            ${{ runner.temp }}/agent-context/terminal-runtime.xml
+            ${{ runner.temp }}/agent-context/inkubator-runtime.xml
+            ${{ runner.temp }}/agent-context/structure.txt
           if-no-files-found: error
           retention-days: 3
