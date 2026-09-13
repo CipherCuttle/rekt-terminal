@@ -13,7 +13,7 @@ export interface Criterion { id: string; description: string; mandatory: boolean
 export interface CriteriaContainer { criteria?: Criterion[]; [key: string]: unknown }
 export interface NormativeReference { id: string; kind: string; content_digest: string; source_url?: string }
 export interface KnowledgeItem { kind: 'KNOWN' | 'ASSUMED' | 'UNKNOWN'; key: string; material: boolean; value?: unknown }
-export interface BuildContract {
+export interface BuildContract extends Record<string, unknown> {
   schema_version: string; challenge_id: string; contract_version: string; mechanism_version: string;
   settlement_policy_version: string; ip_terms_version: string; title: string; brief: string;
   outcome_contract: CriteriaContainer; production_envelope: CriteriaContainer; delivery_contract: CriteriaContainer;
