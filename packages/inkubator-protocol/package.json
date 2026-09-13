@@ -23,7 +23,7 @@
     "./server": "./src/index.mjs",
     "./challenge": {
       "types": "./src/challenge.d.ts",
-      "import": "./src/challenge.mjs"
+      "import": "./src/challenge-hardened.mjs"
     },
     "./schema/*": "./schema/*"
   },
