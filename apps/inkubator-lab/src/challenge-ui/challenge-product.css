@@ -117,9 +117,9 @@
 .challenge-nav button:hover,
 .challenge-nav button[aria-current="page"] { background: rgba(170, 92, 255, 0.1); }
 .challenge-nav button[aria-current="page"] { box-shadow: inset 2px 0 #ad6bff; }
-.challenge-nav button > span { grid-row: 1 / span 2; font-size: 0.68rem; opacity: 0.45; }
+.challenge-nav button > span { grid-row: 1 / span 2; font-size: 0.68rem; opacity: 0.66; }
 .challenge-nav button b { font-size: 0.75rem; letter-spacing: 0.045em; }
-.challenge-nav button small { margin-top: 0.18rem; font-size: 0.6rem; opacity: 0.42; }
+.challenge-nav button small { margin-top: 0.18rem; font-size: 0.6rem; opacity: 0.66; }
 
 .challenge-nav__imprint { margin-top: 2.5rem; padding: 0.8rem 0.7rem; opacity: 0.36; }
 .challenge-nav__imprint > span { display: block; width: 2rem; height: 1px; background: currentColor; }
@@ -152,7 +152,7 @@
 .challenge-state[data-surface-state="unauthorized"] { border-style: double; }
 .challenge-state h2 { margin: 1rem 0 0.75rem; max-width: 24ch; font-size: clamp(1.6rem, 3vw, 2.7rem); letter-spacing: -0.035em; }
 .challenge-state__body { max-width: 52rem; line-height: 1.6; color: rgba(243, 239, 248, 0.74); }
-.challenge-state__foot { font-size: 0.72rem; letter-spacing: 0.08em; opacity: 0.58; }
+.challenge-state__foot { font-size: 0.72rem; letter-spacing: 0.08em; color: rgba(243, 239, 248, 0.72); opacity: 1; }
 .challenge-state code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 .compiler-foundation { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(18rem, 0.88fr); gap: 1rem; }
