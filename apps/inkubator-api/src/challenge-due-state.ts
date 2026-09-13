@@ -344,7 +344,7 @@ export async function handleChallengeDueStateJob(db: Kysely<DatabaseSchema>, job
     }
     transitionChallenge(
       {challenge_id: challenge.challenge_id, status: 'APPEAL_WINDOW', contract, appeal_opened_at: challenge.appeal_opened_at!.getTime()},
-      'FINAL_QUALIFIERS', {now: databaseNow.getTime(), appealsResolved: true},
+      'FINAL_QUALIFIERS', {now: databaseNow.getTime(), appealsResolved: true, finalQualifierIds: effective.qualifierIds},
     );
     await persistDerivedFinalQualifiers(transaction, challenge, effective.qualifierIds, databaseNow);
     const finalized = await sql<{challenge_id: string}>`
@@ -356,7 +356,7 @@ export async function handleChallengeDueStateJob(db: Kysely<DatabaseSchema>, job
 
     if (effective.qualifierIds.length > 0) {
       transitionChallenge(
-        {challenge_id: challenge.challenge_id, status: 'FINAL_QUALIFIERS', contract},
+        {challenge_id: challenge.challenge_id, status: 'FINAL_QUALIFIERS', contract, final_qualifier_ids: effective.qualifierIds},
         'SELECTION', {finalQualifierIds: effective.qualifierIds},
       );
       const selection = await sql<{challenge_id: string}>`
