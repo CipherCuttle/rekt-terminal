@@ -1,7 +1,7 @@
 # REKT INKUBATOR — CURRENT STATE MIGRATION MAP V1
 
-**Status:** PLANNING MAP / NOT IMPLEMENTATION AUTHORITY  
-**Date:** 2026-09-13  
+**Status:** LOCKED MIGRATION MAP / STAGE-E FRONTEND DECISION RESOLVED  
+**Date:** 2026-09-14  
 **Parent:** `REKT_INKUBATOR_NORTH_STAR_V2.md`
 
 Purpose: stop two expensive mistakes during the product reset:
@@ -15,7 +15,7 @@ Classification:
 PRESERVE  = keep semantics/boundary; reuse directly where possible
 ADAPT     = reuse implementation/substrate behind new Challenge product
 PARK      = keep code/history but remove from forward launch path
-DECIDE    = explicit later design/architecture decision required
+PROMOTE   = existing runtime becomes the forward product root through refactor
 NEVER MIX = distinct product boundary; no Inkubator coupling
 ```
 
@@ -77,29 +77,37 @@ Do not:
 
 ### `apps/inkubator-lab`
 
-**Classification:** `ADAPT / LAB ONLY`
+**Classification:** `PROMOTE + REFACTOR / STAGE-E FRONTEND ROOT`
 
-Reuse for:
+Stage-E decision: this existing runtime is the canonical forward Inkubator frontend.
 
+Promote/refactor for:
+
+- Discover;
+- Compiler / Create;
+- Challenge;
+- My Build;
+- Review / Test Arena shell;
+- Receipt / History;
+- Operator Exceptions;
 - Technical Faceplate calibration;
-- Challenge Compiler states;
-- Challenge page composition;
-- Test Arena visual experiments;
-- desktop/mobile/reduced-motion calibration;
+- desktop/mobile/reduced-motion verification;
 - Storybook/visual/interaction proofs.
 
-It is not automatically production truth or final IA.
+Rules:
+
+- the historical `WORLD / COMMAND / PROJECT / PLAYER / SHIP` shell is parked from forward navigation and may remain only behind explicit lab/legacy access;
+- existing auth/session, generated API client, React Query, Playwright, Storybook, Lighthouse and visual-calibration substrate should be reused rather than duplicated;
+- missing Challenge-first transport renders explicitly unavailable; parked legacy routes are not substituted;
+- promoting the runtime does not promote obsolete public nouns or mutable legacy authority.
 
 ### dedicated production Inkubator frontend
 
-**Classification:** `DECIDE BEFORE STAGE E`
+**Classification:** `DECIDED — DO NOT CREATE FOR STAGE E`
 
-Current product-boundary docs identify `apps/inkubator-lab` as Inkubator frontend runtime. The new North Star requires an explicit decision before Stage E whether to:
+The Stage-E frontend-root decision is to promote/refactor `apps/inkubator-lab`, which is already the machine-enforced `rekt-inkubator` frontend/deployment root in `docs/PRODUCT_BOUNDARIES_V1.md` and `config/product-boundaries.json`.
 
-- promote/refactor the existing Inkubator frontend runtime into production Challenge UI; or
-- create a dedicated production frontend such as `apps/inkubator-web` and amend `docs/PRODUCT_BOUNDARIES_V1.md` + machine-readable product-boundary config accordingly.
-
-Do not create a new frontend app silently. Do not reuse Terminal `apps/web`.
+Do not create `apps/inkubator-web` unless later implementation evidence proves the promoted runtime cannot safely satisfy the product boundary. Do not reuse Terminal `apps/web`.
 
 ## 3. Protocol/packages
 
@@ -107,7 +115,7 @@ Do not create a new frontend app silently. Do not reuse Terminal `apps/web`.
 
 **Classification:** `PRESERVE + EXTEND`
 
-This is the canonical home for Stage B.
+This is the canonical home for Stage B and the pure Stage-D Compiler.
 
 Preserve:
 
@@ -115,14 +123,12 @@ Preserve:
 - AJV/schema validation lineage;
 - canonical schemas already used by Inkubator;
 - deterministic/canonical serialization patterns where valid;
-- Node test-runner simplicity.
+- Node test-runner simplicity;
+- deterministic `CompilerState` / blueprint / Build Contract candidate semantics.
 
-Extend additively with the contract in:
+Extend only under the relevant stage contracts.
 
-- `STAGE_B_BUILD_CONTRACT_PROTOCOL_V1.md`;
-- `STAGE_B_PROPERTY_TEST_MATRIX_V1.md`.
-
-Do not create a parallel `challenge-protocol` package unless implementation evidence proves this package cannot safely own the new domain.
+Do not create a parallel `challenge-protocol` or frontend-local compiler semantics.
 
 ### `packages/cli`
 
@@ -263,9 +269,9 @@ Apply to new Challenge/Compiler surfaces. Do not merely reskin obsolete IA.
 
 **Classification:** `PARK AS IA / REUSE COMPONENTS`
 
-Useful design/component/runtime evidence, but not automatic Alpha navigation.
+Useful design/component/runtime evidence, but not Alpha navigation.
 
-Alpha IA target remains:
+Alpha IA is locked by `STAGE_E_CHALLENGE_UI_V1.md`:
 
 ```text
 Discover
@@ -340,7 +346,8 @@ Stop/review if implementation attempts to:
 - add a second canonical database;
 - split every Challenge function into services;
 - delete old data/code simply because public product nouns changed;
-- preserve old top-level navigation solely because it was expensive to build.
+- preserve old top-level navigation solely because it was expensive to build;
+- create a second Inkubator frontend without new evidence that invalidates the Stage-E promotion decision.
 
 ## 12. Verdict
 
@@ -348,12 +355,13 @@ Stop/review if implementation attempts to:
 TERMINAL                       NEVER MIX
 INKUBATOR API                  PRESERVE + MODULARLY ADAPT
 VERIFIER                       PRESERVE ISOLATED
-INKUBATOR LAB                  ADAPT AS DESIGN LAB
-PRODUCTION FRONTEND            DECIDE BEFORE STAGE E
-INKUBATOR PROTOCOL             PRESERVE + EXTEND IN STAGE B
+INKUBATOR FRONTEND ROOT        apps/inkubator-lab / PROMOTE+REFACTOR
+SECOND INKUBATOR FRONTEND      DO NOT CREATE IN STAGE E
+INKUBATOR PROTOCOL             PRESERVE + EXTEND UNDER STAGE CONTRACTS
 CLI / SDK / MCP                ADAPT, DO NOT DUPLICATE
 PLAYER / PROJECT               PRESERVE AS SUBSTRATE
 MISSION / WORLD / SOCIAL       PARK FROM ALPHA AUTHORITY
+OLD FIVE-SURFACE IA            PARK FROM FORWARD PRODUCT
 HELP / ASSIST                  PARK AS LATER CARTRIDGES
 EVIDENCE / HISTORY             PRESERVE
 SHIP / RECEIPT                 PRESERVE + ADAPT
