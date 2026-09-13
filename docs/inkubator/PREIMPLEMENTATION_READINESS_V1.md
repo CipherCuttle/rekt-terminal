@@ -1,21 +1,17 @@
 # REKT INKUBATOR — PREIMPLEMENTATION READINESS V1
 
-**Status:** PLANNING GATE / NOT IMPLEMENTATION AUTHORITY  
+**Status:** PLANNING GATE / STAGE B READY WHEN IMPLEMENTATION IS EXPLICITLY AUTHORIZED  
 **Date:** 2026-09-13  
 **Parent:** `REKT_INKUBATOR_NORTH_STAR_V2.md`
 
-This document exists to prevent two opposite failures:
+This document prevents two opposite failures:
 
 1. starting implementation while core contracts are still ambiguous;
-2. continuing to produce planning documents after the next bounded implementation step is already clear.
+2. continuing to produce planning documents after the next bounded implementation step is clear.
 
-The rule is simple:
-
-> **Plan until the next stage has an executable contract, then build it. Do not plan the entire North Star in implementation-level detail before Stage B exists.**
+> **Plan until the next stage has an executable contract, then build it. Do not plan the entire North Star in implementation-level detail before the current stage exists.**
 
 ## 1. Current repo mapping
-
-The current repository already provides the intended homes for much of the next work.
 
 ### Canonical protocol
 
@@ -31,7 +27,7 @@ packages/inkubator-protocol/
   test/
 ```
 
-Stage B should extend this package additively with Challenge / Build Contract schemas and pure state logic rather than inventing a second protocol package.
+Stage B extends this package additively with Challenge / Build Contract schemas and pure state logic rather than creating a second protocol package.
 
 ### Product backend
 
@@ -41,9 +37,9 @@ Existing:
 apps/inkubator-api/
 ```
 
-It already contains auth/authorization, database, contracts, GitHub integration, jobs/outbox and current product routes. Stage C should add a bounded Challenge domain module rather than place more unrelated logic into the large existing `app.ts` / `contract.ts` files.
+It already contains auth/authorization, database, contracts, GitHub integration and jobs/outbox. Stage C should add a bounded Challenge domain module rather than put more unrelated logic into the already-large `app.ts` / `contract.ts` files.
 
-Target shape should be modular within the same deployable API, for example:
+Conceptual modular shape inside the same deployable API:
 
 ```text
 apps/inkubator-api/src/challenge/
@@ -58,27 +54,15 @@ Exact filenames remain implementation decisions.
 
 ### Verifier
 
-Existing:
-
-```text
-apps/inkubator-verifier/
-```
-
-Retain as an isolated trust boundary. Do not fold hostile URL/network verification back into the API for deployment simplicity.
+Existing `apps/inkubator-verifier/` remains an isolated trust boundary. Do not fold hostile URL/network verification into the product API merely for deployment simplicity.
 
 ### Design lab
 
-Existing:
-
-```text
-apps/inkubator-lab/
-```
-
-Use for Compiler/Challenge/Test-Arena visual calibration and states, not as production truth.
+Existing `apps/inkubator-lab/` is for Compiler/Challenge/Test-Arena visual calibration and states, not production truth.
 
 ### Production frontend
 
-There is currently no dedicated `apps/inkubator-web` directory in this planning branch. Before Stage E implementation, explicitly decide whether to create a dedicated Challenge frontend app or promote an existing authenticated Inkubator surface. Do not accidentally mix the trading terminal `apps/web` product with Inkubator merely because it already exists.
+There is currently no dedicated `apps/inkubator-web` directory on this planning branch. Before Stage E, explicitly decide whether to create a dedicated Challenge frontend app or promote a suitable authenticated Inkubator surface. Do not mix the trading-terminal `apps/web` product into Inkubator by accident.
 
 ### Builder tooling
 
@@ -90,74 +74,41 @@ packages/sdk
 packages/mcp
 ```
 
-Stage F should extend these rather than create parallel Challenge-specific client stacks.
+Stage F evolves these rather than creating parallel Challenge-specific client stacks.
 
-## 2. Planning gates before Stage B code
+## 2. Stage-B planning gates — CLOSED
 
-Only the following must be resolved before protocol implementation begins.
+### B-GATE-1 — canonical nouns/state set
 
-### B-GATE-1 — canonical Challenge noun/state set
-
-Freeze the minimal pure-domain concepts:
-
-```text
-Challenge
-ChallengeEntry
-BuildContract
-OutcomeContract
-ProductionEnvelope
-DeliveryContract
-Preference
-NormativeReference
-SubmissionManifest
-Qualification
-Selection
-Receipt
-```
-
-Avoid importing every historical Mission/Ship noun into the new public contract.
+**CLOSED by:** `STAGE_B_BUILD_CONTRACT_PROTOCOL_V1.md`
 
 ### B-GATE-2 — lifecycle + invariant table
 
-For every state transition specify:
-
-- legal previous state;
-- actor/authority;
-- required facts;
-- authoritative timestamp source;
-- resulting immutable facts;
-- idempotency identity;
-- illegal/rejected cases.
+**CLOSED by:** `STAGE_B_BUILD_CONTRACT_PROTOCOL_V1.md`
 
 ### B-GATE-3 — versioning/digest law
 
-Freeze what contributes to:
+**CLOSED by:** `STAGE_B_BUILD_CONTRACT_PROTOCOL_V1.md`
 
-- `mechanism_version`;
-- Build Contract digest;
-- normative reference digests;
-- submission digest;
-- receipt/correction lineage.
+### B-GATE-4 — explicit Stage-B acceptance/property suite
 
-### B-GATE-4 — explicit Stage-B acceptance suite
+**CLOSED by:** `STAGE_B_PROPERTY_TEST_MATRIX_V1.md`
 
-Before coding, write the exact properties/tests Stage B must pass. Examples:
+### Stage-B readiness verdict
 
-- terms cannot mutate after freeze;
-- illegal transitions reject;
-- preference never changes qualification;
-- new mechanism version does not reinterpret old Challenge;
-- no IP-transfer fact before successful settlement fact when money is eventually used;
-- submission identity is immutable;
-- receipt correction appends rather than overwrites.
+```text
+B-GATE-1 CANONICAL NOUNS / STATES       CLOSED
+B-GATE-2 LIFECYCLE / INVARIANTS         CLOSED
+B-GATE-3 VERSION / DIGEST LAW            CLOSED
+B-GATE-4 PROPERTY-TEST MATRIX            CLOSED
+IMPLEMENTATION AUTHORITY                 NONE
+```
 
-**When B-GATE-1..4 are satisfied, stop planning Stage B and implement it.**
+Therefore additional broad planning is **not a prerequisite** for Stage B. Once the user explicitly authorizes implementation, the next bounded work is the pure Challenge / Build Contract protocol inside `packages/inkubator-protocol` and nothing broader.
 
 ## 3. Planning gates before Compiler Stage D
 
-Do not fully design these before Stage B unless doing so changes the Stage-B protocol.
-
-Required before Stage D:
+These do not block Stage B.
 
 ### D-GATE-1 — CompilerState schema
 
@@ -169,40 +120,19 @@ Define one blueprint schema before authoring the initial ~5 families.
 
 ### D-GATE-3 — causal rule format
 
-Define how requirement changes create consequences without model improvisation.
+Define how requirement changes create deterministic consequences without model improvisation.
 
 ### D-GATE-4 — compiler gauntlet corpus
 
-Create 100–200 synthetic cases over time, beginning with a smaller seed corpus. Store expected properties rather than one canonical stack.
+Grow toward 100–200 synthetic cases; begin with a smaller seed corpus. Store expected properties rather than one canonical stack.
 
-Mutations should include:
-
-- add/remove accounts;
-- add/remove persistence;
-- read-only → transaction capable;
-- add uploads;
-- add email notifications;
-- add realtime;
-- 1k users → 100k/1m users;
-- add private keys/custody;
-- add mutable private dependency;
-- vague/unbounded consulting request.
-
-Expected assertions include:
-
-- must ask about identity;
-- must require persistence;
-- must reject/flag custody;
-- must not add a database;
-- must change risk tier;
-- must become unsupported/needs narrowing;
-- unrelated architectural decisions must remain stable.
+Useful mutations include accounts, persistence, transactions, uploads, notifications, realtime, 100x traffic, custody/private keys, mutable private dependencies, and vague consulting scope.
 
 ### D-GATE-5 — cheap-model benchmark
 
-Benchmark at least two replaceable low-cost models against the same structured tasks. Score intent extraction, question selection, schema validity, explanation quality, prompt-injection resistance, latency and cost.
+Benchmark at least two replaceable low-cost models against identical structured tasks. Measure intent extraction, question selection, schema validity, explanation quality, prompt-injection resistance, latency and cost.
 
-Do not make provider choice product authority.
+Provider choice is never product authority.
 
 ## 4. Planning gates before Stage E UI
 
@@ -220,69 +150,39 @@ Receipt / History
 Operator Exceptions
 ```
 
-Historical WORLD / COMMAND / PLAYER / PROJECT / SHIP surfaces may contribute components/data but do not automatically remain top-level navigation.
+Historical WORLD / COMMAND / PLAYER / PROJECT / SHIP surfaces may contribute components/data without automatically remaining top-level navigation.
 
 ### E-GATE-2 — canonical screen states
 
-For every launch surface define:
-
-```text
-normal
-loading
-empty
-error
-unavailable/stale
-unauthorized
-mobile
-reduced-motion
-```
+For every launch surface define normal, loading, empty, error, unavailable/stale, unauthorized, mobile and reduced-motion states.
 
 ### E-GATE-3 — no fake instrumentation
 
-Every Faceplate display/micrographic that presents state must map to real data or be clearly decorative.
+Every Faceplate display/micrographic that presents state maps to real data or is clearly decorative.
 
 ## 5. Planning gates before external-human Alpha
 
-These are mandatory, but do not block Stage B protocol implementation.
+These remain mandatory but do not block Stage B.
 
 ### H-GATE-1 — Trust & Reputation Threat Model
 
-Create `INKUBATOR_TRUST_AND_REPUTATION_THREAT_MODEL_V1` before Alpha.
+Create `INKUBATOR_TRUST_AND_REPUTATION_THREAT_MODEL_V1`.
 
 ### H-GATE-2 — claims/brand policy
 
-Freeze allowed public language around:
-
-- REKT affiliation/identity;
-- `production ready` / security language;
-- qualification;
-- AI recommendations;
-- prize/payment state;
-- audits/reviews;
-- sponsorship/official endorsement.
+Freeze allowed public language around REKT affiliation/identity, production/security claims, qualification, AI recommendations, payment state, audits/reviews, sponsorship and official endorsement.
 
 ### H-GATE-3 — data inventory + retention matrix
 
-For identity, GitHub data, private source, artifacts, evidence, logs, receipts, model prompts and backups, define collection purpose, access, retention/deletion, public/private projection and recovery behavior.
+For identity, GitHub data, private source, artifacts, evidence, logs, receipts, model prompts and backups define collection purpose, access, retention/deletion, public/private projection and recovery behavior.
 
 ### H-GATE-4 — operator runbooks
 
-At minimum:
-
-- GitHub integration unavailable/compromised;
-- model provider unavailable;
-- compiler output suspected wrong;
-- database restore;
-- worker stuck/retry storm;
-- verifier unavailable;
-- private-source exposure suspicion;
-- submission dispute;
-- receipt correction;
-- budget cap reached.
+At minimum cover GitHub unavailable/compromised, model unavailable, compiler output suspected wrong, DB restore, worker retry storm, verifier unavailable, suspected source exposure, submission dispute, receipt correction and budget cap reached.
 
 ### H-GATE-5 — failure/chaos matrix
 
-Automate or rehearse deadline races, duplicate requests, worker crash-after-commit, provider outage, GitHub revocation, archive delay, DB connection exhaustion and zero-inference mode.
+Automate/rehearse deadline races, duplicate requests, worker crash-after-commit, provider outage, GitHub revocation, archive delay, DB connection exhaustion and zero-inference mode.
 
 ## 6. Cost/operation readiness
 
@@ -302,48 +202,39 @@ exit/replacement path
 
 No provider is architecture authority.
 
-## 7. Documents/artifacts worth creating next
+## 7. Highest-value remaining planning artifacts
 
-Prioritized planning backlog:
+These should be created **just in time for the stage they unlock**, not all as a giant paperwork phase:
 
-1. **Stage-B protocol contract + property-test matrix** — do next; directly unlocks implementation.
-2. **Current-state migration/ownership map** — map existing DB/routes/Ship/Player/Project/Mission to Challenge use, preserve vs park vs adapt.
-3. **CompilerState + blueprint schema** — before Compiler implementation.
-4. **Compiler Gauntlet seed corpus** — executable fixtures, not prose.
-5. **Trust & Reputation Threat Model** — before Alpha, earlier if it changes protocol choices.
-6. **Brand/Claims policy** — before any public REKT-branded Alpha promotion.
-7. **Data retention matrix** — before accepting private external source.
-8. **Operator runbooks + exception surface contract** — before Alpha.
-9. **Cost dashboard/ledger contract** — before external use can create variable costs.
+1. **Current-state migration/ownership map** — before Stage C; map existing DB/routes/Player/Project/Mission/Ship/Receipt to `PRESERVE / ADAPT / PARK / REMOVE_FROM_PRODUCTION_ASSEMBLY`.
+2. **CompilerState + blueprint schema** — immediately before Stage D.
+3. **Compiler Gauntlet seed corpus** — executable fixtures, not prose, during Stage D.
+4. **Trust & Reputation Threat Model** — before external Alpha; earlier only if it changes protocol choices.
+5. **Brand/Claims policy** — before public REKT-branded Alpha promotion.
+6. **Data retention matrix** — before accepting private external source.
+7. **Operator runbooks + exception-surface contract** — before Alpha.
+8. **Cost dashboard/ledger contract** — before external use can create variable costs.
 
 Everything else is optional until one of these reveals a concrete gap.
 
 ## 8. Planning anti-goals
 
-Do not create:
+Do not create detailed implementation specs for distant K-stage features, dozens of blueprint docs before the blueprint schema, repeated architecture docs saying the same thing, fake precision in timelines/costs, unresolved TBD lists without stage/reopen conditions, or parallel old/new roadmaps.
 
-- detailed implementation specs for K-stage North Star features years before use;
-- dozens of blueprint documents before the blueprint schema exists;
-- separate architecture docs that repeat the same authority in different words;
-- fake precision in timelines/cost/prize estimates;
-- unresolved “TBD” lists without owner/stage/reopen condition;
-- parallel roadmaps for old and new product identities.
-
-## 9. Planning completion rule
-
-Stage A planning is complete enough to move toward Stage B when:
+## 9. Planning completion state
 
 ```text
-North Star locked                         YES
-Funded Challenge survivor mechanism       YES
-Visual authority                          YES
-Solo-operator constraint                  YES
-Bootstrap budget                          YES
-Alpha cutline                             YES
-Stage-B nouns/lifecycle/versioning         NEXT
-Stage-B property-test matrix               NEXT
+North Star / roadmap                         LOCKED
+Funded Challenge survivor mechanism          LOCKED
+REKT visual authority                        LOCKED
+Solo-operator constraint                     LOCKED
+Bootstrap budget                             LOCKED
+Alpha cutline                                LOCKED
+Stage-B nouns/lifecycle/version contract      LOCKED
+Stage-B property-test matrix                  LOCKED
+Stage-B implementation authority             NONE
 ```
 
-After the two `NEXT` items are frozen, additional broad ideation is not a prerequisite for Stage B implementation.
+**VERDICT: Stage A planning is sufficiently complete.**
 
-The highest-value next planning work is therefore **not another vision pass**. It is a precise Stage-B protocol contract and adversarial property-test matrix tied to the existing `packages/inkubator-protocol` package.
+The next mandatory work is not another broad vision document. When explicitly authorized, it is **Stage B implementation of the pure versioned Challenge / Build Contract protocol** in the existing `packages/inkubator-protocol` package.
