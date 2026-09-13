@@ -28,15 +28,22 @@ Current Inkubator hierarchy includes:
 - current stage-specific protocol/test contracts named by `docs/inkubator/INDEX.md`;
 - `docs/inkubator/REKT_TECHNICAL_FACEPLATE_V1.md` — highest Inkubator visual execution authority.
 
-### Current Inkubator planning state
+### Current Inkubator implementation state
 
 Stage A planning is sufficiently complete.
 
-The next implementation phase, **only when the user explicitly grants implementation authority**, is Stage B: pure versioned Challenge / Build Contract protocol work in `packages/inkubator-protocol`.
+Stage B pure Challenge / Build Contract protocol is implemented and closed into the planning authority branch. Its semantics in `packages/inkubator-protocol` remain authoritative.
 
-Do not infer implementation authority from a planning document, roadmap, PR existence or generic discussion.
+The active authorized implementation phase is **Stage C: Postgres Domain Bridge**. Hydrate from:
 
-Do not begin Stage C+ work, UI work, model integration, chain/payment work, or distant North-Star features while Stage B is active unless an explicit successor/scope decision authorizes it.
+- `docs/inkubator/STAGE_C_POSTGRES_DOMAIN_BRIDGE_V1.md`;
+- `docs/inkubator/STAGE_C_INTEGRATION_TEST_MATRIX_V1.md`;
+- `docs/inkubator/CURRENT_STATE_MIGRATION_MAP_V1.md`;
+- the Stage-B protocol and property-test authorities.
+
+Stage C is additive persistence/concurrency work inside the existing Inkubator PostgreSQL/API substrate. Do not let database convenience redefine Stage-B semantics.
+
+Do not begin Stage D+ Compiler/model work, public Challenge UI work, chain/payment work, or distant North-Star features while Stage C is active unless an explicit successor/scope decision authorizes it.
 
 Historical Inkubator systems remain reusable substrate where compatible, but old public nouns/navigation do not regain authority merely because code exists.
 
