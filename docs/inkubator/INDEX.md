@@ -48,14 +48,14 @@ Stage-C implementation                        CLOSED / PASS
 Stage-D Compiler engine                       IMPLEMENTED
 Stage-D compiler gauntlet                     D-GATE-4 PASS
 Stage-D provider benchmark                    D-GATE-5 EVIDENCE COMPLETENESS PASS
-Stage-D integrated closure                    CANDIDATE / VERIFYING
-Stage-E Alpha IA/state/instrumentation gates  NEXT AFTER STAGE-D CLOSURE
-Stage-E REKT Compiler UI implementation       NOT YET AUTHORIZED
+Stage-D integrated closure                    CLOSED / PASS
+Stage-E Alpha IA/state/instrumentation gates  AUTHORIZED / NEXT
+Stage-E REKT Compiler UI implementation       BLOCKED ON E-GATES + FRONTEND ROOT DECISION
 Production money                              NOT AUTHORIZED
 ```
 
-**Execution verdict:** Stage A is complete enough; Stage B and Stage C are closed; the substantive Stage-D compiler, gauntlet and provider-evidence work is complete. The current bounded task is exact-head integration verification. Do not tune providers or spend more model budget. If the integrated Stage-D head passes canonical verification, close Stage D and proceed to the narrow Stage-E IA/state/instrumentation gates plus the explicit Inkubator frontend-root decision.
+**Execution verdict:** Stage A is complete enough; Stage B and Stage C are closed; Stage D is `CLOSED / PASS`. The integrated Stage-D candidate `4014a5e6ee85a29220144cf88e5e8e579c50e713` passed repository CI run `34786318845` and Inkubator Verification run `34786318863`, including product-boundary/foundation invariants, generated-client freshness, protocol and Inkubator tests, typecheck, production builds, asset budgets and Lighthouse. Do not tune providers or spend more model budget. Proceed to the narrow Stage-E Alpha IA/state/instrumentation gates and make the explicit Inkubator frontend-root decision before Stage-E implementation.
 
 The substrate lock does not authorize Stage E implementation by itself. It exists so later agents do not rebuild commodity document parsing, visualization, design-token tooling, builder planning or deterministic quality gates unnecessarily, and do not accidentally delegate Challenge/economic authority to those tools.
 
-No production-money authority is granted by this index. Stage-D merge/closure still follows repository review and explicit user merge-authority policy.
+No production-money authority is granted by this index. Stage-D merge still follows repository review and explicit user merge-authority policy.
