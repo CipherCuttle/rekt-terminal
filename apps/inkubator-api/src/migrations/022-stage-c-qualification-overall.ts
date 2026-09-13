@@ -36,14 +36,38 @@ export const stageCQualificationOverallMigration = {
     await sql`alter table challenges add column organizer_payout_identity text`.execute(db);
     await sql`alter table challenges add column funder_payout_identity text`.execute(db);
     await sql`
+      update challenges challenge
+      set organizer_payout_identity = created.payload ->> 'organizer_payout_identity',
+          funder_payout_identity = created.payload ->> 'funder_payout_identity'
+      from history_events created
+      where created.event_family = 'activity'
+        and created.event_type = 'challenge.created'
+        and created.subject_type = 'challenge'
+        and created.subject_id = challenge.challenge_id::text
+        and challenge.organizer_payout_identity is null
+        and challenge.funder_payout_identity is null
+        and created.payload ? 'organizer_payout_identity'
+        and created.payload ? 'funder_payout_identity'
+    `.execute(db);
+    const missingPayoutAuthority = await sql<{count: string}>`
+      select count(*)::text as count
+      from challenges
+      where organizer_payout_identity is null or funder_payout_identity is null
+    `.execute(db);
+    if (Number(missingPayoutAuthority.rows[0]?.count ?? '0') !== 0) {
+      throw new Error('stage_c_reserved_payout_identity_backfill_missing');
+    }
+    await sql`alter table challenges alter column organizer_payout_identity set not null`.execute(db);
+    await sql`alter table challenges alter column funder_payout_identity set not null`.execute(db);
+    await sql`
       alter table challenges
       add constraint challenges_organizer_payout_identity_shape
-      check (organizer_payout_identity is null or char_length(organizer_payout_identity) between 1 and 256)
+      check (char_length(organizer_payout_identity) between 1 and 256)
     `.execute(db);
     await sql`
       alter table challenges
       add constraint challenges_funder_payout_identity_shape
-      check (funder_payout_identity is null or char_length(funder_payout_identity) between 1 and 256)
+      check (char_length(funder_payout_identity) between 1 and 256)
     `.execute(db);
 
     await sql`alter table challenge_receipts add column protocol_receipt_id text`.execute(db);
