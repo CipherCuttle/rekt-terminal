@@ -313,7 +313,16 @@ export const stageCAppealAuthorityMigration = {
               raise exception 'challenge_settlement_path_invalid' using errcode = '23514';
             end if;
           elsif authority.status = 'SELECTION' then
-            if intent_type <> 'WINNER_PAYOUT' then raise exception 'challenge_settlement_path_invalid' using errcode = '23514'; end if;
+            if intent_type <> 'WINNER_PAYOUT' then
+              raise exception 'challenge_settlement_path_invalid' using errcode = '23514';
+            end if;
+            select decision_json ->> 'selected_entry_id' into selected_entry
+            from challenge_decisions
+            where challenge_id = new.challenge_id and decision_type = 'SELECTION'
+            order by created_at desc, decision_id desc limit 1;
+            if selected_entry is null or new.decision_json ->> 'winner_entry_id' <> selected_entry then
+              raise exception 'challenge_selection_required' using errcode = '23514';
+            end if;
           elsif authority.status = 'DEFAULT_RESOLUTION' then
             if intent_type not in ('WINNER_PAYOUT','DEFAULT_DISTRIBUTION','REFUND_NO_QUALIFIER') then
               raise exception 'challenge_settlement_path_invalid' using errcode = '23514';
