@@ -58,6 +58,8 @@ async function createFrozenChallenge(db, contract, organizer) {
     requestId: randomUUID(),
     challengeId: contract.challenge_id,
     organizerPlayerId: organizer,
+    organizerPayoutIdentity: `organizer-pay-${contract.challenge_id}`,
+    funderPayoutIdentity: `funder-pay-${contract.challenge_id}`,
     mechanismVersion: contract.mechanism_version,
     settlementPolicyVersion: contract.settlement_policy_version,
     ipTermsVersion: contract.ip_terms_version,
@@ -77,13 +79,28 @@ async function createFrozenChallenge(db, contract, organizer) {
   });
 }
 
-test('Stage C due-state uses canonical outbox leases, advances once, and stale jobs no-op', async () => {
+function manifest(contract, entryId, version, acceptedAt, artifact) {
+  return {
+    schema_version: 'inkubator.submission-manifest/1.0',
+    challenge_id: contract.challenge_id,
+    entry_id: entryId,
+    terms_digest: contract.terms_digest,
+    submission_version: version,
+    immutable_source_reference: {kind: 'GIT_COMMIT', value: String(version).repeat(40)},
+    artifact_digest: artifact.repeat(64),
+    evidence_references: [],
+    accepted_at: acceptedAt,
+  };
+}
+
+test('Stage C due-state uses canonical outbox leases, finalizes latest eligible submissions, abandons missing entries, and stale jobs no-op', async () => {
   const db = createDatabase(databaseUrl);
   await migrateToLatest(db);
   try {
     const dueBase = 1_600_000_000_000;
     const organizer = await player(db, 'due-organizer');
     const builder = await player(db, 'due-builder');
+    const abandonedBuilder = await player(db, 'due-abandoned');
     const challengeId = randomUUID();
     const contract = contractFor(challengeId, dueBase, dueBase + 1_000, dueBase + 2_000);
     await createFrozenChallenge(db, contract, organizer);
@@ -101,6 +118,13 @@ test('Stage C due-state uses canonical outbox leases, advances once, and stale j
       builderPlayerId: builder,
       payoutIdentity: 'due-builder-pay',
     });
+    const abandonedEntry = await acquireChallengeSeat(db, {
+      requestId: randomUUID(),
+      entryId: randomUUID(),
+      challengeId,
+      builderPlayerId: abandonedBuilder,
+      payoutIdentity: 'due-abandoned-pay',
+    });
 
     const replay = await enqueueOutboxJob(db, entryJob);
     const oneEntryJob = await sql`
@@ -117,12 +141,30 @@ test('Stage C due-state uses canonical outbox leases, advances once, and stale j
       select status from challenges where challenge_id = ${challengeId}
     `.execute(db);
     assert.equal(afterEntryDeadline.rows[0].status, 'BUILDING');
-    const activatedEntry = await sql`
-      select state, build_start, submission_deadline from challenge_entries where entry_id = ${entry.entry_id}
+    const activatedEntries = await sql`
+      select entry_id, state, build_start, submission_deadline
+      from challenge_entries where challenge_id = ${challengeId}
+      order by entry_id
     `.execute(db);
-    assert.equal(activatedEntry.rows[0].state, 'ACTIVE');
-    assert.equal(activatedEntry.rows[0].build_start.getTime(), contract.build_start);
-    assert.equal(activatedEntry.rows[0].submission_deadline.getTime(), contract.submission_deadline);
+    assert.equal(activatedEntries.rows.length, 2);
+    for (const row of activatedEntries.rows) {
+      assert.equal(row.state, 'ACTIVE');
+      assert.equal(row.build_start.getTime(), contract.build_start);
+      assert.equal(row.submission_deadline.getTime(), contract.submission_deadline);
+    }
+
+    const olderSubmissionId = randomUUID();
+    const latestSubmissionId = randomUUID();
+    const olderManifest = manifest(contract, entry.entry_id, 1, contract.build_start + 100, 'a');
+    const latestManifest = manifest(contract, entry.entry_id, 2, contract.build_start + 200, 'b');
+    await sql`
+      insert into challenge_submissions (
+        submission_id, challenge_id, entry_id, submission_version, terms_digest,
+        manifest_json, manifest_digest, accepted_at
+      ) values
+        (${olderSubmissionId}, ${challengeId}, ${entry.entry_id}, '1', ${contract.terms_digest}, ${olderManifest}::jsonb, ${'c'.repeat(64)}, ${new Date(olderManifest.accepted_at)}),
+        (${latestSubmissionId}, ${challengeId}, ${entry.entry_id}, '2', ${contract.terms_digest}, ${latestManifest}::jsonb, ${'d'.repeat(64)}, ${new Date(latestManifest.accepted_at)})
+    `.execute(db);
 
     const followupKey = `challenge.due_state.v1:${challengeId}:BUILDING:${contract.submission_deadline}`;
     const followup = await sql`
@@ -137,6 +179,23 @@ test('Stage C due-state uses canonical outbox leases, advances once, and stale j
       select status from challenges where challenge_id = ${challengeId}
     `.execute(db);
     assert.equal(afterSubmissionDeadline.rows[0].status, 'SUBMISSIONS_LOCKED');
+
+    const finalized = await sql`
+      select submission_id, is_final
+      from challenge_submissions where entry_id = ${entry.entry_id}
+      order by submission_version
+    `.execute(db);
+    assert.deepEqual(finalized.rows.map((row) => [row.submission_id, row.is_final]), [
+      [olderSubmissionId, false],
+      [latestSubmissionId, true],
+    ]);
+    const entryStates = await sql`
+      select entry_id, state from challenge_entries
+      where entry_id in (${entry.entry_id}, ${abandonedEntry.entry_id})
+    `.execute(db);
+    const stateById = new Map(entryStates.rows.map((row) => [row.entry_id, row.state]));
+    assert.equal(stateById.get(entry.entry_id), 'SUBMITTED');
+    assert.equal(stateById.get(abandonedEntry.entry_id), 'ABANDONED');
 
     const beforeStaleEvents = await sql`
       select count(*)::int as count from history_events
