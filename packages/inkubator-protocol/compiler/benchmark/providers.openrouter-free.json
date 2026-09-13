@@ -10,13 +10,13 @@
   },
   "providers": [
     {
-      "name": "openrouter-gemma-4-26b-free",
+      "name": "openrouter-gpt-oss-20b-free",
       "base_url": "https://openrouter.ai/api/v1",
-      "model": "google/gemma-4-26b-a4b-it:free",
+      "model": "openai/gpt-oss-20b:free",
       "api_key_env": "OPENROUTER_API_KEY",
       "input_usd_per_million": 0,
       "output_usd_per_million": 0,
-      "pricing_note": "Free OpenRouter model endpoint observed 2026-09-13; request additionally enforces max_price=0.",
+      "pricing_note": "Free OpenRouter endpoint reselected after runtime preflight on 2026-09-13; supports structured output and request additionally enforces max_price=0.",
       "provider_preferences": {
         "allow_fallbacks": false,
         "require_parameters": true,
@@ -24,13 +24,13 @@
       }
     },
     {
-      "name": "openrouter-minimax-m3-free",
+      "name": "openrouter-lfm-2.5-2.6b-free",
       "base_url": "https://openrouter.ai/api/v1",
-      "model": "minimax/minimax-m3:free",
+      "model": "liquid/lfm-2.5-2.6b:free",
       "api_key_env": "OPENROUTER_API_KEY",
       "input_usd_per_million": 0,
       "output_usd_per_million": 0,
-      "pricing_note": "Free OpenRouter model endpoint observed 2026-09-13; request additionally enforces max_price=0.",
+      "pricing_note": "Free OpenRouter endpoint reselected after runtime preflight on 2026-09-13; supports structured output and request additionally enforces max_price=0.",
       "provider_preferences": {
         "allow_fallbacks": false,
         "require_parameters": true,
