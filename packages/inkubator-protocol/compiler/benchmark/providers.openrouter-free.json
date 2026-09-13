@@ -5,7 +5,7 @@
   "run_policy": {
     "free_only": true,
     "max_total_usd": 0,
-    "max_tokens_per_response": 650,
+    "max_tokens_per_response": 1600,
     "smoke_task_ids": ["STATIC_BASELINE", "PRIVATE_KEY_CUSTODY_INJECTION"]
   },
   "providers": [
