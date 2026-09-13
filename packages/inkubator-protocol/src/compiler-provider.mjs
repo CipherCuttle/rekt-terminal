@@ -13,6 +13,93 @@ const semanticItems = (proposal) => [
   ...proposal.outcome_criteria,
   ...proposal.delivery_criteria,
 ];
+const scalarSchema = () => ({anyOf: [{type: 'string'}, {type: 'number'}, {type: 'boolean'}, {type: 'null'}]});
+
+export function buildCompilerInterpretationResponseFormat(sourceIntent) {
+  fail(typeof sourceIntent === 'string' && sourceIntent.length > 0, 'source intent must be a non-empty string');
+  return {
+    type: 'json_schema',
+    json_schema: {
+      name: 'rekt_inkubator_compiler_interpretation',
+      strict: true,
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['schema_version', 'proposal', 'explanation'],
+        properties: {
+          schema_version: {type: 'string', enum: [COMPILER_INTERPRETATION_SCHEMA_VERSION]},
+          proposal: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['schema_version', 'source_intent', 'requirements', 'knowledge', 'outcome_criteria', 'delivery_criteria', 'preferences'],
+            properties: {
+              schema_version: {type: 'string', enum: [COMPILER_PROPOSAL_SCHEMA_VERSION]},
+              source_intent: {type: 'string', enum: [sourceIntent]},
+              requirements: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['key', 'value', 'provenance'],
+                  properties: {
+                    key: {type: 'string', minLength: 1},
+                    value: scalarSchema(),
+                    provenance: {type: 'string', enum: ['MODEL_PROPOSAL']},
+                  },
+                },
+              },
+              knowledge: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['kind', 'key', 'material', 'value', 'provenance'],
+                  properties: {
+                    kind: {type: 'string', enum: ['KNOWN', 'ASSUMED', 'UNKNOWN']},
+                    key: {type: 'string', minLength: 1},
+                    material: {type: 'boolean'},
+                    value: scalarSchema(),
+                    provenance: {type: 'string', enum: ['MODEL_PROPOSAL']},
+                  },
+                },
+              },
+              outcome_criteria: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['id', 'description', 'mandatory', 'provenance'],
+                  properties: {
+                    id: {type: 'string', minLength: 1},
+                    description: {type: 'string', minLength: 1},
+                    mandatory: {type: 'boolean'},
+                    provenance: {type: 'string', enum: ['MODEL_PROPOSAL']},
+                  },
+                },
+              },
+              delivery_criteria: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['id', 'description', 'mandatory', 'provenance'],
+                  properties: {
+                    id: {type: 'string', minLength: 1},
+                    description: {type: 'string', minLength: 1},
+                    mandatory: {type: 'boolean'},
+                    provenance: {type: 'string', enum: ['MODEL_PROPOSAL']},
+                  },
+                },
+              },
+              preferences: {type: 'object', additionalProperties: false, properties: {}},
+            },
+          },
+          explanation: {type: 'string', minLength: 1},
+        },
+      },
+    },
+  };
+}
 
 export function assertCompilerInterpretation(value) {
   fail(isObject(value), 'compiler interpretation must be an object');
@@ -33,13 +120,18 @@ export function buildCompilerInterpretationPrompt(sourceIntent) {
     `proposal.schema_version must be ${COMPILER_PROPOSAL_SCHEMA_VERSION}.`,
     'Envelope keys: schema_version, proposal, explanation.',
     'Proposal keys: schema_version, source_intent, requirements, knowledge, outcome_criteria, delivery_criteria, preferences.',
+    'Requirement item keys only: key, value, provenance.',
+    'Knowledge item keys only: kind, key, material, value, provenance.',
+    'Outcome/delivery criterion item keys only: id, description, mandatory, provenance.',
+    'Do not add ids, labels, confidence, rationale, or any other undeclared fields to requirements or knowledge items.',
     'proposal.source_intent must exactly reproduce the organizer intent below.',
     'Every requirement, knowledge item, outcome criterion and delivery criterion MUST use provenance MODEL_PROPOSAL.',
     'Never emit SOURCE, ORGANIZER_ACCEPTED, or DETERMINISTIC_RULE provenance. A model cannot grant itself authority.',
     'Material requirement keys used by the current benchmark include accounts, persistence, uploads_private, realtime, notifications, onchain_read, wallet_transactions, custody_private_keys, traffic_100x, mutable_private_dependencies, vague_consulting_scope.',
     'Do not silently convert missing material facts to false. Preserve uncertainty in knowledge when the source does not establish a fact.',
     'Known material question IDs: Q_DATA_RETENTION=private-upload retention/deletion; Q_REALTIME_TRANSPORT=realtime transport/consistency; Q_NOTIFICATION_CHANNELS=notification channel/retry; Q_TRAFFIC_PROFILE=peak traffic profile; Q_TRANSACTION_BOUNDARY=allowed chain/network transaction intents; Q_DEPENDENCY_PINNING=private dependency pin/fallback; Q_OUTCOME_SCOPE=observable outcome.',
-    'If the source explicitly answers one of those questions, put the answer in knowledge using that exact key, kind KNOWN, material true, provenance MODEL_PROPOSAL.',
+    'If the source explicitly answers one of those questions, put the answer in knowledge using that exact key, kind KNOWN, material true, provenance MODEL_PROPOSAL. Use null for knowledge.value when no scalar value is established.',
+    'preferences must be an empty object in this benchmark envelope.',
     'explanation is informational only and must briefly state the evidence for material extracted requirements.',
     '',
     'ORGANIZER INTENT:',
@@ -57,6 +149,7 @@ export function createOpenAICompatibleInterpreter({
   maxTokens = 650,
   providerPreferences = null,
   reasoningConfig = null,
+  structuredOutput = 'json_object',
   extraHeaders = {},
 }) {
   fail(typeof name === 'string' && name.length > 0, 'provider name is required');
@@ -68,6 +161,7 @@ export function createOpenAICompatibleInterpreter({
   fail(Number.isInteger(maxTokens) && maxTokens > 0, 'provider maxTokens must be a positive integer');
   fail(providerPreferences === null || isObject(providerPreferences), 'provider preferences must be an object or null');
   fail(reasoningConfig === null || isObject(reasoningConfig), 'provider reasoningConfig must be an object or null');
+  fail(['json_object', 'json_schema'].includes(structuredOutput), 'provider structuredOutput must be json_object or json_schema');
   fail(isObject(extraHeaders), 'provider extraHeaders must be an object');
   const endpoint = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
 
@@ -80,7 +174,9 @@ export function createOpenAICompatibleInterpreter({
         model,
         temperature: 0,
         max_tokens: maxTokens,
-        response_format: {type: 'json_object'},
+        response_format: structuredOutput === 'json_schema'
+          ? buildCompilerInterpretationResponseFormat(sourceIntent)
+          : {type: 'json_object'},
         messages: [
           {role: 'system', content: COMPILER_INTERPRETATION_SYSTEM_PROMPT},
           {role: 'user', content: buildCompilerInterpretationPrompt(sourceIntent)},
