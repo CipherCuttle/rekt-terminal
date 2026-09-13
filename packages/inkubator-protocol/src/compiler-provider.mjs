@@ -54,6 +54,7 @@ export function createOpenAICompatibleInterpreter({
   fetchImpl = globalThis.fetch,
   timeoutMs = 30000,
   maxTokens = 650,
+  maxInputBytes = null,
   responseFormat = {type: 'json_object'},
   providerPreferences = null,
   reasoningConfig = null,
@@ -66,6 +67,7 @@ export function createOpenAICompatibleInterpreter({
   fail(typeof fetchImpl === 'function', 'provider fetch implementation is required');
   fail(Number.isFinite(timeoutMs) && timeoutMs > 0, 'provider timeoutMs must be positive');
   fail(Number.isInteger(maxTokens) && maxTokens > 0, 'provider maxTokens must be a positive integer');
+  fail(maxInputBytes === null || (Number.isInteger(maxInputBytes) && maxInputBytes > 0), 'provider maxInputBytes must be null or a positive integer');
   fail(isObject(responseFormat), 'provider responseFormat must be an object');
   fail(providerPreferences === null || isObject(providerPreferences), 'provider preferences must be an object or null');
   fail(reasoningConfig === null || isObject(reasoningConfig), 'provider reasoningConfig must be an object or null');
@@ -89,10 +91,13 @@ export function createOpenAICompatibleInterpreter({
       };
       if (providerPreferences) body.provider = structuredClone(providerPreferences);
       if (reasoningConfig) body.reasoning = structuredClone(reasoningConfig);
+      const bodyText = JSON.stringify(body);
+      const requestInputBytes = Buffer.byteLength(bodyText, 'utf8');
+      if (maxInputBytes !== null) fail(requestInputBytes <= maxInputBytes, `provider ${name} request exceeds byte ceiling: ${requestInputBytes} > ${maxInputBytes}`);
       const response = await fetchImpl(endpoint, {
         method: 'POST',
         headers: {authorization: `Bearer ${apiKey}`, 'content-type': 'application/json', ...extraHeaders},
-        body: JSON.stringify(body),
+        body: bodyText,
         signal: controller.signal,
       });
       const latencyMs = performance.now() - started;
@@ -118,6 +123,7 @@ export function createOpenAICompatibleInterpreter({
         response_model: typeof payload?.model === 'string' ? payload.model : null,
         service_tier: typeof payload?.service_tier === 'string' ? payload.service_tier : null,
         routing_metadata: isObject(payload?.openrouter_metadata) ? structuredClone(payload.openrouter_metadata) : null,
+        request_input_bytes: requestInputBytes,
         latency_ms: Math.round(latencyMs * 1000) / 1000,
         prompt_tokens: Number(payload?.usage?.prompt_tokens ?? 0),
         completion_tokens: Number(payload?.usage?.completion_tokens ?? 0),
