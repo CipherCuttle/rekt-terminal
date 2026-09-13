@@ -10,7 +10,9 @@ Forward product strategy and staged roadmap are governed by:
 4. `SOLO_OPERATOR_CONSTRAINTS_V1.md` — one-human operating-capacity, modular-monolith, initial-blueprint and Alpha-cutline constraints.
 5. `PRE_REVENUE_INFRA_CAP_V1.md` — bootstrap budget authority: $100/month absolute ceiling, <=$50 normal target, human time treated as a first-class cost, bounded paid compiler inference allowed.
 6. `PREIMPLEMENTATION_READINESS_V1.md` — stage-specific planning gates and the explicit rule for when to stop planning and begin implementation.
-7. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth, privacy, mechanism or API semantics.
+7. `STAGE_B_BUILD_CONTRACT_PROTOCOL_V1.md` — exact pure Challenge/Build-Contract protocol contract for the next implementation stage.
+8. `STAGE_B_PROPERTY_TEST_MATRIX_V1.md` — adversarial/property acceptance contract for Stage B.
+9. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth, privacy, mechanism or API semantics.
 
 Older `NORTH_STAR_MVP_V0.md`, `PRODUCT_CONTRACT_MVP_V0.md`, `IMPLEMENTATION_ROADMAP_MVP_V0.md`, `CHALLENGE_OS_NORTH_STAR_V1.md` and `CHALLENGE_CONTRACT_V1.md` remain historical/design ancestry. Their implemented substrate may be reused, but they do not control forward strategy where they conflict with the authorities above.
 
@@ -21,14 +23,17 @@ Current forward sequence:
 Current planning completion state:
 
 ```text
-North Star / roadmap                    LOCKED
-Survivor mechanism/trust                LOCKED
-REKT visual authority                   LOCKED
-Solo-operator constraint                LOCKED
-Bootstrap budget                        LOCKED
-Alpha cutline                           LOCKED
-Stage-B noun/lifecycle/version contract NEXT
-Stage-B property-test matrix            NEXT
+North Star / roadmap                         LOCKED
+Survivor mechanism/trust                     LOCKED
+REKT visual authority                        LOCKED
+Solo-operator constraint                     LOCKED
+Bootstrap budget                             LOCKED
+Alpha cutline                                LOCKED
+Stage-B nouns/lifecycle/version contract      LOCKED
+Stage-B property-test matrix                  LOCKED
+Stage-B implementation authority             NONE
 ```
+
+**Planning verdict:** Stage A is sufficiently complete. Additional broad vision work is not a prerequisite for implementation. When explicitly authorized, the next bounded work is Stage B pure protocol implementation inside `packages/inkubator-protocol`.
 
 No implementation, production-money or merge authority is granted by this index.
