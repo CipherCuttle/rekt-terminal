@@ -17,8 +17,9 @@ Forward product strategy and staged roadmap are governed by:
 11. `STAGE_C_INTEGRATION_TEST_MATRIX_V1.md` — closed Stage-C Postgres adversarial/integration acceptance contract.
 12. `STAGE_D_COMPILER_ENGINE_V1.md` — active deterministic compiler/CompilerState/blueprint/authority-boundary contract.
 13. `STAGE_D_COMPILER_GAUNTLET_V1.md` — active Stage-D sensitivity/determinism acceptance contract and seed-corpus rules.
-14. `CURRENT_STATE_MIGRATION_MAP_V1.md` — preserve/adapt/park map for existing Terminal/Inkubator apps, protocol, GitHub, Ship, historical Mission/World/social systems and future frontend decision.
-15. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth, privacy, mechanism or API semantics.
+14. `STAGE_D_PROVIDER_BENCHMARK_V1.md` — active D-GATE-5 replaceable-provider benchmark contract; provider/model output remains untrusted interpretation input only.
+15. `CURRENT_STATE_MIGRATION_MAP_V1.md` — preserve/adapt/park map for existing Terminal/Inkubator apps, protocol, GitHub, Ship, historical Mission/World/social systems and future frontend decision.
+16. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth, privacy, mechanism or API semantics.
 
 Repository-level agents must also obey root `AGENTS.md`, which requires Inkubator work to hydrate from this index before implementation.
 
@@ -46,12 +47,13 @@ Stage-C integration-test matrix               CLOSED / PASS
 Stage-C implementation                        CLOSED / PASS
 Stage-D Compiler engine contract              ACTIVE
 Stage-D compiler gauntlet                     ACTIVE
+Stage-D provider benchmark                    ACTIVE / D-GATE-5 OPEN
 Stage-D implementation                        IN PROGRESS
 Stage-E REKT Compiler UI                      NOT AUTHORIZED
 Production money                              NOT AUTHORIZED
 ```
 
-**Execution verdict:** Stage A is complete enough; Stage B and Stage C are closed; Stage D is the current bounded implementation phase. Implement/test the deterministic compiler kernel, blueprint registry and gauntlet without delegating product authority to a model/provider.
+**Execution verdict:** Stage A is complete enough; Stage B and Stage C are closed; Stage D is the current bounded implementation phase. Keep the deterministic compiler authoritative, then benchmark replaceable low-cost interpretation providers without delegating product authority to them.
 
 The substrate lock does not authorize Stage E+ work. It exists so later agents do not rebuild commodity document parsing, visualization, design-token tooling, builder planning or deterministic quality gates unnecessarily, and do not accidentally delegate Challenge/economic authority to those tools.
 

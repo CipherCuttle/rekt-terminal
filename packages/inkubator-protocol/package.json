@@ -30,6 +30,10 @@
       "types": "./src/compiler.d.ts",
       "import": "./src/compiler.mjs"
     },
+    "./compiler-provider": {
+      "types": "./src/compiler-provider.d.ts",
+      "import": "./src/compiler-provider.mjs"
+    },
     "./schema/*": "./schema/*"
   },
   "publishConfig": {
