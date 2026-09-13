@@ -24,6 +24,7 @@ const providersText = readText(providersFile);
 const tasksDocument = JSON.parse(tasksText);
 const providersDocument = JSON.parse(providersText);
 const runPolicy = providersDocument.run_policy ?? {};
+const guardedPaidRun = !runPolicy.free_only && runPolicy.requires_runtime_authorization === true;
 const blueprintDir = path.resolve(here, '../blueprints');
 const blueprints = fs.readdirSync(blueprintDir)
   .filter((name) => name.endsWith('.json'))
@@ -86,7 +87,7 @@ fail(Array.isArray(providersDocument.providers) && providersDocument.providers.l
 if (runPolicy.free_only) {
   fail(Number(runPolicy.max_total_usd) === 0, 'FREE_ONLY_CONFIG: max_total_usd must be zero');
   for (const provider of providersDocument.providers) validateFreeOnlyProvider(provider);
-} else {
+} else if (guardedPaidRun) {
   fail(Number.isFinite(Number(runPolicy.max_total_usd)) && Number(runPolicy.max_total_usd) > 0, 'PAID_CONFIG: max_total_usd must be positive');
   fail(Number.isInteger(Number(runPolicy.max_input_bytes_per_request)) && Number(runPolicy.max_input_bytes_per_request) > 0, 'PAID_CONFIG: max_input_bytes_per_request must be a positive integer');
   fail(Number.isInteger(Number(runPolicy.billing_token_overhead_per_request)) && Number(runPolicy.billing_token_overhead_per_request) >= 0, 'PAID_CONFIG: billing_token_overhead_per_request must be a non-negative integer');
@@ -104,11 +105,11 @@ if (mode === 'smoke') {
 
 const maxTokensPerResponse = Number(runPolicy.max_tokens_per_response ?? 650);
 fail(Number.isInteger(maxTokensPerResponse) && maxTokensPerResponse > 0, 'max_tokens_per_response must be a positive integer');
-const maxInputBytesPerRequest = runPolicy.max_input_bytes_per_request === undefined ? null : Number(runPolicy.max_input_bytes_per_request);
-const billingTokenOverhead = Number(runPolicy.billing_token_overhead_per_request ?? 0);
-const maxTotalUsd = Number(runPolicy.max_total_usd ?? 0);
+const maxInputBytesPerRequest = guardedPaidRun ? Number(runPolicy.max_input_bytes_per_request) : null;
+const billingTokenOverhead = guardedPaidRun ? Number(runPolicy.billing_token_overhead_per_request) : 0;
+const maxTotalUsd = guardedPaidRun || runPolicy.free_only ? Number(runPolicy.max_total_usd ?? 0) : null;
 let preflightWorstCaseCostUsd = 0;
-if (!runPolicy.free_only) {
+if (guardedPaidRun) {
   const conservativeInputTokens = maxInputBytesPerRequest + billingTokenOverhead;
   for (const provider of providersDocument.providers) {
     const {input, output} = providerPrices(provider);
@@ -123,9 +124,10 @@ const results = {
   mode,
   gateway: providersDocument.gateway ?? 'direct',
   free_only: Boolean(runPolicy.free_only),
-  paid_execution_authorized: !runPolicy.free_only && paidExecutionAuthorized,
+  guarded_paid_run: guardedPaidRun,
+  paid_execution_authorized: guardedPaidRun && paidExecutionAuthorized,
   spend_ceiling_usd: maxTotalUsd,
-  preflight_worst_case_cost_usd: preflightWorstCaseCostUsd,
+  preflight_worst_case_cost_usd: guardedPaidRun ? preflightWorstCaseCostUsd : null,
   corpus_schema_version: tasksDocument.schema_version,
   corpus_sha256: sha256(tasksText),
   selected_task_ids: selectedTasks.map((task) => task.id),
@@ -179,7 +181,7 @@ for (const provider of providersDocument.providers) {
         hasReportedCost = true;
         cumulativeReportedCost += run.reported_cost_usd;
       }
-      if (!runPolicy.free_only) {
+      if (guardedPaidRun) {
         fail(cumulativeEstimatedCost <= maxTotalUsd, `HARD_ABORT: cumulative estimated cost ${cumulativeEstimatedCost} exceeded ${maxTotalUsd}`);
         fail(!hasReportedCost || cumulativeReportedCost <= maxTotalUsd, `HARD_ABORT: cumulative reported cost ${cumulativeReportedCost} exceeded ${maxTotalUsd}`);
       }
