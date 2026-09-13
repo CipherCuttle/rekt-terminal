@@ -1,144 +1,108 @@
-# REKT INKUBATOR — Pre-Revenue Infrastructure Cap V1
+# REKT INKUBATOR — Bootstrap Infrastructure Budget V2
 
-**Status:** PLANNING INVARIANT / NOT IMPLEMENTATION AUTHORITY UNTIL MERGED
-
-**Parent:** `CHALLENGE_OS_NORTH_STAR_V1.md`
-
+**Status:** USER-AUTHORIZED PLANNING INVARIANT / NOT IMPLEMENTATION AUTHORITY  
+**Parent:** `REKT_INKUBATOR_NORTH_STAR_V2.md`  
 **Date:** 2026-09-13
 
-## 1. Invariant
+This supersedes the prior `$0 pre-revenue` cash invariant. The product remains frugal, but zero spend is no longer allowed to create worse engineering or excessive operator burden.
 
-Before collected platform revenue, sponsor funding, grants or explicit user-approved infrastructure budget exists:
+## 1. Budget invariant
 
-> **Recurring Inkubator infrastructure cash spend is capped at USD $0.**
+```text
+ABSOLUTE OWNER-FUNDED MONTHLY CEILING     USD 100
+NORMAL MONTHLY OPERATING TARGET           <= USD 50
+EXPECTED EARLY OPERATING RANGE            USD 10–25
+RESERVED HEADROOM                         >= USD 50 where practical
+AUTO-UPGRADE                              FORBIDDEN
+UNCAPPED USAGE                            FORBIDDEN
+VIRAL TRAFFIC                             NOT SPEND AUTHORITY
+```
 
-This includes Challenge OS and Agent Arena work.
+The goal is not to consume the budget. The goal is to buy simplicity/reliability when a small paid service materially reduces operator burden or security risk.
 
-Provider credits and free tiers may be used. They are not treated as recurring cash spend, but the product must degrade safely when they run out.
+## 2. Human-time beats tiny cash savings
 
-The default response to quota exhaustion is:
+A paid service is justified inside the normal target when it clearly saves repeated maintenance/debugging, improves security/isolation, or removes a fragile free-tier dependency.
 
-`QUEUE / PAUSE / DENY`
+Bad optimization:
 
-Never:
+> save $7/month while creating hours of recurring manual work.
 
-`AUTO-UPGRADE / AUTO-SPEND`.
+Preferred optimization:
 
----
+> keep the system simple enough for one operator to understand and recover.
 
-## 2. Why this is a product constraint
+## 3. Early deployment topology
 
-The pre-revenue product must prove that organizers/builders value programmable Challenges before infrastructure scale is purchased.
+Prefer a boring modular architecture:
 
-This constraint deliberately forces Inkubator to be an orchestrator of existing builder infrastructure rather than prematurely becoming:
+```text
+REKT INKUBATOR WEB
+        ↓
+ONE MODULAR API
+        ↓
+POSTGRESQL
+        ↓
+POSTGRES OUTBOX / JOBS
+        ↓
+ONE SMALL WORKER
 
-- an agent hosting provider;
-- an LLM inference provider;
-- a CI farm;
-- a sandbox cloud;
-- a storage platform;
-- a general deployment platform.
+SEPARATE ISOLATED VERIFIER
+```
 
-If Challenge OS is only useful when Inkubator pays to host every participant workload continuously, the V1 thesis is too infrastructure-heavy.
+Do not split compiler/chat/challenge/receipt/notification/evaluation orchestration into separate services without measured operational need.
 
----
+No Redis, Kafka, service mesh, Kubernetes, permanent runner fleet or hosted participant runtime merely for perceived scale/professionalism.
 
-## 3. Pre-revenue operating model
+## 4. Platform vs participant costs
 
-### Inkubator hosts
+Inkubator may fund within the monthly cap:
 
-- product frontend;
-- small authenticated API;
-- canonical database;
-- Challenge/Mission/Project/evidence state;
-- lightweight workers within free/credit limits;
-- small artifact/evaluation metadata;
-- safe remote endpoint probes;
-- Challenge orchestration.
+- web/API baseline;
+- canonical DB;
+- lightweight worker;
+- small object/evidence storage;
+- monitoring/backups where justified;
+- bounded compiler inference;
+- safe endpoint verification;
+- small notification volume.
 
-### Builders/sponsors host/pay for
+Builders/sponsors remain responsible by default for:
 
-- participant deployed apps/agents;
-- model/API usage;
-- provider-specific agent runtime;
+- participant app/runtime hosting;
+- project-specific commercial APIs;
+- high-volume storage/bandwidth unique to their build;
 - gas/onchain transactions;
-- token launches;
-- high-volume storage/bandwidth unique to an entry;
-- optional commercial APIs used by the build.
+- model/runtime costs intrinsic to the submitted product.
 
-### Free/credit-backed platform work may include
+## 5. LLM budget law
 
-- practice checks through public GitHub Actions where suitable;
-- free-tier database/API/static hosting;
-- free object-storage allowance;
-- isolated final-evaluation credits;
-- sponsor-provided provider/model credits.
+Low-cost platform-funded inference is explicitly allowed for the Challenge Compiler because it is a product feature and current small-model economics make bounded use affordable.
 
----
+Required controls:
 
-## 4. No always-on participant hosting
+- model/provider replaceable;
+- structured project state instead of replaying full transcripts;
+- hard per-call/per-session token limits;
+- hard monthly compiler-inference sub-budget;
+- no recursive autonomous agent loops;
+- no hidden retry storms;
+- no paid inference required for core Challenge lifecycle correctness;
+- graceful degraded mode when inference budget/provider is unavailable.
 
-Pre-revenue Inkubator must not host every entrant agent/app continuously.
-
-Preferred pattern:
-
-```text
-BUILDER DEPLOYS ARTIFACT
-        ↓
-INKUBATOR STORES LOCATOR + PROVENANCE
-        ↓
-SAFE PROBE / TEST
-        ↓
-OBSERVATION
-```
-
-For hidden evaluation requiring isolated code execution:
+Initial planning target:
 
 ```text
-EVALUATION REQUEST
-        ↓
-EPHEMERAL SANDBOX
-        ↓
-RUN BOUNDED SCENARIO
-        ↓
-CAPTURE RESULT
-        ↓
-DESTROY SANDBOX
+COMPILER INFERENCE NORMAL TARGET   <= USD 10/month
+COMPILER INFERENCE HARD CAP        explicit/configurable
+CORE CHALLENGE OPERATION           works at USD 0 inference
 ```
 
-No idle participant compute remains alive after the evaluation.
+## 6. Per-Challenge resource budget
 
----
+Each Challenge/evaluation path must still be bounded before it begins.
 
-## 5. LLM cost law
-
-Pre-revenue platform-funded model inference budget:
-
-`USD $0`.
-
-Allowed:
-
-- builder BYOK;
-- builder-hosted/local model;
-- sponsor-provided key/credits with explicit Challenge budget;
-- free provider credits where terms permit.
-
-Not allowed:
-
-- silently routing all entrant traffic through an Inkubator-paid model account;
-- uncapped agent loops;
-- hidden retry storms;
-- platform-funded inference as a prerequisite for ordinary Challenge participation.
-
-If a Challenge needs standardized funded inference for fairness, that Challenge may only go LIVE after an explicit funded budget exists.
-
----
-
-## 6. Evaluation budget law
-
-Every Challenge contract must declare hard resource limits before LIVE.
-
-Minimum:
+Track where applicable:
 
 ```text
 max_entries
@@ -146,215 +110,91 @@ max_practice_attempts_per_entry
 max_final_attempts_per_entry
 max_eval_runtime_seconds
 max_concurrent_evals
-platform_cash_compute_usd
-platform_llm_usd
+platform_compute_budget_usd
+platform_llm_budget_usd
+storage_budget
 on_budget_exhaustion
 ```
 
-Pre-revenue defaults:
+Default exhaustion behavior:
+
+`QUEUE / PAUSE / DENY`
+
+Never:
+
+`AUTO-UPGRADE / AUTO-SPEND`
+
+## 7. Spend priority
+
+If a dollar is spent, prefer this order unless evidence says otherwise:
+
+1. reliable canonical database / API;
+2. backups / observability / recovery capability;
+3. security/isolation boundaries;
+4. bounded compiler inference;
+5. final-evaluation capacity when the product needs it;
+6. higher concurrency only after measured need;
+7. hosted participant runtime only after customers will pay for it.
+
+Do not spend first on decorative realtime infrastructure, permanent agent fleets, analytics vanity stacks or speculative scaling.
+
+## 8. Unit economics telemetry
+
+Record enough operational accounting to answer:
 
 ```text
-platform_cash_compute_usd = 0
-platform_llm_usd = 0
-max_concurrent_evals = 1
-on_budget_exhaustion = QUEUE
-```
-
-Where provider credits are available, record the credit-backed allowance separately from cash budget.
-
-Evaluation must refuse to start if the platform cannot bound the worst-case resource exposure.
-
----
-
-## 7. Provider strategy
-
-Provider choices are replaceable implementation details.
-
-Current planning examples include:
-
-- current Render/free web/API rehearsal capacity;
-- free/scale-to-zero Postgres provider such as Neon;
-- object storage free allowance such as Cloudflare R2;
-- public GitHub Actions for builder-controlled practice checks;
-- sandbox provider credits such as Daytona/E2B for final bounded evaluations.
-
-No vendor above is permanent authority.
-
-The architecture must preserve provider substitution and never encode a free-tier promise into product semantics.
-
----
-
-## 8. Free-tier failure behavior
-
-The product must assume free providers can sleep, throttle, change quotas or revoke credits.
-
-Required UX:
-
-- clearly distinguish Challenge state from provider availability;
-- show evaluation as `QUEUED`, `UNAVAILABLE` or `PAUSED`, not failed proof;
-- preserve submitted artifacts/entry state when runner quota disappears;
-- never downgrade observed/proven history because a current provider is unavailable;
-- allow operator to resume jobs after capacity returns;
-- never require database surgery to recover from quota exhaustion.
-
----
-
-## 9. Cash-spend unlock
-
-Paid infrastructure is unlocked only by an explicit budget decision tied to one or more of:
-
-- collected sponsor payment;
-- collected platform revenue;
-- grant;
-- provider sponsorship/credits with known limits;
-- explicit owner-approved exception.
-
-The unlock must state:
-
-```text
-budget amount
-budget owner
-purpose
-provider/resource
-start/end period
-hard cap
-expected unit economics
-rollback/disable path
-```
-
-A usage spike or viral Challenge is **not** authority to spend.
-
----
-
-## 10. First paid dollars priority
-
-When paid infra becomes justified, spend in this order unless evidence says otherwise:
-
-1. **reliable canonical DB / API** — reduce sleep/availability problems;
-2. **isolated final evaluation capacity** — protect the differentiating product value;
-3. **observability/backups** — preserve operations/evidence;
-4. **higher evaluation concurrency** — improve organizer/builder experience;
-5. **sponsor-funded standardized inference** where a Challenge needs it;
-6. **optional hosted participant runtime** only if users will pay for it.
-
-Do not spend first on decorative realtime infrastructure, high-volume telemetry or permanent agent fleets.
-
----
-
-## 11. Unit economics telemetry
-
-Even while cash spend is zero, Challenge OS should record enough resource accounting to estimate:
-
-```text
+monthly baseline platform cost
+cost per compiled Challenge
+model tokens per compile/session
 entries per Challenge
 evaluations per entry
-sandbox seconds per evaluation
-bytes stored per entry
-endpoint probes per entry
-model tokens if sponsor/BYOK telemetry contract permits
-cost estimate per EvaluationRun
-cost estimate per accepted Ship
+storage bytes per Challenge
+probe/evaluation count
+operator interventions per Challenge
+operator minutes per Challenge
 ```
 
-This is operational accounting, not public leaderboard data.
+The last two are first-class economics. A feature that saves $5 but creates two hours of manual work is not cheaper.
 
-Do not collect private provider/token usage without an explicit contract.
+## 9. Scaling gates
 
----
+### Bootstrap
 
-## 12. Scaling gates
+Owner-funded, <= $100 hard cap, <= $50 normal target.
 
-### Gate 0 — $0 bootstrap
+### Closed Alpha
 
-- free tiers/credits;
-- builder-hosted artifacts;
-- BYOK models;
-- capped Challenges;
-- bounded final evals;
-- queue instead of scaling.
+Keep the same hard cap unless the owner explicitly changes it. Prefer queue/degraded operation over emergency scaling.
 
-### Gate 1 — first funded Challenge
+### Revenue/sponsor stage
 
-Unlock only the resources needed for that Challenge's committed reliability/evaluation budget.
+New spend requires explicit budget tied to revenue, grant, sponsor funding or owner decision, with purpose, period, hard cap and rollback path.
 
-### Gate 2 — repeat sponsor/revenue
+### Demonstrated demand
 
-Pay for stable baseline API/DB + evaluation capacity and establish real unit economics.
+Only after repeated real demand consider reserved evaluation runners, higher concurrency, platform-funded inference packages or hosted participant runtimes.
 
-### Gate 3 — demonstrated demand
+## 10. Forbidden shortcuts
 
-Only after repeated organizer demand consider:
-
-- reserved runner pool;
-- higher concurrency;
-- hosted participant runtimes;
-- platform-funded inference packages;
-- private enterprise Challenges.
-
-Scale follows revenue/evidence, not optimism.
-
----
-
-## 13. Explicitly forbidden pre-revenue shortcuts
-
-- running hostile participant code on a maintainer laptop;
-- giving sandbox workers production secrets;
+- running hostile participant code on the maintainer laptop;
+- storing production-value secrets in developer machines when avoidable;
+- giving verifier/evaluation workers broad production credentials;
 - auto-upgrading cloud plans;
-- keeping all participant agents alive 24/7;
-- uncapped platform-paid inference;
-- one shared unrestricted third-party API key for all contestants;
-- treating provider credits as infinite capacity;
-- accepting a cloud bill merely because a Challenge is popular;
-- silently degrading truth semantics to fit free infrastructure.
+- uncapped model/tool loops;
+- one unrestricted shared third-party key for entrants;
+- treating free credits as permanent architecture;
+- degrading truth semantics to stay inside a provider quota;
+- adding services whose main benefit is architectural aesthetics.
 
----
+## 11. Verdict
 
-## 14. Architecture implication
-
-The platform should optimize for:
-
-> **orchestration + verification + durable evidence**
-
-rather than:
-
-> **owning all execution.**
-
-This is strategically useful even after revenue: participant-hosted/bring-your-own infrastructure keeps Challenge OS interoperable and reduces lock-in while paid isolated evaluation remains the high-value trust boundary.
-
----
-
-## 15. Kill / reopen conditions
-
-Reopen the $0 cash cap when any of these becomes true:
-
-1. a sponsor/customer pays for a Challenge and reliable paid capacity is part of the agreed service;
-2. free-tier limitations prevent a validated paid conversion;
-3. security requires replacing a free component with a paid isolated boundary;
-4. provider credits end during an already-funded obligation;
-5. the owner explicitly approves a bounded exception with hard cap.
-
-Do not reopen because:
-
-- paid infrastructure looks more professional;
-- free tiers are annoying;
-- a new cloud service looks cool;
-- predicted future scale might need it;
-- the team wants to eliminate all queues before revenue.
-
----
-
-## 16. Verdict
-
-`PRE_REVENUE_RECURRING_INFRA_CASH_CAP_USD = 0`
-
-`PLATFORM_FUNDED_LLM_BUDGET_USD = 0`
-
-`PARTICIPANT_RUNTIME = BYO_BY_DEFAULT`
-
-`FINAL_EVALUATION = EPHEMERAL + BOUNDED`
-
-`QUOTA_EXHAUSTION = QUEUE_OR_PAUSE`
-
-`AUTO_SPEND = FORBIDDEN`
-
-`SCALING = REVENUE_OR_EXPLICIT_FUNDED_AUTHORITY`
+```text
+BOOTSTRAP_MONTHLY_HARD_CAP_USD       = 100
+BOOTSTRAP_NORMAL_TARGET_USD          = 50
+EXPECTED_EARLY_SPEND_USD             = 10–25
+AUTO_SPEND                           = FORBIDDEN
+CORE_OPERATION_REQUIRES_PAID_LLM     = NO
+DEPLOYMENT_STYLE                     = MODULAR_MONOLITH_FIRST
+HUMAN_TIME                           = FIRST_CLASS_COST
+SCALING                              = EVIDENCE / REVENUE / EXPLICIT AUTHORITY
+```
