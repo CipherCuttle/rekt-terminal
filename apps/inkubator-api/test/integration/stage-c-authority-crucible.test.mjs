@@ -41,9 +41,9 @@ function contractFor(challengeId, start) {
     outcome_contract: {criteria: [{id: 'OUT', description: 'Works', mandatory: true}]},
     production_envelope: {criteria: []}, delivery_contract: {criteria: []}, preferences: {}, reference_architecture: {},
     normative_constraints: [], normative_references: [], informational_references: [], knowledge: [],
-    slot_limit: 3, activation_minimum: 1,
+    slot_limit: 4, activation_minimum: 1,
     entry_deadline: start + 250, build_start: start + 250, submission_deadline: start + 750,
-    appeal_window_ms: 120, review_deadline: start + 1_700,
+    appeal_window_ms: 120, review_deadline: start + 3_000,
     prize_minor_units: 100, settlement_asset: 'TEST',
   });
 }

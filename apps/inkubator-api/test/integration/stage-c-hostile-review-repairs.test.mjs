@@ -2,10 +2,7 @@ import {randomUUID} from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {sql} from 'kysely';
-import {
-  buildSettlementIntent,
-  freezeBuildContract,
-} from '@rekt-ink/protocol/challenge';
+import {freezeBuildContract} from '@rekt-ink/protocol/challenge';
 import {createDatabase} from '../../dist/database.js';
 import {migrateToLatest} from '../../dist/migrations.js';
 import {stageCQualificationOverallMigration} from '../../dist/migrations/022-stage-c-qualification-overall.js';
@@ -156,7 +153,7 @@ test('Stage C rejects every duplicated Challenge/Build Contract authority mismat
   }
 });
 
-test('Stage C uses database time for submission acceptance and exact commands replay after lifecycle progress', async () => {
+test('Stage C uses database time for admission/submission authority and exact commands replay after lifecycle progress', async () => {
   const db = createDatabase(databaseUrl);
   await migrateToLatest(db);
   try {
@@ -222,21 +219,16 @@ test('Stage C uses database time for submission acceptance and exact commands re
       requestId: randomUUID(), actorPlayerId: lateOrganizer, challengeId: lateChallengeId, contract: lateContract,
     });
     const lateFixture = {organizer: lateOrganizer, challengeId: lateChallengeId, contract: lateContract};
-    const {entry: lateEntry} = await seatedBuilder(db, lateFixture);
-    await sql`update challenges set status = 'BUILDING' where challenge_id = ${lateChallengeId}`.execute(db);
     await assert.rejects(
-      challengeStore.acceptChallengeSubmission(db, {
-        requestId: randomUUID(), submissionId: randomUUID(), challengeId: lateChallengeId,
-        entryId: lateEntry.entry_id, manifest: manifestFor(lateFixture, lateEntry.entry_id, 1_500),
-      }),
-      /challenge_submission_deadline_elapsed/,
+      seatedBuilder(db, lateFixture),
+      /challenge_entry_deadline_elapsed/,
     );
   } finally {
     await db.destroy();
   }
 });
 
-test('Stage C persists only protocol-validated authoritative decision shapes and exposes one receipt path', async () => {
+test('Stage C rejects caller-minted terminal authority and malformed decision shapes', async () => {
   const db = createDatabase(databaseUrl);
   await migrateToLatest(db);
   try {
@@ -245,46 +237,26 @@ test('Stage C persists only protocol-validated authoritative decision shapes and
     const fixture = await preparedChallenge(db);
     const {entry} = await seatedBuilder(db, fixture);
 
-    const qualifiers = await challengeStore.recordChallengeDecision(db, {
-      requestId: randomUUID(), decisionId: randomUUID(), challengeId: fixture.challengeId,
-      decisionType: 'FINAL_QUALIFIERS', decisionVersion: '1',
-      decision: {final_qualifier_ids: [entry.entry_id]},
-    });
-    assert.deepEqual(qualifiers.decision_json, {final_qualifier_ids: [entry.entry_id]});
-
-    const selection = await challengeStore.recordChallengeDecision(db, {
-      requestId: randomUUID(), decisionId: randomUUID(), challengeId: fixture.challengeId,
-      entryId: entry.entry_id, decisionType: 'SELECTION', decisionVersion: '1',
-      decision: {selected_entry_id: entry.entry_id},
-    });
-    assert.deepEqual(selection.decision_json, {selected_entry_id: entry.entry_id});
-
-    const settlementIntent = buildSettlementIntent({
-      contract: fixture.contract,
-      resolution: {
-        type: 'WINNER_PAYOUT', winner_entry_id: entry.entry_id,
-        distributions: [{entry_id: entry.entry_id, amount_minor_units: fixture.contract.prize_minor_units}],
-      },
-      recipientByEntryId: {[entry.entry_id]: entry.payout_identity},
-    });
-    const settlement = await challengeStore.recordChallengeDecision(db, {
-      requestId: randomUUID(), decisionId: randomUUID(), challengeId: fixture.challengeId,
-      entryId: entry.entry_id, decisionType: 'SETTLEMENT_INTENT', decisionVersion: '1',
-      decision: settlementIntent,
-    });
-    assert.deepEqual(settlement.decision_json, settlementIntent);
+    await assert.rejects(
+      challengeStore.recordChallengeDecision(db, {
+        requestId: randomUUID(), decisionId: randomUUID(), challengeId: fixture.challengeId,
+        decisionType: 'FINAL_QUALIFIERS', decisionVersion: 'caller-minted',
+        decision: {final_qualifier_ids: [entry.entry_id]},
+      }),
+      /challenge_final_qualifiers_lifecycle_invalid/,
+    );
 
     await assert.rejects(
       challengeStore.recordChallengeDecision(db, {
         requestId: randomUUID(), decisionId: randomUUID(), challengeId: fixture.challengeId,
-        decisionType: 'FINAL_QUALIFIERS', decisionVersion: '2', decision: {},
+        decisionType: 'FINAL_QUALIFIERS', decisionVersion: 'bad-shape', decision: {},
       }),
       /invalid_final_qualifiers_decision/,
     );
     await assert.rejects(
       challengeStore.recordChallengeDecision(db, {
         requestId: randomUUID(), decisionId: randomUUID(), challengeId: fixture.challengeId,
-        decisionType: 'SETTLEMENT_INTENT', decisionVersion: '2', decision: {},
+        decisionType: 'SETTLEMENT_INTENT', decisionVersion: 'bad-shape', decision: {},
       }),
       /settlement intent|invalid_settlement_intent/,
     );

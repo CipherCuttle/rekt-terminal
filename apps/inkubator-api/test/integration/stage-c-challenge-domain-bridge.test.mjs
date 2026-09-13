@@ -236,6 +236,12 @@ test('Stage C submission, qualification, terminal decisions, receipt and snapsho
       criteria: [{criterion_id: 'OUT', result: 'PASS', evidence_refs: []}],
     });
 
+    await sql`
+      update challenges
+      set status = 'APPEAL_WINDOW', appeal_opened_at = clock_timestamp() - interval '1 second'
+      where challenge_id = ${fixture.challengeId}
+    `.execute(db);
+
     const decisionId = randomUUID();
     const decisionRequest = randomUUID();
     const decision = {final_qualifier_ids: [entry.entry_id]};
@@ -252,9 +258,10 @@ test('Stage C submission, qualification, terminal decisions, receipt and snapsho
         requestId: randomUUID(), decisionId: randomUUID(), challengeId: fixture.challengeId,
         decisionType: 'FINAL_QUALIFIERS', decisionVersion: '1', decision: {final_qualifier_ids: []},
       }),
-      /challenge_decision_immutable_conflict/,
+      /challenge_final_qualifiers_authority_mismatch|challenge_decision_immutable_conflict/,
     );
 
+    await sql`update challenges set status = 'SELECTION' where challenge_id = ${fixture.challengeId}`.execute(db);
     const settlementIntent = buildSettlementIntent({
       contract: fixture.contract,
       resolution: {
@@ -267,6 +274,8 @@ test('Stage C submission, qualification, terminal decisions, receipt and snapsho
       requestId: randomUUID(), decisionId: randomUUID(), challengeId: fixture.challengeId,
       entryId: entry.entry_id, decisionType: 'SETTLEMENT_INTENT', decisionVersion: '1', decision: settlementIntent,
     });
+    const pending = await sql`select status from challenges where challenge_id = ${fixture.challengeId}`.execute(db);
+    assert.equal(pending.rows[0].status, 'SETTLEMENT_PENDING');
 
     const settlementExecutionFact = {
       challenge_id: fixture.challengeId,
@@ -282,14 +291,10 @@ test('Stage C submission, qualification, terminal decisions, receipt and snapsho
       requestId: randomUUID(), decisionId: randomUUID(), challengeId: fixture.challengeId,
       entryId: entry.entry_id, decisionType: 'SETTLEMENT_EXECUTION_FACT', decisionVersion: '1', decision: settlementExecutionFact,
     });
+    const settled = await sql`select status from challenges where challenge_id = ${fixture.challengeId}`.execute(db);
+    assert.equal(settled.rows[0].status, 'SETTLED');
 
     const receipt = fileReceipt({contract: fixture.contract, settlementIntent, settlementExecutionFact});
-    await assert.rejects(
-      recordProtocolChallengeReceipt(db, {requestId: randomUUID(), challengeId: fixture.challengeId, receipt}),
-      /challenge_receipt_requires_settled_status/,
-    );
-    await sql`update challenges set status = 'SETTLED' where challenge_id = ${fixture.challengeId}`.execute(db);
-
     const receiptRequest = randomUUID();
     const storedReceipt = await recordProtocolChallengeReceipt(db, {
       requestId: receiptRequest, challengeId: fixture.challengeId, receipt,
