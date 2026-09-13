@@ -33,7 +33,7 @@ const interpretation = (sourceIntent) => ({
   explanation: 'Static page with no dynamic state.',
 });
 
-test('paid smoke config is fixed to four calls with a two-cent worst-case ceiling', () => {
+test('paid smoke config is fixed to four strict-schema calls with a two-cent worst-case ceiling', () => {
   const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
   assert.equal(config.gateway, 'openrouter');
   assert.equal(config.run_policy.free_only, false);
@@ -46,6 +46,8 @@ test('paid smoke config is fixed to four calls with a two-cent worst-case ceilin
   ]);
   for (const provider of config.providers) {
     assert.equal(provider.api_key_env, 'OPENROUTER_API_KEY');
+    assert.equal(provider.structured_output, 'json_schema');
+    assert.equal(provider.timeout_ms, 75000);
     assert.equal(provider.provider_preferences.require_parameters, true);
     assert.equal(provider.provider_preferences.allow_fallbacks, true);
     assert.ok(provider.provider_preferences.max_price.prompt >= provider.input_usd_per_million);
@@ -53,7 +55,7 @@ test('paid smoke config is fixed to four calls with a two-cent worst-case ceilin
   }
 });
 
-test('paid smoke preflight computes a worst-case reservation before any key or network call', () => {
+test('paid smoke preflight reserves prompt plus strict schema before any key or network call', () => {
   const result = spawnSync(process.execPath, ['compiler/benchmark/run.mjs'], {
     cwd: packageDir,
     encoding: 'utf8',
@@ -68,13 +70,13 @@ test('paid smoke preflight computes a worst-case reservation before any key or n
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.mode, 'smoke');
   assert.equal(receipt.max_total_usd, 0.02);
-  assert.ok(receipt.preflight_reserved_max_cost_usd > 0);
+  assert.ok(receipt.preflight_reserved_max_cost_usd > 0.0087292, 'strict schema bytes should increase the conservative reservation');
   assert.ok(receipt.preflight_reserved_max_cost_usd <= receipt.max_total_usd);
   assert.equal(receipt.d_gate_5_evidence_ready, false);
   assert.ok(receipt.providers.every((provider) => provider.status === 'SKIPPED_MISSING_KEY'));
 });
 
-test('OpenRouter adapter sends routing and reasoning controls and records exact model/cost receipt', async () => {
+test('OpenRouter adapter sends strict schema, routing and reasoning controls and records exact model/cost receipt', async () => {
   const sourceIntent = 'Build a static page.';
   let request;
   const fetchImpl = async (url, options) => {
@@ -102,9 +104,11 @@ test('OpenRouter adapter sends routing and reasoning controls and records exact 
     model: 'google/gemini-3.1-flash-lite',
     apiKey: 'secret-fixture',
     fetchImpl,
+    timeoutMs: 75000,
     maxTokens: 1600,
     providerPreferences: routing,
     reasoningConfig: reasoning,
+    structuredOutput: 'json_schema',
     extraHeaders: {'X-OpenRouter-Metadata': 'enabled'},
   });
   const run = await interpretIntent(sourceIntent);
@@ -113,6 +117,15 @@ test('OpenRouter adapter sends routing and reasoning controls and records exact 
   assert.equal(body.max_tokens, 1600);
   assert.deepEqual(body.provider, routing);
   assert.deepEqual(body.reasoning, reasoning);
+  assert.equal(body.response_format.type, 'json_schema');
+  assert.equal(body.response_format.json_schema.strict, true);
+  assert.equal(body.response_format.json_schema.schema.additionalProperties, false);
+  assert.deepEqual(body.response_format.json_schema.schema.properties.proposal.properties.source_intent.enum, [sourceIntent]);
+  assert.equal(body.response_format.json_schema.schema.properties.proposal.properties.requirements.items.additionalProperties, false);
+  assert.deepEqual(
+    Object.keys(body.response_format.json_schema.schema.properties.proposal.properties.requirements.items.properties).sort(),
+    ['key', 'provenance', 'value'],
+  );
   assert.equal(request.options.headers['X-OpenRouter-Metadata'], 'enabled');
   assert.equal(run.response_model, 'google/gemini-3.1-flash-lite');
   assert.equal(run.reported_cost_usd, 0.00015);
