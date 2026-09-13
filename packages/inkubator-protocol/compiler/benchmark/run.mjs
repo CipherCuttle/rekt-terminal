@@ -7,6 +7,7 @@ import {
   estimateRunCostUsd,
   scoreCompilerInterpretation,
 } from '../../src/compiler-provider.mjs';
+import {responseFormatForMode} from './interpretation-response-format.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const readText = (name) => fs.readFileSync(path.resolve(here, name), 'utf8');
@@ -14,6 +15,7 @@ const fail = (ok, message) => { if (!ok) throw new Error(message); };
 const sha256 = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
 const mode = process.env.BENCHMARK_MODE ?? 'full';
 const providersFile = process.env.BENCHMARK_PROVIDERS ?? 'providers.example.json';
+const paidExecutionAuthorized = process.env.BENCHMARK_AUTHORIZE_PAID === 'YES';
 fail(['smoke', 'full'].includes(mode), `unsupported BENCHMARK_MODE ${mode}`);
 fail(/^[A-Za-z0-9._-]+\.json$/.test(providersFile), 'BENCHMARK_PROVIDERS must be a JSON filename in compiler/benchmark');
 
@@ -22,6 +24,7 @@ const providersText = readText(providersFile);
 const tasksDocument = JSON.parse(tasksText);
 const providersDocument = JSON.parse(providersText);
 const runPolicy = providersDocument.run_policy ?? {};
+const guardedPaidRun = !runPolicy.free_only && runPolicy.requires_runtime_authorization === true;
 const blueprintDir = path.resolve(here, '../blueprints');
 const blueprints = fs.readdirSync(blueprintDir)
   .filter((name) => name.endsWith('.json'))
@@ -40,18 +43,43 @@ function taskPassed(score) {
     && score.provider_authority_safe
     && score.source_intent_exact;
 }
+function providerPrices(provider) {
+  const input = Number(provider.input_usd_per_million ?? 0);
+  const output = Number(provider.output_usd_per_million ?? 0);
+  fail(Number.isFinite(input) && input >= 0, `${provider.name} input price must be non-negative`);
+  fail(Number.isFinite(output) && output >= 0, `${provider.name} output price must be non-negative`);
+  return {input, output};
+}
 function validateFreeOnlyProvider(provider) {
+  const {input, output} = providerPrices(provider);
   fail(provider.model.endsWith(':free'), `FREE_ONLY_CONFIG: ${provider.name} model must use :free`);
-  fail(Number(provider.input_usd_per_million) === 0 && Number(provider.output_usd_per_million) === 0, `FREE_ONLY_CONFIG: ${provider.name} static prices must be zero`);
+  fail(input === 0 && output === 0, `FREE_ONLY_CONFIG: ${provider.name} static prices must be zero`);
   const routing = provider.provider_preferences;
   fail(routing && routing.allow_fallbacks === false, `FREE_ONLY_CONFIG: ${provider.name} must disable provider fallbacks`);
   fail(routing.require_parameters === true, `FREE_ONLY_CONFIG: ${provider.name} must require requested parameters`);
   fail(Number(routing?.max_price?.prompt) === 0 && Number(routing?.max_price?.completion) === 0, `FREE_ONLY_CONFIG: ${provider.name} must enforce max_price=0`);
 }
-function assertFreeOnlyRun(run, provider) {
-  if (!runPolicy.free_only) return;
-  fail(run.response_model === provider.model, `HARD_ABORT: ${provider.name} returned unexpected model ${run.response_model ?? 'MISSING'} instead of ${provider.model}`);
-  fail(run.reported_cost_usd === null || run.reported_cost_usd === 0, `HARD_ABORT: ${provider.name} reported non-zero cost ${run.reported_cost_usd}`);
+function validatePaidProvider(provider) {
+  const {input, output} = providerPrices(provider);
+  fail(!provider.model.endsWith(':free'), `PAID_CONFIG: ${provider.name} must use a stable non-free model id`);
+  fail(input > 0 || output > 0, `PAID_CONFIG: ${provider.name} must declare non-zero observed prices`);
+  const routing = provider.provider_preferences;
+  fail(routing && routing.allow_fallbacks === false, `PAID_CONFIG: ${provider.name} must disable provider fallbacks`);
+  fail(routing.require_parameters === true, `PAID_CONFIG: ${provider.name} must require requested parameters`);
+  fail(Array.isArray(routing.only) && routing.only.length === 1, `PAID_CONFIG: ${provider.name} must pin exactly one provider slug`);
+  fail(Number(routing?.max_price?.prompt) <= input, `PAID_CONFIG: ${provider.name} prompt max_price exceeds observed price`);
+  fail(Number(routing?.max_price?.completion) <= output, `PAID_CONFIG: ${provider.name} completion max_price exceeds observed price`);
+  responseFormatForMode(provider.response_format_mode);
+}
+function assertRoutingRun(run, provider) {
+  if (runPolicy.free_only || provider.enforce_response_model === true) {
+    fail(run.response_model === provider.model, `HARD_ABORT: ${provider.name} returned unexpected model ${run.response_model ?? 'MISSING'} instead of ${provider.model}`);
+  }
+  if (provider.expected_routing_provider_name) {
+    fail(run.routing_metadata?.provider_name === provider.expected_routing_provider_name, `HARD_ABORT: ${provider.name} routed through ${run.routing_metadata?.provider_name ?? 'UNKNOWN'} instead of ${provider.expected_routing_provider_name}`);
+  }
+  if (runPolicy.free_only) fail(run.reported_cost_usd === null || run.reported_cost_usd === 0, `HARD_ABORT: ${provider.name} reported non-zero cost ${run.reported_cost_usd}`);
+  if (!runPolicy.free_only && provider.require_reported_cost === true) fail(Number.isFinite(run.reported_cost_usd), `HARD_ABORT: ${provider.name} did not return a finite reported cost`);
 }
 
 fail(Array.isArray(tasksDocument.tasks) && tasksDocument.tasks.length > 0, 'benchmark corpus must contain tasks');
@@ -59,6 +87,12 @@ fail(Array.isArray(providersDocument.providers) && providersDocument.providers.l
 if (runPolicy.free_only) {
   fail(Number(runPolicy.max_total_usd) === 0, 'FREE_ONLY_CONFIG: max_total_usd must be zero');
   for (const provider of providersDocument.providers) validateFreeOnlyProvider(provider);
+} else if (guardedPaidRun) {
+  fail(Number.isFinite(Number(runPolicy.max_total_usd)) && Number(runPolicy.max_total_usd) > 0, 'PAID_CONFIG: max_total_usd must be positive');
+  fail(Number.isInteger(Number(runPolicy.max_input_bytes_per_request)) && Number(runPolicy.max_input_bytes_per_request) > 0, 'PAID_CONFIG: max_input_bytes_per_request must be a positive integer');
+  fail(Number.isInteger(Number(runPolicy.billing_token_overhead_per_request)) && Number(runPolicy.billing_token_overhead_per_request) >= 0, 'PAID_CONFIG: billing_token_overhead_per_request must be a non-negative integer');
+  fail(paidExecutionAuthorized, 'PAID_EXECUTION_NOT_AUTHORIZED: set BENCHMARK_AUTHORIZE_PAID=YES only after explicit spend authorization');
+  for (const provider of providersDocument.providers) validatePaidProvider(provider);
 }
 
 let selectedTasks = tasksDocument.tasks;
@@ -69,12 +103,31 @@ if (mode === 'smoke') {
   fail(selectedTasks.length === smokeIds.size, 'smoke task id missing from benchmark corpus');
 }
 
+const maxTokensPerResponse = Number(runPolicy.max_tokens_per_response ?? 650);
+fail(Number.isInteger(maxTokensPerResponse) && maxTokensPerResponse > 0, 'max_tokens_per_response must be a positive integer');
+const maxInputBytesPerRequest = guardedPaidRun ? Number(runPolicy.max_input_bytes_per_request) : null;
+const billingTokenOverhead = guardedPaidRun ? Number(runPolicy.billing_token_overhead_per_request) : 0;
+const maxTotalUsd = guardedPaidRun || runPolicy.free_only ? Number(runPolicy.max_total_usd ?? 0) : null;
+let preflightWorstCaseCostUsd = 0;
+if (guardedPaidRun) {
+  const conservativeInputTokens = maxInputBytesPerRequest + billingTokenOverhead;
+  for (const provider of providersDocument.providers) {
+    const {input, output} = providerPrices(provider);
+    preflightWorstCaseCostUsd += selectedTasks.length * ((conservativeInputTokens * input) + (maxTokensPerResponse * output)) / 1_000_000;
+  }
+  fail(preflightWorstCaseCostUsd <= maxTotalUsd, `PAID_CONFIG: worst-case cost ${preflightWorstCaseCostUsd.toFixed(6)} exceeds max_total_usd ${maxTotalUsd}`);
+}
+
 const results = {
   schema_version: 'inkubator.compiler-provider-benchmark-result/1.0',
   generated_at: new Date().toISOString(),
   mode,
   gateway: providersDocument.gateway ?? 'direct',
   free_only: Boolean(runPolicy.free_only),
+  guarded_paid_run: guardedPaidRun,
+  paid_execution_authorized: guardedPaidRun && paidExecutionAuthorized,
+  spend_ceiling_usd: maxTotalUsd,
+  preflight_worst_case_cost_usd: guardedPaidRun ? preflightWorstCaseCostUsd : null,
   corpus_schema_version: tasksDocument.schema_version,
   corpus_sha256: sha256(tasksText),
   selected_task_ids: selectedTasks.map((task) => task.id),
@@ -84,6 +137,9 @@ const results = {
   pricing_observed_at: providersDocument.pricing_observed_at,
   providers: [],
 };
+let cumulativeEstimatedCost = 0;
+let cumulativeReportedCost = 0;
+let hasReportedCost = false;
 
 for (const provider of providersDocument.providers) {
   const apiKey = process.env[provider.api_key_env];
@@ -104,7 +160,9 @@ for (const provider of providersDocument.providers) {
     baseUrl: provider.base_url,
     model: provider.model,
     apiKey,
-    maxTokens: Number(runPolicy.max_tokens_per_response ?? 650),
+    maxTokens: maxTokensPerResponse,
+    maxInputBytes: maxInputBytesPerRequest,
+    responseFormat: responseFormatForMode(provider.response_format_mode),
     providerPreferences: provider.provider_preferences ?? null,
     reasoningConfig: provider.reasoning ?? null,
     extraHeaders: isOpenRouter ? {'X-OpenRouter-Metadata': 'enabled', 'X-Title': 'REKT Inkubator D-GATE-5 benchmark'} : {},
@@ -114,13 +172,23 @@ for (const provider of providersDocument.providers) {
   for (const task of selectedTasks) {
     try {
       const run = await interpretIntent(task.input);
-      assertFreeOnlyRun(run, provider);
+      assertRoutingRun(run, provider);
       const score = scoreCompilerInterpretation({task, run, blueprints});
       const estimatedCost = estimateRunCostUsd(run, provider);
       fail(!runPolicy.free_only || estimatedCost === 0, `HARD_ABORT: ${provider.name} estimated non-zero free-only cost ${estimatedCost}`);
+      cumulativeEstimatedCost += estimatedCost;
+      if (Number.isFinite(run.reported_cost_usd)) {
+        hasReportedCost = true;
+        cumulativeReportedCost += run.reported_cost_usd;
+      }
+      if (guardedPaidRun) {
+        fail(cumulativeEstimatedCost <= maxTotalUsd, `HARD_ABORT: cumulative estimated cost ${cumulativeEstimatedCost} exceeded ${maxTotalUsd}`);
+        fail(!hasReportedCost || cumulativeReportedCost <= maxTotalUsd, `HARD_ABORT: cumulative reported cost ${cumulativeReportedCost} exceeded ${maxTotalUsd}`);
+      }
       taskResults.push({
         task_id: task.id,
         status: 'COMPLETED',
+        request_input_bytes: run.request_input_bytes,
         latency_ms: run.latency_ms,
         prompt_tokens: run.prompt_tokens,
         completion_tokens: run.completion_tokens,
@@ -152,6 +220,7 @@ for (const provider of providersDocument.providers) {
     model: provider.model,
     status: completeRun ? 'COMPLETED' : 'PARTIAL',
     pricing_note: provider.pricing_note,
+    response_format_mode: provider.response_format_mode ?? 'json_object',
     task_count: selectedTasks.length,
     completed_tasks: completed.length,
     passed_tasks: passed.length,
@@ -166,6 +235,8 @@ for (const provider of providersDocument.providers) {
   });
 }
 
+results.total_estimated_cost_usd = cumulativeEstimatedCost;
+results.total_reported_cost_usd = hasReportedCost ? cumulativeReportedCost : null;
 const measured = results.providers.filter((provider) => provider.status === 'COMPLETED');
 results.d_gate_5_evidence_ready = mode === 'full' && measured.length >= 2;
 results.notes = mode === 'smoke'
