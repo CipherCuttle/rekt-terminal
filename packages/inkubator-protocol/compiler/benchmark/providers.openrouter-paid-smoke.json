@@ -16,6 +16,8 @@
       "api_key_env": "OPENROUTER_API_KEY",
       "input_usd_per_million": 0.05,
       "output_usd_per_million": 0.16,
+      "timeout_ms": 75000,
+      "structured_output": "json_schema",
       "pricing_note": "GA DeepSeek V4 Flash 0731 observed on OpenRouter 2026-09-13 at $0.05/M input and $0.16/M output. Provider routing is bounded by a stricter per-token ceiling and exact model identity is checked on response.",
       "provider_preferences": {
         "allow_fallbacks": true,
@@ -30,6 +32,8 @@
       "api_key_env": "OPENROUTER_API_KEY",
       "input_usd_per_million": 0.25,
       "output_usd_per_million": 1.50,
+      "timeout_ms": 75000,
+      "structured_output": "json_schema",
       "pricing_note": "GA Gemini 3.1 Flash Lite observed on OpenRouter 2026-09-13 at $0.25/M input and $1.50/M output. Minimal reasoning is requested to preserve the bounded final-JSON budget.",
       "reasoning": {"effort": "minimal"},
       "provider_preferences": {
