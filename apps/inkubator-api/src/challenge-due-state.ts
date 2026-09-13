@@ -2,9 +2,11 @@ import {randomUUID} from 'node:crypto';
 import {
   activateEntries,
   assertFrozenBuildContract,
+  selectFinalSubmission,
   transitionChallenge,
   type BuildContract,
   type ChallengeEntry,
+  type SubmissionManifest,
 } from '@rekt-ink/protocol/challenge';
 import {sql, type Kysely} from 'kysely';
 import {canonicalizeJson} from './canonical-json.js';
@@ -46,6 +48,14 @@ type EntryRow = {
   state: ChallengeEntry['state'];
   build_start: Date | null;
   submission_deadline: Date | null;
+};
+
+type SubmissionRow = {
+  submission_id: string;
+  entry_id: string;
+  submission_version: string;
+  manifest_json: unknown;
+  is_final: boolean;
 };
 
 function parsePayload(value: unknown): DueStatePayload {
@@ -124,6 +134,61 @@ async function enqueueFollowup(
   }
 }
 
+async function finalizeChallengeSubmissions(
+  db: Kysely<DatabaseSchema>,
+  challengeId: string,
+  contract: BuildContract,
+  databaseNow: Date,
+): Promise<void> {
+  const entries = (await sql<EntryRow>`
+    select entry_id, builder_player_id, payout_identity, state, build_start, submission_deadline
+    from challenge_entries
+    where challenge_id = ${challengeId} and state = 'ACTIVE'
+    order by entry_id
+    for update
+  `.execute(db)).rows;
+  const submissions = (await sql<SubmissionRow>`
+    select submission_id, entry_id, submission_version, manifest_json, is_final
+    from challenge_submissions
+    where challenge_id = ${challengeId}
+    order by entry_id, accepted_at, submission_id
+    for update
+  `.execute(db)).rows;
+
+  for (const entry of entries) {
+    const rows = submissions.filter((submission) => submission.entry_id === entry.entry_id);
+    const manifests = rows.map((submission) => submission.manifest_json as SubmissionManifest);
+    const selected = selectFinalSubmission(manifests, contract, entry.entry_id);
+
+    if (!selected) {
+      await sql`
+        update challenge_entries
+        set state = 'ABANDONED', updated_at = ${databaseNow}
+        where entry_id = ${entry.entry_id} and state = 'ACTIVE'
+      `.execute(db);
+      continue;
+    }
+
+    const selectedDigest = canonicalizeJson(selected).sha256;
+    const selectedRow = rows.find((submission) =>
+      String(submission.submission_version) === String(selected.submission_version)
+      && canonicalizeJson(submission.manifest_json).sha256 === selectedDigest,
+    );
+    if (!selectedRow) throw new Error('challenge_due_state_final_submission_missing');
+
+    await sql`
+      update challenge_submissions
+      set is_final = (submission_id = ${selectedRow.submission_id})
+      where entry_id = ${entry.entry_id}
+    `.execute(db);
+    await sql`
+      update challenge_entries
+      set state = 'SUBMITTED', updated_at = ${databaseNow}
+      where entry_id = ${entry.entry_id} and state = 'ACTIVE'
+    `.execute(db);
+  }
+}
+
 export async function handleChallengeDueStateJob(
   db: Kysely<DatabaseSchema>,
   job: OutboxJobRow,
@@ -189,6 +254,7 @@ export async function handleChallengeDueStateJob(
         nextStatus,
         {now: databaseNow.getTime()},
       );
+      await finalizeChallengeSubmissions(transaction, payload.challengeId, contract, databaseNow);
     }
 
     const updated = await sql<{challenge_id: string}>`
