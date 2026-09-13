@@ -1,0 +1,188 @@
+{
+  "schema_version": "inkubator.compiler-gauntlet/1.0",
+  "cases": [
+    {
+      "id": "MUTATION_PERSISTENCE_ONLY",
+      "proposal": {
+        "schema_version": "inkubator.compiler-proposal/1.0",
+        "source_intent": "Store a durable public catalog without user accounts.",
+        "requirements": [
+          {"key": "accounts", "value": false, "provenance": "SOURCE"},
+          {"key": "persistence", "value": true, "provenance": "SOURCE"},
+          {"key": "uploads_private", "value": false, "provenance": "SOURCE"},
+          {"key": "realtime", "value": false, "provenance": "SOURCE"},
+          {"key": "notifications", "value": false, "provenance": "SOURCE"},
+          {"key": "onchain_read", "value": false, "provenance": "SOURCE"},
+          {"key": "wallet_transactions", "value": false, "provenance": "SOURCE"},
+          {"key": "custody_private_keys", "value": false, "provenance": "SOURCE"}
+        ],
+        "knowledge": [],
+        "outcome_criteria": [{"id": "O_CATALOG", "description": "Accepted catalog records survive a service restart.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "delivery_criteria": [{"id": "D_REPO", "description": "Source is delivered as an immutable repository revision.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "preferences": {}
+      },
+      "expected": {
+        "status": "READY",
+        "selected_blueprint": "WEB_CRUD",
+        "risk_level": "MEDIUM",
+        "quality_level": "STANDARD",
+        "facts_present": ["persistence_required"],
+        "question_ids": ["Q_DATA_MODEL"],
+        "finding_codes": []
+      }
+    },
+    {
+      "id": "MUTATION_NOTIFICATIONS",
+      "proposal": {
+        "schema_version": "inkubator.compiler-proposal/1.0",
+        "source_intent": "Send users a notification after an accepted event.",
+        "requirements": [
+          {"key": "accounts", "value": false, "provenance": "SOURCE"},
+          {"key": "persistence", "value": false, "provenance": "SOURCE"},
+          {"key": "uploads_private", "value": false, "provenance": "SOURCE"},
+          {"key": "realtime", "value": false, "provenance": "SOURCE"},
+          {"key": "notifications", "value": true, "provenance": "SOURCE"},
+          {"key": "onchain_read", "value": false, "provenance": "SOURCE"},
+          {"key": "wallet_transactions", "value": false, "provenance": "SOURCE"},
+          {"key": "custody_private_keys", "value": false, "provenance": "SOURCE"}
+        ],
+        "knowledge": [],
+        "outcome_criteria": [{"id": "O_NOTIFY", "description": "An accepted event queues one delivery attempt.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "delivery_criteria": [{"id": "D_REPO", "description": "Source is delivered as an immutable repository revision.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "preferences": {}
+      },
+      "expected": {
+        "status": "READY",
+        "selected_blueprint": "WEB_CRUD",
+        "risk_level": "MEDIUM",
+        "quality_level": "STANDARD",
+        "facts_present": ["notification_delivery_required"],
+        "question_ids": ["Q_DATA_MODEL", "Q_NOTIFICATION_CHANNELS"],
+        "finding_codes": []
+      }
+    },
+    {
+      "id": "MUTATION_TRAFFIC_100X",
+      "proposal": {
+        "schema_version": "inkubator.compiler-proposal/1.0",
+        "source_intent": "The public launch page must survive a credible 100x traffic event.",
+        "requirements": [
+          {"key": "accounts", "value": false, "provenance": "SOURCE"},
+          {"key": "persistence", "value": false, "provenance": "SOURCE"},
+          {"key": "uploads_private", "value": false, "provenance": "SOURCE"},
+          {"key": "realtime", "value": false, "provenance": "SOURCE"},
+          {"key": "notifications", "value": false, "provenance": "SOURCE"},
+          {"key": "onchain_read", "value": false, "provenance": "SOURCE"},
+          {"key": "wallet_transactions", "value": false, "provenance": "SOURCE"},
+          {"key": "custody_private_keys", "value": false, "provenance": "SOURCE"},
+          {"key": "traffic_100x", "value": true, "provenance": "SOURCE"}
+        ],
+        "knowledge": [],
+        "outcome_criteria": [{"id": "O_CAPACITY", "description": "The approved load profile remains inside the defined service envelope.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "delivery_criteria": [{"id": "D_REPO", "description": "Source is delivered as an immutable repository revision.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "preferences": {}
+      },
+      "expected": {
+        "status": "NEEDS_DECISION",
+        "selected_blueprint": "WEB_STATIC",
+        "risk_level": "LOW",
+        "quality_level": "ELEVATED",
+        "facts_present": ["capacity_strategy_required"],
+        "question_ids": ["Q_TRAFFIC_PROFILE"],
+        "finding_codes": []
+      }
+    },
+    {
+      "id": "MUTATION_ONCHAIN_READ_ONLY",
+      "proposal": {
+        "schema_version": "inkubator.compiler-proposal/1.0",
+        "source_intent": "Show read-only onchain state without preparing transactions.",
+        "requirements": [
+          {"key": "accounts", "value": false, "provenance": "SOURCE"},
+          {"key": "persistence", "value": false, "provenance": "SOURCE"},
+          {"key": "uploads_private", "value": false, "provenance": "SOURCE"},
+          {"key": "realtime", "value": false, "provenance": "SOURCE"},
+          {"key": "notifications", "value": false, "provenance": "SOURCE"},
+          {"key": "onchain_read", "value": true, "provenance": "SOURCE"},
+          {"key": "wallet_transactions", "value": false, "provenance": "SOURCE"},
+          {"key": "custody_private_keys", "value": false, "provenance": "SOURCE"}
+        ],
+        "knowledge": [],
+        "outcome_criteria": [{"id": "O_CHAIN_READ", "description": "The page displays read-only chain state from the configured source.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "delivery_criteria": [{"id": "D_REPO", "description": "Source is delivered as an immutable repository revision.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "preferences": {}
+      },
+      "expected": {
+        "status": "READY",
+        "selected_blueprint": "WEB3_READ_APP",
+        "risk_level": "MEDIUM",
+        "quality_level": "STANDARD",
+        "facts_present": ["onchain_read_boundary_required"],
+        "question_ids": ["Q_CHAIN_SOURCE"],
+        "finding_codes": []
+      }
+    },
+    {
+      "id": "MUTATION_MUTABLE_PRIVATE_DEPENDENCY",
+      "proposal": {
+        "schema_version": "inkubator.compiler-proposal/1.0",
+        "source_intent": "The build depends on a mutable private package supplied by the organizer.",
+        "requirements": [
+          {"key": "accounts", "value": false, "provenance": "SOURCE"},
+          {"key": "persistence", "value": false, "provenance": "SOURCE"},
+          {"key": "uploads_private", "value": false, "provenance": "SOURCE"},
+          {"key": "realtime", "value": false, "provenance": "SOURCE"},
+          {"key": "notifications", "value": false, "provenance": "SOURCE"},
+          {"key": "onchain_read", "value": false, "provenance": "SOURCE"},
+          {"key": "wallet_transactions", "value": false, "provenance": "SOURCE"},
+          {"key": "custody_private_keys", "value": false, "provenance": "SOURCE"},
+          {"key": "mutable_private_dependencies", "value": true, "provenance": "SOURCE"}
+        ],
+        "knowledge": [],
+        "outcome_criteria": [{"id": "O_PRIVATE_DEP", "description": "The build uses only the approved immutable private dependency revision.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "delivery_criteria": [{"id": "D_REPO", "description": "Source is delivered as an immutable repository revision.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "preferences": {}
+      },
+      "expected": {
+        "status": "NEEDS_DECISION",
+        "selected_blueprint": "WEB_STATIC",
+        "risk_level": "HIGH",
+        "quality_level": "STANDARD",
+        "facts_present": ["dependency_pinning_required"],
+        "question_ids": ["Q_DEPENDENCY_PINNING"],
+        "finding_codes": []
+      }
+    },
+    {
+      "id": "MUTATION_VAGUE_SCOPE",
+      "proposal": {
+        "schema_version": "inkubator.compiler-proposal/1.0",
+        "source_intent": "Help us improve the product until it feels good.",
+        "requirements": [
+          {"key": "accounts", "value": false, "provenance": "SOURCE"},
+          {"key": "persistence", "value": false, "provenance": "SOURCE"},
+          {"key": "uploads_private", "value": false, "provenance": "SOURCE"},
+          {"key": "realtime", "value": false, "provenance": "SOURCE"},
+          {"key": "notifications", "value": false, "provenance": "SOURCE"},
+          {"key": "onchain_read", "value": false, "provenance": "SOURCE"},
+          {"key": "wallet_transactions", "value": false, "provenance": "SOURCE"},
+          {"key": "custody_private_keys", "value": false, "provenance": "SOURCE"},
+          {"key": "vague_consulting_scope", "value": true, "provenance": "SOURCE"}
+        ],
+        "knowledge": [],
+        "outcome_criteria": [{"id": "O_SCOPE", "description": "The organizer defines an observable replacement outcome before readiness.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "delivery_criteria": [{"id": "D_REPO", "description": "Source is delivered as an immutable repository revision.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "preferences": {}
+      },
+      "expected": {
+        "status": "NEEDS_DECISION",
+        "selected_blueprint": "WEB_STATIC",
+        "risk_level": "LOW",
+        "quality_level": "STANDARD",
+        "facts_present": [],
+        "question_ids": ["Q_OUTCOME_SCOPE"],
+        "finding_codes": ["UNTESTABLE_SCOPE"]
+      }
+    }
+  ]
+}
