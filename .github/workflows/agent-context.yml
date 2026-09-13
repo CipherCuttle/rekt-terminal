@@ -100,15 +100,20 @@ jobs:
           mkdir -p agent-context
           git ls-files | LC_ALL=C sort > agent-context/structure.txt
 
-          "$tool" --config "$config" \
+          # Ignore-control files from the source SHA are data, not packing policy.
+          # CLI flags disable .gitignore/.ignore discovery; Repomix always reads
+          # .repomixignore, so remove those working-tree files after topology capture.
+          find . -name .repomixignore -exec rm -f -- {} +
+
+          "$tool" --config "$config" --no-gitignore --no-dot-ignore \
             --include "$AUTHORITY_INCLUDE" \
             --output agent-context/authority.xml
 
-          "$tool" --config "$config" \
+          "$tool" --config "$config" --no-gitignore --no-dot-ignore \
             --include "$TERMINAL_RUNTIME_INCLUDE" \
             --output agent-context/terminal-runtime.xml
 
-          "$tool" --config "$config" \
+          "$tool" --config "$config" --no-gitignore --no-dot-ignore \
             --include "$INKUBATOR_RUNTIME_INCLUDE" \
             --output agent-context/inkubator-runtime.xml
 
@@ -155,6 +160,7 @@ jobs:
                 generated_interpretation: true,
                 workflow_definition_source: "default-branch-workflow_run",
                 policy_source_sha: $policy_sha,
+                source_ignore_policy_trusted: false,
                 product_authority: false,
                 scientific_authority: false,
                 governance_authority: false,
@@ -167,6 +173,8 @@ jobs:
                 version: $repomix_version,
                 dependency_install: "runner-temp+official-registry+ignore-scripts+npm-audit-signatures",
                 config_sha256: $config_sha256,
+                source_ignore_discovery: false,
+                source_repomixignore_suppressed: true,
                 compress: $compress,
                 security_check: $security_check,
                 token_budget_per_pack: $token_budget
