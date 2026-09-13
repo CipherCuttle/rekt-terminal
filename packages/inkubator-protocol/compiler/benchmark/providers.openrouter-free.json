@@ -16,7 +16,8 @@
       "api_key_env": "OPENROUTER_API_KEY",
       "input_usd_per_million": 0,
       "output_usd_per_million": 0,
-      "pricing_note": "Zero-priced structured-output endpoint confirmed in OpenRouter live catalog on 2026-09-13; request additionally enforces max_price=0.",
+      "pricing_note": "Zero-priced structured-output endpoint confirmed in OpenRouter live catalog on 2026-09-13; extraction benchmark disables reasoning so the bounded output budget is reserved for final JSON; request additionally enforces max_price=0.",
+      "reasoning": {"effort": "none"},
       "provider_preferences": {
         "allow_fallbacks": false,
         "require_parameters": true,
@@ -30,7 +31,8 @@
       "api_key_env": "OPENROUTER_API_KEY",
       "input_usd_per_million": 0,
       "output_usd_per_million": 0,
-      "pricing_note": "Zero-priced structured-output endpoint confirmed live on 2026-09-13; preview endpoint is scheduled to go away 2026-09-30 and request additionally enforces max_price=0.",
+      "pricing_note": "Zero-priced structured-output endpoint confirmed live on 2026-09-13; extraction benchmark disables optional reasoning so the bounded output budget is reserved for final JSON; preview endpoint is scheduled to go away 2026-09-30 and request additionally enforces max_price=0.",
+      "reasoning": {"enabled": false},
       "provider_preferences": {
         "allow_fallbacks": false,
         "require_parameters": true,

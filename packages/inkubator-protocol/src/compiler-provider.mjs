@@ -55,6 +55,7 @@ export function createOpenAICompatibleInterpreter({
   timeoutMs = 30000,
   maxTokens = 650,
   providerPreferences = null,
+  reasoningConfig = null,
   extraHeaders = {},
 }) {
   fail(typeof name === 'string' && name.length > 0, 'provider name is required');
@@ -65,6 +66,7 @@ export function createOpenAICompatibleInterpreter({
   fail(Number.isFinite(timeoutMs) && timeoutMs > 0, 'provider timeoutMs must be positive');
   fail(Number.isInteger(maxTokens) && maxTokens > 0, 'provider maxTokens must be a positive integer');
   fail(providerPreferences === null || isObject(providerPreferences), 'provider preferences must be an object or null');
+  fail(reasoningConfig === null || isObject(reasoningConfig), 'provider reasoningConfig must be an object or null');
   fail(isObject(extraHeaders), 'provider extraHeaders must be an object');
   const endpoint = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
 
@@ -84,6 +86,7 @@ export function createOpenAICompatibleInterpreter({
         ],
       };
       if (providerPreferences) body.provider = structuredClone(providerPreferences);
+      if (reasoningConfig) body.reasoning = structuredClone(reasoningConfig);
       const response = await fetchImpl(endpoint, {
         method: 'POST',
         headers: {authorization: `Bearer ${apiKey}`, 'content-type': 'application/json', ...extraHeaders},

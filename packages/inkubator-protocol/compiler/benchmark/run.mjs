@@ -106,6 +106,7 @@ for (const provider of providersDocument.providers) {
     apiKey,
     maxTokens: Number(runPolicy.max_tokens_per_response ?? 650),
     providerPreferences: provider.provider_preferences ?? null,
+    reasoningConfig: provider.reasoning ?? null,
     extraHeaders: isOpenRouter ? {'X-OpenRouter-Metadata': 'enabled', 'X-Title': 'REKT Inkubator D-GATE-5 benchmark'} : {},
   });
   const taskResults = [];
