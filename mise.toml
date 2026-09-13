@@ -25,12 +25,16 @@ description = "Run REKT's available static check (typecheck; no standalone lint 
 run = "npm run typecheck"
 
 [tasks.verify]
-description = "Run REKT's canonical repository verification script"
-run = "npm run verify"
+description = "Run REKT verification with the generated-client build prerequisite used by native CI"
+run = [
+  "npm run build -w @rekt-ink/inkubator-api",
+  "npm run verify",
+]
 
 [tasks.ci]
 description = "Run the closest local equivalent of CI; remote secret scanning remains CI-only"
 run = [
   "npm ci --no-audit --no-fund",
+  "npm run build -w @rekt-ink/inkubator-api",
   "npm run verify",
 ]
