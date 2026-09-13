@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rekt.ink/schema/compiler-blueprint.schema.json",
+  "title": "REKT Inkubator Compiler Blueprint V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "applicability",
+    "default_assumptions",
+    "required_questions",
+    "sensitivity_points",
+    "reference_architecture",
+    "supported_production_envelope",
+    "risk_profile",
+    "acceptance_modules",
+    "known_limits",
+    "health"
+  ],
+  "properties": {
+    "schema_version": {"const": "inkubator.compiler-blueprint/1.0"},
+    "id": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "minLength": 1},
+    "applicability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required_true", "any_true", "excluded_true"],
+      "properties": {
+        "required_true": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "any_true": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "excluded_true": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+      }
+    },
+    "default_assumptions": {"type": "array", "items": {"$ref": "#/$defs/knowledge"}},
+    "required_questions": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "sensitivity_points": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "reference_architecture": {"type": "object"},
+    "supported_production_envelope": {"type": "object"},
+    "risk_profile": {"enum": ["LOW", "MEDIUM", "HIGH"]},
+    "acceptance_modules": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "known_limits": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "health": {"enum": ["ACTIVE", "EXPERIMENTAL", "RETIRED"]}
+  },
+  "$defs": {
+    "scalar": {"anyOf": [{"type": "string"}, {"type": "number"}, {"type": "boolean"}, {"type": "null"}]},
+    "knowledge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "key", "material", "provenance"],
+      "properties": {
+        "kind": {"enum": ["KNOWN", "ASSUMED", "UNKNOWN"]},
+        "key": {"type": "string", "minLength": 1},
+        "material": {"type": "boolean"},
+        "value": {"$ref": "#/$defs/scalar"},
+        "provenance": {"enum": ["SOURCE", "MODEL_PROPOSAL", "ORGANIZER_ACCEPTED", "DETERMINISTIC_RULE"]}
+      }
+    }
+  }
+}

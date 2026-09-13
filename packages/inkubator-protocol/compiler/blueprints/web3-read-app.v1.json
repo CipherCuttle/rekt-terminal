@@ -1,0 +1,19 @@
+{
+  "schema_version": "inkubator.compiler-blueprint/1.0",
+  "id": "WEB3_READ_APP",
+  "version": "1.0.0",
+  "applicability": {
+    "required_true": ["onchain_read"],
+    "any_true": [],
+    "excluded_true": ["wallet_transactions", "custody_private_keys"]
+  },
+  "default_assumptions": [],
+  "required_questions": ["Q_CHAIN_SOURCE"],
+  "sensitivity_points": ["chain/network selection", "RPC provenance", "stale-data behavior"],
+  "reference_architecture": {"shape": "WEB3_READ_ONLY_APP", "components": ["web-client", "read-only-chain-adapter", "rpc-provider"]},
+  "supported_production_envelope": {"wallet_transactions": false, "private_key_custody": false},
+  "risk_profile": "MEDIUM",
+  "acceptance_modules": ["http-smoke", "chain-read-boundary", "stale-source-fail-closed"],
+  "known_limits": ["Read-only chain access only.", "No transaction signing or broadcasting."],
+  "health": "ACTIVE"
+}

@@ -1,0 +1,19 @@
+{
+  "schema_version": "inkubator.compiler-blueprint/1.0",
+  "id": "WEB3_TRANSACTION_APP",
+  "version": "1.0.0",
+  "applicability": {
+    "required_true": ["wallet_transactions"],
+    "any_true": [],
+    "excluded_true": ["custody_private_keys"]
+  },
+  "default_assumptions": [],
+  "required_questions": ["Q_CHAIN_TARGET", "Q_TRANSACTION_INTENTS"],
+  "sensitivity_points": ["chain/network selection", "transaction intent allowlist", "wallet signing boundary"],
+  "reference_architecture": {"shape": "WEB3_TRANSACTION_INTENT_APP", "components": ["web-client", "transaction-intent-builder", "external-user-wallet"]},
+  "supported_production_envelope": {"wallet_transactions": true, "private_key_custody": false},
+  "risk_profile": "HIGH",
+  "acceptance_modules": ["http-smoke", "wallet-transaction-intent", "negative-transaction-paths"],
+  "known_limits": ["User-controlled external wallet only.", "No private-key custody or production-value authorization in Stage D."],
+  "health": "ACTIVE"
+}

@@ -12,7 +12,8 @@
   },
   "files": [
     "src",
-    "schema"
+    "schema",
+    "compiler"
   ],
   "types": "./src/constants.d.ts",
   "exports": {
@@ -24,6 +25,10 @@
     "./challenge": {
       "types": "./src/challenge.d.ts",
       "import": "./src/challenge-hardened.mjs"
+    },
+    "./compiler": {
+      "types": "./src/compiler.d.ts",
+      "import": "./src/compiler.mjs"
     },
     "./schema/*": "./schema/*"
   },

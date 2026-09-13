@@ -1,0 +1,19 @@
+{
+  "schema_version": "inkubator.compiler-blueprint/1.0",
+  "id": "WEB_REALTIME",
+  "version": "1.0.0",
+  "applicability": {
+    "required_true": ["realtime"],
+    "any_true": [],
+    "excluded_true": ["onchain_read", "wallet_transactions", "custody_private_keys"]
+  },
+  "default_assumptions": [],
+  "required_questions": ["Q_REALTIME_CONSISTENCY"],
+  "sensitivity_points": ["connection fanout", "reconnect semantics", "state consistency"],
+  "reference_architecture": {"shape": "REALTIME_WEB_APP", "components": ["web-client", "application-api", "realtime-transport", "durable-state"]},
+  "supported_production_envelope": {"durable_server_state": true, "realtime_state": true, "wallet_transactions": false},
+  "risk_profile": "MEDIUM",
+  "acceptance_modules": ["http-smoke", "realtime-consistency", "reconnect-path"],
+  "known_limits": ["Does not authorize wallet signing, transaction broadcast, or private-key custody."],
+  "health": "ACTIVE"
+}
