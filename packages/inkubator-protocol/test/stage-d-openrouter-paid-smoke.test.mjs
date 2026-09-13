@@ -44,6 +44,8 @@ test('paid smoke config is fixed to four strict-schema calls with a two-cent wor
     'deepseek/deepseek-v4-flash-0731',
     'google/gemini-3.1-flash-lite',
   ]);
+  assert.deepEqual(config.providers[0].reasoning, {effort: 'none'});
+  assert.deepEqual(config.providers[1].reasoning, {effort: 'minimal'});
   for (const provider of config.providers) {
     assert.equal(provider.api_key_env, 'OPENROUTER_API_KEY');
     assert.equal(provider.structured_output, 'json_schema');
