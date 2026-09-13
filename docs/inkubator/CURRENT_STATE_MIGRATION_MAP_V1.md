@@ -96,7 +96,7 @@ Promote/refactor for:
 
 Rules:
 
-- the historical `WORLD / COMMAND / PROJECT / PLAYER / SHIP` shell is parked from forward navigation and may remain only behind explicit lab/legacy access;
+- the historical `WORLD / COMMAND / PROJECT / PLAYER / SHIP` shell is parked from forward navigation and may remain only through explicit compatibility access such as `?mode=...` deep links and lab/legacy queries used for test/lab evidence;
 - existing auth/session, generated API client, React Query, Playwright, Storybook, Lighthouse and visual-calibration substrate should be reused rather than duplicated;
 - missing Challenge-first transport renders explicitly unavailable; parked legacy routes are not substituted;
 - promoting the runtime does not promote obsolete public nouns or mutable legacy authority.
