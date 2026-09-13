@@ -24,11 +24,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24.20.0
-          package-manager-cache: false
-          check-latest: false
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
 
       - name: Offline preflight tests
         run: node --test packages/inkubator-protocol/test/stage-d-provider-benchmark.test.mjs
