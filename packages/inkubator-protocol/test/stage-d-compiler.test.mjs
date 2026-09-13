@@ -177,6 +177,17 @@ test('forged READY CompilerState is rejected unless it matches deterministic rep
   assert.throws(() => buildBuildContractCandidate(forged, authorityFields(), {blueprints}), /does not match deterministic replay/);
 });
 
+test('replay rejects a caller-forged blueprint registry even when state matches the forgery', () => {
+  const forgedBlueprints = structuredClone(blueprints);
+  const staticBlueprint = forgedBlueprints.find((item) => item.id === 'WEB_STATIC');
+  staticBlueprint.reference_architecture = {shape: 'PROVIDER_FORGED', components: ['provider-controlled-runtime']};
+  const forgedState = compileProposal(baseProposal(), {blueprints: forgedBlueprints});
+  assert.equal(forgedState.status, 'READY');
+  assert.equal(forgedState.reference_architecture_candidate.shape, 'PROVIDER_FORGED');
+  assert.throws(() => assertCompilerState(forgedState, {blueprints: forgedBlueprints}), /content digest mismatch/);
+  assert.throws(() => buildBuildContractCandidate(forgedState, authorityFields(), {blueprints: forgedBlueprints}), /content digest mismatch/);
+});
+
 test('READY CompilerState can produce a Stage-B-valid candidate without freezing it', () => {
   const state = compileProposal(baseProposal(), {blueprints});
   assert.equal(state.status, 'READY');

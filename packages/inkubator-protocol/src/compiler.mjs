@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {validateBuildContractReady} from './challenge-hardened.mjs';
 
 export const COMPILER_PROPOSAL_SCHEMA_VERSION = 'inkubator.compiler-proposal/1.0';
@@ -11,6 +12,13 @@ export const RISK_LEVELS = Object.freeze(['LOW','MEDIUM','HIGH']);
 export const QUALITY_LEVELS = Object.freeze(['STANDARD','ELEVATED','STRICT']);
 export const BLUEPRINT_HEALTH = Object.freeze(['ACTIVE','EXPERIMENTAL','RETIRED']);
 
+const PINNED_BLUEPRINT_DIGESTS = Object.freeze({
+  'WEB_STATIC@1.0.0':'09b2012e71394cee0139e877374aa38d5e37dff782fa4ad49b415fe346bce938',
+  'WEB_CRUD@1.0.0':'91ef73e774370e1ff502613b7da49a4feda18924feb2510aeabc1285774a377b',
+  'WEB_REALTIME@1.0.0':'740f0c4d72cc3c71c6365c54fd0755346843f405e2dbc3b706de6f028a9b9f63',
+  'WEB3_READ_APP@1.0.0':'2435cddade2946f0be3043e50397b97523e95a93a407f482e110d54537f0291a',
+  'WEB3_TRANSACTION_APP@1.0.0':'8caa97fd537c4c94d0fe65013147e73205e57d9fe3ae240790a69df13f3a06fa',
+});
 const RISK_RANK = {LOW:0,MEDIUM:1,HIGH:2};
 const QUALITY_RANK = {STANDARD:0,ELEVATED:1,STRICT:2};
 const AUTHORITY_PROVENANCE = new Set(['SOURCE','ORGANIZER_ACCEPTED']);
@@ -48,6 +56,7 @@ const maxQuality = (a,b) => QUALITY_RANK[b] > QUALITY_RANK[a] ? b : a;
 const hasOwn = (v,k) => Object.prototype.hasOwnProperty.call(v,k);
 function canonical(v){ if(Array.isArray(v)) return v.map(canonical); if(v && typeof v==='object'){ const out={}; for(const k of Object.keys(v).sort(cmp)) out[k]=canonical(v[k]); return out; } return v; }
 const canonicalString = (v) => JSON.stringify(canonical(v));
+const canonicalDigest = (v) => createHash('sha256').update(canonicalString(v),'utf8').digest('hex');
 
 function assertProv(v,l,{inputOnly=true}={}){ fail((inputOnly?INPUT_PROVENANCE_KINDS:PROVENANCE_KINDS).includes(v),`${l} invalid ${inputOnly?'input ':''}provenance`); }
 function assertRequirement(x,l){ obj(x,l); allowed(x,R_KEYS,l); str(x.key,`${l}.key`); scalar(x.value,`${l}.value`); assertProv(x.provenance,`${l}.provenance`); }
@@ -77,6 +86,19 @@ export function assertCompilerBlueprint(b){
   fail(Array.isArray(b.default_assumptions),'compiler blueprint.default_assumptions must be an array'); b.default_assumptions.forEach((x,i)=>assertKnowledge(x,`compiler blueprint.default_assumptions[${i}]`,{inputOnly:false}));
   stringArray(b.required_questions,'compiler blueprint.required_questions'); stringArray(b.sensitivity_points,'compiler blueprint.sensitivity_points'); obj(b.reference_architecture,'compiler blueprint.reference_architecture'); obj(b.supported_production_envelope,'compiler blueprint.supported_production_envelope');
   fail(RISK_LEVELS.includes(b.risk_profile),'compiler blueprint.risk_profile invalid'); stringArray(b.acceptance_modules,'compiler blueprint.acceptance_modules'); stringArray(b.known_limits,'compiler blueprint.known_limits'); fail(BLUEPRINT_HEALTH.includes(b.health),'compiler blueprint.health invalid'); return b;
+}
+
+function assertPinnedBlueprintRegistry(blueprints){
+  fail(Array.isArray(blueprints)&&blueprints.length>0,'compiler blueprints are required for deterministic CompilerState replay validation');
+  const registry=blueprints.map((b)=>{assertCompilerBlueprint(b);return clone(b)});
+  const actual=sort(registry.map((b)=>`${b.id}@${b.version}`));
+  const expected=sort(Object.keys(PINNED_BLUEPRINT_DIGESTS));
+  fail(actual.length===expected.length&&actual.every((key,index)=>key===expected[index]),'compiler blueprint registry does not match the pinned Stage-D registry');
+  for(const blueprint of registry){
+    const key=`${blueprint.id}@${blueprint.version}`;
+    fail(canonicalDigest(blueprint)===PINNED_BLUEPRINT_DIGESTS[key],`compiler blueprint ${key} content digest mismatch`);
+  }
+  return registry;
 }
 
 export const CAUSAL_RULES = freeze([
@@ -199,8 +221,8 @@ function proposalFromState(s){ return {schema_version:COMPILER_PROPOSAL_SCHEMA_V
 
 export function assertCompilerState(s,{blueprints=[]}={}){
   assertCompilerStateShape(s);
-  fail(Array.isArray(blueprints)&&blueprints.length>0,'compiler blueprints are required for deterministic CompilerState replay validation');
-  const expected=compileProposal(proposalFromState(s),{blueprints});
+  const trustedBlueprints=assertPinnedBlueprintRegistry(blueprints);
+  const expected=compileProposal(proposalFromState(s),{blueprints:trustedBlueprints});
   fail(canonicalString(s)===canonicalString(expected),'compiler state does not match deterministic replay');
   return s;
 }
