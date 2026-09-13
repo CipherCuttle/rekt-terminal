@@ -17,6 +17,7 @@ const PROTOCOL_RECEIPT_ID_PATTERN = /^(receipt|correction)_[0-9a-f]{64}$/;
 type ChallengeAuthorityRow = {
   challenge_id: string;
   organizer_player_id: string;
+  status: string;
   current_contract_version: string | null;
   current_terms_digest: string | null;
 };
@@ -95,10 +96,7 @@ async function commandReplay(
   return true;
 }
 
-async function loadContract(
-  db: Kysely<DatabaseSchema>,
-  challenge: ChallengeAuthorityRow,
-): Promise<BuildContract> {
+async function loadContract(db: Kysely<DatabaseSchema>, challenge: ChallengeAuthorityRow): Promise<BuildContract> {
   if (!challenge.current_contract_version || !challenge.current_terms_digest) throw new Error('challenge_contract_not_frozen');
   const row = (await sql<ContractRow>`
     select terms_digest, contract_json
@@ -107,7 +105,78 @@ async function loadContract(
       and contract_version = ${challenge.current_contract_version}
   `.execute(db)).rows[0];
   if (!row || row.terms_digest !== challenge.current_terms_digest) throw new Error('challenge_contract_pointer_invalid');
-  return assertFrozenBuildContract(row.contract_json as BuildContract);
+  return assertFrozenBuildContract(row.contract_json);
+}
+
+async function requireStoredDecision(
+  db: Kysely<DatabaseSchema>,
+  challengeId: string,
+  decisionType: string,
+  value: unknown,
+): Promise<void> {
+  const normalized = canonicalizeJson(value);
+  const match = (await sql<{decision_id: string}>`
+    select decision_id
+    from challenge_decisions
+    where challenge_id = ${challengeId}
+      and decision_type = ${decisionType}
+      and decision_json = ${normalized.value}::jsonb
+    limit 1
+  `.execute(db)).rows[0];
+  if (!match) throw new Error(`challenge_receipt_${decisionType.toLowerCase()}_authority_missing`);
+}
+
+async function existingLogicalReceipt(
+  db: Kysely<DatabaseSchema>,
+  challengeId: string,
+  protocolReceiptId: string,
+  receiptDigest: string,
+): Promise<ProtocolChallengeReceiptRow | null> {
+  const byProtocolId = (await sql<ProtocolChallengeReceiptRow>`
+    select * from challenge_receipts
+    where protocol_receipt_id = ${protocolReceiptId}
+    limit 1
+  `.execute(db)).rows[0];
+  if (byProtocolId) return byProtocolId;
+  return (await sql<ProtocolChallengeReceiptRow>`
+    select * from challenge_receipts
+    where challenge_id = ${challengeId} and receipt_digest = ${receiptDigest}
+    limit 1
+  `.execute(db)).rows[0] ?? null;
+}
+
+function assertLogicalReceiptMatch(
+  row: ProtocolChallengeReceiptRow,
+  protocolReceiptId: string,
+  receiptDigest: string,
+  normalizedReceiptSha: string,
+  shipReceiptId: string | null,
+  supersedesInternalId: string | null,
+): void {
+  if (
+    row.protocol_receipt_id !== protocolReceiptId ||
+    row.receipt_digest !== receiptDigest ||
+    canonicalizeJson(row.receipt_json).sha256 !== normalizedReceiptSha ||
+    row.ship_receipt_id !== shipReceiptId ||
+    row.supersedes_receipt_id !== supersedesInternalId
+  ) throw new Error('challenge_receipt_immutable_conflict');
+}
+
+async function appendReceiptHistory(
+  db: Kysely<DatabaseSchema>,
+  challenge: ChallengeAuthorityRow,
+  dedupeKey: string,
+  payload: unknown,
+): Promise<void> {
+  await appendHistoryEvent(db, {
+    eventFamily: 'activity',
+    eventType: 'challenge.receipt.recorded',
+    dedupeKey,
+    actorPlayerId: challenge.organizer_player_id,
+    subjectType: 'challenge',
+    subjectId: challenge.challenge_id,
+    payload,
+  });
 }
 
 export async function recordProtocolChallengeReceipt(
@@ -128,7 +197,7 @@ export async function recordProtocolChallengeReceipt(
 
   return db.transaction().execute(async (transaction) => {
     const challenge = (await sql<ChallengeAuthorityRow>`
-      select challenge_id, organizer_player_id, current_contract_version, current_terms_digest
+      select challenge_id, organizer_player_id, status, current_contract_version, current_terms_digest
       from challenges where challenge_id = ${challengeId} for update
     `.execute(transaction)).rows[0];
     if (!challenge) throw new Error('challenge_not_found');
@@ -186,11 +255,25 @@ export async function recordProtocolChallengeReceipt(
     };
 
     if (await commandReplay(transaction, dedupeKey, challenge.organizer_player_id, challengeId, payload)) {
-      const replay = (await sql<ProtocolChallengeReceiptRow>`
-        select * from challenge_receipts where protocol_receipt_id = ${protocolReceiptId}
-      `.execute(transaction)).rows[0];
+      const replay = await existingLogicalReceipt(transaction, challengeId, protocolReceiptId, receiptDigest);
       if (!replay) throw new Error('challenge_receipt_replay_missing');
+      assertLogicalReceiptMatch(replay, protocolReceiptId, receiptDigest, normalized.sha256, shipReceiptId, supersedesInternalId);
       return replay;
+    }
+
+    const logicalReplay = await existingLogicalReceipt(transaction, challengeId, protocolReceiptId, receiptDigest);
+    if (logicalReplay) {
+      assertLogicalReceiptMatch(logicalReplay, protocolReceiptId, receiptDigest, normalized.sha256, shipReceiptId, supersedesInternalId);
+      await appendReceiptHistory(transaction, challenge, dedupeKey, payload);
+      return logicalReplay;
+    }
+
+    if (schemaVersion === 'inkubator.challenge-receipt/1.0') {
+      if (challenge.status !== 'SETTLED') throw new Error('challenge_receipt_requires_settled_status');
+      await requireStoredDecision(transaction, challengeId, 'SETTLEMENT_INTENT', receipt.settlement_intent);
+      await requireStoredDecision(transaction, challengeId, 'SETTLEMENT_EXECUTION_FACT', receipt.settlement_execution_fact);
+    } else if (challenge.status !== 'RECEIPT_FILED') {
+      throw new Error('challenge_receipt_correction_requires_filed_receipt');
     }
 
     const internalReceiptId = randomUUID();
@@ -203,26 +286,23 @@ export async function recordProtocolChallengeReceipt(
           ${internalReceiptId}, ${protocolReceiptId}, ${challengeId}, ${termsDigest}, ${schemaVersion},
           ${normalized.value}::jsonb, ${receiptDigest}, ${shipReceiptId}, ${supersedesInternalId}
         )
-        on conflict (challenge_id, receipt_digest) do nothing
         returning *
       `.execute(transaction);
-      const row = inserted.rows[0] ?? (await sql<ProtocolChallengeReceiptRow>`
-        select * from challenge_receipts
-        where challenge_id = ${challengeId} and receipt_digest = ${receiptDigest}
-      `.execute(transaction)).rows[0];
-      if (!row || row.protocol_receipt_id !== protocolReceiptId || canonicalizeJson(row.receipt_json).sha256 !== normalized.sha256) {
-        throw new Error('challenge_receipt_immutable_conflict');
+      const row = inserted.rows[0];
+      if (!row) throw new Error('challenge_receipt_create_failed');
+      assertLogicalReceiptMatch(row, protocolReceiptId, receiptDigest, normalized.sha256, shipReceiptId, supersedesInternalId);
+
+      if (schemaVersion === 'inkubator.challenge-receipt/1.0') {
+        const advanced = await sql<{challenge_id: string}>`
+          update challenges
+          set status = 'RECEIPT_FILED', updated_at = clock_timestamp()
+          where challenge_id = ${challengeId} and status = 'SETTLED'
+          returning challenge_id
+        `.execute(transaction);
+        if (advanced.rows.length !== 1) throw new Error('challenge_receipt_state_transition_race');
       }
 
-      await appendHistoryEvent(transaction, {
-        eventFamily: 'activity',
-        eventType: 'challenge.receipt.recorded',
-        dedupeKey,
-        actorPlayerId: challenge.organizer_player_id,
-        subjectType: 'challenge',
-        subjectId: challengeId,
-        payload,
-      });
+      await appendReceiptHistory(transaction, challenge, dedupeKey, payload);
       return row;
     } catch (error) {
       if ((error as {code?: unknown})?.code === '23505') throw new Error('challenge_receipt_immutable_conflict');
