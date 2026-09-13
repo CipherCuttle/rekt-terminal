@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import {
   activateEntries,
   assertFrozenBuildContract,
@@ -107,7 +108,7 @@ async function enqueueFollowup(
       job_id, job_version, job_type, idempotency_key, payload, payload_hash,
       state, attempts, max_attempts, next_attempt_at
     ) values (
-      ${crypto.randomUUID()}, 'job.v1', ${input.jobType}, ${input.idempotencyKey},
+      ${randomUUID()}, 'job.v1', ${input.jobType}, ${input.idempotencyKey},
       ${normalized.value}::jsonb, ${normalized.sha256}, 'pending', 0, 5, ${input.nextAttemptAt}
     )
     on conflict (idempotency_key) do nothing
