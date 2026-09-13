@@ -33,6 +33,19 @@ export const stageCQualificationOverallMigration = {
       check (result in ('QUALIFIED','NOT_QUALIFIED','DISPUTED'))
     `.execute(db);
 
+    await sql`alter table challenges add column organizer_payout_identity text`.execute(db);
+    await sql`alter table challenges add column funder_payout_identity text`.execute(db);
+    await sql`
+      alter table challenges
+      add constraint challenges_organizer_payout_identity_shape
+      check (organizer_payout_identity is null or char_length(organizer_payout_identity) between 1 and 256)
+    `.execute(db);
+    await sql`
+      alter table challenges
+      add constraint challenges_funder_payout_identity_shape
+      check (funder_payout_identity is null or char_length(funder_payout_identity) between 1 and 256)
+    `.execute(db);
+
     await sql`alter table challenge_receipts add column protocol_receipt_id text`.execute(db);
     await sql`
       update challenge_receipts
@@ -55,6 +68,11 @@ export const stageCQualificationOverallMigration = {
     await sql`alter table challenge_receipts drop constraint challenge_receipts_protocol_id_shape`.execute(db);
     await sql`alter table challenge_receipts drop constraint challenge_receipts_protocol_id_unique`.execute(db);
     await sql`alter table challenge_receipts drop column protocol_receipt_id`.execute(db);
+
+    await sql`alter table challenges drop constraint challenges_funder_payout_identity_shape`.execute(db);
+    await sql`alter table challenges drop constraint challenges_organizer_payout_identity_shape`.execute(db);
+    await sql`alter table challenges drop column funder_payout_identity`.execute(db);
+    await sql`alter table challenges drop column organizer_payout_identity`.execute(db);
 
     await sql`alter table challenge_qualifications drop constraint challenge_qualifications_result`.execute(db);
     await sql`
