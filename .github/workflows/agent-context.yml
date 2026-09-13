@@ -29,15 +29,15 @@ jobs:
       SOURCE_EVENT: ${{ github.event.workflow_run.event }}
       SOURCE_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
       POLICY_SHA: ${{ github.workflow_sha }}
-      # authority.xml is navigation, not a dump of every historical/domain document.
-      # Product-specific contracts live with the matching runtime pack; structure.txt
-      # remains the exact-SHA map for targeted full-source fetches.
+      # authority.xml is loaded once for repository/product navigation. Runtime packs
+      # deliberately avoid duplicating it and remain product-scoped; structure.txt
+      # is the exact-SHA map for targeted full-source fetches when deeper context is needed.
       AUTHORITY_INCLUDE: >-
         AGENTS.md,docs/PRODUCT_BOUNDARIES_V1.md,docs/PROJECT_PLAN_V1.md,docs/PROJECT_PLAN_V2.md,docs/RPS_REUSE_MATRIX_V1.md,docs/inkubator/INDEX.md
       TERMINAL_RUNTIME_INCLUDE: >-
-        AGENTS.md,docs/PRODUCT_BOUNDARIES_V1.md,docs/PROJECT_PLAN_V1.md,docs/PROJECT_PLAN_V2.md,docs/SIM_CONTRACT_V0.md,docs/CAREER_CONTRACT_V0.md,docs/RPS_REUSE_MATRIX_V1.md,apps/api/src/**/*.{ts,tsx,js,mjs,cjs},apps/web/src/**/*.{ts,tsx,js,mjs,cjs},packages/*/src/**/*.{ts,tsx,js,mjs,cjs}
+        apps/api/src/**/*.{ts,tsx,js,mjs,cjs},apps/web/src/**/*.{ts,tsx,js,mjs,cjs},packages/core/src/**/*.{ts,tsx,js,mjs,cjs},packages/sim/src/**/*.{ts,tsx,js,mjs,cjs},packages/career/src/**/*.{ts,tsx,js,mjs,cjs},packages/episodes/src/**/*.{ts,tsx,js,mjs,cjs},packages/learning/src/**/*.{ts,tsx,js,mjs,cjs}
       INKUBATOR_RUNTIME_INCLUDE: >-
-        AGENTS.md,docs/PRODUCT_BOUNDARIES_V1.md,docs/PROJECT_PLAN_V1.md,docs/inkubator/INDEX.md,docs/inkubator/STAGE_D_*.md,apps/inkubator-api/src/**/*.{ts,tsx,js,mjs,cjs},apps/inkubator-lab/src/**/*.{ts,tsx,js,mjs,cjs},apps/inkubator-verifier/src/**/*.{ts,tsx,js,mjs,cjs},packages/*/src/**/*.{ts,tsx,js,mjs,cjs}
+        docs/inkubator/STAGE_D_*.md,apps/inkubator-api/src/**/*.{ts,tsx,js,mjs,cjs},apps/inkubator-lab/src/**/*.{ts,tsx,js,mjs,cjs},apps/inkubator-verifier/src/**/*.{ts,tsx,js,mjs,cjs},packages/inkubator-protocol/src/**/*.{ts,tsx,js,mjs,cjs}
     steps:
       - name: Checkout exact source SHA
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
