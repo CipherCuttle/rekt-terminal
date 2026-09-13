@@ -27,16 +27,17 @@ export const stageCIndependentAppealResolverMigration = {
           ) then
           raise exception 'challenge_appeal_resolution_authority_invalid' using errcode = '23514';
         end if;
-        if not exists (
-          select 1
-          from challenge_qualifications qualification
-          join challenge_submissions submission on submission.submission_id = qualification.submission_id
-          where qualification.qualification_id = new.effective_qualification_id
-            and qualification.challenge_id = appeal_row.challenge_id
-            and qualification.entry_id = appeal_row.entry_id
-            and qualification.terms_digest = authority.current_terms_digest
-            and submission.is_final = true
-        ) then
+        if new.effective_qualification_id = appeal_row.qualification_id
+          or not exists (
+            select 1
+            from challenge_qualifications qualification
+            join challenge_submissions submission on submission.submission_id = qualification.submission_id
+            where qualification.qualification_id = new.effective_qualification_id
+              and qualification.challenge_id = appeal_row.challenge_id
+              and qualification.entry_id = appeal_row.entry_id
+              and qualification.terms_digest = authority.current_terms_digest
+              and submission.is_final = true
+          ) then
           raise exception 'challenge_appeal_effective_qualification_invalid' using errcode = '23514';
         end if;
         return new;
