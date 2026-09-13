@@ -23,6 +23,7 @@ Current Inkubator hierarchy includes:
 - `docs/inkubator/FUNDED_CHALLENGE_SURVIVOR_PLAN_V1_1.md` — near-term mechanism/trust constraints;
 - `docs/inkubator/SOLO_OPERATOR_CONSTRAINTS_V1.md` — one-human operating constraint / Alpha cutline;
 - `docs/inkubator/PRE_REVENUE_INFRA_CAP_V1.md` — bootstrap budget/operational-spend constraints;
+- `docs/inkubator/THIRD_PARTY_SUBSTRATE_LOCK_V1.md` — external/open-source adoption boundary, pinned/fallback/removal rules and the approved product substrate composition;
 - `docs/inkubator/PREIMPLEMENTATION_READINESS_V1.md` — stage planning/readiness gates;
 - current stage-specific protocol/test contracts named by `docs/inkubator/INDEX.md`;
 - `docs/inkubator/REKT_TECHNICAL_FACEPLATE_V1.md` — highest Inkubator visual execution authority.
@@ -38,6 +39,18 @@ Do not infer implementation authority from a planning document, roadmap, PR exis
 Do not begin Stage C+ work, UI work, model integration, chain/payment work, or distant North-Star features while Stage B is active unless an explicit successor/scope decision authorizes it.
 
 Historical Inkubator systems remain reusable substrate where compatible, but old public nouns/navigation do not regain authority merely because code exists.
+
+### Third-party substrate rule
+
+Do not rebuild commodity peripheral capabilities by default, and do not import a large generic agent platform by default.
+
+Before adding/replacing an Inkubator third-party dependency, hydrate from `docs/inkubator/THIRD_PARTY_SUBSTRATE_LOCK_V1.md` and preserve its disposition/authority boundary. In particular:
+
+- Inkubator owns Challenge/Build-Contract/economic truth;
+- parsers, visualization engines, design formats, planning tools, linters and coding agents are replaceable substrate unless an authority document explicitly says otherwise;
+- any third-party tool used for qualification must have its relevant version/config/rules frozen into the Challenge terms;
+- an upstream outage or upgrade may not silently rewrite active `DONE WHEN` semantics;
+- popular new repos are not authority to reopen the locked shortlist during an active phase.
 
 ## Completion policy
 
