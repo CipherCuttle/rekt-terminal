@@ -68,9 +68,12 @@ function frozenContract(challengeId, overrides = {}) {
 async function preparedChallenge(db, {slotLimit = 2} = {}) {
   const organizer = await player(db, 'organizer');
   const challengeId = randomUUID();
+  const organizerPayoutIdentity = `organizer-pay-${challengeId}`;
+  const funderPayoutIdentity = `funder-pay-${challengeId}`;
   const contract = frozenContract(challengeId, {slot_limit: slotLimit});
   await createChallenge(db, {
     requestId: randomUUID(), challengeId, organizerPlayerId: organizer,
+    organizerPayoutIdentity, funderPayoutIdentity,
     mechanismVersion: contract.mechanism_version,
     settlementPolicyVersion: contract.settlement_policy_version,
     ipTermsVersion: contract.ip_terms_version,
@@ -85,7 +88,7 @@ async function preparedChallenge(db, {slotLimit = 2} = {}) {
   await persistFrozenBuildContract(db, {
     requestId: randomUUID(), actorPlayerId: organizer, challengeId, contract,
   });
-  return {organizer, challengeId, contract};
+  return {organizer, organizerPayoutIdentity, funderPayoutIdentity, challengeId, contract};
 }
 
 test('Stage C frozen contract is durable, replayable, and immutable', async () => {
@@ -97,9 +100,12 @@ test('Stage C frozen contract is durable, replayable, and immutable', async () =
     const contract = frozenContract(challengeId);
     const createRequest = randomUUID();
     const freezeRequest = randomUUID();
+    const organizerPayoutIdentity = `organizer-pay-${challengeId}`;
+    const funderPayoutIdentity = `funder-pay-${challengeId}`;
 
     const createInput = {
       requestId: createRequest, challengeId, organizerPlayerId: organizer,
+      organizerPayoutIdentity, funderPayoutIdentity,
       mechanismVersion: contract.mechanism_version,
       settlementPolicyVersion: contract.settlement_policy_version,
       ipTermsVersion: contract.ip_terms_version,
@@ -132,7 +138,7 @@ test('Stage C frozen contract is durable, replayable, and immutable', async () =
   }
 });
 
-test('Stage C serializes the final-seat race and rejects duplicate builder/payout authority', async () => {
+test('Stage C serializes the final-seat race and rejects duplicate or reserved payout authority', async () => {
   const db = createDatabase(databaseUrl);
   await migrateToLatest(db);
   try {
@@ -153,6 +159,8 @@ test('Stage C serializes the final-seat race and rejects duplicate builder/payou
     await sql`update challenges set status = 'ENTRY_OPEN' where challenge_id = ${roomy.challengeId}`.execute(db);
     const builder1 = await player(db, 'uniq-a');
     const builder2 = await player(db, 'uniq-b');
+    const builder3 = await player(db, 'reserved-a');
+    const builder4 = await player(db, 'reserved-b');
     const firstRequest = randomUUID();
     const firstEntry = randomUUID();
     const first = await acquireChallengeSeat(db, {requestId: firstRequest, entryId: firstEntry, challengeId: roomy.challengeId, builderPlayerId: builder1, payoutIdentity: 'same-pay'});
@@ -166,15 +174,23 @@ test('Stage C serializes the final-seat race and rejects duplicate builder/payou
       /challenge_entry_uniqueness_conflict/,
     );
     await assert.rejects(
-      acquireChallengeSeat(db, {requestId: randomUUID(), entryId: randomUUID(), challengeId: roomy.challengeId, builderPlayerId: roomy.organizer, payoutIdentity: 'organizer-pay'}),
+      acquireChallengeSeat(db, {requestId: randomUUID(), entryId: randomUUID(), challengeId: roomy.challengeId, builderPlayerId: roomy.organizer, payoutIdentity: 'organizer-player-pay'}),
       /challenge_organizer_cannot_build/,
+    );
+    await assert.rejects(
+      acquireChallengeSeat(db, {requestId: randomUUID(), entryId: randomUUID(), challengeId: roomy.challengeId, builderPlayerId: builder3, payoutIdentity: roomy.organizerPayoutIdentity}),
+      /challenge_reserved_payout_identity_cannot_build/,
+    );
+    await assert.rejects(
+      acquireChallengeSeat(db, {requestId: randomUUID(), entryId: randomUUID(), challengeId: roomy.challengeId, builderPlayerId: builder4, payoutIdentity: roomy.funderPayoutIdentity}),
+      /challenge_reserved_payout_identity_cannot_build/,
     );
   } finally {
     await db.destroy();
   }
 });
 
-test('Stage C submission, qualification, decision, protocol receipt and snapshot facts remain append-only', async () => {
+test('Stage C submission, qualification, terminal decisions, receipt and snapshot facts remain append-only', async () => {
   const db = createDatabase(databaseUrl);
   await migrateToLatest(db);
   try {
@@ -247,6 +263,11 @@ test('Stage C submission, qualification, decision, protocol receipt and snapshot
       },
       recipientByEntryId: {[entry.entry_id]: 'builder-pay'},
     });
+    await recordChallengeDecision(db, {
+      requestId: randomUUID(), decisionId: randomUUID(), challengeId: fixture.challengeId,
+      entryId: entry.entry_id, decisionType: 'SETTLEMENT_INTENT', decisionVersion: '1', decision: settlementIntent,
+    });
+
     const settlementExecutionFact = {
       challenge_id: fixture.challengeId,
       terms_digest: fixture.contract.terms_digest,
@@ -257,7 +278,18 @@ test('Stage C submission, qualification, decision, protocol receipt and snapshot
       finality: 'FINALIZED',
       execution_id: 'stage-c-test-execution',
     };
+    await recordChallengeDecision(db, {
+      requestId: randomUUID(), decisionId: randomUUID(), challengeId: fixture.challengeId,
+      entryId: entry.entry_id, decisionType: 'SETTLEMENT_EXECUTION_FACT', decisionVersion: '1', decision: settlementExecutionFact,
+    });
+
     const receipt = fileReceipt({contract: fixture.contract, settlementIntent, settlementExecutionFact});
+    await assert.rejects(
+      recordProtocolChallengeReceipt(db, {requestId: randomUUID(), challengeId: fixture.challengeId, receipt}),
+      /challenge_receipt_requires_settled_status/,
+    );
+    await sql`update challenges set status = 'SETTLED' where challenge_id = ${fixture.challengeId}`.execute(db);
+
     const receiptRequest = randomUUID();
     const storedReceipt = await recordProtocolChallengeReceipt(db, {
       requestId: receiptRequest, challengeId: fixture.challengeId, receipt,
@@ -267,6 +299,15 @@ test('Stage C submission, qualification, decision, protocol receipt and snapshot
     assert.equal((await recordProtocolChallengeReceipt(db, {
       requestId: receiptRequest, challengeId: fixture.challengeId, receipt,
     })).protocol_receipt_id, receipt.receipt_id);
+    const filed = await sql`select status from challenges where challenge_id = ${fixture.challengeId}`.execute(db);
+    assert.equal(filed.rows[0].status, 'RECEIPT_FILED');
+
+    await assert.rejects(
+      recordProtocolChallengeReceipt(db, {
+        requestId: randomUUID(), challengeId: fixture.challengeId, receipt, shipReceiptId: randomUUID(),
+      }),
+      /challenge_receipt_immutable_conflict/,
+    );
 
     const correction = appendReceiptCorrection([receipt], {
       supersedes: receipt.receipt_id,
@@ -296,7 +337,7 @@ test('Stage C submission, qualification, decision, protocol receipt and snapshot
     assert.equal(firstSnapshot.receipts.length, 2);
     assert.equal(firstSnapshot.receipts[0].protocol_receipt_id, receipt.receipt_id);
     assert.equal(firstSnapshot.receipts[1].protocol_receipt_id, correction.receipt_id);
-    assert.equal(firstSnapshot.decisions.length, 1);
+    assert.equal(firstSnapshot.decisions.length, 3);
     assert.equal(firstSnapshot.qualifications.length, 1);
   } finally {
     await db.destroy();
