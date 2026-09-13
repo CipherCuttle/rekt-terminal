@@ -353,14 +353,14 @@ export async function persistFrozenBuildContract(
 
     const inserted = await sql<ChallengeContractVersionRow>`
       insert into challenge_contract_versions (challenge_id, contract_version, schema_version, terms_digest, contract_json)
-      values (${challengeId}, ${contractVersion}, ${schemaVersion}, ${termsDigest}, ${normalizedContract.serialized}::jsonb)
+      values (${challengeId}, ${contractVersion}, ${schemaVersion}, ${termsDigest}, ${normalizedContract.value}::jsonb)
       on conflict (challenge_id, contract_version) do nothing
       returning *
     `.execute(transaction);
     const row = inserted.rows[0] ?? (await sql<ChallengeContractVersionRow>`select * from challenge_contract_versions where challenge_id = ${challengeId} and contract_version = ${contractVersion}`.execute(transaction)).rows[0];
     if (!row || row.terms_digest !== termsDigest) throw new Error('challenge_contract_immutable_conflict');
     const equality = await sql<{matches: boolean}>`
-      select contract_json = ${normalizedContract.serialized}::jsonb as matches
+      select contract_json = ${normalizedContract.value}::jsonb as matches
       from challenge_contract_versions
       where challenge_id = ${challengeId} and contract_version = ${contractVersion}
     `.execute(transaction);
@@ -463,7 +463,7 @@ export async function acceptChallengeSubmission(db: Kysely<DatabaseSchema>, inpu
 
     const inserted = await sql<ChallengeSubmissionRow>`
       insert into challenge_submissions (submission_id, challenge_id, entry_id, submission_version, terms_digest, manifest_json, manifest_digest, ship_submission_id, accepted_at)
-      values (${submissionId}, ${challengeId}, ${entryId}, ${submissionVersion}, ${termsDigest}, ${normalizedManifest.serialized}::jsonb, ${normalizedManifest.sha256}, ${shipSubmissionId}, ${new Date(acceptedAt)})
+      values (${submissionId}, ${challengeId}, ${entryId}, ${submissionVersion}, ${termsDigest}, ${normalizedManifest.value}::jsonb, ${normalizedManifest.sha256}, ${shipSubmissionId}, ${new Date(acceptedAt)})
       on conflict (entry_id, submission_version) do nothing
       returning *
     `.execute(transaction);
@@ -542,7 +542,7 @@ export async function recordChallengeQualification(db: Kysely<DatabaseSchema>, i
     }
     const inserted = await sql<ChallengeQualificationRow>`
       insert into challenge_qualifications (qualification_id, challenge_id, entry_id, submission_id, terms_digest, qualification_version, result, qualification_json)
-      values (${qualificationId}, ${challengeId}, ${entryId}, ${submissionId}, ${challenge.current_terms_digest}, ${qualificationVersion}, ${input.result}, ${normalized.serialized}::jsonb)
+      values (${qualificationId}, ${challengeId}, ${entryId}, ${submissionId}, ${challenge.current_terms_digest}, ${qualificationVersion}, ${input.result}, ${normalized.value}::jsonb)
       on conflict (entry_id, qualification_version) do nothing
       returning *
     `.execute(transaction);
@@ -581,7 +581,7 @@ export async function recordChallengeDecision(db: Kysely<DatabaseSchema>, input:
     }
     const inserted = await sql<ChallengeDecisionRow>`
       insert into challenge_decisions (decision_id, challenge_id, entry_id, decision_type, decision_version, decision_json, decision_digest)
-      values (${decisionId}, ${challengeId}, ${entryId}, ${decisionType}, ${decisionVersion}, ${normalized.serialized}::jsonb, ${normalized.sha256})
+      values (${decisionId}, ${challengeId}, ${entryId}, ${decisionType}, ${decisionVersion}, ${normalized.value}::jsonb, ${normalized.sha256})
       on conflict (challenge_id, decision_type, decision_version) do nothing
       returning *
     `.execute(transaction);
@@ -623,7 +623,7 @@ export async function recordChallengeReceipt(db: Kysely<DatabaseSchema>, input: 
     }
     const inserted = await sql<ChallengeReceiptRow>`
       insert into challenge_receipts (receipt_id, challenge_id, terms_digest, receipt_version, receipt_json, receipt_digest, ship_receipt_id, supersedes_receipt_id)
-      values (${receiptId}, ${challengeId}, ${termsDigest}, ${receiptVersion}, ${normalized.serialized}::jsonb, ${normalized.sha256}, ${shipReceiptId}, ${supersedesReceiptId})
+      values (${receiptId}, ${challengeId}, ${termsDigest}, ${receiptVersion}, ${normalized.value}::jsonb, ${normalized.sha256}, ${shipReceiptId}, ${supersedesReceiptId})
       on conflict (challenge_id, receipt_digest) do nothing
       returning *
     `.execute(transaction);
