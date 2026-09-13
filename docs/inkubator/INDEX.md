@@ -12,7 +12,10 @@ Forward product strategy and staged roadmap are governed by:
 6. `PREIMPLEMENTATION_READINESS_V1.md` — stage-specific planning gates and the explicit rule for when to stop planning and begin implementation.
 7. `STAGE_B_BUILD_CONTRACT_PROTOCOL_V1.md` — exact pure Challenge/Build-Contract protocol contract for the next implementation stage.
 8. `STAGE_B_PROPERTY_TEST_MATRIX_V1.md` — adversarial/property acceptance contract for Stage B.
-9. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth, privacy, mechanism or API semantics.
+9. `CURRENT_STATE_MIGRATION_MAP_V1.md` — preserve/adapt/park map for existing Terminal/Inkubator apps, protocol, GitHub, Ship, historical Mission/World/social systems and future frontend decision.
+10. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth, privacy, mechanism or API semantics.
+
+Repository-level agents must also obey root `AGENTS.md`, which now requires Inkubator work to hydrate from this index before implementation.
 
 Older `NORTH_STAR_MVP_V0.md`, `PRODUCT_CONTRACT_MVP_V0.md`, `IMPLEMENTATION_ROADMAP_MVP_V0.md`, `CHALLENGE_OS_NORTH_STAR_V1.md` and `CHALLENGE_CONTRACT_V1.md` remain historical/design ancestry. Their implemented substrate may be reused, but they do not control forward strategy where they conflict with the authorities above.
 
@@ -31,6 +34,7 @@ Bootstrap budget                             LOCKED
 Alpha cutline                                LOCKED
 Stage-B nouns/lifecycle/version contract      LOCKED
 Stage-B property-test matrix                  LOCKED
+Current-state migration map                   LOCKED
 Stage-B implementation authority             NONE
 ```
 
