@@ -12,23 +12,23 @@
   },
   "providers": [
     {
-      "name": "openrouter-deepseek-v4.1-flash-stable",
+      "name": "openrouter-mistral-small-3.2-deepinfra",
       "base_url": "https://openrouter.ai/api/v1",
-      "model": "deepseek/deepseek-v4.1-flash",
+      "model": "mistralai/mistral-small-3.2-24b-instruct",
       "api_key_env": "OPENROUTER_API_KEY",
-      "input_usd_per_million": 0.15,
-      "output_usd_per_million": 0.60,
-      "response_format_mode": "json_object",
-      "pricing_note": "OpenRouter list price observed 2026-09-13. DeepSeek V4.1 Flash supports JSON output but not JSON-schema enforcement on OpenRouter; deterministic post-parse validation remains fail-closed.",
-      "reasoning": {"effort": "none"},
+      "input_usd_per_million": 0.075,
+      "output_usd_per_million": 0.20,
+      "response_format_mode": "json_schema",
+      "pricing_note": "OpenRouter listed price observed 2026-09-13. Mistral Small 3.2 supports structured JSON-schema output; DeepInfra is pinned because OpenRouter currently marks it no-training and zero-retention.",
       "enforce_response_model": true,
-      "expected_routing_provider_name": "DeepSeek",
       "require_reported_cost": true,
       "provider_preferences": {
-        "only": ["deepseek"],
+        "only": ["deepinfra"],
         "allow_fallbacks": false,
         "require_parameters": true,
-        "max_price": {"prompt": 0.15, "completion": 0.60}
+        "data_collection": "deny",
+        "zdr": true,
+        "max_price": {"prompt": 0.075, "completion": 0.20}
       }
     },
     {
@@ -39,10 +39,9 @@
       "input_usd_per_million": 0.25,
       "output_usd_per_million": 1.50,
       "response_format_mode": "json_schema",
-      "pricing_note": "OpenRouter and Google list price observed 2026-09-13. Gemini 3.1 Flash-Lite supports strict structured outputs through JSON Schema.",
+      "pricing_note": "OpenRouter and Google listed price observed 2026-09-13. Gemini 3.1 Flash-Lite supports strict structured outputs through JSON Schema.",
       "reasoning": {"effort": "minimal"},
       "enforce_response_model": true,
-      "expected_routing_provider_name": "Google AI Studio",
       "require_reported_cost": true,
       "provider_preferences": {
         "only": ["google-ai-studio"],
