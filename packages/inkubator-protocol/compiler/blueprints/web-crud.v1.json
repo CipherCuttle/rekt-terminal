@@ -1,0 +1,19 @@
+{
+  "schema_version": "inkubator.compiler-blueprint/1.0",
+  "id": "WEB_CRUD",
+  "version": "1.0.0",
+  "applicability": {
+    "required_true": [],
+    "any_true": ["accounts", "persistence", "uploads_private", "notifications"],
+    "excluded_true": ["realtime", "onchain_read", "wallet_transactions", "custody_private_keys"]
+  },
+  "default_assumptions": [],
+  "required_questions": ["Q_DATA_MODEL"],
+  "sensitivity_points": ["data model", "identity boundary", "retention policy"],
+  "reference_architecture": {"shape": "WEB_APP_WITH_SERVER_STATE", "components": ["web-client", "application-api", "relational-database"]},
+  "supported_production_envelope": {"durable_server_state": true, "realtime_state": false, "wallet_transactions": false},
+  "risk_profile": "MEDIUM",
+  "acceptance_modules": ["http-smoke", "accessibility-basic", "persistence-roundtrip"],
+  "known_limits": ["Not sufficient for shared realtime state.", "No wallet transaction execution boundary."],
+  "health": "ACTIVE"
+}

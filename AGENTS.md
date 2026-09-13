@@ -30,20 +30,22 @@ Current Inkubator hierarchy includes:
 
 ### Current Inkubator implementation state
 
-Stage A planning is sufficiently complete.
+Stage A authority/migration lock is closed.
 
 Stage B pure Challenge / Build Contract protocol is implemented and closed into the planning authority branch. Its semantics in `packages/inkubator-protocol` remain authoritative.
 
-The active authorized implementation phase is **Stage C: Postgres Domain Bridge**. Hydrate from:
+Stage C Postgres Domain Bridge is **CLOSED / PASS**. Its durable concurrency/persistence invariants remain in force and may not be weakened by compiler work.
 
-- `docs/inkubator/STAGE_C_POSTGRES_DOMAIN_BRIDGE_V1.md`;
-- `docs/inkubator/STAGE_C_INTEGRATION_TEST_MATRIX_V1.md`;
-- `docs/inkubator/CURRENT_STATE_MIGRATION_MAP_V1.md`;
-- the Stage-B protocol and property-test authorities.
+The active authorized implementation phase is **Stage D: Compiler Engine + Blueprints + Low-Cost Chat**. Hydrate from:
 
-Stage C is additive persistence/concurrency work inside the existing Inkubator PostgreSQL/API substrate. Do not let database convenience redefine Stage-B semantics.
+- `docs/inkubator/STAGE_D_COMPILER_ENGINE_V1.md`;
+- `docs/inkubator/STAGE_D_COMPILER_GAUNTLET_V1.md`;
+- `docs/inkubator/PREIMPLEMENTATION_READINESS_V1.md` D-GATEs;
+- the Stage-B Build Contract protocol/validator authority in `packages/inkubator-protocol`.
 
-Do not begin Stage D+ Compiler/model work, public Challenge UI work, chain/payment work, or distant North-Star features while Stage C is active unless an explicit successor/scope decision authorizes it.
+Stage D is additive deterministic compiler work alongside the canonical protocol package. Model/provider output is untrusted interpretation input only. It may propose meaning but may not freeze Build Contracts, redefine Stage-B semantics, or become required for already-frozen Challenge operation.
+
+Do not begin Stage E+ production UI, Builder Capsule, Reveal/Test Arena, chain/payment work, production-money rails, or distant North-Star features while Stage D is active unless an explicit successor/scope decision authorizes it.
 
 Historical Inkubator systems remain reusable substrate where compatible, but old public nouns/navigation do not regain authority merely because code exists.
 
@@ -61,7 +63,7 @@ Before adding/replacing an Inkubator third-party dependency, hydrate from `docs/
 
 ## Completion policy
 
-IMPLEMENT → TEST → ONE independent hostile review → fix Critical/High → ONE targeted re-review only if Critical/High fixes were needed → COMMIT → MOVE FORWARD.
+IMPLEMENT → TEST → ONE independent hostile review → fix Critical/High → ONE targeted re-review only if Critical/High fixes were needed → MERGE WHEN AUTHORIZED → MOVE FORWARD.
 
 Medium/Low findings do not restart a phase unless they invalidate the stated objective, evidence, a frozen invariant, or fail-closed/safety behavior.
 
