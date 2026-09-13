@@ -113,10 +113,13 @@ test('stable config pins two vendors, prices, formats and aggregate worst-case b
     worstCase += taskCount * ((maxInputTokens * provider.input_usd_per_million)
       + (policy.max_tokens_per_response * provider.output_usd_per_million)) / 1_000_000;
   }
-  assert.equal(config.providers[0].provider_preferences.only[0], 'deepseek');
+  assert.equal(config.providers[0].provider_preferences.only[0], 'deepinfra');
+  assert.equal(config.providers[0].provider_preferences.data_collection, 'deny');
+  assert.equal(config.providers[0].provider_preferences.zdr, true);
+  assert.equal(config.providers[0].response_format_mode, 'json_schema');
   assert.equal(config.providers[1].provider_preferences.only[0], 'google-ai-studio');
   assert.ok(worstCase <= policy.max_total_usd);
-  assert.equal(Math.round(worstCase * 1_000_000) / 1_000_000, 0.129984);
+  assert.equal(Math.round(worstCase * 1_000_000) / 1_000_000, 0.105512);
 });
 
 test('paid benchmark cannot execute merely because OPENROUTER_API_KEY exists', () => {
@@ -151,7 +154,7 @@ test('authorized stable preflight with no key proves spend bound without network
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.paid_execution_authorized, true);
   assert.equal(receipt.spend_ceiling_usd, 0.15);
-  assert.equal(Math.round(receipt.preflight_worst_case_cost_usd * 1_000_000) / 1_000_000, 0.129984);
+  assert.equal(Math.round(receipt.preflight_worst_case_cost_usd * 1_000_000) / 1_000_000, 0.105512);
   assert.equal(receipt.total_estimated_cost_usd, 0);
   assert.equal(receipt.total_reported_cost_usd, null);
   assert.equal(receipt.d_gate_5_evidence_ready, false);
