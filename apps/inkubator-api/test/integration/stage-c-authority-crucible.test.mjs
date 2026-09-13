@@ -55,6 +55,7 @@ async function setup(db) {
   const builder = await player(db, 'crucible-builder');
   const abandonedBuilder = await player(db, 'crucible-abandoned');
   const lateBuilder = await player(db, 'crucible-late');
+  const resolver = await player(db, 'crucible-independent-resolver');
   const contract = contractFor(challengeId, now.getTime());
   await createChallenge(db, {
     requestId: randomUUID(), challengeId, organizerPlayerId: organizer,
@@ -77,7 +78,7 @@ async function setup(db) {
   const abandoned = await acquireChallengeSeat(db, {
     requestId: randomUUID(), entryId: randomUUID(), challengeId, builderPlayerId: abandonedBuilder, payoutIdentity: `abandoned-pay-${challengeId}`,
   });
-  return {challengeId, organizer, builder, lateBuilder, contract, entry, abandoned};
+  return {challengeId, organizer, builder, lateBuilder, resolver, contract, entry, abandoned};
 }
 
 test('Stage C Postgres authority crucible conserves authority across the full chain', async () => {
@@ -85,7 +86,7 @@ test('Stage C Postgres authority crucible conserves authority across the full ch
   await migrateToLatest(db);
   try {
     const fixture = await setup(db);
-    const {challengeId, organizer, builder, lateBuilder, contract, entry, abandoned} = fixture;
+    const {challengeId, organizer, builder, lateBuilder, resolver, contract, entry, abandoned} = fixture;
 
     const replayRequest = randomUUID();
     const replayEntry = randomUUID();
@@ -182,11 +183,36 @@ test('Stage C Postgres authority crucible conserves authority across the full ch
       /challenge_appeals_unresolved/,
     );
 
-    await resolveChallengeAppeal(db, {
-      requestId: randomUUID(), resolutionId: randomUUID(), appealId, challengeId, resolverPlayerId: organizer,
-      qualificationId: randomUUID(), qualificationVersion: 'appeal-revision.v1',
+    const appealResolutionInput = {
+      appealId, challengeId,
+      qualificationVersion: 'appeal-revision.v1',
       criterionResults: [{criterion_id: 'OUT', result: 'PASS', evidence_refs: ['appeal-reviewed']}],
       reason: 'Frozen evidence still passes', evidenceRefs: ['resolution-evidence'],
+    };
+    await assert.rejects(
+      resolveChallengeAppeal(db, {
+        ...appealResolutionInput,
+        requestId: randomUUID(), resolutionId: randomUUID(), resolverPlayerId: organizer, qualificationId: randomUUID(),
+      }),
+      /challenge_appeal_resolution_authority_invalid/,
+    );
+    await assert.rejects(
+      resolveChallengeAppeal(db, {
+        ...appealResolutionInput,
+        requestId: randomUUID(), resolutionId: randomUUID(), resolverPlayerId: builder, qualificationId: randomUUID(),
+      }),
+      /challenge_appeal_resolution_authority_invalid/,
+    );
+    await assert.rejects(
+      resolveChallengeAppeal(db, {
+        ...appealResolutionInput,
+        requestId: randomUUID(), resolutionId: randomUUID(), resolverPlayerId: randomUUID(), qualificationId: randomUUID(),
+      }),
+      /challenge_appeal_resolution_authority_invalid/,
+    );
+    await resolveChallengeAppeal(db, {
+      ...appealResolutionInput,
+      requestId: randomUUID(), resolutionId: randomUUID(), resolverPlayerId: resolver, qualificationId: randomUUID(),
     });
     await assert.rejects(
       recordChallengeDecision(db, {
@@ -287,6 +313,7 @@ test('Stage C Postgres authority crucible conserves authority across the full ch
       requestId: randomUUID(), decisionId: randomUUID(), challengeId, entryId: entry.entry_id,
       decisionType: 'SETTLEMENT_EXECUTION_FACT', decisionVersion: '1', decision: settlementExecutionFact,
     });
+    assert.equal((await sql`select status from challenges where challengeId = ${challengeId}`.execute(db)).rows[0]?.status, undefined);
     assert.equal((await sql`select status from challenges where challenge_id = ${challengeId}`.execute(db)).rows[0].status, 'SETTLED');
     await assert.rejects(
       recordChallengeDecision(db, {
