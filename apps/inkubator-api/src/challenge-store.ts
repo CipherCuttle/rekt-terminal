@@ -1,22 +1,27 @@
 import {randomUUID} from 'node:crypto';
 import {
   assertFrozenBuildContract,
-  assertReceiptMatchesContract,
+  assertSettlementIntentMatchesContract,
   assertSubmissionManifest,
+  buildSettlementIntent,
+  computeDefaultResolution,
   computeQualification,
   isSubmissionEligible,
+  validateSelection,
   type BuildContract,
   type QualificationCriterionResult,
   type QualificationOverall,
+  type SettlementIntent,
   type SubmissionManifest,
 } from '@rekt-ink/protocol/challenge';
 import {sql, type Kysely} from 'kysely';
 import {canonicalizeJson} from './canonical-json.js';
-import type {DatabaseSchema} from './database.js';
+import {readDatabaseNow, type DatabaseSchema} from './database.js';
 import {appendHistoryEvent, HISTORY_EVENT_VERSION} from './events.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DIGEST_PATTERN = /^[0-9a-f]{64}$/;
+const SUPPORTED_DECISION_TYPES = new Set(['FINAL_QUALIFIERS', 'SELECTION', 'DEFAULT_RESOLUTION', 'SETTLEMENT_INTENT']);
 
 export type ChallengeStatus =
   | 'DRAFT' | 'AWAITING_FUNDING' | 'FUNDED' | 'ENTRY_OPEN' | 'NOT_ACTIVATED'
@@ -109,6 +114,7 @@ export interface ChallengeDecisionRow {
 
 export interface ChallengeReceiptRow {
   receipt_id: string;
+  protocol_receipt_id: string;
   challenge_id: string;
   terms_digest: string;
   receipt_version: string;
@@ -188,17 +194,7 @@ export interface RecordDecisionInput {
   decision: unknown;
 }
 
-export interface RecordReceiptInput {
-  requestId: string;
-  receiptId: string;
-  challengeId: string;
-  receiptVersion: string;
-  receipt: unknown;
-  shipReceiptId?: string | null;
-  supersedesReceiptId?: string | null;
-}
-
-function requireUuid(value: string, name: string): string {
+function requireUuid(value: unknown, name: string): string {
   if (typeof value !== 'string' || !UUID_PATTERN.test(value)) throw new Error(`invalid_${name}`);
   return value.toLowerCase();
 }
@@ -208,7 +204,7 @@ function requireDigest(value: unknown, name: string): string {
   return value;
 }
 
-function requireText(value: string, name: string, maxLength = 256): string {
+function requireText(value: unknown, name: string, maxLength = 256): string {
   if (typeof value !== 'string') throw new Error(`invalid_${name}`);
   const normalized = value.trim();
   if (normalized.length < 1 || normalized.length > maxLength) throw new Error(`invalid_${name}`);
@@ -228,6 +224,14 @@ function requirePositiveSafeInt(value: number, name: string): number {
 function objectValue(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`invalid_${label}`);
   return value as Record<string, unknown>;
+}
+
+function assertExactKeys(value: Record<string, unknown>, expected: string[], label: string): void {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+    throw new Error(`invalid_${label}`);
+  }
 }
 
 function withoutTermsDigest(contract: Record<string, unknown>): Record<string, unknown> {
@@ -273,12 +277,162 @@ async function contractForChallenge(db: Kysely<DatabaseSchema>, challenge: Chall
     where challenge_id = ${challenge.challenge_id} and contract_version = ${challenge.current_contract_version}
   `.execute(db)).rows[0];
   if (!row || row.terms_digest !== challenge.current_terms_digest) throw new Error('challenge_contract_pointer_invalid');
-  return assertFrozenBuildContract(row.contract_json as BuildContract);
+  return assertFrozenBuildContract(row.contract_json);
 }
 
 async function entryById(db: Kysely<DatabaseSchema>, entryId: string): Promise<ChallengeEntryRow | null> {
   const result = await sql<ChallengeEntryRow>`select * from challenge_entries where entry_id = ${entryId}`.execute(db);
   return result.rows[0] ?? null;
+}
+
+function challengeContractAuthorityMatches(challenge: ChallengeRow, contract: BuildContract): boolean {
+  const durable = {
+    mechanism_version: challenge.mechanism_version,
+    settlement_policy_version: challenge.settlement_policy_version,
+    ip_terms_version: challenge.ip_terms_version,
+    slot_limit: challenge.slot_limit,
+    activation_minimum: challenge.activation_minimum,
+    entry_deadline: challenge.entry_deadline.getTime(),
+    build_start: challenge.build_start.getTime(),
+    submission_deadline: challenge.submission_deadline.getTime(),
+    appeal_window_ms: Number(challenge.appeal_window_ms),
+    review_deadline: challenge.review_deadline.getTime(),
+  };
+  const frozen = {
+    mechanism_version: contract.mechanism_version,
+    settlement_policy_version: contract.settlement_policy_version,
+    ip_terms_version: contract.ip_terms_version,
+    slot_limit: contract.slot_limit,
+    activation_minimum: contract.activation_minimum,
+    entry_deadline: contract.entry_deadline,
+    build_start: contract.build_start,
+    submission_deadline: contract.submission_deadline,
+    appeal_window_ms: contract.appeal_window_ms,
+    review_deadline: contract.review_deadline,
+  };
+  return canonicalizeJson(durable).sha256 === canonicalizeJson(frozen).sha256;
+}
+
+function finalQualifierIdsFromDecision(value: unknown): string[] {
+  const decision = objectValue(value, 'final_qualifiers_decision');
+  assertExactKeys(decision, ['final_qualifier_ids'], 'final_qualifiers_decision');
+  if (!Array.isArray(decision.final_qualifier_ids)) throw new Error('invalid_final_qualifiers_decision');
+  const ids = decision.final_qualifier_ids.map((value, index) => requireUuid(value, `final_qualifier_ids_${index}`));
+  if (new Set(ids).size !== ids.length) throw new Error('invalid_final_qualifiers_decision');
+  return ids;
+}
+
+async function storedFinalQualifierIds(
+  db: Kysely<DatabaseSchema>,
+  challenge: ChallengeRow,
+  contract: BuildContract,
+): Promise<string[]> {
+  const row = (await sql<ChallengeDecisionRow>`
+    select * from challenge_decisions
+    where challenge_id = ${challenge.challenge_id} and decision_type = 'FINAL_QUALIFIERS'
+    order by created_at desc, decision_id desc
+    limit 1
+  `.execute(db)).rows[0];
+  if (!row) throw new Error('challenge_final_qualifiers_required');
+  const ids = finalQualifierIdsFromDecision(row.decision_json);
+  computeDefaultResolution(ids, contract.prize_minor_units);
+  return ids;
+}
+
+async function payoutIdentityByEntryIds(
+  db: Kysely<DatabaseSchema>,
+  challengeId: string,
+  entryIds: string[],
+): Promise<Record<string, string>> {
+  const result: Record<string, string> = {};
+  for (const entryId of entryIds) {
+    const entry = await entryById(db, entryId);
+    if (!entry || entry.challenge_id !== challengeId) throw new Error('challenge_decision_entry_mismatch');
+    result[entryId] = entry.payout_identity;
+  }
+  return result;
+}
+
+async function validateDecisionForPersistence(
+  db: Kysely<DatabaseSchema>,
+  challenge: ChallengeRow,
+  entryId: string | null,
+  decisionType: string,
+  decisionInput: unknown,
+): Promise<unknown> {
+  if (!SUPPORTED_DECISION_TYPES.has(decisionType)) throw new Error('challenge_decision_type_unsupported');
+  const contract = await contractForChallenge(db, challenge);
+
+  if (decisionType === 'FINAL_QUALIFIERS') {
+    const finalQualifierIds = finalQualifierIdsFromDecision(decisionInput);
+    computeDefaultResolution(finalQualifierIds, contract.prize_minor_units);
+    if (entryId !== null) throw new Error('challenge_decision_entry_mismatch');
+    for (const qualifierId of finalQualifierIds) {
+      const entry = await entryById(db, qualifierId);
+      if (!entry || entry.challenge_id !== challenge.challenge_id) throw new Error('challenge_decision_entry_mismatch');
+    }
+    return {final_qualifier_ids: finalQualifierIds};
+  }
+
+  if (decisionType === 'SELECTION') {
+    const decision = objectValue(decisionInput, 'selection_decision');
+    assertExactKeys(decision, ['selected_entry_id'], 'selection_decision');
+    const selectedEntryId = requireUuid(decision.selected_entry_id, 'selected_entry_id');
+    const finalQualifierIds = await storedFinalQualifierIds(db, challenge, contract);
+    validateSelection(selectedEntryId, finalQualifierIds);
+    if (entryId !== selectedEntryId) throw new Error('challenge_decision_entry_mismatch');
+    return {selected_entry_id: selectedEntryId};
+  }
+
+  if (decisionType === 'DEFAULT_RESOLUTION') {
+    const finalQualifierIds = await storedFinalQualifierIds(db, challenge, contract);
+    const expected = computeDefaultResolution(finalQualifierIds, contract.prize_minor_units);
+    if (canonicalizeJson(decisionInput).sha256 !== canonicalizeJson(expected).sha256) {
+      throw new Error('challenge_default_resolution_protocol_mismatch');
+    }
+    if (entryId !== (expected.winner_entry_id ?? null)) throw new Error('challenge_decision_entry_mismatch');
+    return expected;
+  }
+
+  const intent = assertSettlementIntentMatchesContract(
+    contract,
+    objectValue(decisionInput, 'settlement_intent') as unknown as SettlementIntent,
+  );
+  if (intent.winner_entry_id) {
+    const finalQualifierIds = await storedFinalQualifierIds(db, challenge, contract);
+    validateSelection(intent.winner_entry_id, finalQualifierIds);
+    const selection = (await sql<ChallengeDecisionRow>`
+      select * from challenge_decisions
+      where challenge_id = ${challenge.challenge_id} and decision_type = 'SELECTION'
+      order by created_at desc, decision_id desc
+      limit 1
+    `.execute(db)).rows[0];
+    if (selection) {
+      const selectionValue = objectValue(selection.decision_json, 'selection_decision');
+      if (requireUuid(selectionValue.selected_entry_id, 'selected_entry_id') !== intent.winner_entry_id) {
+        throw new Error('challenge_settlement_intent_resolution_mismatch');
+      }
+    } else if (finalQualifierIds.length !== 1 || finalQualifierIds[0] !== intent.winner_entry_id) {
+      throw new Error('challenge_settlement_intent_resolution_mismatch');
+    }
+    if (entryId !== intent.winner_entry_id) throw new Error('challenge_decision_entry_mismatch');
+    return intent;
+  }
+
+  if (entryId !== null) throw new Error('challenge_decision_entry_mismatch');
+  if (intent.type === 'REFUND_NO_QUALIFIER' || intent.type === 'DEFAULT_DISTRIBUTION') {
+    const finalQualifierIds = await storedFinalQualifierIds(db, challenge, contract);
+    const resolution = computeDefaultResolution(finalQualifierIds, contract.prize_minor_units);
+    if (resolution.type !== intent.type) throw new Error('challenge_settlement_intent_resolution_mismatch');
+    if (intent.type === 'DEFAULT_DISTRIBUTION') {
+      const recipientByEntryId = await payoutIdentityByEntryIds(db, challenge.challenge_id, finalQualifierIds);
+      const expected = buildSettlementIntent({contract, resolution, recipientByEntryId});
+      if (canonicalizeJson(expected).sha256 !== canonicalizeJson(intent).sha256) {
+        throw new Error('challenge_settlement_intent_resolution_mismatch');
+      }
+    }
+  }
+  return intent;
 }
 
 export async function createChallenge(db: Kysely<DatabaseSchema>, input: CreateChallengeInput): Promise<ChallengeRow> {
@@ -345,10 +499,10 @@ export async function persistFrozenBuildContract(
   const actorPlayerId = requireUuid(input.actorPlayerId, 'actor_player_id');
   const challengeId = requireUuid(input.challengeId, 'challenge_id');
   const contract = objectValue(input.contract, 'contract');
-  const protocolContract = assertFrozenBuildContract(contract as BuildContract);
+  const protocolContract = assertFrozenBuildContract(contract);
   if (protocolContract.challenge_id !== challengeId) throw new Error('contract_challenge_mismatch');
-  const contractVersion = requireText(String(protocolContract.contract_version ?? ''), 'contract_version', 120);
-  const schemaVersion = requireText(String(protocolContract.schema_version ?? ''), 'schema_version', 120);
+  const contractVersion = requireText(protocolContract.contract_version, 'contract_version', 120);
+  const schemaVersion = requireText(protocolContract.schema_version, 'schema_version', 120);
   const termsDigest = requireDigest(protocolContract.terms_digest, 'terms_digest');
   const computedDigest = canonicalizeJson(withoutTermsDigest(contract)).sha256;
   if (computedDigest !== termsDigest) throw new Error('contract_terms_digest_mismatch');
@@ -359,17 +513,15 @@ export async function persistFrozenBuildContract(
   return db.transaction().execute(async (transaction) => {
     const challenge = await challengeById(transaction, challengeId, true);
     if (!challenge) throw new Error('challenge_not_found');
-    if (challenge.organizer_player_id !== actorPlayerId) throw new Error('challenge_organizer_required');
-    if (protocolContract.mechanism_version !== challenge.mechanism_version || protocolContract.settlement_policy_version !== challenge.settlement_policy_version || protocolContract.ip_terms_version !== challenge.ip_terms_version) {
-      throw new Error('contract_version_authority_mismatch');
-    }
-    if (challenge.current_contract_version && (challenge.current_contract_version !== contractVersion || challenge.current_terms_digest !== termsDigest)) {
-      throw new Error('challenge_contract_already_frozen');
-    }
     if (await existingCommand(transaction, dedupeKey, 'challenge.contract.frozen', actorPlayerId, 'challenge', challengeId, payload)) {
       const replay = await sql<ChallengeContractVersionRow>`select * from challenge_contract_versions where challenge_id = ${challengeId} and contract_version = ${contractVersion}`.execute(transaction);
       if (!replay.rows[0]) throw new Error('challenge_contract_replay_missing');
       return replay.rows[0];
+    }
+    if (challenge.organizer_player_id !== actorPlayerId) throw new Error('challenge_organizer_required');
+    if (!challengeContractAuthorityMatches(challenge, protocolContract)) throw new Error('contract_challenge_authority_mismatch');
+    if (challenge.current_contract_version && (challenge.current_contract_version !== contractVersion || challenge.current_terms_digest !== termsDigest)) {
+      throw new Error('challenge_contract_already_frozen');
     }
 
     const inserted = await sql<ChallengeContractVersionRow>`
@@ -410,13 +562,13 @@ export async function acquireChallengeSeat(db: Kysely<DatabaseSchema>, input: Ac
   return db.transaction().execute(async (transaction) => {
     const challenge = await challengeById(transaction, challengeId, true);
     if (!challenge) throw new Error('challenge_not_found');
-    if (challenge.status !== 'ENTRY_OPEN') throw new Error('challenge_entry_not_open');
-    if (challenge.organizer_player_id === builderPlayerId) throw new Error('challenge_organizer_cannot_build');
     if (await existingCommand(transaction, dedupeKey, 'challenge.entry.seated', builderPlayerId, 'challenge', challengeId, payload)) {
       const replay = await entryById(transaction, entryId);
       if (!replay) throw new Error('challenge_entry_replay_missing');
       return replay;
     }
+    if (challenge.status !== 'ENTRY_OPEN') throw new Error('challenge_entry_not_open');
+    if (challenge.organizer_player_id === builderPlayerId) throw new Error('challenge_organizer_cannot_build');
     if (projectId) {
       const project = await transaction.selectFrom('projects').select(['project_id', 'owner_player_id']).where('project_id', '=', projectId).executeTakeFirst();
       if (!project || project.owner_player_id !== builderPlayerId) throw new Error('challenge_project_not_owned');
@@ -455,20 +607,17 @@ export async function acceptChallengeSubmission(db: Kysely<DatabaseSchema>, inpu
   const challengeId = requireUuid(input.challengeId, 'challenge_id');
   const entryId = requireUuid(input.entryId, 'entry_id');
   const shipSubmissionId = input.shipSubmissionId ? requireUuid(input.shipSubmissionId, 'ship_submission_id') : null;
-  const manifest = assertSubmissionManifest(objectValue(input.manifest, 'manifest') as unknown as SubmissionManifest);
-  const submissionVersion = requireText(String(manifest.submission_version), 'submission_version', 120);
-  const termsDigest = requireDigest(manifest.terms_digest, 'terms_digest');
-  const acceptedAt = requireSafeMs(Number(manifest.accepted_at), 'accepted_at');
-  const normalizedManifest = canonicalizeJson(manifest);
-  const payload = {request_id: requestId, submission_id: submissionId, challenge_id: challengeId, entry_id: entryId, submission_version: submissionVersion, terms_digest: termsDigest, manifest_digest: normalizedManifest.sha256, ship_submission_id: shipSubmissionId};
+  const requestedManifest = assertSubmissionManifest(objectValue(input.manifest, 'manifest') as unknown as SubmissionManifest);
+  const submissionVersion = requireText(String(requestedManifest.submission_version), 'submission_version', 120);
+  const termsDigest = requireDigest(requestedManifest.terms_digest, 'terms_digest');
+  requireSafeMs(Number(requestedManifest.accepted_at), 'accepted_at');
+  const requestManifestDigest = canonicalizeJson(requestedManifest).sha256;
+  const payload = {request_id: requestId, submission_id: submissionId, challenge_id: challengeId, entry_id: entryId, submission_version: submissionVersion, terms_digest: termsDigest, request_manifest_digest: requestManifestDigest, ship_submission_id: shipSubmissionId};
   const dedupeKey = `activity:challenge.submission.accepted:${challengeId}:${requestId}`;
 
   return db.transaction().execute(async (transaction) => {
     const challenge = await challengeById(transaction, challengeId, true);
     if (!challenge) throw new Error('challenge_not_found');
-    const contract = await contractForChallenge(transaction, challenge);
-    if (!isSubmissionEligible(manifest, contract, entryId)) throw new Error('challenge_submission_protocol_ineligible');
-    if (challenge.status !== 'BUILDING') throw new Error('challenge_not_building');
     const entry = await entryById(transaction, entryId);
     if (!entry || entry.challenge_id !== challengeId) throw new Error('challenge_entry_not_found');
     if (await existingCommand(transaction, dedupeKey, 'challenge.submission.accepted', entry.builder_player_id, 'challenge', challengeId, payload)) {
@@ -476,7 +625,14 @@ export async function acceptChallengeSubmission(db: Kysely<DatabaseSchema>, inpu
       if (!replay.rows[0]) throw new Error('challenge_submission_replay_missing');
       return replay.rows[0];
     }
-    if (acceptedAt > challenge.submission_deadline.getTime()) throw new Error('challenge_submission_deadline_elapsed');
+    if (challenge.status !== 'BUILDING') throw new Error('challenge_not_building');
+    const databaseNow = await readDatabaseNow(transaction);
+    if (databaseNow.getTime() > challenge.submission_deadline.getTime()) throw new Error('challenge_submission_deadline_elapsed');
+    const contract = await contractForChallenge(transaction, challenge);
+    const manifest = assertSubmissionManifest({...requestedManifest, accepted_at: databaseNow.getTime()});
+    if (!isSubmissionEligible(manifest, contract, entryId)) throw new Error('challenge_submission_protocol_ineligible');
+    const normalizedManifest = canonicalizeJson(manifest);
+
     if (shipSubmissionId) {
       const ship = await transaction.selectFrom('ship_submissions').select(['submission_id', 'project_id', 'owner_player_id']).where('submission_id', '=', shipSubmissionId).executeTakeFirst();
       if (!ship || ship.owner_player_id !== entry.builder_player_id || (entry.project_id && ship.project_id !== entry.project_id)) throw new Error('challenge_ship_lineage_invalid');
@@ -484,7 +640,7 @@ export async function acceptChallengeSubmission(db: Kysely<DatabaseSchema>, inpu
 
     const inserted = await sql<ChallengeSubmissionRow>`
       insert into challenge_submissions (submission_id, challenge_id, entry_id, submission_version, terms_digest, manifest_json, manifest_digest, ship_submission_id, accepted_at)
-      values (${submissionId}, ${challengeId}, ${entryId}, ${submissionVersion}, ${termsDigest}, ${normalizedManifest.value}::jsonb, ${normalizedManifest.sha256}, ${shipSubmissionId}, ${new Date(acceptedAt)})
+      values (${submissionId}, ${challengeId}, ${entryId}, ${submissionVersion}, ${termsDigest}, ${normalizedManifest.value}::jsonb, ${normalizedManifest.sha256}, ${shipSubmissionId}, ${databaseNow})
       on conflict (entry_id, submission_version) do nothing
       returning *
     `.execute(transaction);
@@ -509,14 +665,14 @@ export async function markFinalChallengeSubmission(db: Kysely<DatabaseSchema>, i
   return db.transaction().execute(async (transaction) => {
     const challenge = await challengeById(transaction, challengeId, true);
     if (!challenge) throw new Error('challenge_not_found');
-    if (challenge.status !== 'SUBMISSIONS_LOCKED') throw new Error('challenge_submissions_not_locked');
-    const entry = await entryById(transaction, entryId);
-    if (!entry || entry.challenge_id !== challengeId) throw new Error('challenge_entry_not_found');
     if (await existingCommand(transaction, dedupeKey, 'challenge.submission.finalized', challenge.organizer_player_id, 'challenge', challengeId, payload)) {
       const replay = await sql<ChallengeSubmissionRow>`select * from challenge_submissions where submission_id = ${submissionId}`.execute(transaction);
       if (!replay.rows[0]) throw new Error('challenge_submission_replay_missing');
       return replay.rows[0];
     }
+    if (challenge.status !== 'SUBMISSIONS_LOCKED') throw new Error('challenge_submissions_not_locked');
+    const entry = await entryById(transaction, entryId);
+    if (!entry || entry.challenge_id !== challengeId) throw new Error('challenge_entry_not_found');
     const target = await sql<ChallengeSubmissionRow>`select * from challenge_submissions where submission_id = ${submissionId} and challenge_id = ${challengeId} and entry_id = ${entryId} for update`.execute(transaction);
     const row = target.rows[0];
     if (!row) throw new Error('challenge_submission_not_found');
@@ -549,7 +705,6 @@ export async function recordChallengeQualification(db: Kysely<DatabaseSchema>, i
   return db.transaction().execute(async (transaction) => {
     const challenge = await challengeById(transaction, challengeId, true);
     if (!challenge) throw new Error('challenge_not_found');
-    if (challenge.status !== 'QUALIFICATION') throw new Error('challenge_not_qualifying');
     const contract = await contractForChallenge(transaction, challenge);
     const qualification = computeQualification(contract, input.criterionResults);
     const normalized = canonicalizeJson(qualification);
@@ -563,15 +718,16 @@ export async function recordChallengeQualification(db: Kysely<DatabaseSchema>, i
       result: qualification.overall,
       qualification_digest: normalized.sha256,
     };
-    const entry = await entryById(transaction, entryId);
-    if (!entry || entry.challenge_id !== challengeId) throw new Error('challenge_entry_not_found');
-    const submission = (await sql<ChallengeSubmissionRow>`select * from challenge_submissions where submission_id = ${submissionId} and challenge_id = ${challengeId} and entry_id = ${entryId} and is_final = true`.execute(transaction)).rows[0];
-    if (!submission || submission.terms_digest !== challenge.current_terms_digest) throw new Error('challenge_qualification_lineage_invalid');
     if (await existingCommand(transaction, dedupeKey, 'challenge.qualification.recorded', challenge.organizer_player_id, 'challenge', challengeId, payload)) {
       const replay = await sql<ChallengeQualificationRow>`select * from challenge_qualifications where qualification_id = ${qualificationId}`.execute(transaction);
       if (!replay.rows[0]) throw new Error('challenge_qualification_replay_missing');
       return replay.rows[0];
     }
+    if (challenge.status !== 'QUALIFICATION') throw new Error('challenge_not_qualifying');
+    const entry = await entryById(transaction, entryId);
+    if (!entry || entry.challenge_id !== challengeId) throw new Error('challenge_entry_not_found');
+    const submission = (await sql<ChallengeSubmissionRow>`select * from challenge_submissions where submission_id = ${submissionId} and challenge_id = ${challengeId} and entry_id = ${entryId} and is_final = true`.execute(transaction)).rows[0];
+    if (!submission || submission.terms_digest !== challenge.current_terms_digest) throw new Error('challenge_qualification_lineage_invalid');
     const inserted = await sql<ChallengeQualificationRow>`
       insert into challenge_qualifications (qualification_id, challenge_id, entry_id, submission_id, terms_digest, qualification_version, result, qualification_json)
       values (${qualificationId}, ${challengeId}, ${entryId}, ${submissionId}, ${challenge.current_terms_digest}, ${qualificationVersion}, ${qualification.overall}, ${normalized.value}::jsonb)
@@ -595,17 +751,14 @@ export async function recordChallengeDecision(db: Kysely<DatabaseSchema>, input:
   const entryId = input.entryId ? requireUuid(input.entryId, 'entry_id') : null;
   const decisionType = requireText(input.decisionType, 'decision_type', 120);
   const decisionVersion = requireText(input.decisionVersion, 'decision_version', 120);
-  const normalized = canonicalizeJson(input.decision);
-  const payload = {request_id: requestId, decision_id: decisionId, challenge_id: challengeId, entry_id: entryId, decision_type: decisionType, decision_version: decisionVersion, decision_digest: normalized.sha256};
   const dedupeKey = `activity:challenge.decision.recorded:${challengeId}:${requestId}`;
 
   return db.transaction().execute(async (transaction) => {
     const challenge = await challengeById(transaction, challengeId, true);
     if (!challenge) throw new Error('challenge_not_found');
-    if (entryId) {
-      const entry = await entryById(transaction, entryId);
-      if (!entry || entry.challenge_id !== challengeId) throw new Error('challenge_decision_entry_mismatch');
-    }
+    const validatedDecision = await validateDecisionForPersistence(transaction, challenge, entryId, decisionType, input.decision);
+    const normalized = canonicalizeJson(validatedDecision);
+    const payload = {request_id: requestId, decision_id: decisionId, challenge_id: challengeId, entry_id: entryId, decision_type: decisionType, decision_version: decisionVersion, decision_digest: normalized.sha256};
     if (await existingCommand(transaction, dedupeKey, 'challenge.decision.recorded', challenge.organizer_player_id, 'challenge', challengeId, payload)) {
       const replay = await sql<ChallengeDecisionRow>`select * from challenge_decisions where decision_id = ${decisionId}`.execute(transaction);
       if (!replay.rows[0]) throw new Error('challenge_decision_replay_missing');
@@ -621,51 +774,6 @@ export async function recordChallengeDecision(db: Kysely<DatabaseSchema>, input:
     if (!row || row.decision_id !== decisionId || row.decision_digest !== normalized.sha256) throw new Error('challenge_decision_immutable_conflict');
     await appendHistoryEvent(transaction, {
       eventFamily: 'activity', eventType: 'challenge.decision.recorded', dedupeKey,
-      actorPlayerId: challenge.organizer_player_id, subjectType: 'challenge', subjectId: challengeId, payload,
-    });
-    return row;
-  });
-}
-
-export async function recordChallengeReceipt(db: Kysely<DatabaseSchema>, input: RecordReceiptInput): Promise<ChallengeReceiptRow> {
-  const requestId = requireUuid(input.requestId, 'request_id');
-  const receiptId = requireUuid(input.receiptId, 'receipt_id');
-  const challengeId = requireUuid(input.challengeId, 'challenge_id');
-  const receiptVersion = requireText(input.receiptVersion, 'receipt_version', 120);
-  const shipReceiptId = input.shipReceiptId ? requireUuid(input.shipReceiptId, 'ship_receipt_id') : null;
-  const supersedesReceiptId = input.supersedesReceiptId ? requireUuid(input.supersedesReceiptId, 'supersedes_receipt_id') : null;
-  const receipt = objectValue(input.receipt, 'receipt');
-  if (receipt.challenge_id !== challengeId) throw new Error('challenge_receipt_lineage_mismatch');
-  const termsDigest = requireDigest(receipt.terms_digest, 'terms_digest');
-  const normalized = canonicalizeJson(receipt);
-  const payload = {request_id: requestId, receipt_id: receiptId, challenge_id: challengeId, terms_digest: termsDigest, receipt_version: receiptVersion, receipt_digest: normalized.sha256, ship_receipt_id: shipReceiptId, supersedes_receipt_id: supersedesReceiptId};
-  const dedupeKey = `activity:challenge.receipt.recorded:${challengeId}:${requestId}`;
-
-  return db.transaction().execute(async (transaction) => {
-    const challenge = await challengeById(transaction, challengeId, true);
-    if (!challenge) throw new Error('challenge_not_found');
-    const contract = await contractForChallenge(transaction, challenge);
-    assertReceiptMatchesContract(contract, receipt);
-    if (!challenge.current_terms_digest || challenge.current_terms_digest !== termsDigest) throw new Error('challenge_receipt_terms_mismatch');
-    if (await existingCommand(transaction, dedupeKey, 'challenge.receipt.recorded', challenge.organizer_player_id, 'challenge', challengeId, payload)) {
-      const replay = await sql<ChallengeReceiptRow>`select * from challenge_receipts where receipt_id = ${receiptId}`.execute(transaction);
-      if (!replay.rows[0]) throw new Error('challenge_receipt_replay_missing');
-      return replay.rows[0];
-    }
-    if (supersedesReceiptId) {
-      const predecessor = (await sql<ChallengeReceiptRow>`select * from challenge_receipts where receipt_id = ${supersedesReceiptId} for update`.execute(transaction)).rows[0];
-      if (!predecessor || predecessor.challenge_id !== challengeId) throw new Error('challenge_receipt_predecessor_mismatch');
-    }
-    const inserted = await sql<ChallengeReceiptRow>`
-      insert into challenge_receipts (receipt_id, challenge_id, terms_digest, receipt_version, receipt_json, receipt_digest, ship_receipt_id, supersedes_receipt_id)
-      values (${receiptId}, ${challengeId}, ${termsDigest}, ${receiptVersion}, ${normalized.value}::jsonb, ${normalized.sha256}, ${shipReceiptId}, ${supersedesReceiptId})
-      on conflict (challenge_id, receipt_digest) do nothing
-      returning *
-    `.execute(transaction);
-    const row = inserted.rows[0] ?? (await sql<ChallengeReceiptRow>`select * from challenge_receipts where challenge_id = ${challengeId} and receipt_digest = ${normalized.sha256}`.execute(transaction)).rows[0];
-    if (!row || row.receipt_id !== receiptId) throw new Error('challenge_receipt_immutable_conflict');
-    await appendHistoryEvent(transaction, {
-      eventFamily: 'activity', eventType: 'challenge.receipt.recorded', dedupeKey,
       actorPlayerId: challenge.organizer_player_id, subjectType: 'challenge', subjectId: challengeId, payload,
     });
     return row;
