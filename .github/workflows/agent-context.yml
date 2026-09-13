@@ -28,6 +28,7 @@ jobs:
       SOURCE_REF: ${{ github.event.workflow_run.head_branch }}
       SOURCE_EVENT: ${{ github.event.workflow_run.event }}
       SOURCE_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+      POLICY_SHA: ${{ github.workflow_sha }}
       AUTHORITY_INCLUDE: >-
         AGENTS.md,docs/PRODUCT_BOUNDARIES_V1.md,docs/PROJECT_PLAN_V1.md,docs/RPS_REUSE_MATRIX_V1.md,docs/*CONTRACT*.md,docs/agent-packets/*.md,docs/agent-packets/**/*.md,docs/inkubator/*.md,docs/inkubator/**/*.md
       TERMINAL_RUNTIME_INCLUDE: >-
@@ -41,6 +42,17 @@ jobs:
           ref: ${{ env.SOURCE_SHA }}
           fetch-depth: 1
           persist-credentials: false
+          path: source
+
+      - name: Checkout trusted packing policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.POLICY_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+          sparse-checkout: repomix.config.json
+          sparse-checkout-cone-mode: false
+          path: policy
 
       - name: Set up Node for context tooling
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -69,29 +81,34 @@ jobs:
         run: |
           set -euo pipefail
 
-          config_sha="$(sha256sum repomix.config.json | cut -d' ' -f1)"
+          source_dir="$GITHUB_WORKSPACE/source"
+          config="$GITHUB_WORKSPACE/policy/repomix.config.json"
+
+          test -f "$config"
+          config_sha="$(sha256sum "$config" | cut -d' ' -f1)"
           if [ "$config_sha" != "$EXPECTED_CONFIG_SHA256" ]; then
-            echo "repomix.config.json digest mismatch; refusing source-controlled packing policy" >&2
+            echo "repomix.config.json digest mismatch; refusing trusted packing policy" >&2
             exit 1
           fi
 
-          compress="$(jq -r '.output.compress' repomix.config.json)"
-          security_check="$(jq -r '.security.enableSecurityCheck' repomix.config.json)"
-          token_budget="$(jq -r '.output.tokenBudget' repomix.config.json)"
+          compress="$(jq -r '.output.compress' "$config")"
+          security_check="$(jq -r '.security.enableSecurityCheck' "$config")"
+          token_budget="$(jq -r '.output.tokenBudget' "$config")"
           tool="$RUNNER_TEMP/dev-spine-repomix/node_modules/.bin/repomix"
 
+          cd "$source_dir"
           mkdir -p agent-context
           git ls-files | LC_ALL=C sort > agent-context/structure.txt
 
-          "$tool" --config "$GITHUB_WORKSPACE/repomix.config.json" \
+          "$tool" --config "$config" \
             --include "$AUTHORITY_INCLUDE" \
             --output agent-context/authority.xml
 
-          "$tool" --config "$GITHUB_WORKSPACE/repomix.config.json" \
+          "$tool" --config "$config" \
             --include "$TERMINAL_RUNTIME_INCLUDE" \
             --output agent-context/terminal-runtime.xml
 
-          "$tool" --config "$GITHUB_WORKSPACE/repomix.config.json" \
+          "$tool" --config "$config" \
             --include "$INKUBATOR_RUNTIME_INCLUDE" \
             --output agent-context/inkubator-runtime.xml
 
@@ -109,6 +126,7 @@ jobs:
             --arg source_ref "$SOURCE_REF" \
             --arg event "$SOURCE_EVENT" \
             --arg source_workflow_run_id "$SOURCE_WORKFLOW_RUN_ID" \
+            --arg policy_sha "$POLICY_SHA" \
             --arg generated_at "$generated_at" \
             --arg repomix_version "$REPOMIX_VERSION" \
             --arg config_sha256 "$config_sha" \
@@ -136,6 +154,7 @@ jobs:
                 completeness: "product-scoped-bounded",
                 generated_interpretation: true,
                 workflow_definition_source: "default-branch-workflow_run",
+                policy_source_sha: $policy_sha,
                 product_authority: false,
                 scientific_authority: false,
                 governance_authority: false,
@@ -169,6 +188,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dev-spine-context-${{ env.SOURCE_SHA }}
-          path: agent-context/
+          path: source/agent-context/
           if-no-files-found: error
           retention-days: 3
