@@ -16,12 +16,18 @@ concurrency:
 jobs:
   pack:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 8
     continue-on-error: true
     env:
       REPOMIX_VERSION: '1.18.0'
       SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       SOURCE_REF: ${{ github.head_ref || github.ref_name }}
+      AUTHORITY_INCLUDE: >-
+        AGENTS.md,docs/PRODUCT_BOUNDARIES_V1.md,docs/PROJECT_PLAN_V1.md,docs/RPS_REUSE_MATRIX_V1.md,docs/*CONTRACT*.md,docs/agent-packets/*.md,docs/agent-packets/**/*.md,docs/inkubator/*.md,docs/inkubator/**/*.md
+      TERMINAL_RUNTIME_INCLUDE: >-
+        AGENTS.md,docs/PRODUCT_BOUNDARIES_V1.md,docs/PROJECT_PLAN_V1.md,apps/api/src/**/*.{ts,tsx,js,mjs,cjs},apps/web/src/**/*.{ts,tsx,js,mjs,cjs},packages/*/src/**/*.{ts,tsx,js,mjs,cjs}
+      INKUBATOR_RUNTIME_INCLUDE: >-
+        AGENTS.md,docs/PRODUCT_BOUNDARIES_V1.md,docs/PROJECT_PLAN_V1.md,docs/inkubator/INDEX.md,apps/inkubator-api/src/**/*.{ts,tsx,js,mjs,cjs},apps/inkubator-lab/src/**/*.{ts,tsx,js,mjs,cjs},apps/inkubator-verifier/src/**/*.{ts,tsx,js,mjs,cjs},packages/*/src/**/*.{ts,tsx,js,mjs,cjs}
     steps:
       - name: Checkout exact source SHA
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -44,7 +50,7 @@ jobs:
             .security.enableSecurityCheck == true and
             .output.tokenBudget == 100000
           ' repomix.config.json >/dev/null || {
-            echo 'repomix.config.json violates the agent-context-v1 packing policy' >&2
+            echo 'repomix.config.json violates the agent-context-v2 packing policy' >&2
             exit 1
           }
 
@@ -55,15 +61,30 @@ jobs:
 
           mkdir -p agent-context
           git ls-files | LC_ALL=C sort > agent-context/structure.txt
+
           npm exec --yes --package="repomix@${REPOMIX_VERSION}" -- \
-            repomix --config repomix.config.json --output agent-context/compressed-code.xml
+            repomix --config repomix.config.json \
+              --include "$AUTHORITY_INCLUDE" \
+              --output agent-context/authority.xml
+
+          npm exec --yes --package="repomix@${REPOMIX_VERSION}" -- \
+            repomix --config repomix.config.json \
+              --include "$TERMINAL_RUNTIME_INCLUDE" \
+              --output agent-context/terminal-runtime.xml
+
+          npm exec --yes --package="repomix@${REPOMIX_VERSION}" -- \
+            repomix --config repomix.config.json \
+              --include "$INKUBATOR_RUNTIME_INCLUDE" \
+              --output agent-context/inkubator-runtime.xml
 
           structure_sha="$(sha256sum agent-context/structure.txt | cut -d' ' -f1)"
-          code_sha="$(sha256sum agent-context/compressed-code.xml | cut -d' ' -f1)"
+          authority_sha="$(sha256sum agent-context/authority.xml | cut -d' ' -f1)"
+          terminal_sha="$(sha256sum agent-context/terminal-runtime.xml | cut -d' ' -f1)"
+          inkubator_sha="$(sha256sum agent-context/inkubator-runtime.xml | cut -d' ' -f1)"
           generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
           jq -n \
-            --arg schema_version 'agent-context-v1' \
+            --arg schema_version 'agent-context-v2' \
             --arg repository "$GITHUB_REPOSITORY" \
             --arg source_sha "$SOURCE_SHA" \
             --arg source_ref "$SOURCE_REF" \
@@ -75,7 +96,12 @@ jobs:
             --argjson security_check "$security_check" \
             --argjson token_budget "$token_budget" \
             --arg structure_sha256 "$structure_sha" \
-            --arg compressed_code_sha256 "$code_sha" \
+            --arg authority_sha256 "$authority_sha" \
+            --arg terminal_sha256 "$terminal_sha" \
+            --arg inkubator_sha256 "$inkubator_sha" \
+            --arg authority_include "$AUTHORITY_INCLUDE" \
+            --arg terminal_include "$TERMINAL_RUNTIME_INCLUDE" \
+            --arg inkubator_include "$INKUBATOR_RUNTIME_INCLUDE" \
             '{
               schema_version: $schema_version,
               repository: $repository,
@@ -89,11 +115,18 @@ jobs:
                 config_sha256: $config_sha256,
                 compress: $compress,
                 security_check: $security_check,
-                token_budget: $token_budget
+                token_budget_per_pack: $token_budget
+              },
+              hydration: {
+                rule: "Load authority.xml first, then exactly one product runtime pack. Use structure.txt for targeted full-source fetches; packed context never replaces source inspection for important logic.",
+                terminal: ["authority.xml", "terminal-runtime.xml"],
+                inkubator: ["authority.xml", "inkubator-runtime.xml"]
               },
               files: {
                 "structure.txt": {sha256: $structure_sha256},
-                "compressed-code.xml": {sha256: $compressed_code_sha256}
+                "authority.xml": {sha256: $authority_sha256, role: "authority", include: $authority_include},
+                "terminal-runtime.xml": {sha256: $terminal_sha256, role: "terminal-runtime", include: $terminal_include},
+                "inkubator-runtime.xml": {sha256: $inkubator_sha256, role: "inkubator-runtime", include: $inkubator_include}
               }
             }' > agent-context/metadata.json
 

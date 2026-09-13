@@ -3,7 +3,6 @@
     "maxFileSize": 500000
   },
   "output": {
-    "filePath": "agent-context/compressed-code.xml",
     "style": "xml",
     "filePathStyle": "target-relative",
     "parsableStyle": true,
@@ -19,22 +18,6 @@
       "includeLogs": false
     }
   },
-  "include": [
-    "AGENTS.md",
-    "mise.toml",
-    "package.json",
-    "docs/PRODUCT_BOUNDARIES_V1.md",
-    "docs/PROJECT_PLAN_V1.md",
-    "docs/RPS_REUSE_MATRIX_V1.md",
-    "docs/*CONTRACT*.md",
-    "apps/api/src/**/*.{ts,tsx,js,mjs,cjs}",
-    "apps/web/src/**/*.{ts,tsx,js,mjs,cjs}",
-    "apps/inkubator-api/src/**/*.{ts,tsx,js,mjs,cjs}",
-    "apps/inkubator-lab/src/*.{ts,tsx,js,mjs,cjs}",
-    "apps/inkubator-verifier/src/**/*.{ts,tsx,js,mjs,cjs}",
-    "packages/*/src/**/*.{ts,tsx,js,mjs,cjs}",
-    ".github/workflows/ci.yml"
-  ],
   "ignore": {
     "useGitignore": true,
     "useDotIgnore": true,
