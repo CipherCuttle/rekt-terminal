@@ -1,0 +1,49 @@
+{
+  "input": {
+    "maxFileSize": 500000
+  },
+  "output": {
+    "style": "xml",
+    "filePathStyle": "target-relative",
+    "parsableStyle": true,
+    "compress": true,
+    "fileSummary": true,
+    "directoryStructure": true,
+    "includeFullDirectoryStructure": true,
+    "topFilesLength": 10,
+    "tokenBudget": 100000,
+    "git": {
+      "sortByChanges": false,
+      "includeDiffs": false,
+      "includeLogs": false
+    }
+  },
+  "ignore": {
+    "useGitignore": true,
+    "useDotIgnore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "agent-context/**",
+      "**/generated/**",
+      "**/test/**",
+      "**/*.test.*",
+      "**/*.stories.*",
+      "**/*.d.ts",
+      "**/.env",
+      "**/.env.*",
+      "**/*.pem",
+      "**/*.key",
+      "**/*.p12",
+      "**/*.pfx",
+      "**/id_rsa*",
+      "**/*.sqlite*",
+      "**/*.db"
+    ]
+  },
+  "security": {
+    "enableSecurityCheck": true
+  },
+  "tokenCount": {
+    "encoding": "o200k_base"
+  }
+}
