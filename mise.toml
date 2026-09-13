@@ -1,0 +1,36 @@
+# Universal Dev Spine V1 pilot.
+# This file standardizes development commands only; repository authority remains in AGENTS.md
+# and the canonical documents it names. It does not replace npm, workspace scripts, or CI.
+
+[tasks.context]
+description = "Show exact Git state and REKT authority entry points"
+run = '''
+set -eu
+printf 'HEAD %s\n' "$(git rev-parse HEAD)"
+git status --short --branch
+printf '\nAuthority entry points:\n'
+printf '%s\n' \
+  'AGENTS.md' \
+  'docs/PRODUCT_BOUNDARIES_V1.md' \
+  'docs/PROJECT_PLAN_V1.md' \
+  'docs/agent-packets/'
+'''
+
+[tasks.test]
+description = "Run REKT's repository test suite"
+run = "npm test"
+
+[tasks.lint]
+description = "Run REKT's available static check (typecheck; no standalone lint script exists)"
+run = "npm run typecheck"
+
+[tasks.verify]
+description = "Run REKT's canonical repository verification script"
+run = "npm run verify"
+
+[tasks.ci]
+description = "Run the closest local equivalent of CI; remote secret scanning remains CI-only"
+run = [
+  "npm ci --no-audit --no-fund",
+  "npm run verify",
+]
