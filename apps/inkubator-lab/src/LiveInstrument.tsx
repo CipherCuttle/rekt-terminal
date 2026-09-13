@@ -17,10 +17,10 @@ const LiveShip = lazy(() => import('./ship/LiveShip'));
 const authClient = createInkubatorApiClient();
 
 const PRIVATE_MODE_COPY: Record<Exclude<InstrumentMode, 'WORLD'>, {kicker: string; title: string; body: string}> = {
-  COMMAND: {kicker: 'COMMAND / PRIVATE MISSION', title: 'DECLARE YOUR MISSION.', body: 'Sign in to create or resume the one canonical build control loop.'},
-  PROJECT: {kicker: 'PROJECT / PRIVATE BUILD', title: 'OPEN YOUR BUILD.', body: 'Sign in to inspect private source context, tests, help and artifact records.'},
-  PLAYER: {kicker: 'PLAYER / PRIVATE RECORD', title: 'KEEP YOUR RECORD.', body: 'Sign in to read your durable builder history and evidence-linked recognition.'},
-  SHIP: {kicker: 'SHIP / PRIVATE SUBMISSION', title: 'READ YOUR RECEIPT.', body: 'Sign in to submit a claim or inspect the accepted artifact lineage.'},
+  COMMAND: {kicker: 'COMMAND / PRIVATE MISSION', title: 'DECLARE YOUR MISSION.', body: 'Build normally in your repo. Inkubator tracks the Mission, evidence, help and Ship around that work.'},
+  PROJECT: {kicker: 'PROJECT / PRIVATE BUILD', title: 'OPEN YOUR BUILD.', body: 'Inspect what this Project needs, who is helping, what was observed and what still blocks Ship.'},
+  PLAYER: {kicker: 'PLAYER / PRIVATE RECORD', title: 'KEEP YOUR RECORD.', body: 'Read the durable record created by what you shipped, tested and helped build.'},
+  SHIP: {kicker: 'SHIP / PRIVATE SUBMISSION', title: 'PROVE THE ARTIFACT.', body: 'Submit the thing you built, follow verification and keep the accepted receipt.'},
 };
 
 function modeFromLocation(fallback: InstrumentMode) {
@@ -74,16 +74,22 @@ function IdentityGate({mode, children}: {mode: InstrumentMode; children: ReactNo
             <h2>{copy.title}</h2>
             {new URLSearchParams(window.location.search).get('auth') === 'github_failed' ? <p role="alert">GitHub sign-in did not complete. Try again to connect your identity.</p> : null}
             <p>{copy.body} GitHub signs you in with a server-owned session.</p>
+            <div className="inkubator-auth-loop-label">
+              <strong>YOUR BUILD LOOP</strong>
+              <span>WHAT YOU DO</span>
+            </div>
+            <dl className="inkubator-auth-loop" aria-label="Your build loop">
+              <div><dt>01</dt><dd>DECLARE</dd></div>
+              <div><dt>02</dt><dd>CONNECT</dd></div>
+              <div><dt>03</dt><dd>BUILD</dd></div>
+              <div><dt>04</dt><dd>HELP / TEST</dd></div>
+              <div><dt>05</dt><dd>SHIP</dd></div>
+            </dl>
             <div className="inkubator-auth-actions">
               <a className="inkubator-auth-action" href="/v1/auth/github/start">ENTER WITH GITHUB →</a>
               <a className="inkubator-auth-action inkubator-auth-action--secondary" href="?mode=world">EXPLORE WORLD</a>
             </div>
-            <dl className="inkubator-auth-loop" aria-label="Inkubator loop">
-              <div><dt>01</dt><dd>DECLARE THE BUILD</dd></div>
-              <div><dt>02</dt><dd>FOLLOW THE NEXT MOVE</dd></div>
-              <div><dt>03</dt><dd>SHIP + KEEP THE RECEIPT</dd></div>
-            </dl>
-            <p className="inkubator-auth-footnote">Repository access is a separate read-only GitHub App permission after sign-in.</p>
+            <p className="inkubator-auth-footnote">The instrument tabs are views, not onboarding steps. Repository access is a separate read-only GitHub App permission after sign-in. Inkubator observes work around your build; it is not where you write the code.</p>
           </div>
         </TerminalShell>
       );
