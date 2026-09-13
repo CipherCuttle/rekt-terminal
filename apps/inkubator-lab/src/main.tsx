@@ -8,6 +8,7 @@ import './protocol-v0.css';
 import './signal-system/phase9-rehearsal.css';
 import './instrument-os/motion-runtime.css';
 
+const ChallengeProduct = lazy(() => import('./challenge-ui/ChallengeProduct'));
 const AppV3 = lazy(() => import('./AppV3'));
 const SignalSystemLab = lazy(() => import('./signal-system/GoldenScreens'));
 const InstrumentLab = lazy(() => import('./instrument-os/InstrumentLab'));
@@ -37,7 +38,9 @@ createRoot(document.getElementById('root')!).render(
             ? <SignalSystemLab />
             : lab === 'legacy'
               ? <><div role="note" className="fixture-banner">LEGACY DEMO / FIXTURE DATA / NOT LIVE</div><AppV3 /></>
-              : <QueryClientProvider client={instrumentQueryClient}><LiveInstrument initialMode={liveMode ?? 'COMMAND'} /></QueryClientProvider>}
+              : lab === 'live-legacy'
+                ? <QueryClientProvider client={instrumentQueryClient}><LiveInstrument initialMode={liveMode ?? 'COMMAND'} /></QueryClientProvider>
+                : <ChallengeProduct />}
     </Suspense>
   </StrictMode>
 );
