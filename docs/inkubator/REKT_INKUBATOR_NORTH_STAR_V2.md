@@ -9,7 +9,7 @@
 
 This document locks the long-horizon destination for REKT Inkubator **and** the staged path from the current repository state. It does not authorize immediate implementation of every capability described here.
 
-Where product-strategy direction conflicts with older North Star / MVP / Challenge-OS planning, this document wins. `FUNDED_CHALLENGE_SURVIVOR_PLAN_V1_1.md` continues to control near-term funded-Challenge mechanism, trust, privacy, settlement and launch-safety constraints. `REKT_TECHNICAL_FACEPLATE_V1.md` remains the highest visual execution authority.
+Where product-strategy direction conflicts with older North Star / MVP / Challenge-OS planning, this document wins. `FUNDED_CHALLENGE_SURVIVOR_PLAN_V1_1.md` continues to control near-term funded-Challenge mechanism, trust, privacy, settlement and launch-safety constraints. `REKT_TECHNICAL_FACEPLATE_V1.md` remains the highest visual execution authority. `INDEX.md` now points future work to this authority order.
 
 `IMPLEMENTATION_ROADMAP_MVP_V0.md` remains historical evidence for capabilities already built; it is no longer the forward strategic sequence where it conflicts with this roadmap.
 
