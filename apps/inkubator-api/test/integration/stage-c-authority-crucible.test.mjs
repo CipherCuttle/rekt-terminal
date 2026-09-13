@@ -207,6 +207,19 @@ test('Stage C Postgres authority crucible conserves authority across the full ch
     `.execute(db);
     assert.deepEqual(finalDecision.rows[0].decision_json, {final_qualifier_ids: [entry.entry_id]});
 
+    const unselectedSettlementIntent = buildSettlementIntent({
+      contract,
+      resolution: {type: 'WINNER_PAYOUT', winner_entry_id: entry.entry_id, distributions: [{entry_id: entry.entry_id, amount_minor_units: 100}]},
+      recipientByEntryId: {[entry.entry_id]: entry.payout_identity},
+    });
+    await assert.rejects(
+      recordChallengeDecision(db, {
+        requestId: randomUUID(), decisionId: randomUUID(), challengeId, entryId: entry.entry_id,
+        decisionType: 'SETTLEMENT_INTENT', decisionVersion: 'without-selection', decision: unselectedSettlementIntent,
+      }),
+      /challenge_selection_required/,
+    );
+
     const selectedRequest = randomUUID();
     const selectedDecisionId = randomUUID();
     await recordChallengeDecision(db, {
