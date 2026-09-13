@@ -1,0 +1,1 @@
+Zero-inference usage checkpoint after privacy-compatible D-GATE-5 run.
