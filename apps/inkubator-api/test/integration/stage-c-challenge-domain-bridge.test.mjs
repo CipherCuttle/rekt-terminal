@@ -262,6 +262,11 @@ test('Stage C submission, qualification, terminal decisions, receipt and snapsho
     );
 
     await sql`update challenges set status = 'SELECTION' where challenge_id = ${fixture.challengeId}`.execute(db);
+    await recordChallengeDecision(db, {
+      requestId: randomUUID(), decisionId: randomUUID(), challengeId: fixture.challengeId,
+      entryId: entry.entry_id, decisionType: 'SELECTION', decisionVersion: '1',
+      decision: {selected_entry_id: entry.entry_id},
+    });
     const settlementIntent = buildSettlementIntent({
       contract: fixture.contract,
       resolution: {
@@ -342,7 +347,7 @@ test('Stage C submission, qualification, terminal decisions, receipt and snapsho
     assert.equal(firstSnapshot.receipts.length, 2);
     assert.equal(firstSnapshot.receipts[0].protocol_receipt_id, receipt.receipt_id);
     assert.equal(firstSnapshot.receipts[1].protocol_receipt_id, correction.receipt_id);
-    assert.equal(firstSnapshot.decisions.length, 3);
+    assert.equal(firstSnapshot.decisions.length, 4);
     assert.equal(firstSnapshot.qualifications.length, 1);
   } finally {
     await db.destroy();
