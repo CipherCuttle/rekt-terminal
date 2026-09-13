@@ -129,6 +129,8 @@ test('Stage C DB appeal resolution must point to the post-appeal revision, never
     `.execute(db)).rows[0];
     assert.equal(stored.effective_qualification_id, revisionId);
     assert.equal(stored.resolver_player_id, resolver);
+
+    await sql`delete from challenges where challenge_id = ${challengeId}`.execute(db);
   } finally {
     await db.destroy();
   }
