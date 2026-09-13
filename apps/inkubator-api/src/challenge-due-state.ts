@@ -325,7 +325,7 @@ export async function handleChallengeDueStateJob(db: Kysely<DatabaseSchema>, job
       const opened = transitionChallenge(
         {challenge_id: challenge.challenge_id, status: 'QUALIFICATION', contract},
         'APPEAL_WINDOW', {now: databaseNow.getTime(), allFirstPassComplete: true},
-      );
+      ) as {appeal_opened_at?: number};
       if (!opened.appeal_opened_at) throw new Error('challenge_appeal_opened_at_missing');
       const updated = await sql<{challenge_id: string}>`
         update challenges set status = 'APPEAL_WINDOW', appeal_opened_at = ${new Date(opened.appeal_opened_at)}, updated_at = ${databaseNow}
