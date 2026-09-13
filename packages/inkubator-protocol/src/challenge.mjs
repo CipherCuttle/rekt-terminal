@@ -1,454 +1,131 @@
 import {digestRecord} from './index.mjs';
 
-function invariant(condition, message) {
-  if (!condition) throw new Error(message);
-}
-
-function isObject(value) {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
-
-function assertObject(value, label) {
-  invariant(isObject(value), `${label} must be an object`);
-  return value;
-}
-
-function assertAllowedKeys(value, allowed, label) {
-  for (const key of Object.keys(value)) invariant(allowed.has(key), `${label} contains undeclared property ${key}`);
-}
-
-function assertString(value, label) {
-  invariant(typeof value === 'string' && value.length > 0, `${label} must be a non-empty string`);
-}
-
-function assertSafeInt(value, label, {min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER} = {}) {
-  invariant(Number.isSafeInteger(value), `${label} must be a safe integer`);
-  invariant(value >= min && value <= max, `${label} out of range`);
-}
-
-function assertHexDigest(value, label) {
-  invariant(typeof value === 'string' && /^[0-9a-f]{64}$/.test(value), `${label} must be a lowercase sha256 hex digest`);
-}
-
-function assertUri(value, label) {
-  assertString(value, label);
-  try { new URL(value); } catch { throw new Error(`${label} must be an absolute URI`); }
-}
-
+function invariant(condition, message) { if (!condition) throw new Error(message); }
+function isObject(value) { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
+function assertObject(value, label) { invariant(isObject(value), `${label} must be an object`); return value; }
+function assertAllowedKeys(value, allowed, label) { for (const key of Object.keys(value)) invariant(allowed.has(key), `${label} contains undeclared property ${key}`); }
+function assertString(value, label) { invariant(typeof value === 'string' && value.length > 0, `${label} must be a non-empty string`); }
+function assertSafeInt(value, label, {min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER} = {}) { invariant(Number.isSafeInteger(value), `${label} must be a safe integer`); invariant(value >= min && value <= max, `${label} out of range`); }
+function assertHexDigest(value, label) { invariant(typeof value === 'string' && /^[0-9a-f]{64}$/.test(value), `${label} must be a lowercase sha256 hex digest`); }
+function assertUri(value, label) { assertString(value, label); try { new URL(value); } catch { throw new Error(`${label} must be an absolute URI`); } }
 function deepClone(value) { return structuredClone(value); }
-function deepFreeze(value) {
-  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
-  Object.freeze(value);
-  for (const child of Object.values(value)) deepFreeze(child);
-  return value;
-}
-
-function byteCompare(a, b) {
-  const encoder = new TextEncoder();
-  const left = encoder.encode(a);
-  const right = encoder.encode(b);
-  const length = Math.min(left.length, right.length);
-  for (let i = 0; i < length; i += 1) if (left[i] !== right[i]) return left[i] - right[i];
-  return left.length - right.length;
-}
-
-function stableUnique(values, label) {
-  const set = new Set(values);
-  invariant(set.size === values.length, `${label} must be unique`);
-  return [...values].sort(byteCompare);
-}
+function deepFreeze(value) { if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value; Object.freeze(value); for (const child of Object.values(value)) deepFreeze(child); return value; }
+function byteCompare(a, b) { const encoder = new TextEncoder(); const left = encoder.encode(a); const right = encoder.encode(b); const length = Math.min(left.length, right.length); for (let i = 0; i < length; i += 1) if (left[i] !== right[i]) return left[i] - right[i]; return left.length - right.length; }
+function stableUnique(values, label) { const set = new Set(values); invariant(set.size === values.length, `${label} must be unique`); return [...values].sort(byteCompare); }
 
 export const BUILD_CONTRACT_SCHEMA_VERSION = 'inkubator.build-contract/1.0';
 export const MECHANISM_VERSION = 'funded-challenge/1.1';
 export const SETTLEMENT_POLICY_VERSION = 'funded-challenge-settlement/1.0';
 export const IP_TERMS_VERSION = 'bespoke-winner-transfer/1.0';
+export const DEFAULT_VERSION_REGISTRY = Object.freeze({buildContractSchemas:Object.freeze([BUILD_CONTRACT_SCHEMA_VERSION]),mechanisms:Object.freeze([MECHANISM_VERSION]),settlementPolicies:Object.freeze([SETTLEMENT_POLICY_VERSION]),ipTerms:Object.freeze([IP_TERMS_VERSION])});
+export const CHALLENGE_STATES = Object.freeze(['DRAFT','AWAITING_FUNDING','FUNDED','ENTRY_OPEN','NOT_ACTIVATED','BUILDING','SUBMISSIONS_LOCKED','QUALIFICATION','APPEAL_WINDOW','FINAL_QUALIFIERS','SELECTION','DEFAULT_RESOLUTION','SETTLEMENT_PENDING','SETTLED','RECEIPT_FILED']);
+export const ENTRY_STATES = Object.freeze(['SEATED','WITHDRAWN_PRE_BUILD','ACTIVE','SUBMITTED','INVALID_SUBMISSION','ABANDONED']);
+export const ARCHIVE_STATES = Object.freeze(['PENDING','CAPTURED','BUILDER_REVOKED','PLATFORM_UNAVAILABLE','FAILED_WITH_REASON']);
+export const QUALIFICATION_RESULTS = Object.freeze(['PASS','FAIL','DISPUTED']);
+export const QUALIFICATION_OVERALL = Object.freeze(['QUALIFIED','NOT_QUALIFIED','DISPUTED']);
+export const IP_TRANSFER_FACTS = Object.freeze(['NOT_TRIGGERED','TRANSFER_TRIGGERED']);
+export const SETTLEMENT_INTENT_TYPES = Object.freeze(['REFUND_PRE_BUILD','REFUND_NO_QUALIFIER','WINNER_PAYOUT','DEFAULT_DISTRIBUTION','CANCELLED_BY_RESOLUTION']);
 
-export const DEFAULT_VERSION_REGISTRY = Object.freeze({
-  buildContractSchemas: Object.freeze([BUILD_CONTRACT_SCHEMA_VERSION]),
-  mechanisms: Object.freeze([MECHANISM_VERSION]),
-  settlementPolicies: Object.freeze([SETTLEMENT_POLICY_VERSION]),
-  ipTerms: Object.freeze([IP_TERMS_VERSION]),
-});
+const LEGAL_TRANSITIONS = Object.freeze({DRAFT:Object.freeze(['AWAITING_FUNDING']),AWAITING_FUNDING:Object.freeze(['FUNDED']),FUNDED:Object.freeze(['ENTRY_OPEN']),ENTRY_OPEN:Object.freeze(['NOT_ACTIVATED','BUILDING']),NOT_ACTIVATED:Object.freeze(['SETTLEMENT_PENDING']),BUILDING:Object.freeze(['SUBMISSIONS_LOCKED']),SUBMISSIONS_LOCKED:Object.freeze(['QUALIFICATION']),QUALIFICATION:Object.freeze(['APPEAL_WINDOW']),APPEAL_WINDOW:Object.freeze(['FINAL_QUALIFIERS']),FINAL_QUALIFIERS:Object.freeze(['SELECTION','SETTLEMENT_PENDING']),SELECTION:Object.freeze(['SETTLEMENT_PENDING','DEFAULT_RESOLUTION']),DEFAULT_RESOLUTION:Object.freeze(['SETTLEMENT_PENDING']),SETTLEMENT_PENDING:Object.freeze(['SETTLED']),SETTLED:Object.freeze(['RECEIPT_FILED']),RECEIPT_FILED:Object.freeze([])});
+const BUILD_CONTRACT_KEYS = new Set(['schema_version','challenge_id','contract_version','mechanism_version','settlement_policy_version','ip_terms_version','title','brief','outcome_contract','production_envelope','delivery_contract','preferences','reference_architecture','normative_constraints','normative_references','informational_references','knowledge','slot_limit','activation_minimum','entry_deadline','build_start','submission_deadline','appeal_window_ms','review_deadline','prize_minor_units','prize_display','settlement_asset','terms_digest']);
+const CRITERION_KEYS = new Set(['id','description','mandatory']);
+const REFERENCE_KEYS = new Set(['id','kind','content_digest','source_url']);
+const INFORMATIONAL_REFERENCE_KEYS = new Set(['id','url']);
+const KNOWLEDGE_KEYS = new Set(['kind','key','material','value']);
+const SUBMISSION_KEYS = new Set(['schema_version','challenge_id','entry_id','terms_digest','submission_version','immutable_source_reference','artifact_digest','evidence_references','optional_live_url','accepted_at']);
+const SOURCE_REFERENCE_KEYS = new Set(['kind','value']);
+const ENTRY_KEYS = new Set(['entry_id','builder_id','payout_id','state','build_start','submission_deadline']);
+const SETTLEMENT_INTENT_KEYS = new Set(['challenge_id','terms_digest','settlement_policy_version','asset','type','total_minor_units','recipients','winner_entry_id']);
+const SETTLEMENT_FACT_KEYS = new Set(['challenge_id','terms_digest','settlement_policy_version','asset','total_minor_units','recipients','finality','execution_id']);
+const CRITERION_RESULT_KEYS = new Set(['criterion_id','result','evidence_refs']);
 
-export const CHALLENGE_STATES = Object.freeze([
-  'DRAFT', 'AWAITING_FUNDING', 'FUNDED', 'ENTRY_OPEN', 'NOT_ACTIVATED', 'BUILDING',
-  'SUBMISSIONS_LOCKED', 'QUALIFICATION', 'APPEAL_WINDOW', 'FINAL_QUALIFIERS',
-  'SELECTION', 'DEFAULT_RESOLUTION', 'SETTLEMENT_PENDING', 'SETTLED', 'RECEIPT_FILED',
-]);
-export const ENTRY_STATES = Object.freeze(['SEATED', 'WITHDRAWN_PRE_BUILD', 'ACTIVE', 'SUBMITTED', 'INVALID_SUBMISSION', 'ABANDONED']);
-export const ARCHIVE_STATES = Object.freeze(['PENDING', 'CAPTURED', 'BUILDER_REVOKED', 'PLATFORM_UNAVAILABLE', 'FAILED_WITH_REASON']);
-export const QUALIFICATION_RESULTS = Object.freeze(['PASS', 'FAIL', 'DISPUTED']);
-export const QUALIFICATION_OVERALL = Object.freeze(['QUALIFIED', 'NOT_QUALIFIED', 'DISPUTED']);
-export const IP_TRANSFER_FACTS = Object.freeze(['NOT_TRIGGERED', 'TRANSFER_TRIGGERED']);
-export const SETTLEMENT_INTENT_TYPES = Object.freeze(['REFUND_PRE_BUILD', 'REFUND_NO_QUALIFIER', 'WINNER_PAYOUT', 'DEFAULT_DISTRIBUTION', 'CANCELLED_BY_RESOLUTION']);
+function assertCriterion(criterion,label){assertObject(criterion,label);assertAllowedKeys(criterion,CRITERION_KEYS,label);assertString(criterion.id,`${label}.id`);assertString(criterion.description,`${label}.description`);invariant(typeof criterion.mandatory==='boolean',`${label}.mandatory must be boolean`);}
+function assertCriteriaContainer(container,label){assertObject(container,label);if('criteria'in container){invariant(Array.isArray(container.criteria),`${label}.criteria must be an array`);container.criteria.forEach((criterion,index)=>assertCriterion(criterion,`${label}.criteria[${index}]`));}}
+function assertReference(reference,label){assertObject(reference,label);assertAllowedKeys(reference,REFERENCE_KEYS,label);assertString(reference.id,`${label}.id`);assertString(reference.kind,`${label}.kind`);assertHexDigest(reference.content_digest,`${label}.content_digest`);if('source_url'in reference)assertUri(reference.source_url,`${label}.source_url`);}
+function assertKnowledgeItem(item,label){assertObject(item,label);assertAllowedKeys(item,KNOWLEDGE_KEYS,label);invariant(['KNOWN','ASSUMED','UNKNOWN'].includes(item.kind),`${label}.kind invalid`);assertString(item.key,`${label}.key`);invariant(typeof item.material==='boolean',`${label}.material must be boolean`);}
 
-const LEGAL_TRANSITIONS = Object.freeze({
-  DRAFT: Object.freeze(['AWAITING_FUNDING']),
-  AWAITING_FUNDING: Object.freeze(['FUNDED']),
-  FUNDED: Object.freeze(['ENTRY_OPEN']),
-  ENTRY_OPEN: Object.freeze(['NOT_ACTIVATED', 'BUILDING']),
-  NOT_ACTIVATED: Object.freeze(['SETTLEMENT_PENDING']),
-  BUILDING: Object.freeze(['SUBMISSIONS_LOCKED']),
-  SUBMISSIONS_LOCKED: Object.freeze(['QUALIFICATION']),
-  QUALIFICATION: Object.freeze(['APPEAL_WINDOW']),
-  APPEAL_WINDOW: Object.freeze(['FINAL_QUALIFIERS']),
-  FINAL_QUALIFIERS: Object.freeze(['SELECTION', 'SETTLEMENT_PENDING']),
-  SELECTION: Object.freeze(['SETTLEMENT_PENDING', 'DEFAULT_RESOLUTION']),
-  DEFAULT_RESOLUTION: Object.freeze(['SETTLEMENT_PENDING']),
-  SETTLEMENT_PENDING: Object.freeze(['SETTLED']),
-  SETTLED: Object.freeze(['RECEIPT_FILED']),
-  RECEIPT_FILED: Object.freeze([]),
-});
-
-const BUILD_CONTRACT_KEYS = new Set([
-  'schema_version', 'challenge_id', 'contract_version', 'mechanism_version', 'settlement_policy_version', 'ip_terms_version',
-  'title', 'brief', 'outcome_contract', 'production_envelope', 'delivery_contract', 'preferences', 'reference_architecture',
-  'normative_constraints', 'normative_references', 'informational_references', 'knowledge', 'slot_limit', 'activation_minimum',
-  'entry_deadline', 'build_start', 'submission_deadline', 'appeal_window_ms', 'review_deadline', 'prize_minor_units',
-  'prize_display', 'settlement_asset', 'terms_digest',
-]);
-const CRITERION_KEYS = new Set(['id', 'description', 'mandatory']);
-const REFERENCE_KEYS = new Set(['id', 'kind', 'content_digest', 'source_url']);
-const INFORMATIONAL_REFERENCE_KEYS = new Set(['id', 'url']);
-const KNOWLEDGE_KEYS = new Set(['kind', 'key', 'material', 'value']);
-const SUBMISSION_KEYS = new Set(['schema_version', 'challenge_id', 'entry_id', 'terms_digest', 'submission_version', 'immutable_source_reference', 'artifact_digest', 'evidence_references', 'optional_live_url', 'accepted_at']);
-const SOURCE_REFERENCE_KEYS = new Set(['kind', 'value']);
-const ENTRY_KEYS = new Set(['entry_id', 'builder_id', 'payout_id', 'state', 'build_start', 'submission_deadline']);
-const SETTLEMENT_INTENT_KEYS = new Set(['challenge_id', 'terms_digest', 'settlement_policy_version', 'asset', 'type', 'total_minor_units', 'recipients', 'winner_entry_id']);
-const SETTLEMENT_FACT_KEYS = new Set(['challenge_id', 'terms_digest', 'settlement_policy_version', 'asset', 'total_minor_units', 'recipients', 'finality', 'execution_id']);
-const CRITERION_RESULT_KEYS = new Set(['criterion_id', 'result', 'evidence_refs']);
-
-function assertCriterion(criterion, label) {
-  assertObject(criterion, label); assertAllowedKeys(criterion, CRITERION_KEYS, label);
-  assertString(criterion.id, `${label}.id`); assertString(criterion.description, `${label}.description`);
-  invariant(typeof criterion.mandatory === 'boolean', `${label}.mandatory must be boolean`);
+export function assertBuildContract(contract){
+  assertObject(contract,'build contract');assertAllowedKeys(contract,BUILD_CONTRACT_KEYS,'build contract');
+  for(const key of ['schema_version','challenge_id','contract_version','mechanism_version','settlement_policy_version','ip_terms_version','title','brief','settlement_asset'])assertString(contract[key],`build contract.${key}`);
+  assertCriteriaContainer(contract.outcome_contract,'build contract.outcome_contract');assertCriteriaContainer(contract.production_envelope,'build contract.production_envelope');assertCriteriaContainer(contract.delivery_contract,'build contract.delivery_contract');assertObject(contract.preferences,'build contract.preferences');assertObject(contract.reference_architecture,'build contract.reference_architecture');
+  invariant(Array.isArray(contract.normative_constraints),'build contract.normative_constraints must be an array');contract.normative_constraints.forEach((criterion,index)=>assertCriterion(criterion,`build contract.normative_constraints[${index}]`));
+  invariant(Array.isArray(contract.normative_references),'build contract.normative_references must be an array');contract.normative_references.forEach((reference,index)=>assertReference(reference,`build contract.normative_references[${index}]`));
+  if('informational_references'in contract){invariant(Array.isArray(contract.informational_references),'build contract.informational_references must be an array');contract.informational_references.forEach((reference,index)=>{const label=`build contract.informational_references[${index}]`;assertObject(reference,label);assertAllowedKeys(reference,INFORMATIONAL_REFERENCE_KEYS,label);assertString(reference.id,`${label}.id`);assertUri(reference.url,`${label}.url`);});}
+  invariant(Array.isArray(contract.knowledge),'build contract.knowledge must be an array');contract.knowledge.forEach((item,index)=>assertKnowledgeItem(item,`build contract.knowledge[${index}]`));
+  assertSafeInt(contract.slot_limit,'build contract.slot_limit',{min:1});assertSafeInt(contract.activation_minimum,'build contract.activation_minimum',{min:1});for(const key of ['entry_deadline','build_start','submission_deadline','review_deadline'])assertSafeInt(contract[key],`build contract.${key}`,{min:0});assertSafeInt(contract.appeal_window_ms,'build contract.appeal_window_ms',{min:1});assertSafeInt(contract.prize_minor_units,'build contract.prize_minor_units',{min:1});if('prize_display'in contract)assertString(contract.prize_display,'build contract.prize_display');if('terms_digest'in contract)assertHexDigest(contract.terms_digest,'build contract.terms_digest');return contract;
 }
-function assertCriteriaContainer(container, label) {
-  assertObject(container, label);
-  if ('criteria' in container) {
-    invariant(Array.isArray(container.criteria), `${label}.criteria must be an array`);
-    container.criteria.forEach((criterion, index) => assertCriterion(criterion, `${label}.criteria[${index}]`));
+export function assertSupportedVersions(contract,registry=DEFAULT_VERSION_REGISTRY){assertBuildContract(contract);invariant(registry.buildContractSchemas.includes(contract.schema_version),`unsupported build contract schema ${contract.schema_version}`);invariant(registry.mechanisms.includes(contract.mechanism_version),`unsupported mechanism version ${contract.mechanism_version}`);invariant(registry.settlementPolicies.includes(contract.settlement_policy_version),`unsupported settlement policy version ${contract.settlement_policy_version}`);invariant(registry.ipTerms.includes(contract.ip_terms_version),`unsupported IP terms version ${contract.ip_terms_version}`);return contract;}
+function allNormativeCriteria(contract){return[contract.outcome_contract.criteria??[],contract.production_envelope.criteria??[],contract.delivery_contract.criteria??[],contract.normative_constraints].flat();}
+export function validateBuildContractReady(contract,registry=DEFAULT_VERSION_REGISTRY){assertSupportedVersions(contract,registry);invariant(contract.activation_minimum<=contract.slot_limit,'activation_minimum cannot exceed slot_limit');invariant(contract.entry_deadline===contract.build_start,'V1 build_start must equal entry_deadline');invariant(contract.build_start<contract.submission_deadline,'submission_deadline must be after build_start');invariant(contract.submission_deadline<contract.review_deadline,'review_deadline must be after submission_deadline');stableUnique(allNormativeCriteria(contract).map((criterion)=>criterion.id),'normative criterion ids');stableUnique(contract.normative_references.map((reference)=>reference.id),'normative reference ids');stableUnique((contract.informational_references??[]).map((reference)=>reference.id),'informational reference ids');stableUnique(contract.knowledge.map((item)=>item.key),'knowledge keys');const blockingUnknown=contract.knowledge.find((item)=>item.kind==='UNKNOWN'&&item.material);invariant(!blockingUnknown,`material UNKNOWN blocks readiness: ${blockingUnknown?.key??''}`);return contract;}
+export function canonicalBuildContractPayload(contract){assertBuildContract(contract);const payload=deepClone(contract);delete payload.terms_digest;return payload;}
+export function digestBuildContract(contract){return digestRecord(canonicalBuildContractPayload(contract));}
+export function freezeBuildContract(contract,registry=DEFAULT_VERSION_REGISTRY){validateBuildContractReady(contract,registry);const frozen=deepClone(contract);frozen.terms_digest=digestBuildContract(frozen);return deepFreeze(frozen);}
+export function assertFrozenBuildContract(contract,registry=DEFAULT_VERSION_REGISTRY){validateBuildContractReady(contract,registry);assertHexDigest(contract.terms_digest,'build contract.terms_digest');invariant(contract.terms_digest===digestBuildContract(contract),'terms_digest does not match frozen Build Contract');return contract;}
+export function assertContractMatchesTermsDigest(contract,expectedDigest){assertFrozenBuildContract(contract);invariant(contract.terms_digest===expectedDigest,'Build Contract terms digest mismatch');return contract;}
+export function validateFundingFact(contract,fact){validateBuildContractReady(contract);assertObject(fact,'funding fact');invariant(fact.status==='CONFIRMED','funding fact is not confirmed');invariant(fact.challenge_id===contract.challenge_id,'funding fact Challenge mismatch');invariant(fact.asset===contract.settlement_asset,'funding fact asset mismatch');invariant(fact.amount_minor_units===contract.prize_minor_units,'funding fact amount mismatch');invariant(fact.contract_digest===digestBuildContract(contract),'funding fact contract digest mismatch');return fact;}
+export function migrateDraftBuildContract(challenge,patch,registry=DEFAULT_VERSION_REGISTRY){assertObject(challenge,'challenge');invariant(challenge.status==='DRAFT','only DRAFT Challenge contracts may migrate');assertObject(patch,'contract patch');const candidate={...deepClone(challenge.contract),...deepClone(patch)};delete candidate.terms_digest;validateBuildContractReady(candidate,registry);return deepFreeze({...deepClone(challenge),contract:candidate});}
+export function canTransitionChallenge(from,to){invariant(CHALLENGE_STATES.includes(from),`unknown Challenge state ${from}`);invariant(CHALLENGE_STATES.includes(to),`unknown Challenge state ${to}`);return LEGAL_TRANSITIONS[from].includes(to);}
+
+export function transitionChallenge(challenge,to,context={}){
+  assertObject(challenge,'challenge');assertString(challenge.challenge_id,'challenge.challenge_id');invariant(CHALLENGE_STATES.includes(challenge.status),`unknown Challenge state ${challenge.status}`);invariant(canTransitionChallenge(challenge.status,to),`illegal Challenge transition ${challenge.status} -> ${to}`);invariant(challenge.contract?.challenge_id===challenge.challenge_id,'challenge/contract identity mismatch');
+  const contract=challenge.contract;let patch={};
+  if(to==='AWAITING_FUNDING')validateBuildContractReady(contract,context.versionRegistry??DEFAULT_VERSION_REGISTRY);
+  if(to==='FUNDED')validateFundingFact(contract,context.fundingFact);
+  if(to==='ENTRY_OPEN'){assertFrozenBuildContract(contract,context.versionRegistry??DEFAULT_VERSION_REGISTRY);assertSafeInt(context.now,'now',{min:0});invariant(context.now<contract.entry_deadline,'cannot open entries at/after entry deadline');}
+  if(to==='NOT_ACTIVATED'||to==='BUILDING'){assertFrozenBuildContract(contract,context.versionRegistry??DEFAULT_VERSION_REGISTRY);assertSafeInt(context.now,'now',{min:0});assertSafeInt(context.activeSeatCount,'activeSeatCount',{min:0});invariant(context.now>=contract.entry_deadline,'entry deadline not reached');if(to==='NOT_ACTIVATED')invariant(context.activeSeatCount<contract.activation_minimum,'activation minimum met; NOT_ACTIVATED is invalid');if(to==='BUILDING')invariant(context.activeSeatCount>=contract.activation_minimum,'activation minimum not met');}
+  if(to==='SUBMISSIONS_LOCKED'){assertSafeInt(context.now,'now',{min:0});invariant(context.now>=contract.submission_deadline,'submission deadline not reached');}
+  if(to==='APPEAL_WINDOW'){invariant(context.allFirstPassComplete===true,'first-pass qualification is incomplete');assertSafeInt(context.now,'now',{min:0});patch={appeal_opened_at:context.now};}
+  if(to==='FINAL_QUALIFIERS'){assertSafeInt(context.now,'now',{min:0});assertSafeInt(challenge.appeal_opened_at,'challenge.appeal_opened_at',{min:0});const closesAt=challenge.appeal_opened_at+contract.appeal_window_ms;assertSafeInt(closesAt,'appeal closes at',{min:0});invariant(context.now>=closesAt,'appeal window not elapsed');invariant(context.appealsResolved===true,'appeals not fully resolved');}
+  if(to==='SELECTION')invariant(Array.isArray(context.finalQualifierIds)&&context.finalQualifierIds.length>0,'selection requires at least one final qualifier');
+  if(challenge.status==='FINAL_QUALIFIERS'&&to==='SETTLEMENT_PENDING'){invariant(Array.isArray(context.finalQualifierIds)&&context.finalQualifierIds.length===0,'direct settlement from FINAL_QUALIFIERS is only for zero qualifiers');invariant(context.settlementIntent?.type==='REFUND_NO_QUALIFIER','zero-qualifier path requires refund intent');}
+  if(to==='DEFAULT_RESOLUTION'){assertSafeInt(context.now,'now',{min:0});invariant(context.now>=contract.review_deadline,'review deadline not reached');invariant(context.hasValidSelection!==true,'valid organizer selection already exists');}
+  if(to==='SETTLEMENT_PENDING'){
+    invariant(isObject(context.settlementIntent),'settlement intent required');assertSettlementIntentMatchesContract(contract,context.settlementIntent);
+    if(challenge.status==='NOT_ACTIVATED'){invariant(context.settlementIntent.type==='REFUND_PRE_BUILD','NOT_ACTIVATED requires pre-build refund intent');assertString(context.refundRecipientId,'refundRecipientId');const expected=buildSettlementIntent({contract,resolution:{type:'REFUND_PRE_BUILD',winner_entry_id:null,distributions:[]},refundRecipientId:context.refundRecipientId});invariant(digestRecord(expected)===digestRecord(context.settlementIntent),'pre-build refund intent does not match authorized resolution');}
+    if(challenge.status==='FINAL_QUALIFIERS'){assertString(context.refundRecipientId,'refundRecipientId');const expected=buildSettlementIntent({contract,resolution:computeDefaultResolution([],contract.prize_minor_units),refundRecipientId:context.refundRecipientId});invariant(digestRecord(expected)===digestRecord(context.settlementIntent),'no-qualifier refund intent does not match authorized resolution');}
+    if(challenge.status==='SELECTION'){invariant(context.settlementIntent.type==='WINNER_PAYOUT','selected outcome requires winner payout intent');assertString(context.selectedEntryId,'selectedEntryId');validateSelection(context.selectedEntryId,context.finalQualifierIds);invariant(context.settlementIntent.winner_entry_id===context.selectedEntryId,'winner payout intent does not match selected qualifier');const expected=buildSettlementIntent({contract,resolution:{type:'WINNER_PAYOUT',winner_entry_id:context.selectedEntryId,distributions:[{entry_id:context.selectedEntryId,amount_minor_units:contract.prize_minor_units}]},recipientByEntryId:context.recipientByEntryId??{}});invariant(digestRecord(expected)===digestRecord(context.settlementIntent),'winner payout intent does not match authorized selection');}
+    if(challenge.status==='DEFAULT_RESOLUTION'){invariant(Array.isArray(context.finalQualifierIds),'finalQualifierIds required for default resolution');const resolution=computeDefaultResolution(context.finalQualifierIds,contract.prize_minor_units);const expected=buildSettlementIntent({contract,resolution,recipientByEntryId:context.recipientByEntryId??{},refundRecipientId:context.refundRecipientId??null});invariant(digestRecord(expected)===digestRecord(context.settlementIntent),'settlement intent does not match deterministic default resolution');}
   }
-}
-function assertReference(reference, label) {
-  assertObject(reference, label); assertAllowedKeys(reference, REFERENCE_KEYS, label);
-  assertString(reference.id, `${label}.id`); assertString(reference.kind, `${label}.kind`); assertHexDigest(reference.content_digest, `${label}.content_digest`);
-  if ('source_url' in reference) assertUri(reference.source_url, `${label}.source_url`);
-}
-function assertKnowledgeItem(item, label) {
-  assertObject(item, label); assertAllowedKeys(item, KNOWLEDGE_KEYS, label);
-  invariant(['KNOWN', 'ASSUMED', 'UNKNOWN'].includes(item.kind), `${label}.kind invalid`);
-  assertString(item.key, `${label}.key`); invariant(typeof item.material === 'boolean', `${label}.material must be boolean`);
+  if(to==='SETTLED'){assertSettlementIntentMatchesContract(contract,context.settlementIntent);applyFinalizedSettlementFact(context.settlementIntent,context.executionFact,context.existingExecutionFact);}
+  if(to==='RECEIPT_FILED')assertReceiptMatchesContract(contract,context.receipt);
+  return deepFreeze({...deepClone(challenge),...patch,status:to});
 }
 
-export function assertBuildContract(contract) {
-  assertObject(contract, 'build contract'); assertAllowedKeys(contract, BUILD_CONTRACT_KEYS, 'build contract');
-  for (const key of ['schema_version', 'challenge_id', 'contract_version', 'mechanism_version', 'settlement_policy_version', 'ip_terms_version', 'title', 'brief', 'settlement_asset']) assertString(contract[key], `build contract.${key}`);
-  assertCriteriaContainer(contract.outcome_contract, 'build contract.outcome_contract');
-  assertCriteriaContainer(contract.production_envelope, 'build contract.production_envelope');
-  assertCriteriaContainer(contract.delivery_contract, 'build contract.delivery_contract');
-  assertObject(contract.preferences, 'build contract.preferences'); assertObject(contract.reference_architecture, 'build contract.reference_architecture');
-  invariant(Array.isArray(contract.normative_constraints), 'build contract.normative_constraints must be an array');
-  contract.normative_constraints.forEach((criterion, index) => assertCriterion(criterion, `build contract.normative_constraints[${index}]`));
-  invariant(Array.isArray(contract.normative_references), 'build contract.normative_references must be an array');
-  contract.normative_references.forEach((reference, index) => assertReference(reference, `build contract.normative_references[${index}]`));
-  if ('informational_references' in contract) {
-    invariant(Array.isArray(contract.informational_references), 'build contract.informational_references must be an array');
-    contract.informational_references.forEach((reference, index) => {
-      const label = `build contract.informational_references[${index}]`;
-      assertObject(reference, label); assertAllowedKeys(reference, INFORMATIONAL_REFERENCE_KEYS, label);
-      assertString(reference.id, `${label}.id`); assertUri(reference.url, `${label}.url`);
-    });
+export function assertEntry(entry){assertObject(entry,'entry');assertAllowedKeys(entry,ENTRY_KEYS,'entry');assertString(entry.entry_id,'entry.entry_id');assertString(entry.builder_id,'entry.builder_id');assertString(entry.payout_id,'entry.payout_id');invariant(ENTRY_STATES.includes(entry.state),`unknown entry state ${entry.state}`);if('build_start'in entry)assertSafeInt(entry.build_start,'entry.build_start',{min:0});if('submission_deadline'in entry)assertSafeInt(entry.submission_deadline,'entry.submission_deadline',{min:0});if(['ACTIVE','SUBMITTED','INVALID_SUBMISSION','ABANDONED'].includes(entry.state))invariant(Number.isSafeInteger(entry.build_start)&&Number.isSafeInteger(entry.submission_deadline),`${entry.state} entry requires build_start and submission_deadline`);return entry;}
+export function validateEntrySet(entries,{organizerBuilderId,organizerPayoutId,funderPayoutId}={}){invariant(Array.isArray(entries),'entries must be an array');entries.forEach(assertEntry);stableUnique(entries.map((entry)=>entry.entry_id),'entry ids');stableUnique(entries.filter((entry)=>entry.state!=='WITHDRAWN_PRE_BUILD').map((entry)=>entry.builder_id),'active builder ids');stableUnique(entries.filter((entry)=>entry.state!=='WITHDRAWN_PRE_BUILD').map((entry)=>entry.payout_id),'active payout ids');for(const entry of entries.filter((item)=>item.state!=='WITHDRAWN_PRE_BUILD')){if(organizerBuilderId)invariant(entry.builder_id!==organizerBuilderId,'organizer cannot occupy a builder seat');if(organizerPayoutId)invariant(entry.payout_id!==organizerPayoutId,'organizer payout identity cannot occupy a builder seat');if(funderPayoutId)invariant(entry.payout_id!==funderPayoutId,'funder payout identity cannot occupy a builder seat');}return entries;}
+export function activateEntries(entries,contract,policy={}){assertFrozenBuildContract(contract);validateEntrySet(entries,policy);const activeSeatCount=entries.filter((entry)=>entry.state==='SEATED').length;invariant(activeSeatCount>=contract.activation_minimum,'activation minimum not met');invariant(activeSeatCount<=contract.slot_limit,'slot limit exceeded');return deepFreeze(entries.map((entry)=>entry.state==='SEATED'?{...deepClone(entry),state:'ACTIVE',build_start:contract.build_start,submission_deadline:contract.submission_deadline}:deepClone(entry)).sort((a,b)=>byteCompare(a.entry_id,b.entry_id)));}
+export function publicEntryProjection(entry,{revealed=false}={}){assertEntry(entry);return revealed?deepClone(entry):{entry_id:entry.entry_id,state:entry.state};}
+
+export function assertSubmissionManifest(manifest){assertObject(manifest,'submission manifest');assertAllowedKeys(manifest,SUBMISSION_KEYS,'submission manifest');for(const key of ['schema_version','challenge_id','entry_id','terms_digest','artifact_digest'])assertString(manifest[key],`submission manifest.${key}`);invariant(manifest.schema_version==='inkubator.submission-manifest/1.0',`unsupported submission schema ${manifest.schema_version}`);assertHexDigest(manifest.terms_digest,'submission manifest.terms_digest');assertHexDigest(manifest.artifact_digest,'submission manifest.artifact_digest');assertSafeInt(manifest.submission_version,'submission manifest.submission_version',{min:1});assertSafeInt(manifest.accepted_at,'submission manifest.accepted_at',{min:0});assertObject(manifest.immutable_source_reference,'submission manifest.immutable_source_reference');assertAllowedKeys(manifest.immutable_source_reference,SOURCE_REFERENCE_KEYS,'submission manifest.immutable_source_reference');invariant(['GIT_COMMIT','CONTENT_ADDRESS','ARCHIVE_DIGEST'].includes(manifest.immutable_source_reference.kind),'immutable source reference kind invalid');assertString(manifest.immutable_source_reference.value,'submission manifest.immutable_source_reference.value');invariant(Array.isArray(manifest.evidence_references),'submission manifest.evidence_references must be an array');manifest.evidence_references.forEach((value,index)=>assertString(value,`submission manifest.evidence_references[${index}]`));if('optional_live_url'in manifest)assertUri(manifest.optional_live_url,'submission manifest.optional_live_url');return manifest;}
+export function isSubmissionEligible(manifest,contract,entryId){try{assertSubmissionManifest(manifest);assertFrozenBuildContract(contract);return manifest.challenge_id===contract.challenge_id&&manifest.entry_id===entryId&&manifest.terms_digest===contract.terms_digest&&manifest.accepted_at<=contract.submission_deadline;}catch{return false;}}
+export function selectFinalSubmission(manifests,contract,entryId){invariant(Array.isArray(manifests),'manifests must be an array');const eligible=manifests.filter((manifest)=>isSubmissionEligible(manifest,contract,entryId));stableUnique(eligible.map((manifest)=>String(manifest.submission_version)),'eligible submission versions');if(eligible.length===0)return null;eligible.sort((a,b)=>(a.accepted_at-b.accepted_at)||(a.submission_version-b.submission_version));return deepClone(eligible.at(-1));}
+export function recordArchiveObservation(manifest,archiveState,reason=null){assertSubmissionManifest(manifest);invariant(ARCHIVE_STATES.includes(archiveState),`unknown archive state ${archiveState}`);return deepFreeze({challenge_id:manifest.challenge_id,entry_id:manifest.entry_id,submission_version:manifest.submission_version,accepted_at:manifest.accepted_at,archive_state:archiveState,reason});}
+
+export function computeQualification(contract,criterionResults){assertFrozenBuildContract(contract);invariant(Array.isArray(criterionResults),'criterionResults must be an array');const mandatoryIds=stableUnique(allNormativeCriteria(contract).filter((criterion)=>criterion.mandatory).map((criterion)=>criterion.id),'mandatory criterion ids');for(const result of criterionResults){assertObject(result,'criterion result');assertAllowedKeys(result,CRITERION_RESULT_KEYS,'criterion result');assertString(result.criterion_id,'criterion result.criterion_id');invariant(QUALIFICATION_RESULTS.includes(result.result),`invalid criterion result ${result.result}`);if('evidence_refs'in result){invariant(Array.isArray(result.evidence_refs),'criterion result.evidence_refs must be an array');result.evidence_refs.forEach((ref,index)=>assertString(ref,`criterion result.evidence_refs[${index}]`));}}const resultIds=stableUnique(criterionResults.map((result)=>result.criterion_id),'criterion result ids');invariant(mandatoryIds.length===resultIds.length&&mandatoryIds.every((id,index)=>id===resultIds[index]),'criterion results must exactly match frozen mandatory criteria');const values=criterionResults.map((result)=>result.result);const overall=values.includes('DISPUTED')?'DISPUTED':values.includes('FAIL')?'NOT_QUALIFIED':'QUALIFIED';return deepFreeze({overall,criteria:deepClone(criterionResults)});}
+export function appendAppealEvent(history,event){invariant(Array.isArray(history),'appeal history must be an array');assertObject(event,'appeal event');invariant(['APPEAL','RESOLUTION'].includes(event.type),'appeal event type invalid');const allowed=event.type==='APPEAL'?new Set(['type','reason','evidence_refs']):new Set(['type','result','reason','evidence_refs','resolver_id']);assertAllowedKeys(event,allowed,'appeal event');if('reason'in event)assertString(event.reason,'appeal event.reason');if('evidence_refs'in event){invariant(Array.isArray(event.evidence_refs),'appeal event.evidence_refs must be an array');event.evidence_refs.forEach((ref,index)=>assertString(ref,`appeal event.evidence_refs[${index}]`));}const appealCount=history.filter((item)=>item.type==='APPEAL').length;const resolutionCount=history.filter((item)=>item.type==='RESOLUTION').length;if(event.type==='APPEAL')invariant(appealCount===0&&resolutionCount===0,'appeal budget exhausted');else invariant(appealCount===1&&resolutionCount===0,'resolution requires exactly one unresolved appeal');return deepFreeze([...deepClone(history),deepClone(event)]);}
+export function validateSelection(selectedEntryId,finalQualifierIds){assertString(selectedEntryId,'selected entry id');invariant(Array.isArray(finalQualifierIds)&&finalQualifierIds.length>0,'selection requires final qualifiers');const qualifiers=stableUnique(finalQualifierIds,'final qualifier ids');invariant(qualifiers.includes(selectedEntryId),'selected entry is not a final qualifier');return selectedEntryId;}
+export function computeDefaultDistribution(prizeMinorUnits,qualifierIds){assertSafeInt(prizeMinorUnits,'prize minor units',{min:0});invariant(Array.isArray(qualifierIds)&&qualifierIds.length>=2,'default distribution requires at least two qualifiers');const ordered=stableUnique(qualifierIds,'final qualifier ids');const base=Math.floor(prizeMinorUnits/ordered.length);const remainder=prizeMinorUnits-(base*ordered.length);return ordered.map((entryId,index)=>({entry_id:entryId,amount_minor_units:base+(index<remainder?1:0)}));}
+export function computeDefaultResolution(finalQualifierIds,prizeMinorUnits){invariant(Array.isArray(finalQualifierIds),'finalQualifierIds must be an array');const qualifiers=stableUnique(finalQualifierIds,'final qualifier ids');assertSafeInt(prizeMinorUnits,'prize minor units',{min:0});if(qualifiers.length===0)return deepFreeze({type:'REFUND_NO_QUALIFIER',winner_entry_id:null,distributions:[]});if(qualifiers.length===1)return deepFreeze({type:'WINNER_PAYOUT',winner_entry_id:qualifiers[0],distributions:[{entry_id:qualifiers[0],amount_minor_units:prizeMinorUnits}]});return deepFreeze({type:'DEFAULT_DISTRIBUTION',winner_entry_id:null,distributions:computeDefaultDistribution(prizeMinorUnits,qualifiers)});}
+
+function canonicalRecipients(recipients){invariant(Array.isArray(recipients)&&recipients.length>0,'settlement recipients required');const result=recipients.map((recipient)=>{assertObject(recipient,'settlement recipient');assertAllowedKeys(recipient,new Set(['recipient_id','amount_minor_units']),'settlement recipient');assertString(recipient.recipient_id,'settlement recipient.recipient_id');assertSafeInt(recipient.amount_minor_units,'settlement recipient.amount_minor_units',{min:0});return{recipient_id:recipient.recipient_id,amount_minor_units:recipient.amount_minor_units};}).sort((a,b)=>byteCompare(a.recipient_id,b.recipient_id));stableUnique(result.map((recipient)=>recipient.recipient_id),'settlement recipient ids');return result;}
+export function assertSettlementIntent(intent){assertObject(intent,'settlement intent');assertAllowedKeys(intent,SETTLEMENT_INTENT_KEYS,'settlement intent');for(const key of ['challenge_id','terms_digest','settlement_policy_version','asset','type'])assertString(intent[key],`settlement intent.${key}`);assertHexDigest(intent.terms_digest,'settlement intent.terms_digest');invariant(SETTLEMENT_INTENT_TYPES.includes(intent.type),`unknown settlement intent type ${intent.type}`);assertSafeInt(intent.total_minor_units,'settlement intent.total_minor_units',{min:0});const recipients=canonicalRecipients(intent.recipients);const total=recipients.reduce((sum,recipient)=>sum+recipient.amount_minor_units,0);assertSafeInt(total,'settlement recipient total',{min:0});invariant(total===intent.total_minor_units,'settlement recipients do not conserve intent total');if(intent.type==='WINNER_PAYOUT'){assertString(intent.winner_entry_id,'settlement intent.winner_entry_id');invariant(recipients.length===1,'winner payout requires exactly one recipient');}else if(intent.type==='DEFAULT_DISTRIBUTION'){invariant(intent.winner_entry_id===null,'default distribution cannot declare a winner');invariant(recipients.length>=2,'default distribution requires at least two recipients');}else{invariant(intent.winner_entry_id===null,`${intent.type} cannot declare a winner`);invariant(recipients.length===1,`${intent.type} requires exactly one recipient`);}return intent;}
+export function assertSettlementIntentMatchesContract(contract,intent){assertFrozenBuildContract(contract);assertSettlementIntent(intent);invariant(intent.challenge_id===contract.challenge_id,'settlement intent Challenge mismatch');invariant(intent.terms_digest===contract.terms_digest,'settlement intent terms digest mismatch');invariant(intent.settlement_policy_version===contract.settlement_policy_version,'settlement intent policy mismatch');invariant(intent.asset===contract.settlement_asset,'settlement intent asset mismatch');invariant(intent.total_minor_units===contract.prize_minor_units,'settlement intent amount mismatch');return intent;}
+export function buildSettlementIntent({contract,resolution,recipientByEntryId={},refundRecipientId=null}){
+  assertFrozenBuildContract(contract);assertObject(resolution,'resolution');invariant(SETTLEMENT_INTENT_TYPES.includes(resolution.type),`unknown settlement intent type ${resolution.type}`);invariant(Array.isArray(resolution.distributions),'resolution.distributions must be an array');let recipients;
+  if(['REFUND_PRE_BUILD','REFUND_NO_QUALIFIER','CANCELLED_BY_RESOLUTION'].includes(resolution.type)){invariant(resolution.winner_entry_id==null,`${resolution.type} cannot declare a winner`);invariant(resolution.distributions.length===0,`${resolution.type} cannot provide winner distributions`);assertString(refundRecipientId,'refundRecipientId');recipients=[{recipient_id:refundRecipientId,amount_minor_units:contract.prize_minor_units}];}
+  else{
+    if(resolution.type==='WINNER_PAYOUT'){assertString(resolution.winner_entry_id,'resolution.winner_entry_id');invariant(resolution.distributions.length===1&&resolution.distributions[0].entry_id===resolution.winner_entry_id,'winner payout resolution must contain exactly the winner distribution');}
+    if(resolution.type==='DEFAULT_DISTRIBUTION'){invariant(resolution.winner_entry_id===null,'default distribution cannot declare a winner');invariant(resolution.distributions.length>=2,'default distribution requires at least two distributions');const normalized=resolution.distributions.map(({entry_id,amount_minor_units})=>({entry_id,amount_minor_units})).sort((a,b)=>byteCompare(a.entry_id,b.entry_id));normalized.forEach((item)=>{assertString(item.entry_id,'resolution distribution entry_id');assertSafeInt(item.amount_minor_units,'resolution distribution amount_minor_units',{min:0});});const expected=computeDefaultDistribution(contract.prize_minor_units,normalized.map((item)=>item.entry_id));invariant(digestRecord(normalized)===digestRecord(expected),'default distribution is not the deterministic equal split');}
+    recipients=resolution.distributions.map(({entry_id,amount_minor_units})=>{assertString(entry_id,'resolution distribution entry_id');assertSafeInt(amount_minor_units,'resolution distribution amount_minor_units',{min:0});const recipientId=recipientByEntryId[entry_id];assertString(recipientId,`recipient for entry ${entry_id}`);return{recipient_id:recipientId,amount_minor_units};});
   }
-  invariant(Array.isArray(contract.knowledge), 'build contract.knowledge must be an array');
-  contract.knowledge.forEach((item, index) => assertKnowledgeItem(item, `build contract.knowledge[${index}]`));
-  assertSafeInt(contract.slot_limit, 'build contract.slot_limit', {min: 1});
-  assertSafeInt(contract.activation_minimum, 'build contract.activation_minimum', {min: 1});
-  for (const key of ['entry_deadline', 'build_start', 'submission_deadline', 'review_deadline']) assertSafeInt(contract[key], `build contract.${key}`, {min: 0});
-  assertSafeInt(contract.appeal_window_ms, 'build contract.appeal_window_ms', {min: 1});
-  assertSafeInt(contract.prize_minor_units, 'build contract.prize_minor_units', {min: 1});
-  if ('prize_display' in contract) assertString(contract.prize_display, 'build contract.prize_display');
-  if ('terms_digest' in contract) assertHexDigest(contract.terms_digest, 'build contract.terms_digest');
-  return contract;
+  recipients=canonicalRecipients(recipients);const total=recipients.reduce((sum,recipient)=>sum+recipient.amount_minor_units,0);assertSafeInt(total,'settlement total',{min:0});invariant(total===contract.prize_minor_units,'settlement intent does not conserve full prize');const intent={challenge_id:contract.challenge_id,terms_digest:contract.terms_digest,settlement_policy_version:contract.settlement_policy_version,asset:contract.settlement_asset,type:resolution.type,total_minor_units:total,recipients,winner_entry_id:resolution.winner_entry_id??null};assertSettlementIntentMatchesContract(contract,intent);return deepFreeze(intent);
 }
-
-export function assertSupportedVersions(contract, registry = DEFAULT_VERSION_REGISTRY) {
-  assertBuildContract(contract);
-  invariant(registry.buildContractSchemas.includes(contract.schema_version), `unsupported build contract schema ${contract.schema_version}`);
-  invariant(registry.mechanisms.includes(contract.mechanism_version), `unsupported mechanism version ${contract.mechanism_version}`);
-  invariant(registry.settlementPolicies.includes(contract.settlement_policy_version), `unsupported settlement policy version ${contract.settlement_policy_version}`);
-  invariant(registry.ipTerms.includes(contract.ip_terms_version), `unsupported IP terms version ${contract.ip_terms_version}`);
-  return contract;
-}
-
-function allNormativeCriteria(contract) {
-  return [contract.outcome_contract.criteria ?? [], contract.production_envelope.criteria ?? [], contract.delivery_contract.criteria ?? [], contract.normative_constraints].flat();
-}
-
-export function validateBuildContractReady(contract, registry = DEFAULT_VERSION_REGISTRY) {
-  assertSupportedVersions(contract, registry);
-  invariant(contract.activation_minimum <= contract.slot_limit, 'activation_minimum cannot exceed slot_limit');
-  invariant(contract.entry_deadline === contract.build_start, 'V1 build_start must equal entry_deadline');
-  invariant(contract.build_start < contract.submission_deadline, 'submission_deadline must be after build_start');
-  invariant(contract.submission_deadline < contract.review_deadline, 'review_deadline must be after submission_deadline');
-  stableUnique(allNormativeCriteria(contract).map((criterion) => criterion.id), 'normative criterion ids');
-  stableUnique(contract.normative_references.map((reference) => reference.id), 'normative reference ids');
-  stableUnique((contract.informational_references ?? []).map((reference) => reference.id), 'informational reference ids');
-  stableUnique(contract.knowledge.map((item) => item.key), 'knowledge keys');
-  const blockingUnknown = contract.knowledge.find((item) => item.kind === 'UNKNOWN' && item.material);
-  invariant(!blockingUnknown, `material UNKNOWN blocks readiness: ${blockingUnknown?.key ?? ''}`);
-  return contract;
-}
-
-export function canonicalBuildContractPayload(contract) { assertBuildContract(contract); const payload = deepClone(contract); delete payload.terms_digest; return payload; }
-export function digestBuildContract(contract) { return digestRecord(canonicalBuildContractPayload(contract)); }
-export function freezeBuildContract(contract, registry = DEFAULT_VERSION_REGISTRY) {
-  validateBuildContractReady(contract, registry); const frozen = deepClone(contract); frozen.terms_digest = digestBuildContract(frozen); return deepFreeze(frozen);
-}
-export function assertFrozenBuildContract(contract, registry = DEFAULT_VERSION_REGISTRY) {
-  validateBuildContractReady(contract, registry); assertHexDigest(contract.terms_digest, 'build contract.terms_digest');
-  invariant(contract.terms_digest === digestBuildContract(contract), 'terms_digest does not match frozen Build Contract'); return contract;
-}
-export function assertContractMatchesTermsDigest(contract, expectedDigest) { assertFrozenBuildContract(contract); invariant(contract.terms_digest === expectedDigest, 'Build Contract terms digest mismatch'); return contract; }
-
-export function validateFundingFact(contract, fact) {
-  validateBuildContractReady(contract); assertObject(fact, 'funding fact');
-  invariant(fact.status === 'CONFIRMED', 'funding fact is not confirmed'); invariant(fact.challenge_id === contract.challenge_id, 'funding fact Challenge mismatch');
-  invariant(fact.asset === contract.settlement_asset, 'funding fact asset mismatch'); invariant(fact.amount_minor_units === contract.prize_minor_units, 'funding fact amount mismatch');
-  invariant(fact.contract_digest === digestBuildContract(contract), 'funding fact contract digest mismatch'); return fact;
-}
-
-export function migrateDraftBuildContract(challenge, patch, registry = DEFAULT_VERSION_REGISTRY) {
-  assertObject(challenge, 'challenge'); invariant(challenge.status === 'DRAFT', 'only DRAFT Challenge contracts may migrate'); assertObject(patch, 'contract patch');
-  const candidate = {...deepClone(challenge.contract), ...deepClone(patch)}; delete candidate.terms_digest; validateBuildContractReady(candidate, registry);
-  return deepFreeze({...deepClone(challenge), contract: candidate});
-}
-
-export function canTransitionChallenge(from, to) {
-  invariant(CHALLENGE_STATES.includes(from), `unknown Challenge state ${from}`); invariant(CHALLENGE_STATES.includes(to), `unknown Challenge state ${to}`);
-  return LEGAL_TRANSITIONS[from].includes(to);
-}
-
-export function transitionChallenge(challenge, to, context = {}) {
-  assertObject(challenge, 'challenge'); assertString(challenge.challenge_id, 'challenge.challenge_id');
-  invariant(CHALLENGE_STATES.includes(challenge.status), `unknown Challenge state ${challenge.status}`);
-  invariant(canTransitionChallenge(challenge.status, to), `illegal Challenge transition ${challenge.status} -> ${to}`);
-  invariant(challenge.contract?.challenge_id === challenge.challenge_id, 'challenge/contract identity mismatch');
-  const contract = challenge.contract;
-  let patch = {};
-  if (to === 'AWAITING_FUNDING') validateBuildContractReady(contract, context.versionRegistry ?? DEFAULT_VERSION_REGISTRY);
-  if (to === 'FUNDED') validateFundingFact(contract, context.fundingFact);
-  if (to === 'ENTRY_OPEN') {
-    assertFrozenBuildContract(contract, context.versionRegistry ?? DEFAULT_VERSION_REGISTRY); assertSafeInt(context.now, 'now', {min: 0});
-    invariant(context.now < contract.entry_deadline, 'cannot open entries at/after entry deadline');
-  }
-  if (to === 'NOT_ACTIVATED' || to === 'BUILDING') {
-    assertFrozenBuildContract(contract, context.versionRegistry ?? DEFAULT_VERSION_REGISTRY); assertSafeInt(context.now, 'now', {min: 0}); assertSafeInt(context.activeSeatCount, 'activeSeatCount', {min: 0});
-    invariant(context.now >= contract.entry_deadline, 'entry deadline not reached');
-    if (to === 'NOT_ACTIVATED') invariant(context.activeSeatCount < contract.activation_minimum, 'activation minimum met; NOT_ACTIVATED is invalid');
-    if (to === 'BUILDING') invariant(context.activeSeatCount >= contract.activation_minimum, 'activation minimum not met');
-  }
-  if (to === 'SUBMISSIONS_LOCKED') { assertSafeInt(context.now, 'now', {min: 0}); invariant(context.now >= contract.submission_deadline, 'submission deadline not reached'); }
-  if (to === 'APPEAL_WINDOW') {
-    invariant(context.allFirstPassComplete === true, 'first-pass qualification is incomplete'); assertSafeInt(context.now, 'now', {min: 0}); patch = {appeal_opened_at: context.now};
-  }
-  if (to === 'FINAL_QUALIFIERS') {
-    assertSafeInt(context.now, 'now', {min: 0}); assertSafeInt(challenge.appeal_opened_at, 'challenge.appeal_opened_at', {min: 0});
-    const closesAt = challenge.appeal_opened_at + contract.appeal_window_ms; assertSafeInt(closesAt, 'appeal closes at', {min: 0});
-    invariant(context.now >= closesAt, 'appeal window not elapsed'); invariant(context.appealsResolved === true, 'appeals not fully resolved');
-  }
-  if (to === 'SELECTION') invariant(Array.isArray(context.finalQualifierIds) && context.finalQualifierIds.length > 0, 'selection requires at least one final qualifier');
-  if (challenge.status === 'FINAL_QUALIFIERS' && to === 'SETTLEMENT_PENDING') {
-    invariant(Array.isArray(context.finalQualifierIds) && context.finalQualifierIds.length === 0, 'direct settlement from FINAL_QUALIFIERS is only for zero qualifiers');
-    invariant(context.settlementIntent?.type === 'REFUND_NO_QUALIFIER', 'zero-qualifier path requires refund intent'); assertSettlementIntentMatchesContract(contract, context.settlementIntent);
-  }
-  if (to === 'DEFAULT_RESOLUTION') {
-    assertSafeInt(context.now, 'now', {min: 0}); invariant(context.now >= contract.review_deadline, 'review deadline not reached'); invariant(context.hasValidSelection !== true, 'valid organizer selection already exists');
-  }
-  if (to === 'SETTLEMENT_PENDING') {
-    invariant(isObject(context.settlementIntent), 'settlement intent required'); assertSettlementIntentMatchesContract(contract, context.settlementIntent);
-    if (challenge.status === 'NOT_ACTIVATED') invariant(context.settlementIntent.type === 'REFUND_PRE_BUILD', 'NOT_ACTIVATED requires pre-build refund intent');
-    if (challenge.status === 'SELECTION') invariant(context.settlementIntent.type === 'WINNER_PAYOUT', 'selected outcome requires winner payout intent');
-  }
-  if (to === 'SETTLED') { assertSettlementIntentMatchesContract(contract, context.settlementIntent); applyFinalizedSettlementFact(context.settlementIntent, context.executionFact, context.existingExecutionFact); }
-  if (to === 'RECEIPT_FILED') assertReceiptMatchesContract(contract, context.receipt);
-  return deepFreeze({...deepClone(challenge), ...patch, status: to});
-}
-
-export function assertEntry(entry) {
-  assertObject(entry, 'entry'); assertAllowedKeys(entry, ENTRY_KEYS, 'entry'); assertString(entry.entry_id, 'entry.entry_id'); assertString(entry.builder_id, 'entry.builder_id'); assertString(entry.payout_id, 'entry.payout_id');
-  invariant(ENTRY_STATES.includes(entry.state), `unknown entry state ${entry.state}`);
-  if ('build_start' in entry) assertSafeInt(entry.build_start, 'entry.build_start', {min: 0}); if ('submission_deadline' in entry) assertSafeInt(entry.submission_deadline, 'entry.submission_deadline', {min: 0});
-  if (['ACTIVE', 'SUBMITTED', 'INVALID_SUBMISSION', 'ABANDONED'].includes(entry.state)) invariant(Number.isSafeInteger(entry.build_start) && Number.isSafeInteger(entry.submission_deadline), `${entry.state} entry requires build_start and submission_deadline`);
-  return entry;
-}
-
-export function validateEntrySet(entries, {organizerBuilderId, organizerPayoutId, funderPayoutId} = {}) {
-  invariant(Array.isArray(entries), 'entries must be an array'); entries.forEach(assertEntry); stableUnique(entries.map((entry) => entry.entry_id), 'entry ids');
-  stableUnique(entries.filter((entry) => entry.state !== 'WITHDRAWN_PRE_BUILD').map((entry) => entry.builder_id), 'active builder ids');
-  stableUnique(entries.filter((entry) => entry.state !== 'WITHDRAWN_PRE_BUILD').map((entry) => entry.payout_id), 'active payout ids');
-  for (const entry of entries.filter((item) => item.state !== 'WITHDRAWN_PRE_BUILD')) {
-    if (organizerBuilderId) invariant(entry.builder_id !== organizerBuilderId, 'organizer cannot occupy a builder seat');
-    if (organizerPayoutId) invariant(entry.payout_id !== organizerPayoutId, 'organizer payout identity cannot occupy a builder seat');
-    if (funderPayoutId) invariant(entry.payout_id !== funderPayoutId, 'funder payout identity cannot occupy a builder seat');
-  }
-  return entries;
-}
-
-export function activateEntries(entries, contract, policy = {}) {
-  assertFrozenBuildContract(contract); validateEntrySet(entries, policy); const activeSeatCount = entries.filter((entry) => entry.state === 'SEATED').length;
-  invariant(activeSeatCount >= contract.activation_minimum, 'activation minimum not met'); invariant(activeSeatCount <= contract.slot_limit, 'slot limit exceeded');
-  return deepFreeze(entries.map((entry) => entry.state === 'SEATED' ? {...deepClone(entry), state: 'ACTIVE', build_start: contract.build_start, submission_deadline: contract.submission_deadline} : deepClone(entry)).sort((a, b) => byteCompare(a.entry_id, b.entry_id)));
-}
-export function publicEntryProjection(entry, {revealed = false} = {}) { assertEntry(entry); return revealed ? deepClone(entry) : {entry_id: entry.entry_id, state: entry.state}; }
-
-export function assertSubmissionManifest(manifest) {
-  assertObject(manifest, 'submission manifest'); assertAllowedKeys(manifest, SUBMISSION_KEYS, 'submission manifest');
-  for (const key of ['schema_version', 'challenge_id', 'entry_id', 'terms_digest', 'artifact_digest']) assertString(manifest[key], `submission manifest.${key}`);
-  invariant(manifest.schema_version === 'inkubator.submission-manifest/1.0', `unsupported submission schema ${manifest.schema_version}`); assertHexDigest(manifest.terms_digest, 'submission manifest.terms_digest'); assertHexDigest(manifest.artifact_digest, 'submission manifest.artifact_digest');
-  assertSafeInt(manifest.submission_version, 'submission manifest.submission_version', {min: 1}); assertSafeInt(manifest.accepted_at, 'submission manifest.accepted_at', {min: 0});
-  assertObject(manifest.immutable_source_reference, 'submission manifest.immutable_source_reference'); assertAllowedKeys(manifest.immutable_source_reference, SOURCE_REFERENCE_KEYS, 'submission manifest.immutable_source_reference');
-  invariant(['GIT_COMMIT', 'CONTENT_ADDRESS', 'ARCHIVE_DIGEST'].includes(manifest.immutable_source_reference.kind), 'immutable source reference kind invalid'); assertString(manifest.immutable_source_reference.value, 'submission manifest.immutable_source_reference.value');
-  invariant(Array.isArray(manifest.evidence_references), 'submission manifest.evidence_references must be an array'); manifest.evidence_references.forEach((value, index) => assertString(value, `submission manifest.evidence_references[${index}]`));
-  if ('optional_live_url' in manifest) assertUri(manifest.optional_live_url, 'submission manifest.optional_live_url'); return manifest;
-}
-export function isSubmissionEligible(manifest, contract, entryId) {
-  try { assertSubmissionManifest(manifest); assertFrozenBuildContract(contract); return manifest.challenge_id === contract.challenge_id && manifest.entry_id === entryId && manifest.terms_digest === contract.terms_digest && manifest.accepted_at <= contract.submission_deadline; } catch { return false; }
-}
-export function selectFinalSubmission(manifests, contract, entryId) {
-  invariant(Array.isArray(manifests), 'manifests must be an array'); const eligible = manifests.filter((manifest) => isSubmissionEligible(manifest, contract, entryId));
-  stableUnique(eligible.map((manifest) => String(manifest.submission_version)), 'eligible submission versions'); if (eligible.length === 0) return null;
-  eligible.sort((a, b) => (a.accepted_at - b.accepted_at) || (a.submission_version - b.submission_version)); return deepClone(eligible.at(-1));
-}
-export function recordArchiveObservation(manifest, archiveState, reason = null) {
-  assertSubmissionManifest(manifest); invariant(ARCHIVE_STATES.includes(archiveState), `unknown archive state ${archiveState}`);
-  return deepFreeze({challenge_id: manifest.challenge_id, entry_id: manifest.entry_id, submission_version: manifest.submission_version, accepted_at: manifest.accepted_at, archive_state: archiveState, reason});
-}
-
-export function computeQualification(contract, criterionResults) {
-  assertFrozenBuildContract(contract); invariant(Array.isArray(criterionResults), 'criterionResults must be an array');
-  const mandatoryIds = stableUnique(allNormativeCriteria(contract).filter((criterion) => criterion.mandatory).map((criterion) => criterion.id), 'mandatory criterion ids');
-  for (const result of criterionResults) {
-    assertObject(result, 'criterion result'); assertAllowedKeys(result, CRITERION_RESULT_KEYS, 'criterion result'); assertString(result.criterion_id, 'criterion result.criterion_id');
-    invariant(QUALIFICATION_RESULTS.includes(result.result), `invalid criterion result ${result.result}`);
-    if ('evidence_refs' in result) { invariant(Array.isArray(result.evidence_refs), 'criterion result.evidence_refs must be an array'); result.evidence_refs.forEach((ref, index) => assertString(ref, `criterion result.evidence_refs[${index}]`)); }
-  }
-  const resultIds = stableUnique(criterionResults.map((result) => result.criterion_id), 'criterion result ids');
-  invariant(mandatoryIds.length === resultIds.length && mandatoryIds.every((id, index) => id === resultIds[index]), 'criterion results must exactly match frozen mandatory criteria');
-  const values = criterionResults.map((result) => result.result); const overall = values.includes('DISPUTED') ? 'DISPUTED' : values.includes('FAIL') ? 'NOT_QUALIFIED' : 'QUALIFIED';
-  return deepFreeze({overall, criteria: deepClone(criterionResults)});
-}
-
-export function appendAppealEvent(history, event) {
-  invariant(Array.isArray(history), 'appeal history must be an array'); assertObject(event, 'appeal event'); invariant(['APPEAL', 'RESOLUTION'].includes(event.type), 'appeal event type invalid');
-  const allowed = event.type === 'APPEAL' ? new Set(['type', 'reason', 'evidence_refs']) : new Set(['type', 'result', 'reason', 'evidence_refs', 'resolver_id']);
-  assertAllowedKeys(event, allowed, 'appeal event');
-  if ('reason' in event) assertString(event.reason, 'appeal event.reason'); if ('evidence_refs' in event) { invariant(Array.isArray(event.evidence_refs), 'appeal event.evidence_refs must be an array'); event.evidence_refs.forEach((ref, index) => assertString(ref, `appeal event.evidence_refs[${index}]`)); }
-  const appealCount = history.filter((item) => item.type === 'APPEAL').length; const resolutionCount = history.filter((item) => item.type === 'RESOLUTION').length;
-  if (event.type === 'APPEAL') invariant(appealCount === 0 && resolutionCount === 0, 'appeal budget exhausted'); else invariant(appealCount === 1 && resolutionCount === 0, 'resolution requires exactly one unresolved appeal');
-  return deepFreeze([...deepClone(history), deepClone(event)]);
-}
-
-export function validateSelection(selectedEntryId, finalQualifierIds) {
-  assertString(selectedEntryId, 'selected entry id'); invariant(Array.isArray(finalQualifierIds) && finalQualifierIds.length > 0, 'selection requires final qualifiers'); const qualifiers = stableUnique(finalQualifierIds, 'final qualifier ids');
-  invariant(qualifiers.includes(selectedEntryId), 'selected entry is not a final qualifier'); return selectedEntryId;
-}
-export function computeDefaultDistribution(prizeMinorUnits, qualifierIds) {
-  assertSafeInt(prizeMinorUnits, 'prize minor units', {min: 0}); invariant(Array.isArray(qualifierIds) && qualifierIds.length >= 2, 'default distribution requires at least two qualifiers');
-  const ordered = stableUnique(qualifierIds, 'final qualifier ids'); const base = Math.floor(prizeMinorUnits / ordered.length); const remainder = prizeMinorUnits - (base * ordered.length);
-  return ordered.map((entryId, index) => ({entry_id: entryId, amount_minor_units: base + (index < remainder ? 1 : 0)}));
-}
-export function computeDefaultResolution(finalQualifierIds, prizeMinorUnits) {
-  invariant(Array.isArray(finalQualifierIds), 'finalQualifierIds must be an array'); const qualifiers = stableUnique(finalQualifierIds, 'final qualifier ids'); assertSafeInt(prizeMinorUnits, 'prize minor units', {min: 0});
-  if (qualifiers.length === 0) return deepFreeze({type: 'REFUND_NO_QUALIFIER', winner_entry_id: null, distributions: []});
-  if (qualifiers.length === 1) return deepFreeze({type: 'WINNER_PAYOUT', winner_entry_id: qualifiers[0], distributions: [{entry_id: qualifiers[0], amount_minor_units: prizeMinorUnits}]});
-  return deepFreeze({type: 'DEFAULT_DISTRIBUTION', winner_entry_id: null, distributions: computeDefaultDistribution(prizeMinorUnits, qualifiers)});
-}
-
-function canonicalRecipients(recipients) {
-  invariant(Array.isArray(recipients) && recipients.length > 0, 'settlement recipients required');
-  const result = recipients.map((recipient) => { assertObject(recipient, 'settlement recipient'); assertAllowedKeys(recipient, new Set(['recipient_id', 'amount_minor_units']), 'settlement recipient'); assertString(recipient.recipient_id, 'settlement recipient.recipient_id'); assertSafeInt(recipient.amount_minor_units, 'settlement recipient.amount_minor_units', {min: 0}); return {recipient_id: recipient.recipient_id, amount_minor_units: recipient.amount_minor_units}; }).sort((a, b) => byteCompare(a.recipient_id, b.recipient_id));
-  stableUnique(result.map((recipient) => recipient.recipient_id), 'settlement recipient ids'); return result;
-}
-
-export function assertSettlementIntent(intent) {
-  assertObject(intent, 'settlement intent'); assertAllowedKeys(intent, SETTLEMENT_INTENT_KEYS, 'settlement intent');
-  for (const key of ['challenge_id', 'terms_digest', 'settlement_policy_version', 'asset', 'type']) assertString(intent[key], `settlement intent.${key}`);
-  assertHexDigest(intent.terms_digest, 'settlement intent.terms_digest'); invariant(SETTLEMENT_INTENT_TYPES.includes(intent.type), `unknown settlement intent type ${intent.type}`);
-  assertSafeInt(intent.total_minor_units, 'settlement intent.total_minor_units', {min: 0}); const recipients = canonicalRecipients(intent.recipients);
-  const total = recipients.reduce((sum, recipient) => sum + recipient.amount_minor_units, 0); assertSafeInt(total, 'settlement recipient total', {min: 0}); invariant(total === intent.total_minor_units, 'settlement recipients do not conserve intent total');
-  if (intent.type === 'WINNER_PAYOUT') { assertString(intent.winner_entry_id, 'settlement intent.winner_entry_id'); invariant(recipients.length === 1, 'winner payout requires exactly one recipient'); }
-  else if (intent.type === 'DEFAULT_DISTRIBUTION') { invariant(intent.winner_entry_id === null, 'default distribution cannot declare a winner'); invariant(recipients.length >= 2, 'default distribution requires at least two recipients'); }
-  else { invariant(intent.winner_entry_id === null, `${intent.type} cannot declare a winner`); invariant(recipients.length === 1, `${intent.type} requires exactly one recipient`); }
-  return intent;
-}
-
-export function assertSettlementIntentMatchesContract(contract, intent) {
-  assertFrozenBuildContract(contract); assertSettlementIntent(intent);
-  invariant(intent.challenge_id === contract.challenge_id, 'settlement intent Challenge mismatch'); invariant(intent.terms_digest === contract.terms_digest, 'settlement intent terms digest mismatch');
-  invariant(intent.settlement_policy_version === contract.settlement_policy_version, 'settlement intent policy mismatch'); invariant(intent.asset === contract.settlement_asset, 'settlement intent asset mismatch');
-  invariant(intent.total_minor_units === contract.prize_minor_units, 'settlement intent amount mismatch'); return intent;
-}
-
-export function buildSettlementIntent({contract, resolution, recipientByEntryId = {}, refundRecipientId = null}) {
-  assertFrozenBuildContract(contract); assertObject(resolution, 'resolution'); invariant(SETTLEMENT_INTENT_TYPES.includes(resolution.type), `unknown settlement intent type ${resolution.type}`); invariant(Array.isArray(resolution.distributions), 'resolution.distributions must be an array');
-  let recipients;
-  if (['REFUND_PRE_BUILD', 'REFUND_NO_QUALIFIER', 'CANCELLED_BY_RESOLUTION'].includes(resolution.type)) {
-    invariant(resolution.winner_entry_id == null, `${resolution.type} cannot declare a winner`); invariant(resolution.distributions.length === 0, `${resolution.type} cannot provide winner distributions`); assertString(refundRecipientId, 'refundRecipientId'); recipients = [{recipient_id: refundRecipientId, amount_minor_units: contract.prize_minor_units}];
-  } else {
-    if (resolution.type === 'WINNER_PAYOUT') { assertString(resolution.winner_entry_id, 'resolution.winner_entry_id'); invariant(resolution.distributions.length === 1 && resolution.distributions[0].entry_id === resolution.winner_entry_id, 'winner payout resolution must contain exactly the winner distribution'); }
-    if (resolution.type === 'DEFAULT_DISTRIBUTION') { invariant(resolution.winner_entry_id === null, 'default distribution cannot declare a winner'); invariant(resolution.distributions.length >= 2, 'default distribution requires at least two distributions'); }
-    recipients = resolution.distributions.map(({entry_id, amount_minor_units}) => { assertString(entry_id, 'resolution distribution entry_id'); assertSafeInt(amount_minor_units, 'resolution distribution amount_minor_units', {min: 0}); const recipientId = recipientByEntryId[entry_id]; assertString(recipientId, `recipient for entry ${entry_id}`); return {recipient_id: recipientId, amount_minor_units}; });
-  }
-  recipients = canonicalRecipients(recipients); const total = recipients.reduce((sum, recipient) => sum + recipient.amount_minor_units, 0); assertSafeInt(total, 'settlement total', {min: 0}); invariant(total === contract.prize_minor_units, 'settlement intent does not conserve full prize');
-  const intent = {challenge_id: contract.challenge_id, terms_digest: contract.terms_digest, settlement_policy_version: contract.settlement_policy_version, asset: contract.settlement_asset, type: resolution.type, total_minor_units: total, recipients, winner_entry_id: resolution.winner_entry_id ?? null};
-  assertSettlementIntentMatchesContract(contract, intent); return deepFreeze(intent);
-}
-
-function comparableSettlementShape(value) {
-  return {challenge_id: value.challenge_id, terms_digest: value.terms_digest, settlement_policy_version: value.settlement_policy_version, asset: value.asset, total_minor_units: value.total_minor_units, recipients: canonicalRecipients(value.recipients)};
-}
-
-function assertSettlementExecutionFact(fact) {
-  assertObject(fact, 'settlement execution fact'); assertAllowedKeys(fact, SETTLEMENT_FACT_KEYS, 'settlement execution fact');
-  invariant(fact.finality === 'FINALIZED', 'settlement execution fact is not finalized'); assertString(fact.execution_id, 'settlement execution fact.execution_id');
-  for (const key of ['challenge_id', 'terms_digest', 'settlement_policy_version', 'asset']) assertString(fact[key], `settlement execution fact.${key}`);
-  assertHexDigest(fact.terms_digest, 'settlement execution fact.terms_digest'); assertSafeInt(fact.total_minor_units, 'settlement execution fact.total_minor_units', {min: 0}); canonicalRecipients(fact.recipients); return fact;
-}
-
-export function applyFinalizedSettlementFact(intent, fact, existingFact = null) {
-  assertSettlementIntent(intent); assertSettlementExecutionFact(fact);
-  invariant(digestRecord(comparableSettlementShape(intent)) === digestRecord(comparableSettlementShape(fact)), 'settlement execution fact does not match authorized intent');
-  const normalized = deepFreeze({...deepClone(fact), recipients: canonicalRecipients(fact.recipients)});
-  if (existingFact) { assertSettlementExecutionFact(existingFact); invariant(digestRecord(existingFact) === digestRecord(normalized), 'conflicting finalized settlement fact'); return existingFact; }
-  return normalized;
-}
-export function computeIpTransferFact(intent, executionFact) { assertSettlementIntent(intent); applyFinalizedSettlementFact(intent, executionFact); return intent.type === 'WINNER_PAYOUT' ? 'TRANSFER_TRIGGERED' : 'NOT_TRIGGERED'; }
-export function terminalOutcomeFromIntent(intent) {
-  assertSettlementIntent(intent);
-  if (intent.type === 'REFUND_PRE_BUILD') return 'REFUNDED_PRE_BUILD'; if (intent.type === 'REFUND_NO_QUALIFIER') return 'REFUNDED_NO_QUALIFIER'; if (intent.type === 'DEFAULT_DISTRIBUTION') return 'DEFAULT_DISTRIBUTED'; if (intent.type === 'CANCELLED_BY_RESOLUTION') return 'CANCELLED_BY_RESOLUTION'; return 'WINNER_SETTLED';
-}
-
-export function fileReceipt({contract, settlementIntent, settlementExecutionFact}) {
-  assertSettlementIntentMatchesContract(contract, settlementIntent); const executionFact = applyFinalizedSettlementFact(settlementIntent, settlementExecutionFact);
-  const payload = {schema_version: 'inkubator.challenge-receipt/1.0', challenge_id: contract.challenge_id, terms_digest: contract.terms_digest, contract_version: contract.contract_version, mechanism_version: contract.mechanism_version, settlement_policy_version: contract.settlement_policy_version, ip_terms_version: contract.ip_terms_version, terminal_outcome: terminalOutcomeFromIntent(settlementIntent), settlement_intent: deepClone(settlementIntent), settlement_execution_fact: deepClone(executionFact), ip_transfer_fact: computeIpTransferFact(settlementIntent, executionFact)};
-  const digest = digestRecord(payload); return deepFreeze({...payload, receipt_id: `receipt_${digest}`, digest});
-}
-
-export function assertReceiptMatchesContract(contract, receipt) {
-  assertFrozenBuildContract(contract); assertObject(receipt, 'receipt');
-  invariant(receipt.schema_version === 'inkubator.challenge-receipt/1.0', 'receipt schema mismatch'); invariant(receipt.challenge_id === contract.challenge_id, 'receipt Challenge mismatch'); invariant(receipt.terms_digest === contract.terms_digest, 'receipt terms digest mismatch');
-  invariant(receipt.contract_version === contract.contract_version, 'receipt contract version mismatch'); invariant(receipt.mechanism_version === contract.mechanism_version, 'receipt mechanism version mismatch'); invariant(receipt.settlement_policy_version === contract.settlement_policy_version, 'receipt settlement policy version mismatch'); invariant(receipt.ip_terms_version === contract.ip_terms_version, 'receipt IP terms version mismatch');
-  assertSettlementIntentMatchesContract(contract, receipt.settlement_intent); applyFinalizedSettlementFact(receipt.settlement_intent, receipt.settlement_execution_fact);
-  const payload = deepClone(receipt); delete payload.receipt_id; delete payload.digest; const expected = digestRecord(payload); invariant(receipt.digest === expected, 'receipt digest mismatch'); invariant(receipt.receipt_id === `receipt_${expected}`, 'receipt id mismatch'); return receipt;
-}
-
-export function appendReceiptCorrection(receipts, {supersedes, reason, authority, evidence_refs = [], corrected_projection = {}}) {
-  invariant(Array.isArray(receipts) && receipts.length > 0, 'receipts required'); stableUnique(receipts.map((receipt) => receipt.receipt_id), 'receipt ids'); const byId = new Map(receipts.map((receipt) => [receipt.receipt_id, receipt])); const previous = byId.get(supersedes); invariant(previous, 'superseded receipt not found');
-  const seen = new Set(); let cursor = previous; while (cursor) { invariant(!seen.has(cursor.receipt_id), 'receipt correction chain contains a cycle'); seen.add(cursor.receipt_id); if (!cursor.supersedes) break; invariant(byId.has(cursor.supersedes), 'receipt correction chain references missing predecessor'); cursor = byId.get(cursor.supersedes); }
-  assertString(reason, 'correction reason'); assertString(authority, 'correction authority'); invariant(Array.isArray(evidence_refs), 'correction evidence_refs must be an array'); evidence_refs.forEach((ref, index) => assertString(ref, `correction evidence_refs[${index}]`)); assertObject(corrected_projection, 'corrected projection');
-  for (const forbidden of ['settlement_intent', 'settlement_execution_fact', 'terms_digest', 'mechanism_version', 'settlement_policy_version', 'ip_terms_version']) invariant(!(forbidden in corrected_projection), `correction cannot rewrite ${forbidden}`);
-  const payload = {schema_version: 'inkubator.challenge-receipt-correction/1.0', supersedes, challenge_id: previous.challenge_id, reason, authority, evidence_refs: [...evidence_refs], corrected_projection: deepClone(corrected_projection)};
-  const digest = digestRecord(payload); const correction = deepFreeze({...payload, receipt_id: `correction_${digest}`, digest}); invariant(correction.receipt_id !== supersedes, 'correction cannot supersede itself'); return correction;
-}
-export function publicReceiptProjection(receipt) { assertObject(receipt, 'receipt'); const projection = deepClone(receipt); delete projection.private_source; delete projection.private_source_metadata; return projection; }
+function comparableSettlementShape(value){return{challenge_id:value.challenge_id,terms_digest:value.terms_digest,settlement_policy_version:value.settlement_policy_version,asset:value.asset,total_minor_units:value.total_minor_units,recipients:canonicalRecipients(value.recipients)};}
+function assertSettlementExecutionFact(fact){assertObject(fact,'settlement execution fact');assertAllowedKeys(fact,SETTLEMENT_FACT_KEYS,'settlement execution fact');invariant(fact.finality==='FINALIZED','settlement execution fact is not finalized');assertString(fact.execution_id,'settlement execution fact.execution_id');for(const key of ['challenge_id','terms_digest','settlement_policy_version','asset'])assertString(fact[key],`settlement execution fact.${key}`);assertHexDigest(fact.terms_digest,'settlement execution fact.terms_digest');assertSafeInt(fact.total_minor_units,'settlement execution fact.total_minor_units',{min:0});canonicalRecipients(fact.recipients);return fact;}
+export function applyFinalizedSettlementFact(intent,fact,existingFact=null){assertSettlementIntent(intent);assertSettlementExecutionFact(fact);invariant(digestRecord(comparableSettlementShape(intent))===digestRecord(comparableSettlementShape(fact)),'settlement execution fact does not match authorized intent');const normalized=deepFreeze({...deepClone(fact),recipients:canonicalRecipients(fact.recipients)});if(existingFact){assertSettlementExecutionFact(existingFact);invariant(digestRecord(existingFact)===digestRecord(normalized),'conflicting finalized settlement fact');return existingFact;}return normalized;}
+export function computeIpTransferFact(intent,executionFact){assertSettlementIntent(intent);applyFinalizedSettlementFact(intent,executionFact);return intent.type==='WINNER_PAYOUT'?'TRANSFER_TRIGGERED':'NOT_TRIGGERED';}
+export function terminalOutcomeFromIntent(intent){assertSettlementIntent(intent);if(intent.type==='REFUND_PRE_BUILD')return'REFUNDED_PRE_BUILD';if(intent.type==='REFUND_NO_QUALIFIER')return'REFUNDED_NO_QUALIFIER';if(intent.type==='DEFAULT_DISTRIBUTION')return'DEFAULT_DISTRIBUTED';if(intent.type==='CANCELLED_BY_RESOLUTION')return'CANCELLED_BY_RESOLUTION';return'WINNER_SETTLED';}
+export function fileReceipt({contract,settlementIntent,settlementExecutionFact}){assertSettlementIntentMatchesContract(contract,settlementIntent);const executionFact=applyFinalizedSettlementFact(settlementIntent,settlementExecutionFact);const payload={schema_version:'inkubator.challenge-receipt/1.0',challenge_id:contract.challenge_id,terms_digest:contract.terms_digest,contract_version:contract.contract_version,mechanism_version:contract.mechanism_version,settlement_policy_version:contract.settlement_policy_version,ip_terms_version:contract.ip_terms_version,terminal_outcome:terminalOutcomeFromIntent(settlementIntent),settlement_intent:deepClone(settlementIntent),settlement_execution_fact:deepClone(executionFact),ip_transfer_fact:computeIpTransferFact(settlementIntent,executionFact)};const digest=digestRecord(payload);return deepFreeze({...payload,receipt_id:`receipt_${digest}`,digest});}
+export function assertReceiptMatchesContract(contract,receipt){assertFrozenBuildContract(contract);assertObject(receipt,'receipt');invariant(receipt.schema_version==='inkubator.challenge-receipt/1.0','receipt schema mismatch');invariant(receipt.challenge_id===contract.challenge_id,'receipt Challenge mismatch');invariant(receipt.terms_digest===contract.terms_digest,'receipt terms digest mismatch');invariant(receipt.contract_version===contract.contract_version,'receipt contract version mismatch');invariant(receipt.mechanism_version===contract.mechanism_version,'receipt mechanism version mismatch');invariant(receipt.settlement_policy_version===contract.settlement_policy_version,'receipt settlement policy version mismatch');invariant(receipt.ip_terms_version===contract.ip_terms_version,'receipt IP terms version mismatch');assertSettlementIntentMatchesContract(contract,receipt.settlement_intent);applyFinalizedSettlementFact(receipt.settlement_intent,receipt.settlement_execution_fact);invariant(receipt.terminal_outcome===terminalOutcomeFromIntent(receipt.settlement_intent),'receipt terminal outcome mismatch');invariant(receipt.ip_transfer_fact===computeIpTransferFact(receipt.settlement_intent,receipt.settlement_execution_fact),'receipt IP transfer fact mismatch');const payload=deepClone(receipt);delete payload.receipt_id;delete payload.digest;const expected=digestRecord(payload);invariant(receipt.digest===expected,'receipt digest mismatch');invariant(receipt.receipt_id===`receipt_${expected}`,'receipt id mismatch');return receipt;}
+export function appendReceiptCorrection(receipts,{supersedes,reason,authority,evidence_refs=[],corrected_projection={}}){invariant(Array.isArray(receipts)&&receipts.length>0,'receipts required');stableUnique(receipts.map((receipt)=>receipt.receipt_id),'receipt ids');const byId=new Map(receipts.map((receipt)=>[receipt.receipt_id,receipt]));const previous=byId.get(supersedes);invariant(previous,'superseded receipt not found');const seen=new Set();let cursor=previous;while(cursor){invariant(!seen.has(cursor.receipt_id),'receipt correction chain contains a cycle');seen.add(cursor.receipt_id);if(!cursor.supersedes)break;invariant(byId.has(cursor.supersedes),'receipt correction chain references missing predecessor');cursor=byId.get(cursor.supersedes);}assertString(reason,'correction reason');assertString(authority,'correction authority');invariant(Array.isArray(evidence_refs),'correction evidence_refs must be an array');evidence_refs.forEach((ref,index)=>assertString(ref,`correction evidence_refs[${index}]`));assertObject(corrected_projection,'corrected projection');for(const forbidden of ['settlement_intent','settlement_execution_fact','terms_digest','mechanism_version','settlement_policy_version','ip_terms_version'])invariant(!(forbidden in corrected_projection),`correction cannot rewrite ${forbidden}`);const payload={schema_version:'inkubator.challenge-receipt-correction/1.0',supersedes,challenge_id:previous.challenge_id,reason,authority,evidence_refs:[...evidence_refs],corrected_projection:deepClone(corrected_projection)};const digest=digestRecord(payload);const correction=deepFreeze({...payload,receipt_id:`correction_${digest}`,digest});invariant(correction.receipt_id!==supersedes,'correction cannot supersede itself');return correction;}
+export function publicReceiptProjection(receipt){assertObject(receipt,'receipt');const projection=deepClone(receipt);delete projection.private_source;delete projection.private_source_metadata;return projection;}
