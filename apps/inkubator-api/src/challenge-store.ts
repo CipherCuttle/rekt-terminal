@@ -9,6 +9,7 @@ import {
   computeQualification,
   isSubmissionEligible,
   selectFinalSubmission,
+  transitionChallenge,
   validateSelection,
   type BuildContract,
   type QualificationCriterionResult,
@@ -428,14 +429,23 @@ async function validateSettlementIntent(
     return intent;
   }
 
-  if (intent.type === 'REFUND_PRE_BUILD' || intent.type === 'CANCELLED_BY_RESOLUTION') {
+  if (intent.type === 'REFUND_PRE_BUILD') {
     const expected = buildSettlementIntent({
       contract,
-      resolution: {type: intent.type, winner_entry_id: null, distributions: []},
+      resolution: {type: 'REFUND_PRE_BUILD', winner_entry_id: null, distributions: []},
       refundRecipientId: reserved.funder,
     });
     if (canonicalizeJson(expected).sha256 !== canonicalizeJson(intent).sha256) throw new Error('challenge_settlement_intent_resolution_mismatch');
+    transitionChallenge(
+      {challenge_id: challenge.challenge_id, status: challenge.status, contract},
+      'SETTLEMENT_PENDING',
+      {settlementIntent: intent, refundRecipientId: reserved.funder},
+    );
     return intent;
+  }
+
+  if (intent.type === 'CANCELLED_BY_RESOLUTION') {
+    throw new Error('challenge_cancelled_by_resolution_authority_missing');
   }
 
   throw new Error('challenge_settlement_intent_resolution_mismatch');
