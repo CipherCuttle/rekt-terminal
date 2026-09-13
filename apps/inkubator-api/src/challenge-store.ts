@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {
+  applyFinalizedSettlementFact,
   assertFrozenBuildContract,
   assertSettlementIntentMatchesContract,
   assertSubmissionManifest,
@@ -7,10 +8,12 @@ import {
   computeDefaultResolution,
   computeQualification,
   isSubmissionEligible,
+  selectFinalSubmission,
   validateSelection,
   type BuildContract,
   type QualificationCriterionResult,
   type QualificationOverall,
+  type SettlementExecutionFact,
   type SettlementIntent,
   type SubmissionManifest,
 } from '@rekt-ink/protocol/challenge';
@@ -21,7 +24,13 @@ import {appendHistoryEvent, HISTORY_EVENT_VERSION} from './events.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DIGEST_PATTERN = /^[0-9a-f]{64}$/;
-const SUPPORTED_DECISION_TYPES = new Set(['FINAL_QUALIFIERS', 'SELECTION', 'DEFAULT_RESOLUTION', 'SETTLEMENT_INTENT']);
+const SUPPORTED_DECISION_TYPES = new Set([
+  'FINAL_QUALIFIERS',
+  'SELECTION',
+  'DEFAULT_RESOLUTION',
+  'SETTLEMENT_INTENT',
+  'SETTLEMENT_EXECUTION_FACT',
+]);
 
 export type ChallengeStatus =
   | 'DRAFT' | 'AWAITING_FUNDING' | 'FUNDED' | 'ENTRY_OPEN' | 'NOT_ACTIVATED'
@@ -35,6 +44,8 @@ export type QualificationResult = QualificationOverall;
 export interface ChallengeRow {
   challenge_id: string;
   organizer_player_id: string;
+  organizer_payout_identity: string | null;
+  funder_payout_identity: string | null;
   status: ChallengeStatus;
   mechanism_version: string;
   settlement_policy_version: string;
@@ -129,6 +140,8 @@ export interface CreateChallengeInput {
   requestId: string;
   challengeId: string;
   organizerPlayerId: string;
+  organizerPayoutIdentity: string;
+  funderPayoutIdentity: string;
   mechanismVersion: string;
   settlementPolicyVersion: string;
   ipTermsVersion: string;
@@ -229,9 +242,7 @@ function objectValue(value: unknown, label: string): Record<string, unknown> {
 function assertExactKeys(value: Record<string, unknown>, expected: string[], label: string): void {
   const actual = Object.keys(value).sort();
   const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
-    throw new Error(`invalid_${label}`);
-  }
+  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) throw new Error(`invalid_${label}`);
 }
 
 function withoutTermsDigest(contract: Record<string, unknown>): Record<string, unknown> {
@@ -322,17 +333,16 @@ function finalQualifierIdsFromDecision(value: unknown): string[] {
   return ids;
 }
 
-async function storedFinalQualifierIds(
-  db: Kysely<DatabaseSchema>,
-  challenge: ChallengeRow,
-  contract: BuildContract,
-): Promise<string[]> {
-  const row = (await sql<ChallengeDecisionRow>`
+async function decisionRows(db: Kysely<DatabaseSchema>, challengeId: string, decisionType: string): Promise<ChallengeDecisionRow[]> {
+  return (await sql<ChallengeDecisionRow>`
     select * from challenge_decisions
-    where challenge_id = ${challenge.challenge_id} and decision_type = 'FINAL_QUALIFIERS'
+    where challenge_id = ${challengeId} and decision_type = ${decisionType}
     order by created_at desc, decision_id desc
-    limit 1
-  `.execute(db)).rows[0];
+  `.execute(db)).rows;
+}
+
+async function storedFinalQualifierIds(db: Kysely<DatabaseSchema>, challenge: ChallengeRow, contract: BuildContract): Promise<string[]> {
+  const row = (await decisionRows(db, challenge.challenge_id, 'FINAL_QUALIFIERS'))[0];
   if (!row) throw new Error('challenge_final_qualifiers_required');
   const ids = finalQualifierIdsFromDecision(row.decision_json);
   computeDefaultResolution(ids, contract.prize_minor_units);
@@ -351,6 +361,107 @@ async function payoutIdentityByEntryIds(
     result[entryId] = entry.payout_identity;
   }
   return result;
+}
+
+function requireReservedPayoutAuthority(challenge: ChallengeRow): {organizer: string; funder: string} {
+  if (!challenge.organizer_payout_identity || !challenge.funder_payout_identity) throw new Error('challenge_reserved_payout_identity_missing');
+  return {organizer: challenge.organizer_payout_identity, funder: challenge.funder_payout_identity};
+}
+
+async function validateSettlementIntent(
+  db: Kysely<DatabaseSchema>,
+  challenge: ChallengeRow,
+  contract: BuildContract,
+  entryId: string | null,
+  decisionInput: unknown,
+): Promise<SettlementIntent> {
+  const intent = assertSettlementIntentMatchesContract(
+    contract,
+    objectValue(decisionInput, 'settlement_intent') as unknown as SettlementIntent,
+  );
+  const reserved = requireReservedPayoutAuthority(challenge);
+
+  if (intent.type === 'WINNER_PAYOUT') {
+    if (!intent.winner_entry_id) throw new Error('challenge_settlement_intent_resolution_mismatch');
+    const finalQualifierIds = await storedFinalQualifierIds(db, challenge, contract);
+    validateSelection(intent.winner_entry_id, finalQualifierIds);
+    const selection = (await decisionRows(db, challenge.challenge_id, 'SELECTION'))[0];
+    if (selection) {
+      const selected = requireUuid(objectValue(selection.decision_json, 'selection_decision').selected_entry_id, 'selected_entry_id');
+      if (selected !== intent.winner_entry_id) throw new Error('challenge_settlement_intent_resolution_mismatch');
+    } else if (finalQualifierIds.length !== 1 || finalQualifierIds[0] !== intent.winner_entry_id) {
+      throw new Error('challenge_settlement_intent_resolution_mismatch');
+    }
+    const recipientByEntryId = await payoutIdentityByEntryIds(db, challenge.challenge_id, [intent.winner_entry_id]);
+    const expected = buildSettlementIntent({
+      contract,
+      resolution: {
+        type: 'WINNER_PAYOUT',
+        winner_entry_id: intent.winner_entry_id,
+        distributions: [{entry_id: intent.winner_entry_id, amount_minor_units: contract.prize_minor_units}],
+      },
+      recipientByEntryId,
+    });
+    if (canonicalizeJson(expected).sha256 !== canonicalizeJson(intent).sha256) throw new Error('challenge_settlement_intent_resolution_mismatch');
+    if (entryId !== intent.winner_entry_id) throw new Error('challenge_decision_entry_mismatch');
+    return intent;
+  }
+
+  if (entryId !== null) throw new Error('challenge_decision_entry_mismatch');
+
+  if (intent.type === 'DEFAULT_DISTRIBUTION') {
+    const finalQualifierIds = await storedFinalQualifierIds(db, challenge, contract);
+    const resolution = computeDefaultResolution(finalQualifierIds, contract.prize_minor_units);
+    if (resolution.type !== 'DEFAULT_DISTRIBUTION') throw new Error('challenge_settlement_intent_resolution_mismatch');
+    const recipientByEntryId = await payoutIdentityByEntryIds(db, challenge.challenge_id, finalQualifierIds);
+    const expected = buildSettlementIntent({contract, resolution, recipientByEntryId});
+    if (canonicalizeJson(expected).sha256 !== canonicalizeJson(intent).sha256) throw new Error('challenge_settlement_intent_resolution_mismatch');
+    return intent;
+  }
+
+  if (intent.type === 'REFUND_NO_QUALIFIER') {
+    const finalQualifierIds = await storedFinalQualifierIds(db, challenge, contract);
+    const resolution = computeDefaultResolution(finalQualifierIds, contract.prize_minor_units);
+    if (resolution.type !== 'REFUND_NO_QUALIFIER') throw new Error('challenge_settlement_intent_resolution_mismatch');
+    const expected = buildSettlementIntent({contract, resolution, refundRecipientId: reserved.funder});
+    if (canonicalizeJson(expected).sha256 !== canonicalizeJson(intent).sha256) throw new Error('challenge_settlement_intent_resolution_mismatch');
+    return intent;
+  }
+
+  if (intent.type === 'REFUND_PRE_BUILD' || intent.type === 'CANCELLED_BY_RESOLUTION') {
+    const expected = buildSettlementIntent({
+      contract,
+      resolution: {type: intent.type, winner_entry_id: null, distributions: []},
+      refundRecipientId: reserved.funder,
+    });
+    if (canonicalizeJson(expected).sha256 !== canonicalizeJson(intent).sha256) throw new Error('challenge_settlement_intent_resolution_mismatch');
+    return intent;
+  }
+
+  throw new Error('challenge_settlement_intent_resolution_mismatch');
+}
+
+async function validateExecutionFact(
+  db: Kysely<DatabaseSchema>,
+  challenge: ChallengeRow,
+  entryId: string | null,
+  decisionInput: unknown,
+): Promise<SettlementExecutionFact> {
+  const fact = objectValue(decisionInput, 'settlement_execution_fact') as unknown as SettlementExecutionFact;
+  const intents = await decisionRows(db, challenge.challenge_id, 'SETTLEMENT_INTENT');
+  if (intents.length === 0) throw new Error('challenge_settlement_intent_required');
+
+  for (const row of intents) {
+    try {
+      const intent = row.decision_json as SettlementIntent;
+      const normalized = applyFinalizedSettlementFact(intent, fact);
+      if (entryId !== (intent.winner_entry_id ?? null)) throw new Error('challenge_decision_entry_mismatch');
+      return normalized;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'challenge_decision_entry_mismatch') throw error;
+    }
+  }
+  throw new Error('challenge_settlement_execution_fact_mismatch');
 }
 
 async function validateDecisionForPersistence(
@@ -387,58 +498,21 @@ async function validateDecisionForPersistence(
   if (decisionType === 'DEFAULT_RESOLUTION') {
     const finalQualifierIds = await storedFinalQualifierIds(db, challenge, contract);
     const expected = computeDefaultResolution(finalQualifierIds, contract.prize_minor_units);
-    if (canonicalizeJson(decisionInput).sha256 !== canonicalizeJson(expected).sha256) {
-      throw new Error('challenge_default_resolution_protocol_mismatch');
-    }
+    if (canonicalizeJson(decisionInput).sha256 !== canonicalizeJson(expected).sha256) throw new Error('challenge_default_resolution_protocol_mismatch');
     if (entryId !== (expected.winner_entry_id ?? null)) throw new Error('challenge_decision_entry_mismatch');
     return expected;
   }
 
-  const intent = assertSettlementIntentMatchesContract(
-    contract,
-    objectValue(decisionInput, 'settlement_intent') as unknown as SettlementIntent,
-  );
-  if (intent.winner_entry_id) {
-    const finalQualifierIds = await storedFinalQualifierIds(db, challenge, contract);
-    validateSelection(intent.winner_entry_id, finalQualifierIds);
-    const selection = (await sql<ChallengeDecisionRow>`
-      select * from challenge_decisions
-      where challenge_id = ${challenge.challenge_id} and decision_type = 'SELECTION'
-      order by created_at desc, decision_id desc
-      limit 1
-    `.execute(db)).rows[0];
-    if (selection) {
-      const selectionValue = objectValue(selection.decision_json, 'selection_decision');
-      if (requireUuid(selectionValue.selected_entry_id, 'selected_entry_id') !== intent.winner_entry_id) {
-        throw new Error('challenge_settlement_intent_resolution_mismatch');
-      }
-    } else if (finalQualifierIds.length !== 1 || finalQualifierIds[0] !== intent.winner_entry_id) {
-      throw new Error('challenge_settlement_intent_resolution_mismatch');
-    }
-    if (entryId !== intent.winner_entry_id) throw new Error('challenge_decision_entry_mismatch');
-    return intent;
-  }
-
-  if (entryId !== null) throw new Error('challenge_decision_entry_mismatch');
-  if (intent.type === 'REFUND_NO_QUALIFIER' || intent.type === 'DEFAULT_DISTRIBUTION') {
-    const finalQualifierIds = await storedFinalQualifierIds(db, challenge, contract);
-    const resolution = computeDefaultResolution(finalQualifierIds, contract.prize_minor_units);
-    if (resolution.type !== intent.type) throw new Error('challenge_settlement_intent_resolution_mismatch');
-    if (intent.type === 'DEFAULT_DISTRIBUTION') {
-      const recipientByEntryId = await payoutIdentityByEntryIds(db, challenge.challenge_id, finalQualifierIds);
-      const expected = buildSettlementIntent({contract, resolution, recipientByEntryId});
-      if (canonicalizeJson(expected).sha256 !== canonicalizeJson(intent).sha256) {
-        throw new Error('challenge_settlement_intent_resolution_mismatch');
-      }
-    }
-  }
-  return intent;
+  if (decisionType === 'SETTLEMENT_INTENT') return validateSettlementIntent(db, challenge, contract, entryId, decisionInput);
+  return validateExecutionFact(db, challenge, entryId, decisionInput);
 }
 
 export async function createChallenge(db: Kysely<DatabaseSchema>, input: CreateChallengeInput): Promise<ChallengeRow> {
   const requestId = requireUuid(input.requestId, 'request_id');
   const challengeId = requireUuid(input.challengeId, 'challenge_id');
   const organizerPlayerId = requireUuid(input.organizerPlayerId, 'organizer_player_id');
+  const organizerPayoutIdentity = requireText(input.organizerPayoutIdentity, 'organizer_payout_identity');
+  const funderPayoutIdentity = requireText(input.funderPayoutIdentity, 'funder_payout_identity');
   const mechanismVersion = requireText(input.mechanismVersion, 'mechanism_version', 120);
   const settlementPolicyVersion = requireText(input.settlementPolicyVersion, 'settlement_policy_version', 120);
   const ipTermsVersion = requireText(input.ipTermsVersion, 'ip_terms_version', 120);
@@ -450,10 +524,20 @@ export async function createChallenge(db: Kysely<DatabaseSchema>, input: CreateC
   const appealWindowMs = requirePositiveSafeInt(input.appealWindowMs, 'appeal_window_ms');
   const reviewDeadlineMs = requireSafeMs(input.reviewDeadlineMs, 'review_deadline_ms');
   const payload = {
-    request_id: requestId, challenge_id: challengeId, organizer_player_id: organizerPlayerId,
-    mechanism_version: mechanismVersion, settlement_policy_version: settlementPolicyVersion, ip_terms_version: ipTermsVersion,
-    slot_limit: slotLimit, activation_minimum: activationMinimum, entry_deadline_ms: entryDeadlineMs,
-    build_start_ms: buildStartMs, submission_deadline_ms: submissionDeadlineMs, appeal_window_ms: appealWindowMs,
+    request_id: requestId,
+    challenge_id: challengeId,
+    organizer_player_id: organizerPlayerId,
+    organizer_payout_identity: organizerPayoutIdentity,
+    funder_payout_identity: funderPayoutIdentity,
+    mechanism_version: mechanismVersion,
+    settlement_policy_version: settlementPolicyVersion,
+    ip_terms_version: ipTermsVersion,
+    slot_limit: slotLimit,
+    activation_minimum: activationMinimum,
+    entry_deadline_ms: entryDeadlineMs,
+    build_start_ms: buildStartMs,
+    submission_deadline_ms: submissionDeadlineMs,
+    appeal_window_ms: appealWindowMs,
     review_deadline_ms: reviewDeadlineMs,
   };
   const dedupeKey = `activity:challenge.created:${challengeId}:${requestId}`;
@@ -461,10 +545,12 @@ export async function createChallenge(db: Kysely<DatabaseSchema>, input: CreateC
   return db.transaction().execute(async (transaction) => {
     const inserted = await sql<ChallengeRow>`
       insert into challenges (
-        challenge_id, organizer_player_id, status, mechanism_version, settlement_policy_version, ip_terms_version,
+        challenge_id, organizer_player_id, organizer_payout_identity, funder_payout_identity,
+        status, mechanism_version, settlement_policy_version, ip_terms_version,
         slot_limit, activation_minimum, entry_deadline, build_start, submission_deadline, appeal_window_ms, review_deadline
       ) values (
-        ${challengeId}, ${organizerPlayerId}, 'DRAFT', ${mechanismVersion}, ${settlementPolicyVersion}, ${ipTermsVersion},
+        ${challengeId}, ${organizerPlayerId}, ${organizerPayoutIdentity}, ${funderPayoutIdentity},
+        'DRAFT', ${mechanismVersion}, ${settlementPolicyVersion}, ${ipTermsVersion},
         ${slotLimit}, ${activationMinimum}, ${new Date(entryDeadlineMs)}, ${new Date(buildStartMs)},
         ${new Date(submissionDeadlineMs)}, ${String(appealWindowMs)}, ${new Date(reviewDeadlineMs)}
       )
@@ -474,14 +560,23 @@ export async function createChallenge(db: Kysely<DatabaseSchema>, input: CreateC
     const challenge = inserted.rows[0] ?? await challengeById(transaction, challengeId, true);
     if (!challenge) throw new Error('challenge_create_failed');
     const existingShape = {
-      challenge_id: challenge.challenge_id, organizer_player_id: challenge.organizer_player_id,
-      mechanism_version: challenge.mechanism_version, settlement_policy_version: challenge.settlement_policy_version,
-      ip_terms_version: challenge.ip_terms_version, slot_limit: challenge.slot_limit,
-      activation_minimum: challenge.activation_minimum, entry_deadline_ms: challenge.entry_deadline.getTime(),
-      build_start_ms: challenge.build_start.getTime(), submission_deadline_ms: challenge.submission_deadline.getTime(),
-      appeal_window_ms: Number(challenge.appeal_window_ms), review_deadline_ms: challenge.review_deadline.getTime(),
+      challenge_id: challenge.challenge_id,
+      organizer_player_id: challenge.organizer_player_id,
+      organizer_payout_identity: challenge.organizer_payout_identity,
+      funder_payout_identity: challenge.funder_payout_identity,
+      mechanism_version: challenge.mechanism_version,
+      settlement_policy_version: challenge.settlement_policy_version,
+      ip_terms_version: challenge.ip_terms_version,
+      slot_limit: challenge.slot_limit,
+      activation_minimum: challenge.activation_minimum,
+      entry_deadline_ms: challenge.entry_deadline.getTime(),
+      build_start_ms: challenge.build_start.getTime(),
+      submission_deadline_ms: challenge.submission_deadline.getTime(),
+      appeal_window_ms: Number(challenge.appeal_window_ms),
+      review_deadline_ms: challenge.review_deadline.getTime(),
     };
-    const requestedShape = {...payload}; delete (requestedShape as {request_id?: string}).request_id;
+    const requestedShape = {...payload};
+    delete (requestedShape as {request_id?: string}).request_id;
     if (canonicalizeJson(existingShape).sha256 !== canonicalizeJson(requestedShape).sha256) throw new Error('challenge_identity_conflict');
     await appendHistoryEvent(transaction, {
       eventFamily: 'activity', eventType: 'challenge.created', dedupeKey,
@@ -513,16 +608,14 @@ export async function persistFrozenBuildContract(
   return db.transaction().execute(async (transaction) => {
     const challenge = await challengeById(transaction, challengeId, true);
     if (!challenge) throw new Error('challenge_not_found');
+    if (challenge.organizer_player_id !== actorPlayerId) throw new Error('challenge_organizer_required');
+    if (!challengeContractAuthorityMatches(challenge, protocolContract)) throw new Error('contract_challenge_authority_mismatch');
     if (await existingCommand(transaction, dedupeKey, 'challenge.contract.frozen', actorPlayerId, 'challenge', challengeId, payload)) {
       const replay = await sql<ChallengeContractVersionRow>`select * from challenge_contract_versions where challenge_id = ${challengeId} and contract_version = ${contractVersion}`.execute(transaction);
       if (!replay.rows[0]) throw new Error('challenge_contract_replay_missing');
       return replay.rows[0];
     }
-    if (challenge.organizer_player_id !== actorPlayerId) throw new Error('challenge_organizer_required');
-    if (!challengeContractAuthorityMatches(challenge, protocolContract)) throw new Error('contract_challenge_authority_mismatch');
-    if (challenge.current_contract_version && (challenge.current_contract_version !== contractVersion || challenge.current_terms_digest !== termsDigest)) {
-      throw new Error('challenge_contract_already_frozen');
-    }
+    if (challenge.current_contract_version && (challenge.current_contract_version !== contractVersion || challenge.current_terms_digest !== termsDigest)) throw new Error('challenge_contract_already_frozen');
 
     const inserted = await sql<ChallengeContractVersionRow>`
       insert into challenge_contract_versions (challenge_id, contract_version, schema_version, terms_digest, contract_json)
@@ -569,6 +662,8 @@ export async function acquireChallengeSeat(db: Kysely<DatabaseSchema>, input: Ac
     }
     if (challenge.status !== 'ENTRY_OPEN') throw new Error('challenge_entry_not_open');
     if (challenge.organizer_player_id === builderPlayerId) throw new Error('challenge_organizer_cannot_build');
+    const reserved = requireReservedPayoutAuthority(challenge);
+    if (payoutIdentity === reserved.organizer || payoutIdentity === reserved.funder) throw new Error('challenge_reserved_payout_identity_cannot_build');
     if (projectId) {
       const project = await transaction.selectFrom('projects').select(['project_id', 'owner_player_id']).where('project_id', '=', projectId).executeTakeFirst();
       if (!project || project.owner_player_id !== builderPlayerId) throw new Error('challenge_project_not_owned');
@@ -594,8 +689,7 @@ export async function acquireChallengeSeat(db: Kysely<DatabaseSchema>, input: Ac
       });
       return row;
     } catch (error) {
-      const code = (error as {code?: unknown})?.code;
-      if (code === '23505') throw new Error('challenge_entry_uniqueness_conflict');
+      if ((error as {code?: unknown})?.code === '23505') throw new Error('challenge_entry_uniqueness_conflict');
       throw error;
     }
   });
@@ -673,14 +767,27 @@ export async function markFinalChallengeSubmission(db: Kysely<DatabaseSchema>, i
     if (challenge.status !== 'SUBMISSIONS_LOCKED') throw new Error('challenge_submissions_not_locked');
     const entry = await entryById(transaction, entryId);
     if (!entry || entry.challenge_id !== challengeId) throw new Error('challenge_entry_not_found');
-    const target = await sql<ChallengeSubmissionRow>`select * from challenge_submissions where submission_id = ${submissionId} and challenge_id = ${challengeId} and entry_id = ${entryId} for update`.execute(transaction);
-    const row = target.rows[0];
-    if (!row) throw new Error('challenge_submission_not_found');
-    if (row.accepted_at.getTime() > challenge.submission_deadline.getTime()) throw new Error('challenge_submission_after_deadline');
+    const contract = await contractForChallenge(transaction, challenge);
+    const rows = (await sql<ChallengeSubmissionRow>`
+      select * from challenge_submissions
+      where challenge_id = ${challengeId} and entry_id = ${entryId}
+      order by accepted_at, submission_id
+      for update
+    `.execute(transaction)).rows;
+    const selected = selectFinalSubmission(rows.map((row) => row.manifest_json as SubmissionManifest), contract, entryId);
+    if (!selected) throw new Error('challenge_final_submission_missing');
+    const selectedDigest = canonicalizeJson(selected).sha256;
+    const selectedRow = rows.find((row) =>
+      String(row.submission_version) === String(selected.submission_version)
+      && row.manifest_digest === selectedDigest,
+    );
+    if (!selectedRow) throw new Error('challenge_final_submission_missing');
+    if (selectedRow.submission_id !== submissionId) throw new Error('challenge_final_submission_not_protocol_selected');
+
     try {
-      const updated = await sql<ChallengeSubmissionRow>`update challenge_submissions set is_final = true where submission_id = ${submissionId} returning *`.execute(transaction);
-      const final = updated.rows[0];
-      if (!final) throw new Error('challenge_submission_finalize_failed');
+      await sql`update challenge_submissions set is_final = (submission_id = ${submissionId}) where entry_id = ${entryId}`.execute(transaction);
+      const final = (await sql<ChallengeSubmissionRow>`select * from challenge_submissions where submission_id = ${submissionId}`.execute(transaction)).rows[0];
+      if (!final || !final.is_final) throw new Error('challenge_submission_finalize_failed');
       await appendHistoryEvent(transaction, {
         eventFamily: 'activity', eventType: 'challenge.submission.finalized', dedupeKey,
         actorPlayerId: challenge.organizer_player_id, subjectType: 'challenge', subjectId: challengeId, payload,
