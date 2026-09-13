@@ -223,7 +223,18 @@ export async function resolveChallengeAppeal(
   return db.transaction().execute(async (transaction) => {
     const challenge = await challengeForUpdate(transaction, challengeId);
     if (challenge.status !== 'APPEAL_WINDOW') throw new Error('challenge_appeal_resolution_lifecycle_invalid');
-    if (challenge.organizer_player_id !== resolverPlayerId) throw new Error('challenge_appeal_resolution_authority_invalid');
+    const resolver = (await sql<{player_id: string}>`
+      select player_id from players where player_id = ${resolverPlayerId}
+    `.execute(transaction)).rows[0];
+    if (!resolver || challenge.organizer_player_id === resolverPlayerId) {
+      throw new Error('challenge_appeal_resolution_authority_invalid');
+    }
+    const entrant = (await sql<{entry_id: string}>`
+      select entry_id from challenge_entries
+      where challenge_id = ${challengeId} and builder_player_id = ${resolverPlayerId}
+      limit 1
+    `.execute(transaction)).rows[0];
+    if (entrant) throw new Error('challenge_appeal_resolution_authority_invalid');
     const appeal = (await sql<ChallengeAppealRow>`
       select * from challenge_appeals where appeal_id = ${appealId} and challenge_id = ${challengeId} for update
     `.execute(transaction)).rows[0];
