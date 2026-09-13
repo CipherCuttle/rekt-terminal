@@ -21,6 +21,10 @@
       "import": "./src/constants.mjs"
     },
     "./server": "./src/index.mjs",
+    "./challenge": {
+      "types": "./src/challenge.d.ts",
+      "import": "./src/challenge.mjs"
+    },
     "./schema/*": "./schema/*"
   },
   "publishConfig": {

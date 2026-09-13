@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rekt.ink/schema/inkubator-submission-manifest-1.0.json",
+  "title": "REKT Inkubator Submission Manifest V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "challenge_id", "entry_id", "terms_digest",
+    "submission_version", "immutable_source_reference", "artifact_digest",
+    "evidence_references", "accepted_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "inkubator.submission-manifest/1.0"},
+    "challenge_id": {"type": "string", "minLength": 1},
+    "entry_id": {"type": "string", "minLength": 1},
+    "terms_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "submission_version": {"type": "integer", "minimum": 1},
+    "immutable_source_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {"enum": ["GIT_COMMIT", "CONTENT_ADDRESS", "ARCHIVE_DIGEST"]},
+        "value": {"type": "string", "minLength": 1}
+      }
+    },
+    "artifact_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "evidence_references": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "optional_live_url": {"type": "string", "format": "uri"},
+    "accepted_at": {"type": "integer", "minimum": 0}
+  }
+}
