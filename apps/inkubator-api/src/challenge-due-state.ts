@@ -60,6 +60,13 @@ type QualificationRow = {entry_id: string; result: 'QUALIFIED' | 'NOT_QUALIFIED'
 type AppealResolutionRow = {entry_id: string; resolution_id: string | null; result: 'QUALIFIED' | 'NOT_QUALIFIED' | 'DISPUTED' | null};
 type DecisionRow = {decision_id: string; decision_digest: string; decision_json: unknown};
 
+type FinalQualifierProtocolState = {
+  challenge_id: string;
+  status: 'FINAL_QUALIFIERS';
+  contract: BuildContract;
+  final_qualifier_ids: string[];
+};
+
 function isDueStatus(value: unknown): value is DueStatus {
   return value === 'ENTRY_OPEN' || value === 'BUILDING' || value === 'SUBMISSIONS_LOCKED'
     || value === 'QUALIFICATION' || value === 'APPEAL_WINDOW';
@@ -342,10 +349,10 @@ export async function handleChallengeDueStateJob(db: Kysely<DatabaseSchema>, job
       await enqueueFollowup(transaction, payload.challengeId, 'APPEAL_WINDOW', databaseNow.getTime() + PROGRESSION_RECHECK_MS);
       return;
     }
-    transitionChallenge(
+    const finalQualifierState = transitionChallenge(
       {challenge_id: challenge.challenge_id, status: 'APPEAL_WINDOW', contract, appeal_opened_at: challenge.appeal_opened_at!.getTime()},
       'FINAL_QUALIFIERS', {now: databaseNow.getTime(), appealsResolved: true, finalQualifierIds: effective.qualifierIds},
-    );
+    ) as FinalQualifierProtocolState;
     await persistDerivedFinalQualifiers(transaction, challenge, effective.qualifierIds, databaseNow);
     const finalized = await sql<{challenge_id: string}>`
       update challenges set status = 'FINAL_QUALIFIERS', updated_at = ${databaseNow}
@@ -355,10 +362,7 @@ export async function handleChallengeDueStateJob(db: Kysely<DatabaseSchema>, job
     await appendTransitionHistory(transaction, payload.challengeId, 'APPEAL_WINDOW', 'FINAL_QUALIFIERS', payload.dueAtMs, databaseNow);
 
     if (effective.qualifierIds.length > 0) {
-      transitionChallenge(
-        {challenge_id: challenge.challenge_id, status: 'FINAL_QUALIFIERS', contract, final_qualifier_ids: effective.qualifierIds},
-        'SELECTION', {finalQualifierIds: effective.qualifierIds},
-      );
+      transitionChallenge(finalQualifierState, 'SELECTION', {});
       const selection = await sql<{challenge_id: string}>`
         update challenges set status = 'SELECTION', updated_at = ${databaseNow}
         where challenge_id = ${payload.challengeId} and status = 'FINAL_QUALIFIERS' returning challenge_id
