@@ -19,6 +19,7 @@ import {githubLoginDisplayMetadataMigration} from './migrations/020-github-login
 import {stageCChallengeDomainBridgeMigration} from './migrations/021-stage-c-challenge-domain-bridge.js';
 import {stageCQualificationOverallMigration} from './migrations/022-stage-c-qualification-overall.js';
 import {stageCAppealAuthorityMigration} from './migrations/023-stage-c-appeal-authority.js';
+import {stageCIndependentAppealResolverMigration} from './migrations/024-stage-c-independent-appeal-resolver.js';
 
 const initialMigration: Migration = {
   async up(db) {
@@ -326,6 +327,7 @@ class StaticMigrationProvider implements MigrationProvider {
       '021_stage_c_challenge_domain_bridge': stageCChallengeDomainBridgeMigration,
       '022_stage_c_qualification_overall': stageCQualificationOverallMigration,
       '023_stage_c_appeal_authority': stageCAppealAuthorityMigration,
+      '024_stage_c_independent_appeal_resolver': stageCIndependentAppealResolverMigration,
     };
   }
 }
