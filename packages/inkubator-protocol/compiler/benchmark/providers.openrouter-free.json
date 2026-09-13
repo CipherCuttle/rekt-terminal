@@ -10,13 +10,13 @@
   },
   "providers": [
     {
-      "name": "openrouter-gpt-oss-20b-free",
+      "name": "openrouter-nex-n2.5-mini-free",
       "base_url": "https://openrouter.ai/api/v1",
-      "model": "openai/gpt-oss-20b:free",
+      "model": "nex-agi/nex-n2.5-mini:free",
       "api_key_env": "OPENROUTER_API_KEY",
       "input_usd_per_million": 0,
       "output_usd_per_million": 0,
-      "pricing_note": "Free OpenRouter endpoint reselected after runtime preflight on 2026-09-13; supports structured output and request additionally enforces max_price=0.",
+      "pricing_note": "Zero-priced structured-output endpoint confirmed in OpenRouter live catalog on 2026-09-13; request additionally enforces max_price=0.",
       "provider_preferences": {
         "allow_fallbacks": false,
         "require_parameters": true,
@@ -24,13 +24,13 @@
       }
     },
     {
-      "name": "openrouter-lfm-2.5-2.6b-free",
+      "name": "openrouter-dots-3-note-free",
       "base_url": "https://openrouter.ai/api/v1",
-      "model": "liquid/lfm-2.5-2.6b:free",
+      "model": "dots-studio/dots-3-note-preview:free",
       "api_key_env": "OPENROUTER_API_KEY",
       "input_usd_per_million": 0,
       "output_usd_per_million": 0,
-      "pricing_note": "Free OpenRouter endpoint reselected after runtime preflight on 2026-09-13; supports structured output and request additionally enforces max_price=0.",
+      "pricing_note": "Zero-priced structured-output endpoint confirmed live on 2026-09-13; preview endpoint is scheduled to go away 2026-09-30 and request additionally enforces max_price=0.",
       "provider_preferences": {
         "allow_fallbacks": false,
         "require_parameters": true,
