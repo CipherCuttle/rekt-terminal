@@ -5,6 +5,29 @@ export const stageCQualificationOverallMigration = {
   async up(db: Kysely<DatabaseSchema>) {
     await sql`alter table challenge_qualifications drop constraint challenge_qualifications_result`.execute(db);
     await sql`
+      update challenge_qualifications
+      set result = case result
+        when 'PASS' then 'QUALIFIED'
+        when 'FAIL' then 'NOT_QUALIFIED'
+        else result
+      end,
+      qualification_json = case
+        when qualification_json ? 'overall' then jsonb_set(
+          qualification_json,
+          '{overall}',
+          to_jsonb(case qualification_json ->> 'overall'
+            when 'PASS' then 'QUALIFIED'
+            when 'FAIL' then 'NOT_QUALIFIED'
+            else qualification_json ->> 'overall'
+          end),
+          false
+        )
+        else qualification_json
+      end
+      where result in ('PASS','FAIL')
+         or qualification_json ->> 'overall' in ('PASS','FAIL')
+    `.execute(db);
+    await sql`
       alter table challenge_qualifications
       add constraint challenge_qualifications_result
       check (result in ('QUALIFIED','NOT_QUALIFIED','DISPUTED'))
@@ -34,6 +57,29 @@ export const stageCQualificationOverallMigration = {
     await sql`alter table challenge_receipts drop column protocol_receipt_id`.execute(db);
 
     await sql`alter table challenge_qualifications drop constraint challenge_qualifications_result`.execute(db);
+    await sql`
+      update challenge_qualifications
+      set result = case result
+        when 'QUALIFIED' then 'PASS'
+        when 'NOT_QUALIFIED' then 'FAIL'
+        else result
+      end,
+      qualification_json = case
+        when qualification_json ? 'overall' then jsonb_set(
+          qualification_json,
+          '{overall}',
+          to_jsonb(case qualification_json ->> 'overall'
+            when 'QUALIFIED' then 'PASS'
+            when 'NOT_QUALIFIED' then 'FAIL'
+            else qualification_json ->> 'overall'
+          end),
+          false
+        )
+        else qualification_json
+      end
+      where result in ('QUALIFIED','NOT_QUALIFIED')
+         or qualification_json ->> 'overall' in ('QUALIFIED','NOT_QUALIFIED')
+    `.execute(db);
     await sql`
       alter table challenge_qualifications
       add constraint challenge_qualifications_result
