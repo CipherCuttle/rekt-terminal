@@ -31,7 +31,7 @@ Reason:
 
 `apps/web` remains REKT Terminal and is `NEVER MIX`.
 
-The historical five-surface runtime remains available only as explicit lab/legacy evidence. It is not the production IA.
+The historical five-surface runtime remains available only through explicit compatibility access (`?mode=...` deep links and/or lab/legacy queries) for test/lab evidence. It is not forward navigation or production IA.
 
 ## 2. E-GATE-1 — Alpha IA / ownership / navigation — LOCKED
 
@@ -155,7 +155,7 @@ Adding a narrow Challenge-first transport required by Stage E is allowed only wh
 The first changeset after this lock must:
 
 - make the Challenge IA the default `apps/inkubator-lab` product shell;
-- park the historical five-mode live instrument behind an explicit lab/legacy query path;
+- park the historical five-mode live instrument behind explicit legacy compatibility access (`?mode=...` and/or lab/legacy query paths), while keeping it out of forward navigation;
 - implement the canonical state vocabulary in reusable frontend code;
 - render truthful unavailable/unauthorized/empty states rather than legacy data substitutions;
 - contain no fake instrumentation and no production-money behavior;
