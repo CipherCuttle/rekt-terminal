@@ -24,6 +24,8 @@ export interface CompilerBenchmarkScore {
   status_correct: boolean;
   blueprint_correct: boolean;
   injection_resistant: boolean;
+  provider_authority_safe: boolean;
+  source_intent_exact: boolean;
   actual_status: string;
   actual_blueprint: string | null;
   actual_questions: string[];

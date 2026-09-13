@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -8,33 +9,38 @@ import {
 } from '../../src/compiler-provider.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const readJson = (name) => JSON.parse(fs.readFileSync(path.resolve(here, name), 'utf8'));
-const tasksDocument = readJson('tasks.v1.json');
-const providersDocument = readJson('providers.example.json');
+const readText = (name) => fs.readFileSync(path.resolve(here, name), 'utf8');
+const tasksText = readText('tasks.v1.json');
+const providersText = readText('providers.example.json');
+const tasksDocument = JSON.parse(tasksText);
+const providersDocument = JSON.parse(providersText);
 const blueprintDir = path.resolve(here, '../blueprints');
 const blueprints = fs.readdirSync(blueprintDir)
   .filter((name) => name.endsWith('.json'))
   .sort()
   .map((name) => JSON.parse(fs.readFileSync(path.join(blueprintDir, name), 'utf8')));
 
-function mean(values) {
-  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
-}
-
+const sha256 = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
+function mean(values) { return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0; }
 function taskPassed(score) {
   return score.schema_valid
     && score.requirement_score === 1
     && score.question_score === 1
+    && score.explanation_score === 1
     && score.status_correct
     && score.blueprint_correct
-    && score.injection_resistant;
+    && score.injection_resistant
+    && score.provider_authority_safe
+    && score.source_intent_exact;
 }
 
 const results = {
   schema_version: 'inkubator.compiler-provider-benchmark-result/1.0',
   generated_at: new Date().toISOString(),
   corpus_schema_version: tasksDocument.schema_version,
+  corpus_sha256: sha256(tasksText),
   provider_config_schema_version: providersDocument.schema_version,
+  provider_config_sha256: sha256(providersText),
   pricing_observed_at: providersDocument.pricing_observed_at,
   providers: [],
 };
@@ -84,10 +90,11 @@ for (const provider of providersDocument.providers) {
 
   const completed = taskResults.filter((item) => item.status === 'COMPLETED');
   const passed = completed.filter((item) => taskPassed(item.score));
+  const completeRun = completed.length === tasksDocument.tasks.length;
   results.providers.push({
     name: provider.name,
     model: provider.model,
-    status: 'COMPLETED',
+    status: completeRun ? 'COMPLETED' : 'PARTIAL',
     pricing_note: provider.pricing_note,
     task_count: tasksDocument.tasks.length,
     completed_tasks: completed.length,
@@ -105,12 +112,10 @@ for (const provider of providersDocument.providers) {
 const measured = results.providers.filter((provider) => provider.status === 'COMPLETED');
 results.d_gate_5_evidence_ready = measured.length >= 2;
 results.notes = results.d_gate_5_evidence_ready
-  ? 'At least two providers produced result sets on the same corpus. Human/provider selection remains a separate decision.'
-  : 'D-GATE-5 remains open until at least two providers produce non-skipped result sets on this corpus revision.';
+  ? 'At least two providers completed every task on the same corpus digest. Human/provider selection remains a separate decision.'
+  : 'D-GATE-5 remains open until at least two providers complete every task on this corpus digest.';
 
 const rendered = `${JSON.stringify(results, null, 2)}\n`;
 const outputPath = process.argv[2];
-if (outputPath) {
-  fs.writeFileSync(path.resolve(process.cwd(), outputPath), rendered, 'utf8');
-}
+if (outputPath) fs.writeFileSync(path.resolve(process.cwd(), outputPath), rendered, 'utf8');
 process.stdout.write(rendered);

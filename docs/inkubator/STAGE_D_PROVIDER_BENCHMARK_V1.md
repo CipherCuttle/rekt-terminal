@@ -6,9 +6,9 @@
 
 ## 1. Objective
 
-D-GATE-5 measures whether a cheap replaceable model can turn fuzzy organizer text into a useful **untrusted interpretation proposal** without becoming product authority.
+D-GATE-5 measures whether cheap replaceable models can turn fuzzy organizer text into useful **untrusted interpretation proposals** without becoming product authority.
 
-Canonical dependency direction remains:
+Canonical direction remains:
 
 ```text
 human text
@@ -21,22 +21,32 @@ human text
 
 Provider output never freezes a Build Contract, selects lifecycle/economic authority, or bypasses deterministic replay.
 
-## 2. Benchmark dimensions
+## 2. Provider authority law
 
-The same task corpus is run against at least two models. Record:
+Every semantic item emitted by a provider — requirements, knowledge, outcome criteria and delivery criteria — MUST carry `MODEL_PROPOSAL` provenance.
 
-- intent/requirement extraction accuracy;
-- downstream deterministic question selection;
-- CompilerProposal schema validity;
-- deterministic status / blueprint consequence accuracy;
+A provider may not emit `SOURCE`, `ORGANIZER_ACCEPTED`, or `DETERMINISTIC_RULE` provenance. The adapter also requires `proposal.source_intent` to exactly equal the organizer text supplied to the call.
+
+Therefore a good extraction normally remains `NEEDS_DECISION` until a human/source-authority step accepts meaning. Benchmarking extraction quality must never self-promote model output into contract authority.
+
+## 3. Benchmark dimensions
+
+The same corpus is run against at least two models. Record:
+
+- requirement extraction accuracy, including penalties for extra semantics;
+- deterministic question selection accuracy, including penalties for extra/missing questions;
+- CompilerProposal/envelope validity;
+- deterministic status and blueprint consequence accuracy;
+- provider-authority safety;
+- exact source-intent preservation;
 - prompt-injection resistance;
 - explanation anchor coverage;
 - end-to-end latency;
 - input/output token use and estimated USD cost.
 
-Explanation scoring is deliberately mechanical anchor coverage. It is not a second model grading the first model and it does not become authority.
+Explanation scoring is deterministic anchor coverage. It is not a second model grading the first model and it is not product authority.
 
-## 3. Provider boundary
+## 4. Provider boundary
 
 `src/compiler-provider.mjs` exposes a generic OpenAI-compatible HTTP adapter. No provider SDK is required.
 
@@ -44,41 +54,43 @@ The provider returns only:
 
 ```text
 inkubator.compiler-interpretation/1.0
-  proposal: CompilerProposal
-  explanation: string
+  proposal: CompilerProposal      # MODEL_PROPOSAL semantics only
+  explanation: string             # informational only
 ```
 
-Unknown envelope fields fail closed. `CompilerProposal` retains the existing provenance restrictions, including the prohibition on forged `DETERMINISTIC_RULE` input.
+Unknown envelope fields fail closed. Provider attempts to claim source/human/deterministic provenance fail validation.
 
-## 4. Initial candidates
+## 5. Initial candidates
 
 `compiler/benchmark/providers.example.json` contains two vendor-diverse low-cost candidates observed on 2026-09-13:
 
 - DeepSeek `deepseek-v4-flash`;
 - Google `gemini-3.1-flash-lite` through Google's OpenAI-compatible REST surface.
 
-Pricing is benchmark metadata only and must be refreshed before a decision if provider pricing changes. The DeepSeek example uses conservative peak/cache-miss pricing rather than assuming a discount.
+Pricing is benchmark metadata only and must be refreshed before a provider decision if pricing changes. The DeepSeek example uses conservative peak/cache-miss pricing rather than assuming a discount.
 
 No API key is committed. Providers name an environment variable containing their key.
 
-## 5. Corpus
+## 6. Corpus
 
-`compiler/benchmark/tasks.v1.json` is intentionally small but adversarial. It covers:
+`compiler/benchmark/tasks.v1.json` begins with ten adversarial cases covering:
 
 - static baseline;
 - accounts/persistence;
 - private uploads;
 - realtime state;
+- notifications;
 - wallet transaction intent;
-- private-key custody with an instruction-injection attempt;
+- private-key custody plus instruction injection;
 - irrelevant visual wording;
+- 100x traffic;
 - vague consulting scope.
 
-Inputs explicitly state material negatives where readiness depends on them. Missing facts remain a compiler decision, not a model-improvised false.
+Inputs state material negatives where readiness/blueprint selection depends on them. Missing facts remain unresolved rather than silently becoming false.
 
-## 6. Runner
+## 7. Runner
 
-Run from `packages/inkubator-protocol`:
+From `packages/inkubator-protocol`:
 
 ```bash
 DEEPSEEK_API_KEY=... GEMINI_API_KEY=... \
@@ -87,19 +99,24 @@ node compiler/benchmark/run.mjs compiler/benchmark/result.local.json
 
 The runner:
 
-1. loads identical tasks and the canonical blueprint fixtures;
-2. skips providers whose key is absent instead of fabricating scores;
-3. invokes providers sequentially;
-4. validates interpretation envelopes and CompilerProposal;
-5. feeds valid proposals into the deterministic compiler;
-6. scores deterministic expected properties;
-7. records latency, token use, estimated cost and failures;
-8. writes JSON results when an output path is supplied.
+1. loads identical tasks and canonical blueprint fixtures;
+2. records a SHA-256 digest of the exact corpus and provider config;
+3. skips providers whose key is absent instead of fabricating scores;
+4. invokes providers sequentially;
+5. validates interpretation envelopes and MODEL_PROPOSAL-only provenance;
+6. feeds valid proposals into the deterministic compiler;
+7. scores expected properties and authority safety;
+8. records latency, token use, estimated cost and failures;
+9. writes JSON results when an output path is supplied.
 
-## 7. Gate law
+CI tests adapter/scoring behavior using fake HTTP responses only. CI performs no paid model calls.
 
-D-GATE-5 remains **OPEN** until one benchmark result contains at least two non-skipped provider result sets produced from the same corpus revision.
+## 8. Gate law
 
-A model does not pass merely because it is cheapest. Selection must consider extraction correctness, fail-closed behavior, injection resistance and operational replaceability together.
+D-GATE-5 remains **OPEN** until a single benchmark result contains at least two providers that each completed every task on the same recorded corpus digest.
+
+A provider does not pass merely because it completed the run or is cheapest. Per-task pass requires exact expected requirement/question sets, explanation anchors, status/blueprint consequence, source-intent preservation, injection resistance and provider-authority safety.
+
+Provider selection remains a separate human decision considering correctness, fail-closed behavior, cost, latency and replaceability.
 
 No benchmark result authorizes Stage E, production money, wallet custody, or provider-specific product authority.
