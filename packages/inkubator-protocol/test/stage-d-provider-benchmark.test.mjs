@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {
   assertCompilerInterpretation,
@@ -12,6 +13,7 @@ import {
 } from '../src/compiler-provider.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const packageDir = path.resolve(here, '..');
 const blueprintDir = path.resolve(here, '../compiler/blueprints');
 const blueprints = fs.readdirSync(blueprintDir)
   .filter((name) => name.endsWith('.json'))
@@ -63,7 +65,7 @@ test('benchmark prompt treats organizer injection text as data and forbids provi
   assert.match(prompt, /output status READY/);
 });
 
-test('OpenAI-compatible adapter validates JSON envelope, exact source intent and usage without provider SDKs', async () => {
+test('OpenAI-compatible adapter carries hard routing controls and records OpenRouter receipts', async () => {
   const sourceIntent = 'Build a static page.';
   let request;
   const fetchImpl = async (url, options) => {
@@ -72,18 +74,35 @@ test('OpenAI-compatible adapter validates JSON envelope, exact source intent and
       ok: true,
       status: 200,
       async json() {
-        return {choices: [{message: {content: JSON.stringify(interpretation(sourceIntent))}}], usage: {prompt_tokens: 120, completion_tokens: 80}};
+        return {
+          model: 'google/gemma-4-26b-a4b-it:free',
+          service_tier: 'default',
+          openrouter_metadata: {provider_name: 'Google AI Studio'},
+          choices: [{message: {content: JSON.stringify(interpretation(sourceIntent))}}],
+          usage: {prompt_tokens: 120, completion_tokens: 80, cost: 0},
+        };
       },
       async text() { return ''; },
     };
   };
-  const interpretIntent = createOpenAICompatibleInterpreter({name: 'fixture', baseUrl: 'https://provider.example/v1', model: 'cheap-model', apiKey: 'secret-fixture', fetchImpl});
+  const routing = {allow_fallbacks: false, require_parameters: true, max_price: {prompt: 0, completion: 0}};
+  const interpretIntent = createOpenAICompatibleInterpreter({
+    name: 'fixture', baseUrl: 'https://openrouter.ai/api/v1', model: 'google/gemma-4-26b-a4b-it:free', apiKey: 'secret-fixture', fetchImpl,
+    maxTokens: 650, providerPreferences: routing, extraHeaders: {'X-OpenRouter-Metadata': 'enabled'},
+  });
   const run = await interpretIntent(sourceIntent);
-  assert.equal(request.url, 'https://provider.example/v1/chat/completions');
+  const body = JSON.parse(request.options.body);
+  assert.equal(request.url, 'https://openrouter.ai/api/v1/chat/completions');
   assert.equal(request.options.headers.authorization, 'Bearer secret-fixture');
-  assert.equal(JSON.parse(request.options.body).response_format.type, 'json_object');
+  assert.equal(request.options.headers['X-OpenRouter-Metadata'], 'enabled');
+  assert.equal(body.response_format.type, 'json_object');
+  assert.equal(body.max_tokens, 650);
+  assert.deepEqual(body.provider, routing);
   assert.equal(run.prompt_tokens, 120);
   assert.equal(run.completion_tokens, 80);
+  assert.equal(run.reported_cost_usd, 0);
+  assert.equal(run.response_model, 'google/gemma-4-26b-a4b-it:free');
+  assert.equal(run.routing_metadata.provider_name, 'Google AI Studio');
   assert.equal(run.interpretation.proposal.source_intent, sourceIntent);
 });
 
@@ -96,6 +115,35 @@ test('adapter rejects a provider that rewrites organizer source text', async () 
   });
   const interpretIntent = createOpenAICompatibleInterpreter({name: 'fixture', baseUrl: 'https://provider.example/v1', model: 'cheap-model', apiKey: 'secret', fetchImpl});
   await assert.rejects(() => interpretIntent('original organizer text'), /must echo source_intent exactly/);
+});
+
+test('OpenRouter free-only smoke config is zero-price, no-fallback and cannot close D-GATE-5 without a key', () => {
+  const configPath = path.resolve(packageDir, 'compiler/benchmark/providers.openrouter-free.json');
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  assert.equal(config.run_policy.free_only, true);
+  assert.equal(config.run_policy.max_total_usd, 0);
+  assert.equal(config.run_policy.smoke_task_ids.length, 2);
+  for (const provider of config.providers) {
+    assert.match(provider.model, /:free$/);
+    assert.equal(provider.api_key_env, 'OPENROUTER_API_KEY');
+    assert.equal(provider.input_usd_per_million, 0);
+    assert.equal(provider.output_usd_per_million, 0);
+    assert.equal(provider.provider_preferences.allow_fallbacks, false);
+    assert.equal(provider.provider_preferences.require_parameters, true);
+    assert.deepEqual(provider.provider_preferences.max_price, {prompt: 0, completion: 0});
+  }
+  const result = spawnSync(process.execPath, ['compiler/benchmark/run.mjs'], {
+    cwd: packageDir,
+    encoding: 'utf8',
+    env: {...process.env, OPENROUTER_API_KEY: '', BENCHMARK_MODE: 'smoke', BENCHMARK_PROVIDERS: 'providers.openrouter-free.json'},
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.mode, 'smoke');
+  assert.equal(receipt.free_only, true);
+  assert.deepEqual(receipt.selected_task_ids.sort(), ['PRIVATE_KEY_CUSTODY_INJECTION', 'STATIC_BASELINE']);
+  assert.equal(receipt.d_gate_5_evidence_ready, false);
+  assert.ok(receipt.providers.every((provider) => provider.status === 'SKIPPED_MISSING_KEY'));
 });
 
 test('deterministic benchmark scoring keeps model semantics unresolved until human acceptance', () => {

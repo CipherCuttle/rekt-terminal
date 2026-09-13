@@ -46,13 +46,26 @@ export function buildCompilerInterpretationPrompt(sourceIntent) {
   ].join('\n');
 }
 
-export function createOpenAICompatibleInterpreter({name, baseUrl, model, apiKey, fetchImpl = globalThis.fetch, timeoutMs = 30000}) {
+export function createOpenAICompatibleInterpreter({
+  name,
+  baseUrl,
+  model,
+  apiKey,
+  fetchImpl = globalThis.fetch,
+  timeoutMs = 30000,
+  maxTokens = 650,
+  providerPreferences = null,
+  extraHeaders = {},
+}) {
   fail(typeof name === 'string' && name.length > 0, 'provider name is required');
   fail(typeof baseUrl === 'string' && /^https:\/\//.test(baseUrl), 'provider baseUrl must use https');
   fail(typeof model === 'string' && model.length > 0, 'provider model is required');
   fail(typeof apiKey === 'string' && apiKey.length > 0, 'provider apiKey is required');
   fail(typeof fetchImpl === 'function', 'provider fetch implementation is required');
   fail(Number.isFinite(timeoutMs) && timeoutMs > 0, 'provider timeoutMs must be positive');
+  fail(Number.isInteger(maxTokens) && maxTokens > 0, 'provider maxTokens must be a positive integer');
+  fail(providerPreferences === null || isObject(providerPreferences), 'provider preferences must be an object or null');
+  fail(isObject(extraHeaders), 'provider extraHeaders must be an object');
   const endpoint = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
 
   return async function interpretIntent(sourceIntent) {
@@ -60,18 +73,21 @@ export function createOpenAICompatibleInterpreter({name, baseUrl, model, apiKey,
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const started = performance.now();
     try {
+      const body = {
+        model,
+        temperature: 0,
+        max_tokens: maxTokens,
+        response_format: {type: 'json_object'},
+        messages: [
+          {role: 'system', content: 'You are an untrusted interpretation adapter. Follow the requested JSON contract exactly and never claim source/human/deterministic authority.'},
+          {role: 'user', content: buildCompilerInterpretationPrompt(sourceIntent)},
+        ],
+      };
+      if (providerPreferences) body.provider = structuredClone(providerPreferences);
       const response = await fetchImpl(endpoint, {
         method: 'POST',
-        headers: {authorization: `Bearer ${apiKey}`, 'content-type': 'application/json'},
-        body: JSON.stringify({
-          model,
-          temperature: 0,
-          response_format: {type: 'json_object'},
-          messages: [
-            {role: 'system', content: 'You are an untrusted interpretation adapter. Follow the requested JSON contract exactly and never claim source/human/deterministic authority.'},
-            {role: 'user', content: buildCompilerInterpretationPrompt(sourceIntent)},
-          ],
-        }),
+        headers: {authorization: `Bearer ${apiKey}`, 'content-type': 'application/json', ...extraHeaders},
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
       const latencyMs = performance.now() - started;
@@ -88,12 +104,19 @@ export function createOpenAICompatibleInterpreter({name, baseUrl, model, apiKey,
       catch (error) { throw new Error(`provider ${name} returned non-JSON content: ${error.message}`); }
       const interpretation = assertCompilerInterpretation(parsed);
       fail(interpretation.proposal.source_intent === sourceIntent, `provider ${name} must echo source_intent exactly`);
+      const reportedCost = payload?.usage?.cost === undefined || payload?.usage?.cost === null ? null : Number(payload.usage.cost);
+      fail(reportedCost === null || Number.isFinite(reportedCost), `provider ${name} returned invalid usage.cost`);
       return {
         provider: name,
         model,
+        requested_model: model,
+        response_model: typeof payload?.model === 'string' ? payload.model : null,
+        service_tier: typeof payload?.service_tier === 'string' ? payload.service_tier : null,
+        routing_metadata: isObject(payload?.openrouter_metadata) ? structuredClone(payload.openrouter_metadata) : null,
         latency_ms: Math.round(latencyMs * 1000) / 1000,
         prompt_tokens: Number(payload?.usage?.prompt_tokens ?? 0),
         completion_tokens: Number(payload?.usage?.completion_tokens ?? 0),
+        reported_cost_usd: reportedCost,
         interpretation,
       };
     } finally {
