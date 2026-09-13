@@ -36,7 +36,8 @@ describe('Stage E Challenge product shell', () => {
     fireEvent.change(source, {target: {value: 'Build a realtime public launch dashboard'}});
     expect(screen.getByText('DRAFT CAPTURED LOCALLY')).toBeTruthy();
     expect(screen.getByText(/Compiler state is not generated yet/i)).toBeTruthy();
-    expect(screen.getByRole('button', {name: /COMPILE — TRANSPORT WIRING NEXT/i})).toBeDisabled();
+    const compileButton = screen.getByRole('button', {name: /COMPILE — TRANSPORT WIRING NEXT/i}) as HTMLButtonElement;
+    expect(compileButton.disabled).toBe(true);
   });
 
   it('normalizes deep-link surface names and exposes the full canonical state vocabulary', () => {
