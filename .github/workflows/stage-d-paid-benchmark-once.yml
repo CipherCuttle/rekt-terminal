@@ -1,0 +1,60 @@
+name: Stage D paid benchmark once
+
+on:
+  push:
+    branches: ['agent/stage-d-paid-benchmark-run-v1']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage-d-paid-benchmark-once-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify benchmark safety harness
+        run: |
+          node --test packages/inkubator-protocol/test/stage-d-provider-benchmark.test.mjs
+          node --test packages/inkubator-protocol/test/stage-d-stable-provider-benchmark.test.mjs
+
+      - name: Require configured OpenRouter secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${OPENROUTER_API_KEY:-}" || { echo 'OPENROUTER_API_KEY is not configured; refusing paid benchmark.'; exit 1; }
+
+      - name: Run authorized full D-GATE-5 benchmark
+        working-directory: packages/inkubator-protocol
+        env:
+          BENCHMARK_MODE: full
+          BENCHMARK_PROVIDERS: providers.openrouter-stable.json
+          BENCHMARK_AUTHORIZE_PAID: YES
+        run: node compiler/benchmark/run.mjs "$GITHUB_WORKSPACE/stage-d-paid-benchmark.json"
+
+      - name: Upload immutable benchmark receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: stage-d-paid-benchmark-${{ github.sha }}
+          path: stage-d-paid-benchmark.json
+          if-no-files-found: error
+          retention-days: 14
