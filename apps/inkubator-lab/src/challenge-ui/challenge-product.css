@@ -121,7 +121,7 @@
 .challenge-nav button b { font-size: 0.75rem; letter-spacing: 0.045em; }
 .challenge-nav button small { margin-top: 0.18rem; font-size: 0.6rem; opacity: 0.66; }
 
-.challenge-nav__imprint { margin-top: 2.5rem; padding: 0.8rem 0.7rem; opacity: 0.36; }
+.challenge-nav__imprint { margin-top: 2.5rem; padding: 0.8rem 0.7rem; opacity: 0.55; }
 .challenge-nav__imprint > span { display: block; width: 2rem; height: 1px; background: currentColor; }
 .challenge-nav__imprint p { font-size: 0.68rem; line-height: 1.35; }
 
