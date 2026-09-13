@@ -14,7 +14,7 @@ test('Stage E default root exposes Challenge-first IA without reviving legacy na
   await page.goto('/');
 
   await expect(page.locator('main.challenge-product')).toHaveAttribute('data-challenge-surface', 'discover');
-  await expect(page.getByRole('heading', {name: 'DISCOVER'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'DISCOVER', exact: true})).toBeVisible();
   const nav = page.getByRole('navigation', {name: 'Challenge product'});
   await expect(nav.getByRole('button')).toHaveCount(7);
   await expect(nav.getByRole('button', {name: /COMPILER \/ CREATE/i})).toBeVisible();
@@ -49,7 +49,7 @@ test('Stage E remains legible with reduced motion requested', async ({page}) => 
 
   const reduced = await page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   expect(reduced).toBe(true);
-  await expect(page.getByRole('heading', {name: 'CHALLENGE'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'CHALLENGE', exact: true})).toBeVisible();
   await expect(page.getByText(/No Challenge selected/i)).toBeVisible();
   await expect(page.locator('[data-surface-state="empty"]')).toBeVisible();
   await expectNoHorizontalOverflow(page);
