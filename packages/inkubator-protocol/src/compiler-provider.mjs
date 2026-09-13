@@ -54,6 +54,7 @@ export function createOpenAICompatibleInterpreter({
   fetchImpl = globalThis.fetch,
   timeoutMs = 30000,
   maxTokens = 650,
+  responseFormat = {type: 'json_object'},
   providerPreferences = null,
   reasoningConfig = null,
   extraHeaders = {},
@@ -65,6 +66,7 @@ export function createOpenAICompatibleInterpreter({
   fail(typeof fetchImpl === 'function', 'provider fetch implementation is required');
   fail(Number.isFinite(timeoutMs) && timeoutMs > 0, 'provider timeoutMs must be positive');
   fail(Number.isInteger(maxTokens) && maxTokens > 0, 'provider maxTokens must be a positive integer');
+  fail(isObject(responseFormat), 'provider responseFormat must be an object');
   fail(providerPreferences === null || isObject(providerPreferences), 'provider preferences must be an object or null');
   fail(reasoningConfig === null || isObject(reasoningConfig), 'provider reasoningConfig must be an object or null');
   fail(isObject(extraHeaders), 'provider extraHeaders must be an object');
@@ -79,7 +81,7 @@ export function createOpenAICompatibleInterpreter({
         model,
         temperature: 0,
         max_tokens: maxTokens,
-        response_format: {type: 'json_object'},
+        response_format: structuredClone(responseFormat),
         messages: [
           {role: 'system', content: 'You are an untrusted interpretation adapter. Follow the requested JSON contract exactly and never claim source/human/deterministic authority.'},
           {role: 'user', content: buildCompilerInterpretationPrompt(sourceIntent)},
