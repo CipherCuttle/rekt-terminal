@@ -30,7 +30,7 @@
     "apps/api/src/**/*.{ts,tsx,js,mjs,cjs}",
     "apps/web/src/**/*.{ts,tsx,js,mjs,cjs}",
     "apps/inkubator-api/src/**/*.{ts,tsx,js,mjs,cjs}",
-    "apps/inkubator-lab/src/**/*.{ts,tsx,js,mjs,cjs}",
+    "apps/inkubator-lab/src/*.{ts,tsx,js,mjs,cjs}",
     "apps/inkubator-verifier/src/**/*.{ts,tsx,js,mjs,cjs}",
     "packages/*/src/**/*.{ts,tsx,js,mjs,cjs}",
     ".github/workflows/ci.yml"
