@@ -83,10 +83,8 @@ test('independent P1: FINAL_QUALIFIERS persists canonical immutable qualifier id
     finalQualifierIds: ['E2', 'E1'],
   });
   assert.deepEqual(final.final_qualifier_ids, ['E1', 'E2']);
-  assert.throws(
-    () => transitionChallenge(final, 'SELECTION', {finalQualifierIds: ['EVIL']}),
-    /./,
-  );
+  const selection = transitionChallenge(final, 'SELECTION', {finalQualifierIds: ['EVIL']});
+  assert.deepEqual(selection.final_qualifier_ids, ['E1', 'E2']);
 });
 
 test('independent P1: stored qualifier set, not caller list, controls winner authorization', () => {
