@@ -358,7 +358,13 @@ export async function persistFrozenBuildContract(
       returning *
     `.execute(transaction);
     const row = inserted.rows[0] ?? (await sql<ChallengeContractVersionRow>`select * from challenge_contract_versions where challenge_id = ${challengeId} and contract_version = ${contractVersion}`.execute(transaction)).rows[0];
-    if (!row || row.terms_digest !== termsDigest || canonicalizeJson(row.contract_json).sha256 !== normalizedContract.sha256) throw new Error('challenge_contract_immutable_conflict');
+    if (!row || row.terms_digest !== termsDigest) throw new Error('challenge_contract_immutable_conflict');
+    const equality = await sql<{matches: boolean}>`
+      select contract_json = ${normalizedContract.serialized}::jsonb as matches
+      from challenge_contract_versions
+      where challenge_id = ${challengeId} and contract_version = ${contractVersion}
+    `.execute(transaction);
+    if (equality.rows[0]?.matches !== true) throw new Error('challenge_contract_immutable_conflict');
 
     await sql`update challenges set current_contract_version = ${contractVersion}, current_terms_digest = ${termsDigest}, updated_at = clock_timestamp() where challenge_id = ${challengeId}`.execute(transaction);
     await appendHistoryEvent(transaction, {
