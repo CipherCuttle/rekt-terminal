@@ -2,7 +2,12 @@ import {randomUUID} from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {sql} from 'kysely';
-import {freezeBuildContract} from '@rekt-ink/protocol/challenge';
+import {
+  appendReceiptCorrection,
+  buildSettlementIntent,
+  fileReceipt,
+  freezeBuildContract,
+} from '@rekt-ink/protocol/challenge';
 import {createDatabase} from '../../dist/database.js';
 import {migrateToLatest} from '../../dist/migrations.js';
 import {
@@ -14,8 +19,8 @@ import {
   readChallengeSnapshot,
   recordChallengeDecision,
   recordChallengeQualification,
-  recordChallengeReceipt,
 } from '../../dist/challenge-store.js';
+import {recordProtocolChallengeReceipt} from '../../dist/challenge-receipt-store.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required');
@@ -93,7 +98,7 @@ test('Stage C frozen contract is durable, replayable, and immutable', async () =
     const createRequest = randomUUID();
     const freezeRequest = randomUUID();
 
-    const created = await createChallenge(db, {
+    const createInput = {
       requestId: createRequest, challengeId, organizerPlayerId: organizer,
       mechanismVersion: contract.mechanism_version,
       settlementPolicyVersion: contract.settlement_policy_version,
@@ -105,21 +110,9 @@ test('Stage C frozen contract is durable, replayable, and immutable', async () =
       submissionDeadlineMs: contract.submission_deadline,
       appealWindowMs: contract.appeal_window_ms,
       reviewDeadlineMs: contract.review_deadline,
-    });
-    assert.equal(created.status, 'DRAFT');
-    assert.equal((await createChallenge(db, {
-      requestId: createRequest, challengeId, organizerPlayerId: organizer,
-      mechanismVersion: contract.mechanism_version,
-      settlementPolicyVersion: contract.settlement_policy_version,
-      ipTermsVersion: contract.ip_terms_version,
-      slotLimit: contract.slot_limit,
-      activationMinimum: contract.activation_minimum,
-      entryDeadlineMs: contract.entry_deadline,
-      buildStartMs: contract.build_start,
-      submissionDeadlineMs: contract.submission_deadline,
-      appealWindowMs: contract.appeal_window_ms,
-      reviewDeadlineMs: contract.review_deadline,
-    })).challenge_id, challengeId);
+    };
+    assert.equal((await createChallenge(db, createInput)).status, 'DRAFT');
+    assert.equal((await createChallenge(db, createInput)).challenge_id, challengeId);
 
     const stored = await persistFrozenBuildContract(db, {requestId: freezeRequest, actorPlayerId: organizer, challengeId, contract});
     assert.equal(stored.terms_digest, contract.terms_digest);
@@ -181,7 +174,7 @@ test('Stage C serializes the final-seat race and rejects duplicate builder/payou
   }
 });
 
-test('Stage C submission, qualification, decision, receipt and snapshot facts remain append-only', async () => {
+test('Stage C submission, qualification, decision, protocol receipt and snapshot facts remain append-only', async () => {
   const db = createDatabase(databaseUrl);
   await migrateToLatest(db);
   try {
@@ -207,7 +200,7 @@ test('Stage C submission, qualification, decision, receipt and snapshot facts re
     assert.equal(submission.terms_digest, fixture.contract.terms_digest);
     assert.equal((await acceptChallengeSubmission(db, {requestId: submissionRequest, submissionId, challengeId: fixture.challengeId, entryId: entry.entry_id, manifest})).submission_id, submissionId);
     await assert.rejects(
-      acceptChallengeSubmission(db, {requestId: randomUUID(), submissionId: randomUUID(), challengeId: fixture.challengeId, entryId: entry.entry_id, manifest: {...manifest, submission_version: 1, artifact_digest: 'c'.repeat(64)}}),
+      acceptChallengeSubmission(db, {requestId: randomUUID(), submissionId: randomUUID(), challengeId: fixture.challengeId, entryId: entry.entry_id, manifest: {...manifest, artifact_digest: 'c'.repeat(64)}}),
       /challenge_submission_immutable_conflict/,
     );
 
@@ -215,12 +208,17 @@ test('Stage C submission, qualification, decision, receipt and snapshot facts re
     const final = await markFinalChallengeSubmission(db, {requestId: randomUUID(), challengeId: fixture.challengeId, entryId: entry.entry_id, submissionId});
     assert.equal(final.is_final, true);
 
+    await sql`update challenges set status = 'QUALIFICATION' where challenge_id = ${fixture.challengeId}`.execute(db);
     const qualification = await recordChallengeQualification(db, {
       requestId: randomUUID(), qualificationId: randomUUID(), challengeId: fixture.challengeId,
-      entryId: entry.entry_id, submissionId, qualificationVersion: 'qualification.v1', result: 'PASS',
-      qualification: {overall: 'QUALIFIED', criteria: [{criterion_id: 'OUT', result: 'PASS', evidence_refs: []}]},
+      entryId: entry.entry_id, submissionId, qualificationVersion: 'qualification.v1',
+      criterionResults: [{criterion_id: 'OUT', result: 'PASS', evidence_refs: []}],
     });
-    assert.equal(qualification.result, 'PASS');
+    assert.equal(qualification.result, 'QUALIFIED');
+    assert.deepEqual(qualification.qualification_json, {
+      overall: 'QUALIFIED',
+      criteria: [{criterion_id: 'OUT', result: 'PASS', evidence_refs: []}],
+    });
 
     const decisionId = randomUUID();
     const decisionRequest = randomUUID();
@@ -241,16 +239,53 @@ test('Stage C submission, qualification, decision, receipt and snapshot facts re
       /challenge_decision_immutable_conflict/,
     );
 
-    const receiptId = randomUUID();
-    const receipt = {schema_version: 'inkubator.challenge-receipt/1.0', challenge_id: fixture.challengeId, terms_digest: fixture.contract.terms_digest, outcome: 'TEST_ONLY'};
-    const storedReceipt = await recordChallengeReceipt(db, {requestId: randomUUID(), receiptId, challengeId: fixture.challengeId, receiptVersion: '1', receipt});
-    const correctionId = randomUUID();
-    const correction = {...receipt, schema_version: 'inkubator.challenge-receipt-correction/1.0', correction: 'presentation-only'};
-    const storedCorrection = await recordChallengeReceipt(db, {
-      requestId: randomUUID(), receiptId: correctionId, challengeId: fixture.challengeId,
-      receiptVersion: '1', receipt: correction, supersedesReceiptId: receiptId,
+    const settlementIntent = buildSettlementIntent({
+      contract: fixture.contract,
+      resolution: {
+        type: 'WINNER_PAYOUT', winner_entry_id: entry.entry_id,
+        distributions: [{entry_id: entry.entry_id, amount_minor_units: fixture.contract.prize_minor_units}],
+      },
+      recipientByEntryId: {[entry.entry_id]: 'builder-pay'},
     });
+    const settlementExecutionFact = {
+      challenge_id: fixture.challengeId,
+      terms_digest: fixture.contract.terms_digest,
+      settlement_policy_version: fixture.contract.settlement_policy_version,
+      asset: fixture.contract.settlement_asset,
+      total_minor_units: fixture.contract.prize_minor_units,
+      recipients: settlementIntent.recipients,
+      finality: 'FINALIZED',
+      execution_id: 'stage-c-test-execution',
+    };
+    const receipt = fileReceipt({contract: fixture.contract, settlementIntent, settlementExecutionFact});
+    const receiptRequest = randomUUID();
+    const storedReceipt = await recordProtocolChallengeReceipt(db, {
+      requestId: receiptRequest, challengeId: fixture.challengeId, receipt,
+    });
+    assert.equal(storedReceipt.protocol_receipt_id, receipt.receipt_id);
+    assert.equal(storedReceipt.receipt_digest, receipt.digest);
+    assert.equal((await recordProtocolChallengeReceipt(db, {
+      requestId: receiptRequest, challengeId: fixture.challengeId, receipt,
+    })).protocol_receipt_id, receipt.receipt_id);
+
+    const correction = appendReceiptCorrection([receipt], {
+      supersedes: receipt.receipt_id,
+      reason: 'presentation-only correction',
+      authority: fixture.organizer,
+      corrected_projection: {display_note: 'corrected'},
+    });
+    const storedCorrection = await recordProtocolChallengeReceipt(db, {
+      requestId: randomUUID(), challengeId: fixture.challengeId, receipt: correction,
+    });
+    assert.equal(storedCorrection.protocol_receipt_id, correction.receipt_id);
     assert.equal(storedCorrection.supersedes_receipt_id, storedReceipt.receipt_id);
+    await assert.rejects(
+      recordProtocolChallengeReceipt(db, {
+        requestId: randomUUID(), challengeId: fixture.challengeId,
+        receipt: {...correction, reason: 'tampered correction'},
+      }),
+      /challenge_receipt_correction_protocol_mismatch|invalid_receipt_digest/,
+    );
 
     const before = await sql`select count(*)::int as count from history_events where subject_type = 'challenge' and subject_id = ${fixture.challengeId}`.execute(db);
     const firstSnapshot = await readChallengeSnapshot(db, fixture.challengeId);
@@ -259,6 +294,8 @@ test('Stage C submission, qualification, decision, receipt and snapshot facts re
     assert.equal(after.rows[0].count, before.rows[0].count);
     assert.deepEqual(secondSnapshot, firstSnapshot);
     assert.equal(firstSnapshot.receipts.length, 2);
+    assert.equal(firstSnapshot.receipts[0].protocol_receipt_id, receipt.receipt_id);
+    assert.equal(firstSnapshot.receipts[1].protocol_receipt_id, correction.receipt_id);
     assert.equal(firstSnapshot.decisions.length, 1);
     assert.equal(firstSnapshot.qualifications.length, 1);
   } finally {
