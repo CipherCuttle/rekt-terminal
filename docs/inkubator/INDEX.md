@@ -11,10 +11,12 @@ Forward product strategy and staged roadmap are governed by:
 5. `PRE_REVENUE_INFRA_CAP_V1.md` — bootstrap budget authority: $100/month absolute ceiling, <=$50 normal target, human time treated as a first-class cost, bounded paid compiler inference allowed.
 6. `THIRD_PARTY_SUBSTRATE_LOCK_V1.md` — authoritative adoption boundary for external/open-source substrate: what Inkubator owns, what may be adopted/adapted, version/fallback/removal requirements, and the locked anydoc → Compiler → design profile → Archify → Builder Capsule → deterministic Test Arena composition.
 7. `PREIMPLEMENTATION_READINESS_V1.md` — stage-specific planning gates and the explicit rule for when to stop planning and begin implementation.
-8. `STAGE_B_BUILD_CONTRACT_PROTOCOL_V1.md` — exact pure Challenge/Build-Contract protocol contract for the next implementation stage.
+8. `STAGE_B_BUILD_CONTRACT_PROTOCOL_V1.md` — canonical pure Challenge/Build-Contract protocol semantics implemented in `packages/inkubator-protocol`.
 9. `STAGE_B_PROPERTY_TEST_MATRIX_V1.md` — adversarial/property acceptance contract for Stage B.
-10. `CURRENT_STATE_MIGRATION_MAP_V1.md` — preserve/adapt/park map for existing Terminal/Inkubator apps, protocol, GitHub, Ship, historical Mission/World/social systems and future frontend decision.
-11. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth, privacy, mechanism or API semantics.
+10. `STAGE_C_POSTGRES_DOMAIN_BRIDGE_V1.md` — active additive persistence/concurrency contract for the Postgres Challenge bridge.
+11. `STAGE_C_INTEGRATION_TEST_MATRIX_V1.md` — active Stage-C Postgres adversarial/integration acceptance contract.
+12. `CURRENT_STATE_MIGRATION_MAP_V1.md` — preserve/adapt/park map for existing Terminal/Inkubator apps, protocol, GitHub, Ship, historical Mission/World/social systems and future frontend decision.
+13. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth, privacy, mechanism or API semantics.
 
 Repository-level agents must also obey root `AGENTS.md`, which requires Inkubator work to hydrate from this index before implementation.
 
@@ -24,7 +26,7 @@ Current forward sequence:
 
 `AUTHORITY LOCK → CHALLENGE/BUILD-CONTRACT PROTOCOL → POSTGRES BRIDGE → COMPILER/BLUEPRINTS/CHAT → REKT CHALLENGE UI → BUILDER CAPSULE/SUBMISSION → REVEAL/TEST ARENA/RECEIPTS → TRUST HARDENING → CLOSED ALPHA/TESTNET → PRODUCTION-VALUE GATES → FULL NORTH STAR`
 
-Current planning completion state:
+Current implementation state:
 
 ```text
 North Star / roadmap                         LOCKED
@@ -34,14 +36,18 @@ Solo-operator constraint                     LOCKED
 Bootstrap budget                             LOCKED
 Alpha cutline                                LOCKED
 Third-party substrate/adoption boundary      LOCKED
-Stage-B nouns/lifecycle/version contract      LOCKED
-Stage-B property-test matrix                  LOCKED
+Stage-B nouns/lifecycle/version contract      IMPLEMENTED / AUTHORITY
+Stage-B property-test matrix                  IMPLEMENTED / GREEN AT CLOSURE
 Current-state migration map                   LOCKED
-Stage-B implementation authority             NONE
+Stage-C Postgres bridge contract              ACTIVE
+Stage-C integration-test matrix               ACTIVE
+Stage-C implementation                        IN PROGRESS
+Stage-D Compiler work                         NOT AUTHORIZED
+Production money                              NOT AUTHORIZED
 ```
 
-**Planning verdict:** Stage A is sufficiently complete. Additional broad vision work is not a prerequisite for implementation. When explicitly authorized, the next bounded work is Stage B pure protocol implementation inside `packages/inkubator-protocol`.
+**Execution verdict:** Stage A is complete enough; Stage B is closed into the planning authority branch; Stage C is the current bounded implementation phase. Stop broad planning and implement/test the Postgres bridge against the two Stage-C contracts above.
 
-The substrate lock does not authorize Stage C+ work. It exists so later agents do not rebuild commodity document parsing, visualization, design-token tooling, builder planning or deterministic quality gates unnecessarily, and do not accidentally delegate Challenge/economic authority to those tools.
+The substrate lock does not authorize Stage D+ work. It exists so later agents do not rebuild commodity document parsing, visualization, design-token tooling, builder planning or deterministic quality gates unnecessarily, and do not accidentally delegate Challenge/economic authority to those tools.
 
-No implementation, production-money or merge authority is granted by this index.
+No production-money authority is granted by this index. Stage-C merge/closure still follows repository review and user authority policy.
