@@ -313,7 +313,6 @@ test('Stage C Postgres authority crucible conserves authority across the full ch
       requestId: randomUUID(), decisionId: randomUUID(), challengeId, entryId: entry.entry_id,
       decisionType: 'SETTLEMENT_EXECUTION_FACT', decisionVersion: '1', decision: settlementExecutionFact,
     });
-    assert.equal((await sql`select status from challenges where challengeId = ${challengeId}`.execute(db)).rows[0]?.status, undefined);
     assert.equal((await sql`select status from challenges where challenge_id = ${challengeId}`.execute(db)).rows[0].status, 'SETTLED');
     await assert.rejects(
       recordChallengeDecision(db, {
