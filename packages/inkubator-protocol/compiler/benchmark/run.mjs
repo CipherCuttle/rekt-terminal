@@ -71,6 +71,9 @@ function validateProvider(provider) {
   fail(Number.isFinite(Number(provider.input_usd_per_million)) && Number(provider.input_usd_per_million) >= 0, `${provider.name} input price must be non-negative`);
   fail(Number.isFinite(Number(provider.output_usd_per_million)) && Number(provider.output_usd_per_million) >= 0, `${provider.name} output price must be non-negative`);
   fail(provider.provider_preferences?.require_parameters === true, `BUDGET_CONFIG: ${provider.name} must require requested parameters`);
+  fail(['json_object', 'json_schema'].includes(provider.structured_output ?? 'json_object'), `${provider.name} structured_output invalid`);
+  const timeoutMs = Number(provider.timeout_ms ?? 30000);
+  fail(Number.isFinite(timeoutMs) && timeoutMs > 0 && timeoutMs <= 120000, `${provider.name} timeout_ms must be in (0,120000]`);
   const ceilings = routingCeilings(provider);
   fail(Number(provider.input_usd_per_million) <= ceilings.prompt, `BUDGET_CONFIG: ${provider.name} input list price exceeds routing ceiling`);
   fail(Number(provider.output_usd_per_million) <= ceilings.completion, `BUDGET_CONFIG: ${provider.name} output list price exceeds routing ceiling`);
@@ -140,9 +143,11 @@ for (const provider of providersDocument.providers) {
     baseUrl: provider.base_url,
     model: provider.model,
     apiKey,
+    timeoutMs: Number(provider.timeout_ms ?? 30000),
     maxTokens,
     providerPreferences: provider.provider_preferences ?? null,
     reasoningConfig: provider.reasoning ?? null,
+    structuredOutput: provider.structured_output ?? 'json_object',
     extraHeaders: isOpenRouter ? {'X-OpenRouter-Metadata': 'enabled', 'X-Title': 'REKT Inkubator D-GATE-5 paid smoke'} : {},
   });
   const taskResults = [];
