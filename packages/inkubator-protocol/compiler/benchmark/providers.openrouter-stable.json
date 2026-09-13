@@ -4,9 +4,10 @@
   "gateway": "openrouter",
   "run_policy": {
     "free_only": false,
-    "paid_execution_authorized": false,
+    "requires_runtime_authorization": true,
     "max_total_usd": 0.15,
     "max_input_bytes_per_request": 20000,
+    "billing_token_overhead_per_request": 4096,
     "max_tokens_per_response": 1600
   },
   "providers": [
@@ -20,6 +21,9 @@
       "response_format_mode": "json_object",
       "pricing_note": "OpenRouter list price observed 2026-09-13. DeepSeek V4.1 Flash supports JSON output but not JSON-schema enforcement on OpenRouter; deterministic post-parse validation remains fail-closed.",
       "reasoning": {"effort": "none"},
+      "enforce_response_model": true,
+      "expected_routing_provider_name": "DeepSeek",
+      "require_reported_cost": true,
       "provider_preferences": {
         "only": ["deepseek"],
         "allow_fallbacks": false,
@@ -37,6 +41,9 @@
       "response_format_mode": "json_schema",
       "pricing_note": "OpenRouter and Google list price observed 2026-09-13. Gemini 3.1 Flash-Lite supports strict structured outputs through JSON Schema.",
       "reasoning": {"effort": "minimal"},
+      "enforce_response_model": true,
+      "expected_routing_provider_name": "Google AI Studio",
+      "require_reported_cost": true,
       "provider_preferences": {
         "only": ["google-ai-studio"],
         "allow_fallbacks": false,
