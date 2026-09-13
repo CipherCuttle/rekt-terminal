@@ -1,0 +1,48 @@
+{
+  "schema_version": "inkubator.compiler-provider-benchmark-providers/3.0",
+  "pricing_observed_at": "2026-09-13",
+  "gateway": "openrouter",
+  "run_policy": {
+    "free_only": false,
+    "paid_execution_authorized": false,
+    "max_total_usd": 0.15,
+    "max_input_bytes_per_request": 20000,
+    "max_tokens_per_response": 1600
+  },
+  "providers": [
+    {
+      "name": "openrouter-deepseek-v4.1-flash-stable",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "input_usd_per_million": 0.15,
+      "output_usd_per_million": 0.60,
+      "response_format_mode": "json_object",
+      "pricing_note": "OpenRouter list price observed 2026-09-13. DeepSeek V4.1 Flash supports JSON output but not JSON-schema enforcement on OpenRouter; deterministic post-parse validation remains fail-closed.",
+      "reasoning": {"effort": "none"},
+      "provider_preferences": {
+        "only": ["deepseek"],
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "max_price": {"prompt": 0.15, "completion": 0.60}
+      }
+    },
+    {
+      "name": "openrouter-gemini-3.1-flash-lite-stable",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemini-3.1-flash-lite",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "input_usd_per_million": 0.25,
+      "output_usd_per_million": 1.50,
+      "response_format_mode": "json_schema",
+      "pricing_note": "OpenRouter and Google list price observed 2026-09-13. Gemini 3.1 Flash-Lite supports strict structured outputs through JSON Schema.",
+      "reasoning": {"effort": "minimal"},
+      "provider_preferences": {
+        "only": ["google-ai-studio"],
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "max_price": {"prompt": 0.25, "completion": 1.50}
+      }
+    }
+  ]
+}
