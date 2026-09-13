@@ -13,6 +13,7 @@ import {
 } from '../src/challenge-hardened.mjs';
 import {
   assertCompilerProposal,
+  assertCompilerState,
   buildBuildContractCandidate,
   compileProposal,
   COMPILER_PROPOSAL_SCHEMA_VERSION,
@@ -42,6 +43,30 @@ const baseProposal = () => ({
   outcome_criteria: [{id: 'O1', description: 'Page renders approved content.', mandatory: true, provenance: 'ORGANIZER_ACCEPTED'}],
   delivery_criteria: [{id: 'D1', description: 'Immutable source revision is delivered.', mandatory: true, provenance: 'ORGANIZER_ACCEPTED'}],
   preferences: {visual_theme: 'REKT'},
+});
+
+const authorityFields = () => ({
+  schema_version: BUILD_CONTRACT_SCHEMA_VERSION,
+  challenge_id: 'CH-STAGE-D',
+  contract_version: '1',
+  mechanism_version: MECHANISM_VERSION,
+  settlement_policy_version: SETTLEMENT_POLICY_VERSION,
+  ip_terms_version: IP_TERMS_VERSION,
+  title: 'Stage D fixture',
+  brief: 'Stage D compiler candidate fixture',
+  preferences: {visual_theme: 'ORGANIZER_ACCEPTED_REKT'},
+  normative_constraints: [],
+  normative_references: [],
+  informational_references: [],
+  slot_limit: 2,
+  activation_minimum: 1,
+  entry_deadline: 100,
+  build_start: 100,
+  submission_deadline: 200,
+  appeal_window_ms: 50,
+  review_deadline: 400,
+  prize_minor_units: 100,
+  settlement_asset: 'TEST',
 });
 
 test('CompilerState + blueprint schemas accept compiler output and seed blueprints', () => {
@@ -78,32 +103,93 @@ test('model/provider proposals cannot inject deterministic/authority fields', ()
   assert.throws(() => assertCompilerProposal(forged), /invalid input provenance/);
 });
 
+test('incomplete blueprint-selection facts fail closed instead of selecting WEB_STATIC', () => {
+  const proposal = baseProposal();
+  proposal.requirements = proposal.requirements.filter((item) => item.key !== 'custody_private_keys');
+  proposal.requirements.push({key: 'custody_private_key', value: true, provenance: 'MODEL_PROPOSAL'});
+  const state = compileProposal(proposal, {blueprints});
+  assert.equal(state.status, 'NEEDS_DECISION');
+  assert.equal(state.selected_blueprint, null);
+  assert.ok(state.unresolved_decisions.some((item) => item.id === 'MISSING_REQUIREMENT:custody_private_keys'));
+});
+
+test('organizer-accepted knowledge can answer a blocking causal question', () => {
+  const proposal = baseProposal();
+  proposal.requirements = proposal.requirements.map((item) => item.key === 'realtime' ? {...item, value: true} : item);
+  let state = compileProposal(proposal, {blueprints});
+  assert.equal(state.status, 'NEEDS_DECISION');
+  assert.ok(state.unresolved_decisions.some((item) => item.id === 'QUESTION:Q_REALTIME_TRANSPORT'));
+
+  proposal.knowledge.push({
+    kind: 'KNOWN',
+    key: 'Q_REALTIME_TRANSPORT',
+    material: true,
+    value: 'WebSocket transport; server order is authoritative.',
+    provenance: 'ORGANIZER_ACCEPTED',
+  });
+  state = compileProposal(proposal, {blueprints});
+  assert.equal(state.status, 'READY');
+  assert.equal(state.selected_blueprint?.id, 'WEB_REALTIME');
+});
+
+test('knowledge that contradicts a deterministic causal fact blocks readiness', () => {
+  const proposal = baseProposal();
+  proposal.requirements = proposal.requirements.map((item) => item.key === 'accounts' ? {...item, value: true} : item);
+  proposal.knowledge.push({
+    kind: 'KNOWN',
+    key: 'persistence_required',
+    material: true,
+    value: false,
+    provenance: 'SOURCE',
+  });
+  const state = compileProposal(proposal, {blueprints});
+  assert.equal(state.status, 'NEEDS_DECISION');
+  assert.ok(state.unresolved_decisions.some((item) => item.id === 'KNOWLEDGE_CAUSAL_CONTRADICTION:persistence_required'));
+});
+
+test('criterion IDs must remain unique across outcome, production and delivery layers', () => {
+  const proposal = baseProposal();
+  proposal.delivery_criteria[0] = {...proposal.delivery_criteria[0], id: 'O1'};
+  const state = compileProposal(proposal, {blueprints});
+  assert.equal(state.status, 'NEEDS_DECISION');
+  assert.ok(state.unresolved_decisions.some((item) => item.id === 'CRITERION_ID_CONFLICT:O1'));
+});
+
+test('model-only semantic facts cannot become READY authority', () => {
+  const requirementProposal = baseProposal();
+  requirementProposal.requirements[0] = {...requirementProposal.requirements[0], provenance: 'MODEL_PROPOSAL'};
+  let state = compileProposal(requirementProposal, {blueprints});
+  assert.equal(state.status, 'NEEDS_DECISION');
+  assert.ok(state.unresolved_decisions.some((item) => item.id === 'REQUIREMENT_ACCEPTANCE:accounts'));
+
+  const criterionProposal = baseProposal();
+  criterionProposal.outcome_criteria[0] = {...criterionProposal.outcome_criteria[0], provenance: 'MODEL_PROPOSAL'};
+  state = compileProposal(criterionProposal, {blueprints});
+  assert.equal(state.status, 'NEEDS_DECISION');
+  assert.ok(state.unresolved_decisions.some((item) => item.id === 'CRITERION_ACCEPTANCE:O1'));
+});
+
+test('forged READY CompilerState is rejected unless it matches deterministic replay', () => {
+  const state = compileProposal(baseProposal(), {blueprints});
+  const forged = structuredClone(state);
+  forged.reference_architecture_candidate = {shape: 'PROVIDER_FORGED'};
+  assert.throws(() => assertCompilerState(forged, {blueprints}), /does not match deterministic replay/);
+  assert.throws(() => buildBuildContractCandidate(forged, authorityFields(), {blueprints}), /does not match deterministic replay/);
+});
+
 test('READY CompilerState can produce a Stage-B-valid candidate without freezing it', () => {
   const state = compileProposal(baseProposal(), {blueprints});
   assert.equal(state.status, 'READY');
-  const candidate = buildBuildContractCandidate(state, {
-    schema_version: BUILD_CONTRACT_SCHEMA_VERSION,
-    challenge_id: 'CH-STAGE-D',
-    contract_version: '1',
-    mechanism_version: MECHANISM_VERSION,
-    settlement_policy_version: SETTLEMENT_POLICY_VERSION,
-    ip_terms_version: IP_TERMS_VERSION,
-    title: 'Stage D fixture',
-    brief: 'Stage D compiler candidate fixture',
-    normative_constraints: [],
-    normative_references: [],
-    informational_references: [],
-    slot_limit: 2,
-    activation_minimum: 1,
-    entry_deadline: 100,
-    build_start: 100,
-    submission_deadline: 200,
-    appeal_window_ms: 50,
-    review_deadline: 400,
-    prize_minor_units: 100,
-    settlement_asset: 'TEST',
-  });
+  const candidate = buildBuildContractCandidate(state, authorityFields(), {blueprints});
   assert.equal(candidate.terms_digest, undefined);
   assert.equal(candidate.outcome_contract.criteria[0].id, 'O1');
   assert.equal(candidate.reference_architecture.shape, 'STATIC_SITE');
+  assert.deepEqual(candidate.preferences, {visual_theme: 'ORGANIZER_ACCEPTED_REKT'});
+});
+
+test('Build Contract bridge requires organizer-accepted preferences instead of compiler proposal preferences', () => {
+  const state = compileProposal(baseProposal(), {blueprints});
+  const fields = authorityFields();
+  delete fields.preferences;
+  assert.throws(() => buildBuildContractCandidate(state, fields, {blueprints}), /preferences is required as organizer-accepted authority/);
 });

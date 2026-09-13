@@ -106,5 +106,9 @@ export declare const CAUSAL_RULES: readonly unknown[];
 export declare function assertCompilerProposal(proposal: unknown): CompilerProposal;
 export declare function assertCompilerBlueprint(blueprint: unknown): CompilerBlueprint;
 export declare function compileProposal(proposal: CompilerProposal, options?: {blueprints?: CompilerBlueprint[]}): CompilerState;
-export declare function assertCompilerState(state: unknown): CompilerState;
-export declare function buildBuildContractCandidate(compilerState: CompilerState, authorityFields: Record<string, unknown>): Readonly<Record<string, unknown>>;
+export declare function assertCompilerState(state: unknown, options?: {blueprints?: CompilerBlueprint[]}): CompilerState;
+export declare function buildBuildContractCandidate(
+  compilerState: CompilerState,
+  authorityFields: Record<string, unknown>,
+  options?: {blueprints?: CompilerBlueprint[]},
+): Readonly<Record<string, unknown>>;
