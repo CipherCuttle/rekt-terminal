@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import {
   appendAppealEvent,
   assertFrozenBuildContract,
@@ -233,9 +234,14 @@ export async function resolveChallengeAppeal(
     const contract = await contractFor(transaction, challenge);
     const qualification = computeQualification(contract, input.criterionResults);
     const normalizedQualification = canonicalizeJson(qualification);
+    const resolutionResult = qualification.overall === 'QUALIFIED'
+      ? 'PASS'
+      : qualification.overall === 'NOT_QUALIFIED'
+        ? 'FAIL'
+        : 'DISPUTED';
     const resolutionEvent = {
       type: 'RESOLUTION',
-      result: qualification.overall,
+      result: resolutionResult,
       ...(reason === undefined ? {} : {reason}),
       evidence_refs: evidenceRefs,
       resolver_id: resolverPlayerId,
