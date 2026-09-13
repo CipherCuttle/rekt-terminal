@@ -1,0 +1,85 @@
+name: Stage D paid benchmark once v3
+
+on:
+  push:
+    branches: ['agent/stage-d-paid-benchmark-run-v3']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage-d-paid-benchmark-once-v3-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify benchmark safety harness
+        run: |
+          node --test packages/inkubator-protocol/test/stage-d-provider-benchmark.test.mjs
+          node --test packages/inkubator-protocol/test/stage-d-stable-provider-benchmark.test.mjs
+
+      - name: Preflight replacement pair without model calls
+        working-directory: packages/inkubator-protocol
+        env:
+          OPENROUTER_API_KEY: ''
+          BENCHMARK_MODE: full
+          BENCHMARK_PROVIDERS: providers.openrouter-mistral-gemini.json
+          BENCHMARK_AUTHORIZE_PAID: YES
+        run: node compiler/benchmark/run.mjs "$RUNNER_TEMP/mistral-gemini-preflight.json"
+
+      - name: Enforce aggregate user authorization before inference
+        shell: bash
+        env:
+          AUTHORIZED_AGGREGATE_USD: '0.15'
+        run: |
+          set -euo pipefail
+          test -n "${OPENROUTER_API_KEY:-}" || { echo 'OPENROUTER_API_KEY is not configured; refusing paid benchmark.'; exit 1; }
+          payload="$(curl --fail-with-body --silent --show-error https://openrouter.ai/api/v1/key -H "Authorization: Bearer ${OPENROUTER_API_KEY}")"
+          PAYLOAD="$payload" PREFLIGHT="$RUNNER_TEMP/mistral-gemini-preflight.json" AUTHORIZED_AGGREGATE_USD="$AUTHORIZED_AGGREGATE_USD" node <<'NODE'
+          const fs = require('node:fs');
+          const value = JSON.parse(process.env.PAYLOAD);
+          const usage = Number((value.data ?? value).usage);
+          const preflight = JSON.parse(fs.readFileSync(process.env.PREFLIGHT, 'utf8'));
+          const worst = Number(preflight.preflight_worst_case_cost_usd);
+          const cap = Number(process.env.AUTHORIZED_AGGREGATE_USD);
+          if (!Number.isFinite(usage) || !Number.isFinite(worst) || !Number.isFinite(cap)) throw new Error('aggregate spend inputs must be finite');
+          const maximum = usage + worst;
+          console.log(JSON.stringify({current_key_usage_usd: usage, next_run_worst_case_usd: worst, aggregate_worst_case_usd: maximum, authorized_aggregate_usd: cap}, null, 2));
+          if (maximum > cap) throw new Error(`aggregate worst-case ${maximum} exceeds authorized ${cap}`);
+          NODE
+
+      - name: Run authorized full D-GATE-5 benchmark
+        working-directory: packages/inkubator-protocol
+        env:
+          BENCHMARK_MODE: full
+          BENCHMARK_PROVIDERS: providers.openrouter-mistral-gemini.json
+          BENCHMARK_AUTHORIZE_PAID: YES
+        run: node compiler/benchmark/run.mjs "$GITHUB_WORKSPACE/stage-d-paid-benchmark-v3.json"
+
+      - name: Upload immutable benchmark receipt
+        if: ${{ always() && hashFiles('stage-d-paid-benchmark-v3.json') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: stage-d-paid-benchmark-v3-${{ github.sha }}
+          path: stage-d-paid-benchmark-v3.json
+          if-no-files-found: error
+          retention-days: 14
