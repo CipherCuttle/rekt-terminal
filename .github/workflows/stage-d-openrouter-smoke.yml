@@ -1,0 +1,67 @@
+name: Stage D OpenRouter smoke
+
+on:
+  push:
+    branches: ['agent/stage-d-openrouter-preflight-v1']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage-d-openrouter-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Offline preflight tests
+        run: node --test packages/inkubator-protocol/test/stage-d-provider-benchmark.test.mjs
+
+      - name: Check benchmark secret
+        id: secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENROUTER_API_KEY:-}" ]; then
+            echo "OPENROUTER_API_KEY is not configured; no network/model calls will be made."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "OPENROUTER_API_KEY is configured."
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run four-call free-only smoke
+        if: steps.secret.outputs.present == 'true'
+        working-directory: packages/inkubator-protocol
+        env:
+          BENCHMARK_MODE: smoke
+          BENCHMARK_PROVIDERS: providers.openrouter-free.json
+        run: node compiler/benchmark/run.mjs "$GITHUB_WORKSPACE/openrouter-smoke.json"
+
+      - name: Upload smoke receipt
+        if: steps.secret.outputs.present == 'true' && hashFiles('openrouter-smoke.json') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: stage-d-openrouter-smoke-${{ github.sha }}
+          path: openrouter-smoke.json
+          if-no-files-found: error
+          retention-days: 7

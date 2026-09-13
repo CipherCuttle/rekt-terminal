@@ -1,6 +1,6 @@
 # REKT INKUBATOR — AUTHORITY POINTER
 
-**Updated:** 2026-09-13
+**Updated:** 2026-09-14
 
 Forward product strategy and staged roadmap are governed by:
 
@@ -15,10 +15,11 @@ Forward product strategy and staged roadmap are governed by:
 9. `STAGE_B_PROPERTY_TEST_MATRIX_V1.md` — adversarial/property acceptance contract for Stage B.
 10. `STAGE_C_POSTGRES_DOMAIN_BRIDGE_V1.md` — closed Stage-C additive persistence/concurrency contract for the Postgres Challenge bridge.
 11. `STAGE_C_INTEGRATION_TEST_MATRIX_V1.md` — closed Stage-C Postgres adversarial/integration acceptance contract.
-12. `STAGE_D_COMPILER_ENGINE_V1.md` — active deterministic compiler/CompilerState/blueprint/authority-boundary contract.
-13. `STAGE_D_COMPILER_GAUNTLET_V1.md` — active Stage-D sensitivity/determinism acceptance contract and seed-corpus rules.
-14. `CURRENT_STATE_MIGRATION_MAP_V1.md` — preserve/adapt/park map for existing Terminal/Inkubator apps, protocol, GitHub, Ship, historical Mission/World/social systems and future frontend decision.
-15. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth, privacy, mechanism or API semantics.
+12. `STAGE_D_COMPILER_ENGINE_V1.md` — deterministic compiler/CompilerState/blueprint/authority-boundary contract.
+13. `STAGE_D_COMPILER_GAUNTLET_V1.md` — Stage-D sensitivity/determinism acceptance contract and seed-corpus rules.
+14. `STAGE_D_PROVIDER_BENCHMARK_V1.md` — D-GATE-5 replaceable-provider benchmark contract; provider/model output remains untrusted interpretation input only.
+15. `CURRENT_STATE_MIGRATION_MAP_V1.md` — preserve/adapt/park map for existing Terminal/Inkubator apps, protocol, GitHub, Ship, historical Mission/World/social systems and future frontend decision.
+16. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth, privacy, mechanism or API semantics.
 
 Repository-level agents must also obey root `AGENTS.md`, which requires Inkubator work to hydrate from this index before implementation.
 
@@ -44,15 +45,17 @@ Current-state migration map                   LOCKED
 Stage-C Postgres bridge contract              CLOSED / PASS
 Stage-C integration-test matrix               CLOSED / PASS
 Stage-C implementation                        CLOSED / PASS
-Stage-D Compiler engine contract              ACTIVE
-Stage-D compiler gauntlet                     ACTIVE
-Stage-D implementation                        IN PROGRESS
-Stage-E REKT Compiler UI                      NOT AUTHORIZED
+Stage-D Compiler engine                       IMPLEMENTED
+Stage-D compiler gauntlet                     D-GATE-4 PASS
+Stage-D provider benchmark                    D-GATE-5 EVIDENCE COMPLETENESS PASS
+Stage-D integrated closure                    CANDIDATE / VERIFYING
+Stage-E Alpha IA/state/instrumentation gates  NEXT AFTER STAGE-D CLOSURE
+Stage-E REKT Compiler UI implementation       NOT YET AUTHORIZED
 Production money                              NOT AUTHORIZED
 ```
 
-**Execution verdict:** Stage A is complete enough; Stage B and Stage C are closed; Stage D is the current bounded implementation phase. Implement/test the deterministic compiler kernel, blueprint registry and gauntlet without delegating product authority to a model/provider.
+**Execution verdict:** Stage A is complete enough; Stage B and Stage C are closed; the substantive Stage-D compiler, gauntlet and provider-evidence work is complete. The current bounded task is exact-head integration verification. Do not tune providers or spend more model budget. If the integrated Stage-D head passes canonical verification, close Stage D and proceed to the narrow Stage-E IA/state/instrumentation gates plus the explicit Inkubator frontend-root decision.
 
-The substrate lock does not authorize Stage E+ work. It exists so later agents do not rebuild commodity document parsing, visualization, design-token tooling, builder planning or deterministic quality gates unnecessarily, and do not accidentally delegate Challenge/economic authority to those tools.
+The substrate lock does not authorize Stage E implementation by itself. It exists so later agents do not rebuild commodity document parsing, visualization, design-token tooling, builder planning or deterministic quality gates unnecessarily, and do not accidentally delegate Challenge/economic authority to those tools.
 
-No production-money authority is granted by this index. Stage-D merge/closure still follows repository review and user authority policy.
+No production-money authority is granted by this index. Stage-D merge/closure still follows repository review and explicit user merge-authority policy.

@@ -1,0 +1,81 @@
+name: Stage D stable provider benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      authorize_spend:
+        description: 'Explicitly authorize this one full benchmark up to the hard USD ceiling'
+        required: true
+        type: choice
+        options:
+          - 'NO'
+          - 'YES_MAX_0_15_USD'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage-d-stable-provider-benchmark
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Offline benchmark safety tests
+        run: |
+          node --test packages/inkubator-protocol/test/stage-d-provider-benchmark.test.mjs
+          node --test packages/inkubator-protocol/test/stage-d-stable-provider-benchmark.test.mjs
+
+      - name: Require explicit capped-spend authorization
+        shell: bash
+        env:
+          AUTHORIZE_SPEND: ${{ inputs.authorize_spend }}
+        run: |
+          set -euo pipefail
+          test "$AUTHORIZE_SPEND" = 'YES_MAX_0_15_USD' || {
+            echo 'Paid benchmark not explicitly authorized; refusing network/model calls.' >&2
+            exit 1
+          }
+
+      - name: Require benchmark secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${OPENROUTER_API_KEY:-}" || {
+            echo 'OPENROUTER_API_KEY is not configured; refusing benchmark.' >&2
+            exit 1
+          }
+
+      - name: Run full capped vendor-diverse benchmark
+        working-directory: packages/inkubator-protocol
+        env:
+          BENCHMARK_AUTHORIZE_PAID: 'YES'
+          BENCHMARK_MODE: full
+          BENCHMARK_PROVIDERS: providers.openrouter-stable.json
+        run: node compiler/benchmark/run.mjs "$GITHUB_WORKSPACE/stable-provider-benchmark.json"
+
+      - name: Upload benchmark receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: stage-d-stable-provider-benchmark-${{ github.sha }}
+          path: stable-provider-benchmark.json
+          if-no-files-found: error
+          retention-days: 14
