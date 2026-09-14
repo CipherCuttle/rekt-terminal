@@ -19,8 +19,9 @@ Forward product strategy and staged roadmap are governed by:
 13. `STAGE_D_COMPILER_GAUNTLET_V1.md` — Stage-D sensitivity/determinism acceptance contract and seed-corpus rules.
 14. `STAGE_D_PROVIDER_BENCHMARK_V1.md` — D-GATE-5 replaceable-provider benchmark contract; provider/model output remains untrusted interpretation input only.
 15. `CURRENT_STATE_MIGRATION_MAP_V1.md` — preserve/adapt/park map for existing Terminal/Inkubator apps, protocol, GitHub, Ship, historical Mission/World/social systems and the resolved Stage-E frontend decision.
-16. `STAGE_E_CHALLENGE_UI_V1.md` — locked Alpha IA, canonical surface states, no-fake-instrumentation rules, frontend-root decision and Stage-E closure criteria.
-17. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth, privacy, mechanism or API semantics.
+16. `STAGE_E_CHALLENGE_UI_V1.md` — closed Stage-E Alpha IA, canonical surface states, no-fake-instrumentation rules, frontend-root decision and retained Stage-E authority invariants.
+17. `STAGE_E_CHALLENGE_UI_CLOSURE_V1.md` — Stage-E closure receipt, hostile-review repairs and exact-head verification evidence.
+18. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth, privacy, mechanism or API semantics.
 
 Repository-level agents must also obey root `AGENTS.md`, which requires Inkubator work to hydrate from this index before implementation.
 
@@ -50,15 +51,19 @@ Stage-D Compiler engine                       IMPLEMENTED
 Stage-D compiler gauntlet                     D-GATE-4 PASS
 Stage-D provider benchmark                    D-GATE-5 EVIDENCE COMPLETENESS PASS
 Stage-D integrated closure                    CLOSED / PASS / MERGED
-Stage-E Alpha IA                              E-GATE-1 LOCKED
-Stage-E canonical surface states              E-GATE-2 LOCKED
-Stage-E no-fake-instrumentation               E-GATE-3 LOCKED
+Stage-E Alpha IA                              E-GATE-1 PASS / CLOSED
+Stage-E canonical surface states              E-GATE-2 PASS / CLOSED
+Stage-E no-fake-instrumentation               E-GATE-3 PASS / CLOSED
 Stage-E frontend root                         apps/inkubator-lab / PROMOTE+REFACTOR
-Stage-E REKT Compiler / Challenge UI          AUTHORIZED / IN PROGRESS
+Stage-E REKT Compiler / Challenge UI          CLOSED / PASS
+Stage-E closure receipt                       CLOSED / PASS / PR #97
+Stage-F Builder Capsule / Submission          NEXT ROADMAP STAGE / NOT YET AUTHORIZED
 Production money                              NOT AUTHORIZED
 ```
 
-**Execution verdict:** Stage A is complete enough; Stage B and Stage C are closed; Stage D is `CLOSED / PASS` and merged into this planning authority. Stage E is now authorized and in progress under `STAGE_E_CHALLENGE_UI_V1.md`. The existing `apps/inkubator-lab` runtime is the explicit production frontend root for Stage E; do not create a parallel `apps/inkubator-web`, and never reuse Terminal `apps/web`. The historical `WORLD / COMMAND / PROJECT / PLAYER / SHIP` shell is parked from the forward product IA and may remain only as lab/legacy evidence. Do not tune providers or spend more model budget. Missing Challenge-first transport must render truthfully unavailable rather than substituting parked legacy routes.
+**Execution verdict:** Stage A is complete enough; Stage B and Stage C are closed; Stage D is `CLOSED / PASS`; Stage E is `CLOSED / PASS` under `STAGE_E_CHALLENGE_UI_V1.md` plus `STAGE_E_CHALLENGE_UI_CLOSURE_V1.md`. The existing `apps/inkubator-lab` runtime remains the production frontend root; do not create a parallel `apps/inkubator-web`, and never reuse Terminal `apps/web`. The historical `WORLD / COMMAND / PROJECT / PLAYER / SHIP` shell remains parked from the forward product IA and may remain only as lab/legacy evidence. Missing later-stage Challenge transports must continue to render truthfully unavailable rather than substituting parked legacy routes.
+
+The next roadmap stage is Stage F — Builder Capsule / Submission. **Stage-E closure does not itself authorize Stage-F implementation.** Stage F requires its own implementation authority/contract and acceptance gates before code work begins. Do not infer funding, production-money, wallet, settlement, reveal/Test Arena or later-stage authority from Stage-E closure.
 
 The substrate lock does not authorize later stages by itself. It exists so agents do not rebuild commodity document parsing, visualization, design-token tooling, builder planning or deterministic quality gates unnecessarily, and do not accidentally delegate Challenge/economic authority to those tools.
 
