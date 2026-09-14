@@ -109,7 +109,7 @@ export interface AssistView {
   assist_id: string;
   beacon_id: string;
   project_id: ProjectId;
-  offered_by_player_id: PlayerId;
+  offered_by_player_id: string;
   message: string;
   state: "OFFERED" | "ACCEPTED" | "DECLINED" | "CANCELLED";
 }
@@ -622,7 +622,7 @@ export interface PlayerHistoryView {
   entries: PlayerHistoryEntryView[];
 }
 
-export type DevkitScope = "player:read" | "project:read" | "mission:read" | "claim:write" | "update:write" | "beacon:write" | "assist:write" | "ship:prepare";
+export type DevkitScope = "player:read" | "project:read" | "mission:read" | "claim:write" | "update:write" | "beacon:write" | "assist:write" | "ship:prepare" | "challenge:submit";
 
 export type DevkitCredentialClass = "CLI" | "MCP" | "AUTOMATION";
 
