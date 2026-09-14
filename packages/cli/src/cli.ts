@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import {execFileSync} from 'node:child_process';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -15,6 +15,16 @@ type Io = {out:(value:string)=>void;err:(value:string)=>void};
 type Config = {schema_version:'rekt.local.v1';api_url:string;project_id:string;mission_id:string};
 type LocalCapsule = Omit<BuilderCapsuleView,'files'> & {files:Array<Omit<BuilderCapsuleView['files'][number],'content'>>};
 type FrozenContract = BuildContract & {terms_digest:string};
+type ChallengeSubmitRetryState = {
+  schema_version:'challenge-submit-retry.v1';
+  challenge_id:string;
+  entry_id:string;
+  terms_digest:string;
+  submission_version:number;
+  payload_digest:string;
+  request_id:string;
+  submission_id:string;
+};
 
 const EXPECTED_CAPSULE_PATHS=['CHALLENGE.md','contract.json','acceptance/manifest.json','references/manifest.json'] as const;
 const EXPECTED_MEDIA_TYPES:Record<(typeof EXPECTED_CAPSULE_PATHS)[number],BuilderCapsuleView['files'][number]['media_type']>={
@@ -49,6 +59,7 @@ function skills(value:string|undefined){return value?value.split(',').map((part)
 function sha256(value:string){return createHash('sha256').update(value,'utf8').digest('hex');}
 function defaultCapsuleDir(cwd:string){return path.join(cwd,'.rekt','challenge');}
 function capsuleMetadataPath(root:string){return path.join(root,'capsule.json');}
+function challengeSubmitRetryPath(root:string,submissionVersion:number){return path.join(root,'submission-retry',`${submissionVersion}.json`);}
 function canonicalize(value:unknown):unknown{
   if(Array.isArray(value))return value.map(canonicalize);
   if(value&&typeof value==='object'){
@@ -223,6 +234,35 @@ function checkCapsule(root:string){
   const contract=validateFrozenContract(contractContent,capsule);assertDerivedViews(contents,contract);
   return capsule;
 }
+function readChallengeSubmitRetryState(target:string):ChallengeSubmitRetryState|null{
+  if(!fs.existsSync(target))return null;
+  assertNoSymlinkPath(target);
+  let value:unknown;
+  try{value=JSON.parse(fs.readFileSync(target,'utf8'));}catch{throw new Error('challenge_submit_retry_state_invalid');}
+  if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('challenge_submit_retry_state_invalid');
+  const state=value as Partial<ChallengeSubmitRetryState>;
+  if(
+    state.schema_version!=='challenge-submit-retry.v1'||
+    typeof state.challenge_id!=='string'||!UUID_PATTERN.test(state.challenge_id)||
+    typeof state.entry_id!=='string'||!UUID_PATTERN.test(state.entry_id)||
+    typeof state.terms_digest!=='string'||!DIGEST_PATTERN.test(state.terms_digest)||
+    typeof state.submission_version!=='number'||!Number.isSafeInteger(state.submission_version)||state.submission_version<1||
+    typeof state.payload_digest!=='string'||!DIGEST_PATTERN.test(state.payload_digest)||
+    typeof state.request_id!=='string'||!UUID_PATTERN.test(state.request_id)||
+    typeof state.submission_id!=='string'||!UUID_PATTERN.test(state.submission_id)
+  )throw new Error('challenge_submit_retry_state_invalid');
+  return state as ChallengeSubmitRetryState;
+}
+function writeChallengeSubmitRetryState(target:string,state:ChallengeSubmitRetryState){
+  const parent=path.dirname(target);assertNoSymlinkPath(parent);fs.mkdirSync(parent,{recursive:true});assertNoSymlinkPath(parent);
+  const temporary=path.join(parent,`.${path.basename(target)}.${randomUUID()}.tmp`);assertNoSymlinkPath(temporary);
+  fs.writeFileSync(temporary,JSON.stringify(state,null,2)+'\n',{encoding:'utf8',mode:0o600});
+  assertNoSymlinkPath(target);
+  fs.renameSync(temporary,target);
+}
+function challengeSubmitPayloadDigest(payload:{challenge_id:string;entry_id:string;terms_digest:string;submission_version:number;immutable_source_reference:{kind:string;value:string};artifact_digest:string;evidence_references:string[];optional_live_url:string|null;ship_submission_id:string|null}){
+  return sha256(canonicalJson(payload));
+}
 function gitOutput(cwd:string,args:string[],errorCode:string){
   try{return execFileSync('git',args,{cwd,encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();}catch{throw new Error(errorCode);}
 }
@@ -262,8 +302,19 @@ async function challengeCommand(rest:string[],env:NodeJS.ProcessEnv,io:Io,cwd:st
     const evidence=values.get('evidence')?.split(',').map((item)=>item.trim()).filter(Boolean)??[];
     const liveUrl=values.get('live-url');if(liveUrl){try{new URL(liveUrl);}catch{throw new Error('challenge_submit_live_url_invalid');}}
     const shipSubmissionId=values.get('ship-submission-id');if(shipSubmissionId&&!UUID_PATTERN.test(shipSubmissionId))throw new Error('challenge_submit_ship_submission_id_invalid');
+    const payloadDigest=challengeSubmitPayloadDigest({challenge_id:capsule.challenge_id,entry_id:capsule.entry_id,terms_digest:capsule.terms_digest,submission_version:submissionVersion,immutable_source_reference:{kind:sourceKind,value:source},artifact_digest:artifactDigest,evidence_references:evidence,optional_live_url:liveUrl??null,ship_submission_id:shipSubmissionId??null});
+    const retryPath=challengeSubmitRetryPath(root,submissionVersion);const existingRetry=readChallengeSubmitRetryState(retryPath);
+    let requestId:string;let submissionId:string;
+    if(existingRetry){
+      if(existingRetry.challenge_id!==capsule.challenge_id||existingRetry.entry_id!==capsule.entry_id||existingRetry.terms_digest!==capsule.terms_digest||existingRetry.submission_version!==submissionVersion)throw new Error('challenge_submit_retry_state_mismatch');
+      if(existingRetry.payload_digest!==payloadDigest)throw new Error('challenge_submit_retry_payload_conflict');
+      requestId=existingRetry.request_id;submissionId=existingRetry.submission_id;
+    }else{
+      requestId=randomUUID();submissionId=randomUUID();
+      writeChallengeSubmitRetryState(retryPath,{schema_version:'challenge-submit-retry.v1',challenge_id:capsule.challenge_id,entry_id:capsule.entry_id,terms_digest:capsule.terms_digest,submission_version:submissionVersion,payload_digest:payloadDigest,request_id:requestId,submission_id:submissionId});
+    }
     const apiUrl=values.get('api')??env.REKT_API_URL??'http://127.0.0.1:8787';
-    const result=await clientFor(env,apiUrl).challenge.submit(capsule.challenge_id,{entryId:capsule.entry_id,expectedTermsDigest:capsule.terms_digest,submissionVersion,immutableSourceReference:{kind:sourceKind,value:source},artifactDigest,evidenceReferences:evidence,...(liveUrl?{optionalLiveUrl:liveUrl}:{}),...(shipSubmissionId?{shipSubmissionId}:{})});
+    const result=await clientFor(env,apiUrl).challenge.submit(capsule.challenge_id,{entryId:capsule.entry_id,expectedTermsDigest:capsule.terms_digest,submissionVersion,immutableSourceReference:{kind:sourceKind,value:source},artifactDigest,evidenceReferences:evidence,idempotencyKey:requestId,submissionId,...(liveUrl?{optionalLiveUrl:liveUrl}:{}),...(shipSubmissionId?{shipSubmissionId}:{})});
     io.out(JSON.stringify(result,null,2));return 0;
   }
   throw new Error(`unknown_challenge_command_${subcommand}`);

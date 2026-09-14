@@ -7,6 +7,7 @@ import {compileOrganizerDraft, registerStageEChallengeProductRoutes} from '../..
 import {acquireChallengeSeat, createChallenge} from '../../dist/challenge-store.js';
 import {createDatabase} from '../../dist/database.js';
 import {migrateToLatest} from '../../dist/migrations.js';
+import {createDevelopmentProject} from '../../dist/projects.js';
 
 const databaseUrl=process.env.DATABASE_URL;if(!databaseUrl)throw new Error('DATABASE_URL is required');
 const appOrigin=process.env.INKUBATOR_APP_ORIGIN??'http://127.0.0.1:4175';
@@ -22,22 +23,27 @@ async function createFrozenChallenge(app,db,organizer){
   const state=acceptedState();const preview=await app.inject({method:'POST',url:`/v1/challenges/${challengeId}/build-contract-preview`,headers:{origin:appOrigin,'content-type':'application/json'},payload:{compiler_state:state,authority:authority()}});assert.equal(preview.statusCode,200,preview.body);
   const persisted=await app.inject({method:'POST',url:`/v1/challenges/${challengeId}/build-contract`,headers:{origin:appOrigin,cookie:organizer.cookie,'content-type':'application/json'},payload:{request_id:randomUUID(),compiler_state:state,authority:authority(),expected_terms_digest:preview.json().contract.terms_digest}});assert.equal(persisted.statusCode,200,persisted.body);return {challengeId,termsDigest:persisted.json().terms_digest};
 }
-async function activateEntry(db,challengeId,builderId){
+async function activateEntry(db,challengeId,builderId,projectId=null,missionId=null){
   await sql`update challenges set status = 'ENTRY_OPEN' where challenge_id = ${challengeId}`.execute(db);
-  const entry=await acquireChallengeSeat(db,{requestId:randomUUID(),entryId:randomUUID(),challengeId,builderPlayerId:builderId,payoutIdentity:`builder-${randomUUID()}`});
+  const entry=await acquireChallengeSeat(db,{requestId:randomUUID(),entryId:randomUUID(),challengeId,builderPlayerId:builderId,payoutIdentity:`builder-${randomUUID()}`,projectId,missionId});
   await sql`update challenges set status = 'BUILDING' where challenge_id = ${challengeId}`.execute(db);
   await sql`update challenge_entries set state = 'ACTIVE', build_start = (select build_start from challenges where challenge_id=${challengeId}), submission_deadline = (select submission_deadline from challenges where challenge_id=${challengeId}) where entry_id=${entry.entry_id}`.execute(db);
   return entry.entry_id;
 }
 function payload(entryId,termsDigest,overrides={}){return {request_id:randomUUID(),submission_id:randomUUID(),entry_id:entryId,expected_terms_digest:termsDigest,submission_version:1,immutable_source_reference:{kind:'GIT_COMMIT',value:'0123456789abcdef0123456789abcdef01234567'},artifact_digest:artifactDigest,evidence_references:[],...overrides};}
+async function createSecondMission(db,projectId,builderId){
+  const missionId=randomUUID();await db.insertInto('missions').values({mission_id:missionId,schema_version:'mission.current.v1',creation_request_id:null,project_id:projectId,owner_player_id:builderId,round_id:null,goal:'Second mission',ship_condition:'Second ship',state:'DECLARED',current_focus:'Second focus',next_move:'Second move',blocker:null,progress_model_version:'mission.progress.v1',stack_labels:[],stack_source:'UNKNOWN'}).execute();return missionId;
+}
+async function createShip(db,submissionId,missionId,projectId,builderId){await db.insertInto('ship_submissions').values({submission_id:submissionId,mission_id:missionId,project_id:projectId,owner_player_id:builderId,creation_request_id:randomUUID(),artifact_title:'F2 ship',artifact_url:'https://example.invalid/f2-ship',demo_url:null,source_url:null,state:'SUBMITTED'}).execute();}
 
 test('F2 immutable submission enforces builder ownership, frozen terms, DB time, replay and immutable versions',async()=>{
   const db=createDatabase(databaseUrl);await migrateToLatest(db);const app=buildApp({db,appOrigin,allowDevAuth:true,sessionTtlSeconds:3600});registerStageEChallengeProductRoutes(app,db);
   try{
     const organizer=await createActor(app,`F2 Organizer ${randomUUID().slice(0,6)}`);const builder=await createActor(app,`F2 Builder ${randomUUID().slice(0,6)}`);const outsider=await createActor(app,`F2 Outsider ${randomUUID().slice(0,6)}`);
-    const {challengeId,termsDigest}=await createFrozenChallenge(app,db,organizer);const entryId=await activateEntry(db,challengeId,builder.playerId);
+    const {challengeId,termsDigest}=await createFrozenChallenge(app,db,organizer);const project=await createDevelopmentProject(db,builder.playerId,{name:'F2 lineage project',goal:'Test challenge lineage',shipCondition:'Ship the lineage test',currentFocus:'Test lineage',nextMove:'Submit lineage'});const missionB=await createSecondMission(db,project.projectId,builder.playerId);const entryId=await activateEntry(db,challengeId,builder.playerId,project.projectId,project.missionId);const shipB=randomUUID();await createShip(db,shipB,missionB,project.projectId,builder.playerId);const shipA=randomUUID();await createShip(db,shipA,project.missionId,project.projectId,builder.playerId);const entryLineage=(await sql`select project_id,mission_id from challenge_entries where entry_id=${entryId}`.execute(db)).rows[0];assert.equal(entryLineage.project_id,project.projectId);assert.equal(entryLineage.mission_id,project.missionId);const shipBLineage=(await sql`select project_id,mission_id,owner_player_id from ship_submissions where submission_id=${shipB}`.execute(db)).rows[0];assert.equal(shipBLineage.project_id,project.projectId);assert.equal(shipBLineage.mission_id,missionB);assert.equal(shipBLineage.owner_player_id,builder.playerId);
     const builderToken=await issueToken(app,builder.cookie,'f2 builder',['challenge:submit']);const readOnlyToken=await issueToken(app,builder.cookie,'f2 readonly',['project:read']);const outsiderToken=await issueToken(app,outsider.cookie,'f2 outsider',['challenge:submit']);
-    const url=`/v1/devkit/challenges/${challengeId}/submissions`;const first=payload(entryId,termsDigest);
+    const url=`/v1/devkit/challenges/${challengeId}/submissions`;const wrongMission=await app.inject({method:'POST',url,headers:{authorization:`Bearer ${builderToken}`},payload:payload(entryId,termsDigest,{ship_submission_id:shipB})});assert.equal(wrongMission.statusCode,409,wrongMission.body);assert.equal(wrongMission.json().error,'challenge_ship_lineage_invalid');const afterWrongMission=(await sql`select count(*)::int as count from challenge_submissions where challenge_id=${challengeId}`.execute(db)).rows[0].count;assert.equal(afterWrongMission,0);
+    const first=payload(entryId,termsDigest,{ship_submission_id:shipA});
 
     const missingScope=await app.inject({method:'POST',url,headers:{authorization:`Bearer ${readOnlyToken}`},payload:first});assert.equal(missingScope.statusCode,403);assert.equal(missingScope.json().error,'devkit_scope_denied');
     const outsiderAttempt=await app.inject({method:'POST',url,headers:{authorization:`Bearer ${outsiderToken}`},payload:first});assert.equal(outsiderAttempt.statusCode,403);assert.equal(outsiderAttempt.json().error,'challenge_entry_owner_required');
