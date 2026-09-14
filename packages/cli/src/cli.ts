@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,8 +24,10 @@ const EXPECTED_MEDIA_TYPES:Record<(typeof EXPECTED_CAPSULE_PATHS)[number],Builde
   'references/manifest.json':'application/json',
 };
 const ENTRY_STATES=new Set(['SEATED','WITHDRAWN_PRE_BUILD','ACTIVE','SUBMITTED','INVALID_SUBMISSION','ABANDONED']);
+const SOURCE_KINDS=new Set(['GIT_COMMIT','CONTENT_ADDRESS','ARCHIVE_DIGEST']);
 const UUID_PATTERN=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DIGEST_PATTERN=/^[0-9a-f]{64}$/;
+const GIT_COMMIT_PATTERN=/^[0-9a-f]{40}$/i;
 const defaultIo: Io = {out:(value)=>process.stdout.write(`${value}\n`),err:(value)=>process.stderr.write(`${value}\n`)};
 
 function parse(args:string[]){
@@ -219,10 +222,19 @@ function checkCapsule(root:string){
   const contract=validateFrozenContract(contractContent,capsule);assertDerivedViews(contents,contract);
   return capsule;
 }
+function gitOutput(cwd:string,args:string[],errorCode:string){
+  try{return execFileSync('git',args,{cwd,encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();}catch{throw new Error(errorCode);}
+}
+function implicitGitSource(cwd:string){
+  if(gitOutput(cwd,['status','--porcelain'],'challenge_submit_git_status_unavailable').length>0)throw new Error('challenge_submit_dirty_worktree');
+  const head=gitOutput(cwd,['rev-parse','HEAD'],'challenge_submit_git_head_unavailable');
+  if(!GIT_COMMIT_PATTERN.test(head))throw new Error('challenge_submit_git_head_invalid');
+  return head.toLowerCase();
+}
 
 async function challengeCommand(rest:string[],env:NodeJS.ProcessEnv,io:Io,cwd:string):Promise<number>{
   const [subcommand,...args]=rest;
-  if(!subcommand||subcommand==='help'||subcommand==='--help'){io.out('rekt challenge pull <id> [--api URL] [--out DIR] | status [--out DIR] | check [--out DIR]');return 0;}
+  if(!subcommand||subcommand==='help'||subcommand==='--help'){io.out('rekt challenge pull <id> [--api URL] [--out DIR] | status [--out DIR] | check [--out DIR] | submit --version N --artifact-digest SHA256 [--source-kind KIND] [--source REF] [--evidence refs] [--live-url URL] [--ship-submission-id UUID] [--api URL] [--out DIR]');return 0;}
   const {values,positional}=parse(args);const root=path.resolve(cwd,values.get('out')??path.relative(cwd,defaultCapsuleDir(cwd)));
   if(subcommand==='pull'){
     const challengeId=positional[0];if(!challengeId)throw new Error('challenge_id_required');
@@ -235,6 +247,19 @@ async function challengeCommand(rest:string[],env:NodeJS.ProcessEnv,io:Io,cwd:st
   }
   if(subcommand==='check'){
     const capsule=checkCapsule(root);io.out(`challenge check: LOCAL CONSISTENCY PASS ${capsule.challenge_id} ${capsule.terms_digest}`);return 0;
+  }
+  if(subcommand==='submit'){
+    const capsule=checkCapsule(root);
+    const rawVersion=values.get('version');const submissionVersion=rawVersion?Number(rawVersion):NaN;if(!Number.isSafeInteger(submissionVersion)||submissionVersion<1)throw new Error('challenge_submit_version_required');
+    const artifactDigest=values.get('artifact-digest');if(!artifactDigest||!DIGEST_PATTERN.test(artifactDigest))throw new Error('challenge_submit_artifact_digest_required');
+    const sourceKind=(values.get('source-kind')??'GIT_COMMIT') as 'GIT_COMMIT'|'CONTENT_ADDRESS'|'ARCHIVE_DIGEST';if(!SOURCE_KINDS.has(sourceKind))throw new Error('challenge_submit_source_kind_invalid');
+    let source=values.get('source');if(!source){if(sourceKind!=='GIT_COMMIT')throw new Error('challenge_submit_source_required');source=implicitGitSource(cwd);}if(source.length<1)throw new Error('challenge_submit_source_required');
+    const evidence=values.get('evidence')?.split(',').map((item)=>item.trim()).filter(Boolean)??[];
+    const liveUrl=values.get('live-url');if(liveUrl){try{new URL(liveUrl);}catch{throw new Error('challenge_submit_live_url_invalid');}}
+    const shipSubmissionId=values.get('ship-submission-id');if(shipSubmissionId&&!UUID_PATTERN.test(shipSubmissionId))throw new Error('challenge_submit_ship_submission_id_invalid');
+    const apiUrl=values.get('api')??env.REKT_API_URL??'http://127.0.0.1:8787';
+    const result=await clientFor(env,apiUrl).challenge.submit(capsule.challenge_id,{entryId:capsule.entry_id,expectedTermsDigest:capsule.terms_digest,submissionVersion,immutableSourceReference:{kind:sourceKind,value:source},artifactDigest,evidenceReferences:evidence,...(liveUrl?{optionalLiveUrl:liveUrl}:{}),...(shipSubmissionId?{shipSubmissionId}:{})});
+    io.out(JSON.stringify(result,null,2));return 0;
   }
   throw new Error(`unknown_challenge_command_${subcommand}`);
 }
