@@ -141,6 +141,20 @@ function CompilerReadout({compilerState}: {compilerState: CompilerStateView}) {
       </section>
 
       <section className="compiler-machine__section">
+        <h3>PRODUCTION ENVELOPE</h3>
+        {compilerState.production_envelope.criteria.length || compilerState.production_envelope.facts.length ? (
+          <ul>
+            {compilerState.production_envelope.criteria.map((criterion) => (
+              <li key={`criterion:${criterion.id}`}><b>{criterion.id}</b> — {criterion.description} <small>{criterion.mandatory ? 'MANDATORY' : 'OPTIONAL'} / {criterion.provenance}</small></li>
+            ))}
+            {compilerState.production_envelope.facts.map((fact) => (
+              <li key={`fact:${fact.rule_id}:${fact.key}`}><code>{fact.key}</code> = {String(fact.value)} <small>{fact.rule_id} / {fact.provenance}</small></li>
+            ))}
+          </ul>
+        ) : <p>No production-envelope criteria or facts derived yet.</p>}
+      </section>
+
+      <section className="compiler-machine__section">
         <h3>DETERMINISTIC FACTS</h3>
         {compilerState.causal_facts.length ? (
           <ul>{compilerState.causal_facts.map((fact) => <li key={`${fact.rule_id}:${fact.key}`}><code>{fact.key}</code> = {String(fact.value)} <small>{fact.rule_id}</small></li>)}</ul>
@@ -160,6 +174,13 @@ function CompilerReadout({compilerState}: {compilerState: CompilerStateView}) {
       <section className="compiler-machine__section">
         <h3>QUESTIONS</h3>
         {compilerState.questions.length ? <ul>{compilerState.questions.map((question) => <li key={`${question.rule_id}:${question.id}`}><b>{question.blocking ? 'BLOCKING' : 'OPEN'}</b> — {question.prompt}</li>)}</ul> : <p>None.</p>}
+      </section>
+
+      <section className="compiler-machine__section">
+        <h3>FINDINGS</h3>
+        {compilerState.findings.length ? (
+          <ul>{compilerState.findings.map((finding) => <li key={`${finding.rule_id}:${finding.code}`}><b>{finding.severity} / {finding.code}</b> — {finding.message} <small>{finding.rule_id}</small></li>)}</ul>
+        ) : <p>None.</p>}
       </section>
 
       <section className="compiler-machine__section">
