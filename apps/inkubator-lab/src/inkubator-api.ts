@@ -119,6 +119,16 @@ export interface BuildContractPreviewView {
   contract: FrozenBuildContractView;
 }
 
+export interface CanonicalBuildContractView {
+  schema_version: 'build-contract.canonical.v1';
+  canonical: true;
+  persisted: true;
+  challenge_id: string;
+  contract_version: string;
+  terms_digest: string;
+  frozen_at: string;
+}
+
 export class InkubatorProductApiClient extends InkubatorApiClient {
   constructor(
     private readonly productBaseUrl = '',
@@ -177,6 +187,28 @@ export class InkubatorProductApiClient extends InkubatorApiClient {
         method: 'POST',
         headers: {'content-type': 'application/json'},
         body: JSON.stringify({compiler_state: compilerState, authority}),
+      },
+    );
+  }
+
+  async persistBuildContract(
+    challengeId: string,
+    requestId: string,
+    compilerState: CompilerStateView,
+    authority: BuildContractPreviewAuthorityInput,
+    expectedTermsDigest: string,
+  ): Promise<CanonicalBuildContractView> {
+    return this.productRequest<CanonicalBuildContractView>(
+      `/v1/challenges/${encodeURIComponent(challengeId)}/build-contract`,
+      {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          request_id: requestId,
+          compiler_state: compilerState,
+          authority,
+          expected_terms_digest: expectedTermsDigest,
+        }),
       },
     );
   }
