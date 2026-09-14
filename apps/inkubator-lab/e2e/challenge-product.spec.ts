@@ -40,7 +40,7 @@ test('Stage E Compiler/Create is usable on mobile and keeps uncompiled source tr
   await expect(page.getByText('SOURCE DRAFT / UNCOMPILED')).toBeVisible();
   await expect(page.getByText(/Unknown requirements stay UNKNOWN/i)).toBeVisible();
   await expect(page.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i})).toBeEnabled();
-  await expect(page.getByText('REALTIME')).toBeVisible();
+  await expect(page.getByText('REALTIME', {exact: true})).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
   const accessibility = await new AxeBuilder({page}).analyze();
