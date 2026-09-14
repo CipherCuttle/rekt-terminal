@@ -226,8 +226,12 @@ function gitOutput(cwd:string,args:string[],errorCode:string){
   try{return execFileSync('git',args,{cwd,encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();}catch{throw new Error(errorCode);}
 }
 function implicitGitSource(cwd:string){
-  if(gitOutput(cwd,['status','--porcelain','--untracked-files=all','--','.',' :(exclude).rekt/**'.trim()],'challenge_submit_git_status_unavailable').length>0)throw new Error('challenge_submit_dirty_worktree');
-  const head=gitOutput(cwd,['rev-parse','HEAD'],'challenge_submit_git_head_unavailable');
+  const gitRoot=gitOutput(cwd,['rev-parse','--show-toplevel'],'challenge_submit_git_root_unavailable');
+  const toolRelative=path.relative(gitRoot,path.join(cwd,'.rekt')).split(path.sep).join('/');
+  if(toolRelative===''||toolRelative==='..'||toolRelative.startsWith('../'))throw new Error('challenge_submit_rekt_metadata_outside_repo');
+  const exclude=`:(exclude)${toolRelative}/**`;
+  if(gitOutput(gitRoot,['status','--porcelain','--untracked-files=all','--','.',exclude],'challenge_submit_git_status_unavailable').length>0)throw new Error('challenge_submit_dirty_worktree');
+  const head=gitOutput(gitRoot,['rev-parse','HEAD'],'challenge_submit_git_head_unavailable');
   if(!GIT_COMMIT_PATTERN.test(head))throw new Error('challenge_submit_git_head_invalid');
   return head.toLowerCase();
 }
