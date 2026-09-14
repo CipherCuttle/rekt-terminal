@@ -71,13 +71,15 @@ The capsule MUST NOT expose:
 
 `rekt challenge status` reads the local capsule metadata only.
 
-`rekt challenge check` verifies:
+`rekt challenge check` verifies local consistency by requiring:
 
-1. every capsule file matches its declared SHA-256;
-2. `contract.json` is a valid frozen Stage-B Build Contract;
-3. its `terms_digest` matches the capsule metadata.
+1. every capsule file to match its declared SHA-256;
+2. `contract.json` to be a valid frozen Stage-B Build Contract;
+3. Challenge id, contract version, `terms_digest`, and submission deadline metadata to match that frozen contract;
+4. `CHALLENGE.md`, `acceptance/manifest.json`, and `references/manifest.json` to reproduce the deterministic views implied by the frozen contract rather than trusting mutable local metadata hashes alone;
+5. the exact expected file set, media types, safe relative paths, and non-symlinked capsule paths.
 
-It does **not** claim that the implementation passes Challenge acceptance criteria. Executable acceptance modules are added only when their exact version/configuration is frozen and implemented.
+The command reports **`LOCAL CONSISTENCY PASS`**. It does not claim remote authenticity, cryptographic signing of the entire local directory, or that the implementation passes Challenge acceptance criteria. A purely offline local directory cannot provide remote authenticity against an actor deliberately rewriting every local artifact without an additional signature or server check; F1 does not invent that authority. Executable acceptance modules are added only when their exact version/configuration is frozen and implemented.
 
 The existing top-level `rekt status` keeps its historical Mission meaning in F1. Any Challenge-first alias/migration is a separate bounded decision.
 
@@ -124,13 +126,15 @@ F1 closes only when all are true:
 1. builder-owned entry can fetch a frozen capsule through scoped DevKit auth;
 2. non-entry Player is denied without leaking private builder data;
 3. unfrozen Challenge fails closed;
-4. capsule `contract.json` validates as the exact frozen Build Contract and matches `terms_digest`;
-5. derived file hashes are deterministic;
-6. `rekt challenge pull` writes only safe relative capsule paths under the selected output root;
-7. `rekt challenge status` requires no network mutation;
-8. `rekt challenge check` detects file tampering and contract/digest mismatch;
-9. legacy top-level DevKit commands still behave as before;
-10. canonical CI, Inkubator Auth/Foundation integration, and DevKit tests are green on the exact F1 head.
+4. capsule `contract.json` validates as the exact frozen Build Contract and matches Challenge/contract/digest/deadline lineage;
+5. derived file hashes are deterministic and derived views are checked against the frozen contract, not merely mutable local hash metadata;
+6. `rekt challenge pull` writes only the exact safe relative capsule paths under the selected output root and refuses path traversal, duplicate paths, and symlink traversal;
+7. malformed server capsule data is fully rejected before local capsule writes begin;
+8. `rekt challenge status` requires no network mutation;
+9. `rekt challenge check` detects ordinary file tampering, coordinated helper+metadata-hash tampering, and contract/digest mismatch while making only a local-consistency claim;
+10. legacy top-level DevKit commands still behave as before;
+11. canonical CI, Inkubator Auth/Foundation integration, and DevKit tests are green on the exact F1 head;
+12. one independent hostile F1 closure review completes under the bounded review policy.
 
 ## 7. Explicit non-goals
 
@@ -146,7 +150,8 @@ F1 does not add:
 - qualification/selection;
 - receipt read transport;
 - Spec Kit dependency;
-- new model/provider inference.
+- new model/provider inference;
+- remote signing/authenticity for the offline capsule directory.
 
 ## 8. Bounded completion
 
@@ -167,7 +172,7 @@ No review loop.
 ```text
 STAGE E                                      CLOSED / PASS / UNMERGED DEPENDENCY
 STAGE F                                      AUTHORIZED / IN PROGRESS
-F1 BUILDER CAPSULE                           AUTHORIZED
+F1 BUILDER CAPSULE                           IMPLEMENTED / EXACT-HEAD GATES PASS / INDEPENDENT REVIEW PENDING
 F2 IMMUTABLE SUBMISSION                      SEQUENCED AFTER F1
 F3 ARCHIVE / EVIDENCE CAPTURE                SEQUENCED AFTER F2
 STAGE G                                      NOT AUTHORIZED
