@@ -1,5 +1,5 @@
 import {createRequire} from 'node:module';
-import type {FastifyInstance, FastifyReply} from 'fastify';
+import type {FastifyInstance, FastifyReply, FastifyRequest} from 'fastify';
 import {
   BUILD_CONTRACT_SCHEMA_VERSION,
   freezeBuildContract,
@@ -14,8 +14,13 @@ import {
   type CompilerBlueprint,
   type CompilerState,
 } from '@rekt-ink/protocol/compiler';
-import {readChallengeSnapshot, type ChallengeSnapshot} from './challenge-store.js';
+import {
+  persistFrozenBuildContract,
+  readChallengeSnapshot,
+  type ChallengeSnapshot,
+} from './challenge-store.js';
 import type {InkubatorDatabase} from './database.js';
+import {readSessionToken, resolveSessionActor} from './session.js';
 
 const require = createRequire(import.meta.url);
 const BLUEPRINT_PATHS = [
@@ -75,6 +80,16 @@ export interface BuildContractPreviewView {
   contract: BuildContract & {terms_digest: string};
 }
 
+export interface CanonicalBuildContractView {
+  schema_version: 'build-contract.canonical.v1';
+  canonical: true;
+  persisted: true;
+  challenge_id: string;
+  contract_version: string;
+  terms_digest: string;
+  frozen_at: string;
+}
+
 function safeDate(value: Date): string {
   return value.toISOString();
 }
@@ -128,19 +143,12 @@ function assertOrganizerAcceptedCompilerState(state: CompilerState): void {
   }
 }
 
-export function buildFrozenBuildContractPreview(
+export function deriveFrozenBuildContract(
   compilerStateInput: unknown,
   authority: BuildContractPreviewAuthorityInput,
   snapshot: ChallengeSnapshot,
-): BuildContractPreviewView {
-  if (
-    snapshot.challenge.status !== 'DRAFT'
-    || snapshot.contract !== null
-    || snapshot.challenge.current_contract_version !== null
-    || snapshot.challenge.current_terms_digest !== null
-  ) {
-    throw new Error('challenge_contract_preview_requires_unfrozen_draft');
-  }
+): BuildContract & {terms_digest: string} {
+  if (snapshot.challenge.status !== 'DRAFT') throw new Error('challenge_contract_persist_requires_draft');
 
   const compilerState = assertCompilerState(compilerStateInput, {blueprints: [...ACTIVE_BLUEPRINTS]});
   assertOrganizerAcceptedCompilerState(compilerState);
@@ -174,13 +182,34 @@ export function buildFrozenBuildContractPreview(
     },
     {blueprints: [...ACTIVE_BLUEPRINTS]},
   );
-  const contract = freezeBuildContract(candidate as BuildContract) as BuildContract & {terms_digest: string};
+  return freezeBuildContract(candidate as BuildContract) as BuildContract & {terms_digest: string};
+}
+
+export function buildFrozenBuildContractPreview(
+  compilerStateInput: unknown,
+  authority: BuildContractPreviewAuthorityInput,
+  snapshot: ChallengeSnapshot,
+): BuildContractPreviewView {
+  if (
+    snapshot.contract !== null
+    || snapshot.challenge.current_contract_version !== null
+    || snapshot.challenge.current_terms_digest !== null
+  ) {
+    throw new Error('challenge_contract_preview_requires_unfrozen_draft');
+  }
+
   return {
     schema_version: 'build-contract.preview.v1',
     canonical: false,
     persisted: false,
-    contract,
+    contract: deriveFrozenBuildContract(compilerStateInput, authority, snapshot),
   };
+}
+
+async function authenticatedPlayerId(request: FastifyRequest, db: InkubatorDatabase): Promise<string | null> {
+  const token = readSessionToken(request.headers.cookie);
+  if (!token) return null;
+  return (await resolveSessionActor(db, token))?.playerId ?? null;
 }
 
 function apiError(reply: FastifyReply, statusCode: number, message: string) {
@@ -228,8 +257,76 @@ export function registerStageEChallengeProductRoutes(app: FastifyInstance, db: I
       const message = cause instanceof Error ? cause.message : 'build_contract_preview_invalid';
       if (message === 'invalid_challenge_id') return apiError(reply, 400, message);
       if (message === 'compiler_organizer_acceptance_required') return apiError(reply, 409, message);
-      if (message === 'challenge_contract_preview_requires_unfrozen_draft') return apiError(reply, 409, message);
+      if (message === 'challenge_contract_preview_requires_unfrozen_draft' || message === 'challenge_contract_persist_requires_draft') {
+        return apiError(reply, 409, message);
+      }
       return apiError(reply, 400, 'build_contract_preview_invalid');
+    }
+  });
+
+  app.post('/v1/challenges/:challengeId/build-contract', async (request, reply) => {
+    const {challengeId} = request.params as {challengeId: string};
+    const actorPlayerId = await authenticatedPlayerId(request, db);
+    if (!actorPlayerId) return apiError(reply, 401, 'authentication_required');
+
+    const body = request.body as {
+      request_id?: unknown;
+      compiler_state?: unknown;
+      authority?: BuildContractPreviewAuthorityInput;
+      expected_terms_digest?: unknown;
+    } | null;
+    if (
+      typeof body?.request_id !== 'string'
+      || typeof body.expected_terms_digest !== 'string'
+      || !body.authority
+    ) {
+      return apiError(reply, 400, 'build_contract_persist_invalid');
+    }
+
+    try {
+      const snapshot = await readChallengeSnapshot(db, challengeId);
+      if (!snapshot) return apiError(reply, 404, 'challenge_not_found');
+      const contract = deriveFrozenBuildContract(body.compiler_state, body.authority, snapshot);
+      if (contract.terms_digest !== body.expected_terms_digest) {
+        return apiError(reply, 409, 'build_contract_preview_stale');
+      }
+      const stored = await persistFrozenBuildContract(db, {
+        requestId: body.request_id,
+        actorPlayerId,
+        challengeId,
+        contract,
+      });
+      if (stored.terms_digest !== body.expected_terms_digest) throw new Error('build_contract_persist_digest_mismatch');
+      reply.header('cache-control', 'no-store');
+      const view: CanonicalBuildContractView = {
+        schema_version: 'build-contract.canonical.v1',
+        canonical: true,
+        persisted: true,
+        challenge_id: stored.challenge_id,
+        contract_version: stored.contract_version,
+        terms_digest: stored.terms_digest,
+        frozen_at: safeDate(stored.frozen_at),
+      };
+      return view;
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'build_contract_persist_failed';
+      if (message === 'invalid_challenge_id' || message === 'invalid_request_id') return apiError(reply, 400, message);
+      if (message === 'challenge_not_found') return apiError(reply, 404, message);
+      if (message === 'challenge_organizer_required') return apiError(reply, 403, message);
+      if (
+        message === 'compiler_organizer_acceptance_required'
+        || message === 'challenge_contract_persist_requires_draft'
+        || message === 'challenge_contract_already_frozen'
+        || message === 'challenge_contract_immutable_conflict'
+        || message === 'contract_challenge_authority_mismatch'
+        || message.includes('idempotency_conflict')
+      ) {
+        return apiError(reply, 409, message);
+      }
+      if (message.startsWith('invalid_') || message.startsWith('contract_') || message.startsWith('build contract')) {
+        return apiError(reply, 400, 'build_contract_persist_invalid');
+      }
+      throw cause;
     }
   });
 }
