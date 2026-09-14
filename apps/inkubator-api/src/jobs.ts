@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {sql, type Kysely} from 'kysely';
 import {canonicalizeJson} from './canonical-json.js';
+import {CHALLENGE_DUE_STATE_JOB_TYPE, handleChallengeDueStateJob} from './challenge-due-state.js';
 import {readDatabaseNow, type DatabaseSchema, type OutboxJobRow, type OutboxJobState} from './database.js';
 import {appendHistoryEvent} from './events.js';
 import {isDetectedStack, type DetectedStack} from './evidence.js';
@@ -583,6 +584,9 @@ async function handleJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, database
       return;
     case SHIP_VERIFICATION_JOB_TYPE:
       await handleShipVerification(db, job, options.shipVerifierClient);
+      return;
+    case CHALLENGE_DUE_STATE_JOB_TYPE:
+      await handleChallengeDueStateJob(db, job, databaseNow);
       return;
     default:
       throw new Error(`unsupported_job_type:${job.job_type}`);

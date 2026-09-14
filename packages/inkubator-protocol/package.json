@@ -12,7 +12,8 @@
   },
   "files": [
     "src",
-    "schema"
+    "schema",
+    "compiler"
   ],
   "types": "./src/constants.d.ts",
   "exports": {
@@ -21,6 +22,18 @@
       "import": "./src/constants.mjs"
     },
     "./server": "./src/index.mjs",
+    "./challenge": {
+      "types": "./src/challenge.d.ts",
+      "import": "./src/challenge-hardened.mjs"
+    },
+    "./compiler": {
+      "types": "./src/compiler.d.ts",
+      "import": "./src/compiler.mjs"
+    },
+    "./compiler-provider": {
+      "types": "./src/compiler-provider.d.ts",
+      "import": "./src/compiler-provider.mjs"
+    },
     "./schema/*": "./schema/*"
   },
   "publishConfig": {

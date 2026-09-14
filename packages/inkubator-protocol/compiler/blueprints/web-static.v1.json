@@ -1,0 +1,19 @@
+{
+  "schema_version": "inkubator.compiler-blueprint/1.0",
+  "id": "WEB_STATIC",
+  "version": "1.0.0",
+  "applicability": {
+    "required_true": [],
+    "any_true": [],
+    "excluded_true": ["accounts", "persistence", "uploads_private", "realtime", "notifications", "onchain_read", "wallet_transactions", "custody_private_keys"]
+  },
+  "default_assumptions": [],
+  "required_questions": [],
+  "sensitivity_points": ["asset budget", "browser support", "deployment target"],
+  "reference_architecture": {"shape": "STATIC_SITE", "components": ["static-assets", "cdn-or-static-host"]},
+  "supported_production_envelope": {"durable_server_state": false, "realtime_state": false, "wallet_transactions": false},
+  "risk_profile": "LOW",
+  "acceptance_modules": ["http-smoke", "accessibility-basic", "asset-budget"],
+  "known_limits": ["No authoritative server-side mutable state.", "No user authentication or private uploads."],
+  "health": "ACTIVE"
+}

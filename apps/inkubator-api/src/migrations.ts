@@ -16,6 +16,10 @@ import {phase7CheevoReputationMigration} from './migrations/017-phase7-cheevo-re
 import {phase8DevkitCredentialsMigration} from './migrations/018-phase8-devkit-credentials.js';
 import {githubLoginIdentityMigration} from './migrations/019-github-login-identity.js';
 import {githubLoginDisplayMetadataMigration} from './migrations/020-github-login-display-metadata.js';
+import {stageCChallengeDomainBridgeMigration} from './migrations/021-stage-c-challenge-domain-bridge.js';
+import {stageCQualificationOverallMigration} from './migrations/022-stage-c-qualification-overall.js';
+import {stageCAppealAuthorityMigration} from './migrations/023-stage-c-appeal-authority.js';
+import {stageCIndependentAppealResolverMigration} from './migrations/024-stage-c-independent-appeal-resolver.js';
 
 const initialMigration: Migration = {
   async up(db) {
@@ -320,6 +324,10 @@ class StaticMigrationProvider implements MigrationProvider {
       '018_phase8_devkit_credentials': phase8DevkitCredentialsMigration,
       '019_github_login_identity': githubLoginIdentityMigration,
       '020_github_login_display_metadata': githubLoginDisplayMetadataMigration,
+      '021_stage_c_challenge_domain_bridge': stageCChallengeDomainBridgeMigration,
+      '022_stage_c_qualification_overall': stageCQualificationOverallMigration,
+      '023_stage_c_appeal_authority': stageCAppealAuthorityMigration,
+      '024_stage_c_independent_appeal_resolver': stageCIndependentAppealResolverMigration,
     };
   }
 }
