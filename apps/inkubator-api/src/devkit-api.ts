@@ -1,6 +1,8 @@
 import type {FastifyInstance, FastifyReply, FastifyRequest} from 'fastify';
 import type {Kysely} from 'kysely';
-import './contract-phase8.js';
+import './contract-phase9.js';
+import {buildBuilderCapsule} from './builder-capsule.js';
+import {readChallengeSnapshot} from './challenge-store.js';
 import type {DatabaseSchema, MissionGateRow} from './database.js';
 import {consumeDevkitRateLimit, hasDevkitScope, issueDevkitToken, listDevkitTokens, readBearerToken, resolveDevkitCredential, revokeDevkitToken, type DevkitScope, type ResolvedDevkitCredential} from './devkit.js';
 import {commandToPrivateView, getCurrentCommand, getPlayerProfile, updateMission, updateMissionGate} from './mission-command.js';
@@ -105,6 +107,25 @@ export function registerPhase8DevkitRoutes(app: FastifyInstance, db: Kysely<Data
 
   app.get('/v1/devkit/me', async(request,reply)=>{const auth=await credential(request,reply,db,'player:read');if(!auth)return;const player=await getPlayer(db,auth.playerId);if(!player)return error(reply,401,'devkit_credential_invalid');reply.header('cache-control','no-store');return toPrivatePlayer(player);});
   app.get('/v1/devkit/player/profile', async(request,reply)=>{const auth=await credential(request,reply,db,'player:read');if(!auth)return;reply.header('cache-control','no-store');return profileView(auth.playerId,await getPlayerProfile(db,auth.playerId));});
+
+  app.get('/v1/devkit/challenges/:challengeId/capsule', async(request,reply)=>{
+    const auth=await credential(request,reply,db,'project:read');if(!auth)return;
+    const {challengeId}=request.params as {challengeId:string};
+    if(!UUID_PATTERN.test(challengeId))return error(reply,400,'invalid_challenge_id');
+    try{
+      const snapshot=await readChallengeSnapshot(db,challengeId);
+      if(!snapshot)return error(reply,404,'challenge_not_found');
+      const capsule=buildBuilderCapsule(snapshot,auth.playerId);
+      reply.header('cache-control','no-store');
+      return capsule;
+    }catch(cause){
+      const message=cause instanceof Error?cause.message:'builder_capsule_unavailable';
+      if(message==='challenge_entry_required')return error(reply,403,message);
+      if(message==='challenge_contract_not_frozen'||message==='challenge_contract_pointer_invalid')return error(reply,409,message);
+      if(message==='invalid_challenge_id')return error(reply,400,message);
+      throw cause;
+    }
+  });
 
   app.get('/v1/devkit/mission/current', async(request,reply)=>{const auth=await credential(request,reply,db,'mission:read');if(!auth)return;const command=await currentCommand(db,auth.playerId);if(!command)return error(reply,404,'active_mission_not_found');reply.header('cache-control','no-store');return commandToPrivateView(command);});
 
