@@ -120,7 +120,7 @@ test('Build Contract preview replays accepted state and freezes with the real St
   assert.equal(preview.contract.challenge_id, '11111111-1111-4111-8111-111111111111');
   assert.equal(preview.contract.contract_version, '1.0.0');
   assert.equal(preview.contract.mechanism_version, 'funded-challenge/1.1');
-  assert.equal(preview.contract.reference_architecture.shape, 'STATIC_WEB_APP');
+  assert.equal(preview.contract.reference_architecture.shape, 'STATIC_SITE');
   assert.match(preview.contract.terms_digest, /^[0-9a-f]{64}$/);
 });
 
