@@ -109,7 +109,7 @@ export interface AssistView {
   assist_id: string;
   beacon_id: string;
   project_id: ProjectId;
-  offered_by_player_id: string;
+  offered_by_player_id: PlayerId;
   message: string;
   state: "OFFERED" | "ACCEPTED" | "DECLINED" | "CANCELLED";
 }
