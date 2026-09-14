@@ -71,8 +71,20 @@ test('F1 pull rejects path traversal without writing outside the capsule root',a
   globalThis.fetch=async()=>new Response(JSON.stringify(cap),{status:200,headers:{'content-type':'application/json'}});
   try{
     assert.equal(await main(['challenge','pull',challengeId],{REKT_DEVKIT_TOKEN:'rekt_dk_test'},logs.adapter,cwd),1);
-    assert.equal(logs.err.at(-1),'capsule_path_invalid:../owned');
+    assert.equal(logs.err.at(-1),'capsule_file_set_invalid');
     assert.equal(fs.existsSync(path.join(cwd,'.rekt','owned')),false);
     assert.equal(fs.existsSync(path.join(cwd,'owned')),false);
+  }finally{globalThis.fetch=previous;fs.rmSync(cwd,{recursive:true,force:true});}
+});
+
+test('F1 pull validates the full capsule before writing any file',async()=>{
+  const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'rekt-capsule-'));const previous=globalThis.fetch;const cap=capsule();const logs=io();
+  cap.files[1]={...cap.files[1],sha256:'0'.repeat(64)};
+  globalThis.fetch=async()=>new Response(JSON.stringify(cap),{status:200,headers:{'content-type':'application/json'}});
+  try{
+    assert.equal(await main(['challenge','pull',challengeId],{REKT_DEVKIT_TOKEN:'rekt_dk_test'},logs.adapter,cwd),1);
+    assert.equal(logs.err.at(-1),'capsule_server_digest_mismatch:contract.json');
+    assert.equal(fs.existsSync(path.join(cwd,'.rekt','challenge','CHALLENGE.md')),false);
+    assert.equal(fs.existsSync(path.join(cwd,'.rekt','challenge','capsule.json')),false);
   }finally{globalThis.fetch=previous;fs.rmSync(cwd,{recursive:true,force:true});}
 });
