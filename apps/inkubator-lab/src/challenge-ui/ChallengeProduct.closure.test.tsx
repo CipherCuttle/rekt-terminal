@@ -218,7 +218,7 @@ describe('Stage E closure matrix', () => {
   });
 
   it('visibly changes deterministic readouts when a meaningful requirement changes', async () => {
-    const compileChallenge: ChallengeProductApi['compileChallenge'] = vi.fn(async (body) => (
+    const compileChallenge: ChallengeProductApi['compileChallenge'] = vi.fn(async (body: CompilerProposalInput) => (
       body.requirements.some((item) => item.key === 'realtime' && item.value === true)
         ? compilerState
         : staticCompilerState('SOURCE')
@@ -247,7 +247,7 @@ describe('Stage E closure matrix', () => {
     const pendingAccepted = new Promise<CompilerStateView>((resolve) => { resolveAccepted = resolve; });
     const sourceState = staticCompilerState('SOURCE');
     const acceptedState = staticCompilerState('ORGANIZER_ACCEPTED');
-    const compileChallenge: ChallengeProductApi['compileChallenge'] = vi.fn((body) => (
+    const compileChallenge: ChallengeProductApi['compileChallenge'] = vi.fn((body: CompilerProposalInput) => (
       body.requirements.some((item) => item.provenance === 'ORGANIZER_ACCEPTED')
         ? pendingAccepted
         : Promise.resolve(sourceState)
@@ -274,7 +274,7 @@ describe('Stage E closure matrix', () => {
   it('keeps canonical persistence successful when only the post-write projection refresh fails', async () => {
     const sourceState = staticCompilerState('SOURCE');
     const acceptedState = staticCompilerState('ORGANIZER_ACCEPTED');
-    const compileChallenge: ChallengeProductApi['compileChallenge'] = vi.fn(async (body) => (
+    const compileChallenge: ChallengeProductApi['compileChallenge'] = vi.fn(async (body: CompilerProposalInput) => (
       body.requirements.some((item) => item.provenance === 'ORGANIZER_ACCEPTED') ? acceptedState : sourceState
     ));
     const getChallenge: ChallengeProductApi['getChallenge'] = vi.fn()
