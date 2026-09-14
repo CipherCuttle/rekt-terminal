@@ -1,6 +1,6 @@
 # REKT INKUBATOR — STAGE F BUILDER CAPSULE V1
 
-**Status:** USER-AUTHORIZED STAGE-F IMPLEMENTATION CONTRACT / STACKED ON STAGE-E CLOSURE  
+**Status:** USER-AUTHORIZED STAGE-F IMPLEMENTATION CONTRACT / F1 CLOSED BY EXPLICIT GOVERNANCE WAIVER  
 **Date:** 2026-09-14  
 **Base:** `0a115bb806eef82eb6ab5816c2d1598bf08d63ec` (`agent/stage-e-closure-v1`)  
 **Parent authorities:** `REKT_INKUBATOR_NORTH_STAR_V2.md`, `FUNDED_CHALLENGE_SURVIVOR_PLAN_V1_1.md`, `THIRD_PARTY_SUBSTRATE_LOCK_V1.md`
@@ -85,7 +85,7 @@ The existing top-level `rekt status` keeps its historical Mission meaning in F1.
 
 ## 3. F2 — immutable submission
 
-After F1 is green, Stage F may expose builder submission over the existing Stage-B/C law.
+F1 is now formally closed under the explicit governance waiver recorded below. Stage F may expose builder submission over the existing Stage-B/C law.
 
 Target command:
 
@@ -121,7 +121,7 @@ Builders may use Codex, Claude Code, Cursor, RooCode, Grok, Gemini, manual tools
 
 ## 6. F1 acceptance matrix
 
-F1 closes only when all are true:
+F1 implementation evidence satisfies:
 
 1. builder-owned entry can fetch a frozen capsule through scoped DevKit auth;
 2. non-entry Player is denied without leaking private builder data;
@@ -133,10 +133,20 @@ F1 closes only when all are true:
 8. `rekt challenge status` requires no network mutation;
 9. `rekt challenge check` detects ordinary file tampering, coordinated helper+metadata-hash tampering, and contract/digest mismatch while making only a local-consistency claim;
 10. legacy top-level DevKit commands still behave as before;
-11. canonical CI, Inkubator Auth/Foundation integration, and DevKit tests are green on the exact F1 head;
-12. one independent hostile F1 closure review completes under the bounded review policy.
+11. exact implementation head `9aea1c674590f94920a4063b501d9333cef23dda` passed CI #1529 and Inkubator Auth Foundation #505, including the real-Postgres integration path.
 
-## 7. Explicit non-goals
+The original item 12 required one independent hostile F1 closure review. External Codex/Copilot reviewer availability blocked that gate despite repeated bounded attempts. On 2026-09-14 the user explicitly replaced that requirement with the completed adversarial self-audit plus the exact-head green gates above and authorized F2 implementation. This is a deliberate governance exception, not evidence that an independent review occurred.
+
+## 7. F1 adversarial self-audit repairs
+
+Before closure, the self-audit found and repaired two material defects:
+
+- coordinated helper-file + local metadata hash tampering could previously create a false local pass; repaired by re-deriving deterministic helper views from frozen `contract.json`;
+- pre-existing symlinked capsule paths could redirect writes; repaired with `lstat`-based symlink rejection across capsule roots/ancestors.
+
+Regression tests cover both defects. The final exact implementation head remained green after those repairs.
+
+## 8. Explicit non-goals
 
 F1 does not add:
 
@@ -153,7 +163,9 @@ F1 does not add:
 - new model/provider inference;
 - remote signing/authenticity for the offline capsule directory.
 
-## 8. Bounded completion
+## 9. Governance exception and bounded completion
+
+Original closure policy:
 
 ```text
 IMPLEMENT F1
@@ -165,15 +177,25 @@ IMPLEMENT F1
 → MOVE TO F2
 ```
 
-No review loop.
+Recorded exception on 2026-09-14:
 
-## 9. Current verdict
+```text
+INDEPENDENT F1 REVIEW = WAIVED BY EXPLICIT USER AUTHORITY
+CLOSURE BASIS = COMPLETED ADVERSARIAL SELF-AUDIT + EXACT-HEAD CI/AUTH GATES
+F1 = CLOSED / PASS UNDER GOVERNANCE EXCEPTION
+F2 IMPLEMENTATION = AUTHORIZED
+MERGE AUTHORITY = STILL NONE
+```
+
+The waiver changes only the F1 review gate. It does not grant merge authority, production-money authority, Stage-G authority, or permission to merge #98 ahead of #97.
+
+## 10. Current verdict
 
 ```text
 STAGE E                                      CLOSED / PASS / UNMERGED DEPENDENCY
 STAGE F                                      AUTHORIZED / IN PROGRESS
-F1 BUILDER CAPSULE                           IMPLEMENTED / EXACT-HEAD GATES PASS / INDEPENDENT REVIEW PENDING
-F2 IMMUTABLE SUBMISSION                      SEQUENCED AFTER F1
+F1 BUILDER CAPSULE                           CLOSED / PASS BY EXPLICIT GOVERNANCE WAIVER
+F2 IMMUTABLE SUBMISSION                      AUTHORIZED / NEXT IMPLEMENTATION SLICE
 F3 ARCHIVE / EVIDENCE CAPTURE                SEQUENCED AFTER F2
 STAGE G                                      NOT AUTHORIZED
 PRODUCTION MONEY                             NOT AUTHORIZED
