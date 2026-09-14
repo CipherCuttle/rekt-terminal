@@ -30,7 +30,7 @@ function sha256(value: string): string {
 }
 
 function jsonFile(path: string, value: unknown): BuilderCapsuleFile {
-  const content = `${canonicalizeJson(value).value}\n`;
+  const content = `${canonicalizeJson(value).serialized}\n`;
   return {path, media_type: 'application/json', sha256: sha256(content), content};
 }
 
@@ -103,7 +103,7 @@ function buildChallengeMarkdown(contract: BuildContract & {terms_digest: string}
     'Preferences are non-qualifying selection guidance unless the frozen contract says otherwise.',
     '',
     '```json',
-    canonicalizeJson(contract.preferences).value,
+    canonicalizeJson(contract.preferences).serialized,
     '```',
     '',
     '## Reference Architecture',
@@ -111,7 +111,7 @@ function buildChallengeMarkdown(contract: BuildContract & {terms_digest: string}
     'Reference architecture is advisory unless a frozen criterion or normative constraint makes a specific interface/technology mandatory.',
     '',
     '```json',
-    canonicalizeJson(contract.reference_architecture).value,
+    canonicalizeJson(contract.reference_architecture).serialized,
     '```',
     '',
   );
