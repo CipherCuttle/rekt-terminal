@@ -3,14 +3,47 @@ import {InkubatorApiClient, InkubatorApiError, type FetchLike} from './generated
 export {InkubatorApiError};
 export interface InkubatorServerClientOptions { baseUrl: string; accessToken: string; fetchImpl?: FetchLike; }
 export interface MutationOptions { idempotencyKey?: string; }
+export interface BuilderCapsuleFile {
+  path: string;
+  media_type: 'text/markdown' | 'application/json';
+  sha256: string;
+  content: string;
+}
+export interface BuilderCapsuleView {
+  schema_version: 'builder-capsule.v1';
+  challenge_id: string;
+  entry_id: string;
+  entry_state: string;
+  contract_version: string;
+  terms_digest: string;
+  submission_deadline: string;
+  files: BuilderCapsuleFile[];
+}
 const requestId = (value?: string) => value ?? crypto.randomUUID();
 
 export function createInkubatorServerClient(options: InkubatorServerClientOptions) {
-  const transport = new InkubatorApiClient(options.baseUrl, options.fetchImpl ?? fetch, options.accessToken);
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const transport = new InkubatorApiClient(options.baseUrl, fetchImpl, options.accessToken);
+  const requestJson = async <T>(route: string): Promise<T> => {
+    const response = await fetchImpl(`${options.baseUrl.replace(/\/$/, '')}${route}`, {
+      method: 'GET',
+      headers: {authorization: `Bearer ${options.accessToken}`},
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as {error?: unknown} | null;
+      const message = typeof body?.error === 'string' ? body.error : `request_failed_${response.status}`;
+      throw new InkubatorApiError(response.status, message);
+    }
+    return await response.json() as T;
+  };
+
   return {
     player: {
       me: () => transport.getDevkitMe(),
       profile: () => transport.getDevkitPlayerProfile(),
+    },
+    challenge: {
+      capsule: (challengeId: string) => requestJson<BuilderCapsuleView>(`/v1/devkit/challenges/${encodeURIComponent(challengeId)}/capsule`),
     },
     mission: {
       current: () => transport.getDevkitCurrentMission(),
