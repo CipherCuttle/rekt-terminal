@@ -9,6 +9,7 @@ import {createInkubatorServerClient, type BuilderCapsuleView} from '@rekt-ink/sd
 type Io = {out:(value:string)=>void;err:(value:string)=>void};
 type Config = {schema_version:'rekt.local.v1';api_url:string;project_id:string;mission_id:string};
 type LocalCapsule = Omit<BuilderCapsuleView,'files'> & {files:Array<Omit<BuilderCapsuleView['files'][number],'content'>>};
+const EXPECTED_CAPSULE_PATHS=['CHALLENGE.md','contract.json','acceptance/manifest.json','references/manifest.json'] as const;
 const defaultIo: Io = {out:(value)=>process.stdout.write(`${value}\n`),err:(value)=>process.stderr.write(`${value}\n`)};
 function parse(args:string[]){const values=new Map<string,string>();const positional:string[]=[];for(let i=0;i<args.length;i+=1){const item=args[i];if(item.startsWith('--')){const value=args[i+1];if(!value||value.startsWith('--'))throw new Error(`missing_value_${item.slice(2)}`);values.set(item.slice(2),value);i+=1;}else positional.push(item);}return {values,positional};}
 function configPath(cwd:string){return path.join(cwd,'.rekt','config.json');}
@@ -27,14 +28,34 @@ function safeCapsuleTarget(root:string,relativePath:string){
   if(!target.startsWith(`${resolvedRoot}${path.sep}`))throw new Error(`capsule_path_invalid:${relativePath}`);
   return target;
 }
+function assertCapsuleShape(paths:string[]){
+  if(new Set(paths).size!==paths.length)throw new Error('capsule_file_duplicate');
+  const actual=[...paths].sort();const expected=[...EXPECTED_CAPSULE_PATHS].sort();
+  if(actual.length!==expected.length||actual.some((value,index)=>value!==expected[index]))throw new Error('capsule_file_set_invalid');
+}
+function validateFrozenContract(content:string,capsule:{challenge_id:string;contract_version:string;terms_digest:string}){
+  let parsed:unknown;try{parsed=JSON.parse(content);}catch{throw new Error('capsule_contract_json_invalid');}
+  const contract=assertFrozenBuildContract(parsed);
+  if(contract.challenge_id!==capsule.challenge_id||contract.contract_version!==capsule.contract_version||contract.terms_digest!==capsule.terms_digest)throw new Error('capsule_contract_lineage_mismatch');
+}
 function readLocalCapsule(root:string):LocalCapsule{
   const value=JSON.parse(fs.readFileSync(capsuleMetadataPath(root),'utf8')) as LocalCapsule;
   if(value?.schema_version!=='builder-capsule.v1'||!Array.isArray(value.files))throw new Error('builder_capsule_local_invalid');
+  assertCapsuleShape(value.files.map((file)=>file.path));
   return value;
 }
 function writeCapsule(root:string,capsule:BuilderCapsuleView){
+  if(capsule.schema_version!=='builder-capsule.v1')throw new Error('builder_capsule_server_invalid');
+  assertCapsuleShape(capsule.files.map((file)=>file.path));
+  const prepared=capsule.files.map((file)=>{
+    const target=safeCapsuleTarget(root,file.path);
+    if(sha256(file.content)!==file.sha256)throw new Error(`capsule_server_digest_mismatch:${file.path}`);
+    return {file,target};
+  });
+  const contractFile=capsule.files.find((file)=>file.path==='contract.json');if(!contractFile)throw new Error('capsule_contract_missing');
+  validateFrozenContract(contractFile.content,capsule);
   fs.mkdirSync(root,{recursive:true});
-  for(const file of capsule.files){const target=safeCapsuleTarget(root,file.path);if(sha256(file.content)!==file.sha256)throw new Error(`capsule_server_digest_mismatch:${file.path}`);fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,file.content,'utf8');}
+  for(const {file,target} of prepared){fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,file.content,'utf8');}
   const local:LocalCapsule={...capsule,files:capsule.files.map(({content:_content,...file})=>file)};
   fs.writeFileSync(capsuleMetadataPath(root),JSON.stringify(local,null,2)+'\n','utf8');
 }
@@ -42,8 +63,7 @@ function checkCapsule(root:string){
   const capsule=readLocalCapsule(root);
   for(const file of capsule.files){const target=safeCapsuleTarget(root,file.path);if(!fs.existsSync(target))throw new Error(`capsule_file_missing:${file.path}`);const content=fs.readFileSync(target,'utf8');if(sha256(content)!==file.sha256)throw new Error(`capsule_file_digest_mismatch:${file.path}`);}
   const contractEntry=capsule.files.find((file)=>file.path==='contract.json');if(!contractEntry)throw new Error('capsule_contract_missing');
-  const contractPath=safeCapsuleTarget(root,contractEntry.path);const contract=assertFrozenBuildContract(JSON.parse(fs.readFileSync(contractPath,'utf8')));
-  if(contract.challenge_id!==capsule.challenge_id||contract.contract_version!==capsule.contract_version||contract.terms_digest!==capsule.terms_digest)throw new Error('capsule_contract_lineage_mismatch');
+  validateFrozenContract(fs.readFileSync(safeCapsuleTarget(root,contractEntry.path),'utf8'),capsule);
   return capsule;
 }
 
@@ -54,7 +74,7 @@ async function challengeCommand(rest:string[],env:NodeJS.ProcessEnv,io:Io,cwd:st
   if(subcommand==='pull'){
     const challengeId=positional[0];if(!challengeId)throw new Error('challenge_id_required');
     const apiUrl=values.get('api')??env.REKT_API_URL??'http://127.0.0.1:8787';
-    const capsule=await clientFor(env,apiUrl).challenge.capsule(challengeId);writeCapsule(root,capsule);
+    const capsule=await clientFor(env,apiUrl).challenge.capsule(challengeId);if(capsule.challenge_id!==challengeId.toLowerCase())throw new Error('capsule_challenge_mismatch');writeCapsule(root,capsule);
     io.out(`challenge pulled ${capsule.challenge_id} ${capsule.terms_digest}`);return 0;
   }
   if(subcommand==='status'){
