@@ -174,7 +174,7 @@ export function buildFrozenBuildContractPreview(
     },
     {blueprints: [...ACTIVE_BLUEPRINTS]},
   );
-  const contract = freezeBuildContract(candidate) as BuildContract & {terms_digest: string};
+  const contract = freezeBuildContract(candidate as BuildContract) as BuildContract & {terms_digest: string};
   return {
     schema_version: 'build-contract.preview.v1',
     canonical: false,
