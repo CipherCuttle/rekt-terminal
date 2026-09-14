@@ -1,6 +1,9 @@
 import {useEffect, useMemo, useState, type ReactNode} from 'react';
 import {
   createInkubatorApiClient,
+  type BuildContractPreviewAuthorityInput,
+  type BuildContractPreviewView,
+  type CompilerInputProvenance,
   type CompilerProposalInput,
   type CompilerStateView,
   type PublicChallengeView,
@@ -46,14 +49,18 @@ function emptyRequirementAnswers(): CompilerRequirementAnswers {
   return Object.fromEntries(REQUIREMENTS.map(([key]) => [key, 'UNKNOWN'])) as CompilerRequirementAnswers;
 }
 
-export function buildCompilerProposal(sourceIntent: string, answers: CompilerRequirementAnswers): CompilerProposalInput {
+export function buildCompilerProposal(
+  sourceIntent: string,
+  answers: CompilerRequirementAnswers,
+  provenance: CompilerInputProvenance = 'SOURCE',
+): CompilerProposalInput {
   return {
     schema_version: 'inkubator.compiler-proposal/1.0',
     source_intent: sourceIntent.trim(),
     requirements: REQUIREMENTS.flatMap(([key]) => {
       const answer = answers[key];
       if (answer === 'UNKNOWN') return [];
-      return [{key, value: answer === 'YES', provenance: 'SOURCE' as const}];
+      return [{key, value: answer === 'YES', provenance}];
     }),
     knowledge: [],
     outcome_criteria: [],
@@ -65,6 +72,11 @@ export function buildCompilerProposal(sourceIntent: string, answers: CompilerReq
 export interface ChallengeProductApi {
   compileChallenge(body: CompilerProposalInput): Promise<CompilerStateView>;
   getChallenge(challengeId: string): Promise<PublicChallengeView>;
+  previewBuildContract(
+    challengeId: string,
+    compilerState: CompilerStateView,
+    authority: BuildContractPreviewAuthorityInput,
+  ): Promise<BuildContractPreviewView>;
 }
 
 const DEFAULT_PRODUCT_API: ChallengeProductApi = createInkubatorApiClient();
@@ -109,6 +121,13 @@ function CompilerReadout({compilerState}: {compilerState: CompilerStateView}) {
       </div>
 
       <section className="compiler-machine__section">
+        <h3>INPUT AUTHORITY</h3>
+        {compilerState.requirements.length ? (
+          <ul>{compilerState.requirements.map((requirement) => <li key={requirement.key}><code>{requirement.key}</code> = {String(requirement.value)} <small>{requirement.provenance}</small></li>)}</ul>
+        ) : <p>No explicit structured inputs yet.</p>}
+      </section>
+
+      <section className="compiler-machine__section">
         <h3>KNOWN / ASSUMED / UNKNOWN</h3>
         <p>{knowledgeCounts.KNOWN} / {knowledgeCounts.ASSUMED} / {knowledgeCounts.UNKNOWN}</p>
       </section>
@@ -117,7 +136,7 @@ function CompilerReadout({compilerState}: {compilerState: CompilerStateView}) {
         <h3>DETERMINISTIC FACTS</h3>
         {compilerState.causal_facts.length ? (
           <ul>{compilerState.causal_facts.map((fact) => <li key={`${fact.rule_id}:${fact.key}`}><code>{fact.key}</code> = {String(fact.value)} <small>{fact.rule_id}</small></li>)}</ul>
-        ) : <p>None derived from the current SOURCE requirements.</p>}
+        ) : <p>None derived from the current organizer inputs.</p>}
       </section>
 
       <section className="compiler-machine__section">
@@ -149,14 +168,52 @@ function CompilerReadout({compilerState}: {compilerState: CompilerStateView}) {
 }
 
 function CompilerSurface({api}: {api: ChallengeProductApi}) {
+  const challengeId = new URLSearchParams(window.location.search).get('challenge');
   const [sourceIntent, setSourceIntent] = useState('');
   const [answers, setAnswers] = useState<CompilerRequirementAnswers>(() => emptyRequirementAnswers());
   const [compilerState, setCompilerState] = useState<CompilerStateView | null>(null);
   const [compilePhase, setCompilePhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
+  const [accepted, setAccepted] = useState(false);
+  const [challengeView, setChallengeView] = useState<PublicChallengeView | null>(null);
+  const [challengePhase, setChallengePhase] = useState<'IDLE' | 'LOADING' | 'NOT_FOUND' | 'ERROR'>('IDLE');
+  const [contractVersion, setContractVersion] = useState('');
+  const [contractTitle, setContractTitle] = useState('');
+  const [prizeMinorUnits, setPrizeMinorUnits] = useState('');
+  const [settlementAsset, setSettlementAsset] = useState('');
+  const [preview, setPreview] = useState<BuildContractPreviewView | null>(null);
+  const [previewPhase, setPreviewPhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
+
+  useEffect(() => {
+    if (!challengeId) {
+      setChallengeView(null);
+      setChallengePhase('IDLE');
+      return;
+    }
+    let cancelled = false;
+    setChallengeView(null);
+    setChallengePhase('LOADING');
+    void api.getChallenge(challengeId).then((next) => {
+      if (cancelled) return;
+      setChallengeView(next);
+      setChallengePhase('IDLE');
+    }).catch((cause) => {
+      if (cancelled) return;
+      setChallengePhase(cause instanceof Error && cause.message === 'challenge_not_found' ? 'NOT_FOUND' : 'ERROR');
+    });
+    return () => { cancelled = true; };
+  }, [api, challengeId]);
 
   const invalidate = () => {
     setCompilerState(null);
     setCompilePhase('IDLE');
+    setAccepted(false);
+    setPreview(null);
+    setPreviewPhase('IDLE');
+  };
+
+  const invalidatePreview = () => {
+    setPreview(null);
+    setPreviewPhase('IDLE');
   };
 
   const updateAnswer = (key: keyof CompilerRequirementAnswers, answer: RequirementAnswer) => {
@@ -164,16 +221,45 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     invalidate();
   };
 
-  const compile = async () => {
+  const compile = async (provenance: CompilerInputProvenance = 'SOURCE') => {
     if (!sourceIntent.trim()) return;
     setCompilePhase('LOADING');
     setCompilerState(null);
+    setPreview(null);
     try {
-      const next = await api.compileChallenge(buildCompilerProposal(sourceIntent, answers));
+      const next = await api.compileChallenge(buildCompilerProposal(sourceIntent, answers, provenance));
       setCompilerState(next);
+      setAccepted(provenance === 'ORGANIZER_ACCEPTED');
       setCompilePhase('IDLE');
     } catch {
+      setAccepted(false);
       setCompilePhase('ERROR');
+    }
+  };
+
+  const previewContract = async () => {
+    if (!challengeId || !compilerState || !challengeView) return;
+    const prize = Number(prizeMinorUnits);
+    if (!Number.isSafeInteger(prize) || prize < 1) return;
+    setPreview(null);
+    setPreviewPhase('LOADING');
+    const authority: BuildContractPreviewAuthorityInput = {
+      contract_version: contractVersion.trim(),
+      title: contractTitle.trim(),
+      brief: sourceIntent.trim(),
+      preferences: {},
+      normative_constraints: [],
+      normative_references: [],
+      informational_references: [],
+      prize_minor_units: prize,
+      settlement_asset: settlementAsset.trim(),
+    };
+    try {
+      const next = await api.previewBuildContract(challengeId, compilerState, authority);
+      setPreview(next);
+      setPreviewPhase('IDLE');
+    } catch {
+      setPreviewPhase('ERROR');
     }
   };
 
@@ -181,14 +267,35 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   let title = sourceIntent.trim() ? 'Source draft ready. Compile explicit requirements when you want deterministic state.' : 'Start with a fuzzy idea.';
   if (compilePhase === 'LOADING') {
     state = 'LOADING';
-    title = 'Running the deterministic Stage-D compiler.';
+    title = accepted ? 'Replaying organizer-accepted inputs through the deterministic compiler.' : 'Running the deterministic Stage-D compiler.';
   } else if (compilePhase === 'ERROR') {
     state = 'ERROR';
     title = 'Compiler transport failed. No result was fabricated.';
   } else if (compilerState) {
     state = 'NORMAL';
-    title = `Compiler state: ${compilerState.status}.`;
+    title = `Compiler state: ${compilerState.status}${accepted ? ' / ORGANIZER_ACCEPTED' : ''}.`;
   }
+
+  const challengeReadyForPreview = Boolean(
+    challengeView
+    && challengeView.status === 'DRAFT'
+    && !challengeView.has_frozen_contract
+    && challengeView.current_contract_version === null
+    && challengeView.current_terms_digest === null,
+  );
+  const prize = Number(prizeMinorUnits);
+  const previewReady = Boolean(
+    challengeId
+    && challengeReadyForPreview
+    && compilerState?.status === 'READY'
+    && accepted
+    && contractVersion.trim()
+    && contractTitle.trim()
+    && settlementAsset.trim()
+    && Number.isSafeInteger(prize)
+    && prize > 0
+    && previewPhase !== 'LOADING',
+  );
 
   return (
     <div className="compiler-foundation">
@@ -225,10 +332,13 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         </fieldset>
 
         <div className="compiler-intake__actions">
-          <button type="button" disabled={!sourceIntent.trim() || compilePhase === 'LOADING'} onClick={() => void compile()}>
+          <button type="button" disabled={!sourceIntent.trim() || compilePhase === 'LOADING'} onClick={() => void compile('SOURCE')}>
             {compilePhase === 'LOADING' ? 'COMPILING…' : 'COMPILE DETERMINISTIC STATE'}
           </button>
-          <span>{compilerState ? `${compilerState.compiler_version} / ${compilerState.status}` : sourceIntent.trim() ? 'SOURCE DRAFT / UNCOMPILED' : 'NO SOURCE INTENT YET'}</span>
+          <button type="button" disabled={!compilerState || compilePhase === 'LOADING'} onClick={() => void compile('ORGANIZER_ACCEPTED')}>
+            ACCEPT CURRENT INPUTS
+          </button>
+          <span>{compilerState ? `${compilerState.compiler_version} / ${compilerState.status} / ${accepted ? 'ORGANIZER_ACCEPTED' : 'SOURCE'}` : sourceIntent.trim() ? 'SOURCE DRAFT / UNCOMPILED' : 'NO SOURCE INTENT YET'}</span>
         </div>
       </section>
 
@@ -245,6 +355,48 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
           </>
         )}
       </StatePanel>
+
+      <section className="compiler-contract" aria-labelledby="compiler-contract-title">
+        <small>BUILD CONTRACT / STAGE-B PREVIEW</small>
+        <h2 id="compiler-contract-title">NEGOTIATED MOCK BUILD CONTRACT</h2>
+        <p>The preview uses the real Stage-B Build Contract candidate + digest-freeze semantics. It is deliberately <b>NONCANONICAL / NOT PERSISTED</b>; no Challenge state, funding state, wallet state or settlement state is mutated here.</p>
+
+        {!challengeId ? <p className="compiler-contract__notice">SELECT A DRAFT CHALLENGE — add a canonical <code>?challenge=&lt;id&gt;</code> context before freezing a preview.</p> : null}
+        {challengePhase === 'LOADING' ? <p className="compiler-contract__notice">READING CHALLENGE AUTHORITY…</p> : null}
+        {challengePhase === 'NOT_FOUND' ? <p className="compiler-contract__notice">CHALLENGE NOT FOUND.</p> : null}
+        {challengePhase === 'ERROR' ? <p className="compiler-contract__notice">CHALLENGE TRANSPORT ERROR — preview disabled.</p> : null}
+        {challengeView ? (
+          <dl className="challenge-facts" aria-label="Build Contract Challenge authority">
+            <div><dt>CHALLENGE</dt><dd><code>{challengeView.challenge_id}</code></dd></div>
+            <div><dt>STATE</dt><dd>{challengeView.status}</dd></div>
+            <div><dt>CONTRACT</dt><dd>{challengeView.has_frozen_contract ? 'FROZEN' : 'UNFROZEN'}</dd></div>
+            <div><dt>SCHEDULE AUTHORITY</dt><dd>{challengeView.entry_deadline} → {challengeView.submission_deadline}</dd></div>
+          </dl>
+        ) : null}
+
+        <div className="compiler-contract__fields">
+          <label htmlFor="contract-version">CONTRACT VERSION<input id="contract-version" value={contractVersion} onChange={(event) => { setContractVersion(event.target.value); invalidatePreview(); }} placeholder="1.0.0" /></label>
+          <label htmlFor="contract-title">TITLE<input id="contract-title" value={contractTitle} onChange={(event) => { setContractTitle(event.target.value); invalidatePreview(); }} placeholder="Challenge title" /></label>
+          <label htmlFor="contract-prize">PRIZE / MINOR UNITS<input id="contract-prize" inputMode="numeric" value={prizeMinorUnits} onChange={(event) => { setPrizeMinorUnits(event.target.value); invalidatePreview(); }} placeholder="100" /></label>
+          <label htmlFor="contract-asset">SETTLEMENT ASSET<input id="contract-asset" value={settlementAsset} onChange={(event) => { setSettlementAsset(event.target.value); invalidatePreview(); }} placeholder="TEST" /></label>
+        </div>
+
+        <div className="compiler-contract__actions">
+          <button type="button" disabled={!previewReady} onClick={() => void previewContract()}>
+            {previewPhase === 'LOADING' ? 'FREEZING PREVIEW…' : 'FREEZE NONCANONICAL PREVIEW'}
+          </button>
+          <span>{!accepted ? 'ORGANIZER ACCEPTANCE REQUIRED' : compilerState?.status !== 'READY' ? 'COMPILER MUST BE READY' : !challengeReadyForPreview ? 'UNFROZEN DRAFT CHALLENGE REQUIRED' : 'PREVIEW ONLY / NO PERSISTENCE'}</span>
+        </div>
+
+        {previewPhase === 'ERROR' ? <p className="compiler-contract__notice">PREVIEW REJECTED — authority, readiness or Build Contract validation failed. Nothing was persisted.</p> : null}
+        {preview ? (
+          <div className="compiler-contract__result" data-build-contract-preview="noncanonical">
+            <strong>NONCANONICAL / NOT PERSISTED</strong>
+            <span>TERMS DIGEST <code>{preview.contract.terms_digest}</code></span>
+            <pre>{JSON.stringify(preview.contract, null, 2)}</pre>
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }
