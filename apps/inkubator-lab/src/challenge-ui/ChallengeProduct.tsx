@@ -3,6 +3,7 @@ import {
   createInkubatorApiClient,
   type BuildContractPreviewAuthorityInput,
   type BuildContractPreviewView,
+  type CanonicalBuildContractView,
   type CompilerInputProvenance,
   type CompilerProposalInput,
   type CompilerStateView,
@@ -77,6 +78,13 @@ export interface ChallengeProductApi {
     compilerState: CompilerStateView,
     authority: BuildContractPreviewAuthorityInput,
   ): Promise<BuildContractPreviewView>;
+  persistBuildContract(
+    challengeId: string,
+    requestId: string,
+    compilerState: CompilerStateView,
+    authority: BuildContractPreviewAuthorityInput,
+    expectedTermsDigest: string,
+  ): Promise<CanonicalBuildContractView>;
 }
 
 const DEFAULT_PRODUCT_API: ChallengeProductApi = createInkubatorApiClient();
@@ -181,7 +189,11 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const [prizeMinorUnits, setPrizeMinorUnits] = useState('');
   const [settlementAsset, setSettlementAsset] = useState('');
   const [preview, setPreview] = useState<BuildContractPreviewView | null>(null);
+  const [previewAuthority, setPreviewAuthority] = useState<BuildContractPreviewAuthorityInput | null>(null);
   const [previewPhase, setPreviewPhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
+  const [persistRequestId, setPersistRequestId] = useState<string | null>(null);
+  const [persistPhase, setPersistPhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
+  const [canonicalContract, setCanonicalContract] = useState<CanonicalBuildContractView | null>(null);
 
   useEffect(() => {
     if (!challengeId) {
@@ -208,12 +220,20 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     setCompilePhase('IDLE');
     setAccepted(false);
     setPreview(null);
+    setPreviewAuthority(null);
     setPreviewPhase('IDLE');
+    setPersistRequestId(null);
+    setPersistPhase('IDLE');
+    setCanonicalContract(null);
   };
 
   const invalidatePreview = () => {
     setPreview(null);
+    setPreviewAuthority(null);
     setPreviewPhase('IDLE');
+    setPersistRequestId(null);
+    setPersistPhase('IDLE');
+    setCanonicalContract(null);
   };
 
   const updateAnswer = (key: keyof CompilerRequirementAnswers, answer: RequirementAnswer) => {
@@ -226,6 +246,9 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     setCompilePhase('LOADING');
     setCompilerState(null);
     setPreview(null);
+    setPreviewAuthority(null);
+    setPersistRequestId(null);
+    setCanonicalContract(null);
     try {
       const next = await api.compileChallenge(buildCompilerProposal(sourceIntent, answers, provenance));
       setCompilerState(next);
@@ -237,13 +260,10 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     }
   };
 
-  const previewContract = async () => {
-    if (!challengeId || !compilerState || !challengeView) return;
+  const buildAuthority = (): BuildContractPreviewAuthorityInput | null => {
     const prize = Number(prizeMinorUnits);
-    if (!Number.isSafeInteger(prize) || prize < 1) return;
-    setPreview(null);
-    setPreviewPhase('LOADING');
-    const authority: BuildContractPreviewAuthorityInput = {
+    if (!Number.isSafeInteger(prize) || prize < 1) return null;
+    return {
       contract_version: contractVersion.trim(),
       title: contractTitle.trim(),
       brief: sourceIntent.trim(),
@@ -254,12 +274,46 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
       prize_minor_units: prize,
       settlement_asset: settlementAsset.trim(),
     };
+  };
+
+  const previewContract = async () => {
+    if (!challengeId || !compilerState || !challengeView) return;
+    const authority = buildAuthority();
+    if (!authority) return;
+    setPreview(null);
+    setPreviewAuthority(null);
+    setPersistRequestId(null);
+    setCanonicalContract(null);
+    setPreviewPhase('LOADING');
     try {
       const next = await api.previewBuildContract(challengeId, compilerState, authority);
       setPreview(next);
+      setPreviewAuthority(authority);
+      setPersistRequestId(crypto.randomUUID());
       setPreviewPhase('IDLE');
     } catch {
       setPreviewPhase('ERROR');
+    }
+  };
+
+  const persistContract = async () => {
+    if (!challengeId || !compilerState || !preview || !previewAuthority || !persistRequestId) return;
+    setPersistPhase('LOADING');
+    setCanonicalContract(null);
+    try {
+      const next = await api.persistBuildContract(
+        challengeId,
+        persistRequestId,
+        compilerState,
+        previewAuthority,
+        preview.contract.terms_digest,
+      );
+      if (next.terms_digest !== preview.contract.terms_digest) throw new Error('canonical_digest_mismatch');
+      setCanonicalContract(next);
+      setPersistPhase('IDLE');
+      setChallengeView(await api.getChallenge(challengeId));
+    } catch {
+      setPersistPhase('ERROR');
     }
   };
 
@@ -295,6 +349,13 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     && Number.isSafeInteger(prize)
     && prize > 0
     && previewPhase !== 'LOADING',
+  );
+  const persistReady = Boolean(
+    preview
+    && previewAuthority
+    && persistRequestId
+    && !canonicalContract
+    && persistPhase !== 'LOADING',
   );
 
   return (
@@ -357,14 +418,14 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
       </StatePanel>
 
       <section className="compiler-contract" aria-labelledby="compiler-contract-title">
-        <small>BUILD CONTRACT / STAGE-B PREVIEW</small>
-        <h2 id="compiler-contract-title">NEGOTIATED MOCK BUILD CONTRACT</h2>
-        <p>The preview uses the real Stage-B Build Contract candidate + digest-freeze semantics. It is deliberately <b>NONCANONICAL / NOT PERSISTED</b>; no Challenge state, funding state, wallet state or settlement state is mutated here.</p>
+        <small>BUILD CONTRACT / STAGE-B FREEZE</small>
+        <h2 id="compiler-contract-title">NEGOTIATED BUILD CONTRACT</h2>
+        <p>The preview uses the real Stage-B Build Contract candidate + digest-freeze semantics. Canonical persistence requires an authenticated organizer and recomputes the exact accepted contract server-side before Stage C stores it.</p>
 
         {!challengeId ? <p className="compiler-contract__notice">SELECT A DRAFT CHALLENGE — add a canonical <code>?challenge=&lt;id&gt;</code> context before freezing a preview.</p> : null}
         {challengePhase === 'LOADING' ? <p className="compiler-contract__notice">READING CHALLENGE AUTHORITY…</p> : null}
         {challengePhase === 'NOT_FOUND' ? <p className="compiler-contract__notice">CHALLENGE NOT FOUND.</p> : null}
-        {challengePhase === 'ERROR' ? <p className="compiler-contract__notice">CHALLENGE TRANSPORT ERROR — preview disabled.</p> : null}
+        {challengePhase === 'ERROR' ? <p className="compiler-contract__notice">CHALLENGE TRANSPORT ERROR — freeze disabled.</p> : null}
         {challengeView ? (
           <dl className="challenge-facts" aria-label="Build Contract Challenge authority">
             <div><dt>CHALLENGE</dt><dd><code>{challengeView.challenge_id}</code></dd></div>
@@ -385,15 +446,26 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
           <button type="button" disabled={!previewReady} onClick={() => void previewContract()}>
             {previewPhase === 'LOADING' ? 'FREEZING PREVIEW…' : 'FREEZE NONCANONICAL PREVIEW'}
           </button>
-          <span>{!accepted ? 'ORGANIZER ACCEPTANCE REQUIRED' : compilerState?.status !== 'READY' ? 'COMPILER MUST BE READY' : !challengeReadyForPreview ? 'UNFROZEN DRAFT CHALLENGE REQUIRED' : 'PREVIEW ONLY / NO PERSISTENCE'}</span>
+          <button type="button" disabled={!persistReady} onClick={() => void persistContract()}>
+            {persistPhase === 'LOADING' ? 'PERSISTING CANONICAL CONTRACT…' : 'PERSIST CANONICAL CONTRACT'}
+          </button>
+          <span>{canonicalContract ? 'CANONICAL / PERSISTED' : preview ? 'AUTHENTICATED ORGANIZER REQUIRED TO PERSIST' : !accepted ? 'ORGANIZER ACCEPTANCE REQUIRED' : compilerState?.status !== 'READY' ? 'COMPILER MUST BE READY' : !challengeReadyForPreview ? 'UNFROZEN DRAFT CHALLENGE REQUIRED' : 'PREVIEW FIRST / NO PERSISTENCE YET'}</span>
         </div>
 
         {previewPhase === 'ERROR' ? <p className="compiler-contract__notice">PREVIEW REJECTED — authority, readiness or Build Contract validation failed. Nothing was persisted.</p> : null}
+        {persistPhase === 'ERROR' ? <p className="compiler-contract__notice">CANONICAL PERSISTENCE REJECTED — authentication, organizer authority, preview lineage or idempotency validation failed.</p> : null}
         {preview ? (
           <div className="compiler-contract__result" data-build-contract-preview="noncanonical">
-            <strong>NONCANONICAL / NOT PERSISTED</strong>
+            <strong>NONCANONICAL PREVIEW / DIGEST-FROZEN</strong>
             <span>TERMS DIGEST <code>{preview.contract.terms_digest}</code></span>
             <pre>{JSON.stringify(preview.contract, null, 2)}</pre>
+          </div>
+        ) : null}
+        {canonicalContract ? (
+          <div className="compiler-contract__result" data-build-contract-canonical="persisted">
+            <strong>CANONICAL / PERSISTED</strong>
+            <span>TERMS DIGEST <code>{canonicalContract.terms_digest}</code></span>
+            <span>CONTRACT {canonicalContract.contract_version} · FROZEN {canonicalContract.frozen_at}</span>
           </div>
         ) : null}
       </section>
