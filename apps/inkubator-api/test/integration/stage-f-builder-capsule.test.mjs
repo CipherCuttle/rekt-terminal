@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import test from 'node:test';
+import {sql} from 'kysely';
 import {buildApp} from '../../dist/app.js';
 import {compileOrganizerDraft, registerStageEChallengeProductRoutes} from '../../dist/challenge-product-api.js';
-import {createChallenge} from '../../dist/challenge-store.js';
+import {acquireChallengeSeat, createChallenge} from '../../dist/challenge-store.js';
 import {createDatabase} from '../../dist/database.js';
 import {migrateToLatest} from '../../dist/migrations.js';
 
@@ -20,13 +21,17 @@ async function createFrozenChallenge(app,db,organizer){
   const state=acceptedState();const preview=await app.inject({method:'POST',url:`/v1/challenges/${challengeId}/build-contract-preview`,headers:{origin:appOrigin,'content-type':'application/json'},payload:{compiler_state:state,authority:authority()}});assert.equal(preview.statusCode,200);
   const persisted=await app.inject({method:'POST',url:`/v1/challenges/${challengeId}/build-contract`,headers:{origin:appOrigin,cookie:organizer.cookie,'content-type':'application/json'},payload:{request_id:randomUUID(),compiler_state:state,authority:authority(),expected_terms_digest:preview.json().contract.terms_digest}});assert.equal(persisted.statusCode,200);return {challengeId,termsDigest:persisted.json().terms_digest};
 }
-async function insertEntry(db,challengeId,builderId){const entryId=randomUUID();await db.insertInto('challenge_entries').values({entry_id:entryId,challenge_id:challengeId,builder_player_id:builderId,project_id:null,mission_id:null,payout_identity:`builder-${entryId}`,state:'ACTIVE',build_start:new Date(t0+100),submission_deadline:new Date(t0+1000)}).executeTakeFirstOrThrow();return entryId;}
+async function seatEntry(db,challengeId,builderId){
+  await sql`update challenges set status = 'ENTRY_OPEN' where challenge_id = ${challengeId}`.execute(db);
+  const entry=await acquireChallengeSeat(db,{requestId:randomUUID(),entryId:randomUUID(),challengeId,builderPlayerId:builderId,payoutIdentity:`builder-${randomUUID()}`});
+  return entry.entry_id;
+}
 
 test('Stage F Builder Capsule is scoped to the authenticated Challenge builder and frozen contract',async()=>{
   const db=createDatabase(databaseUrl);await migrateToLatest(db);const app=buildApp({db,appOrigin,allowDevAuth:true,sessionTtlSeconds:3600});registerStageEChallengeProductRoutes(app,db);
   try{
     const organizer=await createActor(app,`F1 Organizer ${randomUUID().slice(0,6)}`);const builder=await createActor(app,`F1 Builder ${randomUUID().slice(0,6)}`);const outsider=await createActor(app,`F1 Outsider ${randomUUID().slice(0,6)}`);
-    const {challengeId,termsDigest}=await createFrozenChallenge(app,db,organizer);const entryId=await insertEntry(db,challengeId,builder.playerId);
+    const {challengeId,termsDigest}=await createFrozenChallenge(app,db,organizer);const entryId=await seatEntry(db,challengeId,builder.playerId);
     const builderToken=await issueToken(app,builder.cookie,'builder capsule');const outsiderToken=await issueToken(app,outsider.cookie,'outsider capsule');
 
     const read=await app.inject({method:'GET',url:`/v1/devkit/challenges/${challengeId}/capsule`,headers:{authorization:`Bearer ${builderToken}`}});assert.equal(read.statusCode,200);const capsule=read.json();assert.equal(capsule.schema_version,'builder-capsule.v1');assert.equal(capsule.challenge_id,challengeId);assert.equal(capsule.entry_id,entryId);assert.equal(capsule.terms_digest,termsDigest);assert.deepEqual(capsule.files.map(file=>file.path),['CHALLENGE.md','contract.json','acceptance/manifest.json','references/manifest.json']);assert.equal(JSON.parse(capsule.files.find(file=>file.path==='contract.json').content).terms_digest,termsDigest);
@@ -34,7 +39,7 @@ test('Stage F Builder Capsule is scoped to the authenticated Challenge builder a
     const denied=await app.inject({method:'GET',url:`/v1/devkit/challenges/${challengeId}/capsule`,headers:{authorization:`Bearer ${outsiderToken}`}});assert.equal(denied.statusCode,403);assert.equal(denied.json().error,'challenge_entry_required');
     const anonymous=await app.inject({method:'GET',url:`/v1/devkit/challenges/${challengeId}/capsule`});assert.equal(anonymous.statusCode,401);assert.equal(anonymous.json().error,'devkit_credential_required');
 
-    const unfrozenId=randomUUID();await createChallenge(db,{requestId:randomUUID(),challengeId:unfrozenId,organizerPlayerId:organizer.playerId,organizerPayoutIdentity:`org-${unfrozenId}`,funderPayoutIdentity:`fund-${unfrozenId}`,mechanismVersion:'funded-challenge/1.1',settlementPolicyVersion:'funded-challenge-settlement/1.0',ipTermsVersion:'bespoke-winner-transfer/1.0',slotLimit:4,activationMinimum:2,entryDeadlineMs:t0+100,buildStartMs:t0+100,submissionDeadlineMs:t0+1000,appealWindowMs:100,reviewDeadlineMs:t0+2000});await insertEntry(db,unfrozenId,builder.playerId);
+    const unfrozenId=randomUUID();await createChallenge(db,{requestId:randomUUID(),challengeId:unfrozenId,organizerPlayerId:organizer.playerId,organizerPayoutIdentity:`org-${unfrozenId}`,funderPayoutIdentity:`fund-${unfrozenId}`,mechanismVersion:'funded-challenge/1.1',settlementPolicyVersion:'funded-challenge-settlement/1.0',ipTermsVersion:'bespoke-winner-transfer/1.0',slotLimit:4,activationMinimum:2,entryDeadlineMs:t0+100,buildStartMs:t0+100,submissionDeadlineMs:t0+1000,appealWindowMs:100,reviewDeadlineMs:t0+2000});await seatEntry(db,unfrozenId,builder.playerId);
     const unfrozen=await app.inject({method:'GET',url:`/v1/devkit/challenges/${unfrozenId}/capsule`,headers:{authorization:`Bearer ${builderToken}`}});assert.equal(unfrozen.statusCode,409);assert.equal(unfrozen.json().error,'challenge_contract_not_frozen');
   }finally{await app.close();await db.destroy();}
 });
