@@ -226,7 +226,7 @@ function gitOutput(cwd:string,args:string[],errorCode:string){
   try{return execFileSync('git',args,{cwd,encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();}catch{throw new Error(errorCode);}
 }
 function implicitGitSource(cwd:string){
-  if(gitOutput(cwd,['status','--porcelain'],'challenge_submit_git_status_unavailable').length>0)throw new Error('challenge_submit_dirty_worktree');
+  if(gitOutput(cwd,['status','--porcelain','--untracked-files=all','--','.',' :(exclude).rekt/**'.trim()],'challenge_submit_git_status_unavailable').length>0)throw new Error('challenge_submit_dirty_worktree');
   const head=gitOutput(cwd,['rev-parse','HEAD'],'challenge_submit_git_head_unavailable');
   if(!GIT_COMMIT_PATTERN.test(head))throw new Error('challenge_submit_git_head_invalid');
   return head.toLowerCase();
