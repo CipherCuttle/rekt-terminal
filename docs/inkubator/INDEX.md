@@ -21,7 +21,9 @@ Forward product strategy and staged roadmap are governed by:
 15. `CURRENT_STATE_MIGRATION_MAP_V1.md` — preserve/adapt/park map for existing Terminal/Inkubator apps, protocol, GitHub, Ship, historical Mission/World/social systems and the resolved Stage-E frontend decision.
 16. `STAGE_E_CHALLENGE_UI_V1.md` — closed Stage-E Alpha IA, canonical surface states, no-fake-instrumentation rules, frontend-root decision and retained Stage-E authority invariants.
 17. `STAGE_E_CHALLENGE_UI_CLOSURE_V1.md` — Stage-E closure receipt, hostile-review repairs and exact-head verification evidence.
-18. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth, privacy, mechanism or API semantics.
+18. `STAGE_F_BUILDER_CAPSULE_V1.md` — active Stage-F authority for Builder Capsule, immutable submission sequencing and bounded F1/F2/F3 completion.
+19. `STAGE_F2_IMMUTABLE_SUBMISSION_V1.md` — locked F2 transport/tooling plan; implementation remains blocked until F1 formally closes or that gate is explicitly replaced.
+20. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth, privacy, mechanism or API semantics.
 
 Repository-level agents must also obey root `AGENTS.md`, which requires Inkubator work to hydrate from this index before implementation.
 
@@ -47,23 +49,28 @@ Current-state migration map                   LOCKED
 Stage-C Postgres bridge contract              CLOSED / PASS
 Stage-C integration-test matrix               CLOSED / PASS
 Stage-C implementation                        CLOSED / PASS
-Stage-D Compiler engine                       IMPLEMENTED
+Stage-D Compiler engine                       CLOSED / PASS / MERGED
 Stage-D compiler gauntlet                     D-GATE-4 PASS
 Stage-D provider benchmark                    D-GATE-5 EVIDENCE COMPLETENESS PASS
-Stage-D integrated closure                    CLOSED / PASS / MERGED
 Stage-E Alpha IA                              E-GATE-1 PASS / CLOSED
 Stage-E canonical surface states              E-GATE-2 PASS / CLOSED
 Stage-E no-fake-instrumentation               E-GATE-3 PASS / CLOSED
 Stage-E frontend root                         apps/inkubator-lab / PROMOTE+REFACTOR
 Stage-E REKT Compiler / Challenge UI          CLOSED / PASS
-Stage-E closure receipt                       CLOSED / PASS / PR #97
-Stage-F Builder Capsule / Submission          NEXT ROADMAP STAGE / NOT YET AUTHORIZED
+Stage-E closure receipt                       CLOSED / PASS / PR #97 / UNMERGED
+Stage-F                                       AUTHORIZED / IN PROGRESS
+Stage-F1 Builder Capsule                      IMPLEMENTED / EXACT-HEAD GREEN / INDEPENDENT REVIEW PENDING / PR #98
+Stage-F2 immutable submission contract        LOCKED / IMPLEMENTATION BLOCKED UNTIL F1 CLOSURE
+Stage-F3 archive/evidence capture             SEQUENCED AFTER F2
+Stage-G Reveal/Test Arena/Receipts            NOT AUTHORIZED
 Production money                              NOT AUTHORIZED
 ```
 
-**Execution verdict:** Stage A is complete enough; Stage B and Stage C are closed; Stage D is `CLOSED / PASS`; Stage E is `CLOSED / PASS` under `STAGE_E_CHALLENGE_UI_V1.md` plus `STAGE_E_CHALLENGE_UI_CLOSURE_V1.md`. The existing `apps/inkubator-lab` runtime remains the production frontend root; do not create a parallel `apps/inkubator-web`, and never reuse Terminal `apps/web`. The historical `WORLD / COMMAND / PROJECT / PLAYER / SHIP` shell remains parked from the forward product IA and may remain only as lab/legacy evidence. Missing later-stage Challenge transports must continue to render truthfully unavailable rather than substituting parked legacy routes.
+**Execution verdict:** Stage A is complete enough; Stage B and Stage C are closed; Stage D is `CLOSED / PASS`; Stage E is `CLOSED / PASS` under `STAGE_E_CHALLENGE_UI_V1.md` plus `STAGE_E_CHALLENGE_UI_CLOSURE_V1.md`. Stage F is the active roadmap stage. F1 is implemented and exact-head green but remains formally open because the required independent hostile review is unavailable. F2 is now fully specified so there is no further planning prerequisite once that gate is satisfied or explicitly replaced. F3 follows F2. Stage G and production money remain unauthorized.
 
-The next roadmap stage is Stage F — Builder Capsule / Submission. **Stage-E closure does not itself authorize Stage-F implementation.** Stage F requires its own implementation authority/contract and acceptance gates before code work begins. Do not infer funding, production-money, wallet, settlement, reveal/Test Arena or later-stage authority from Stage-E closure.
+The existing `apps/inkubator-lab` runtime remains the forward Inkubator frontend root; do not create a parallel `apps/inkubator-web`, and never reuse Terminal `apps/web`. The historical `WORLD / COMMAND / PROJECT / PLAYER / SHIP` shell remains parked from the forward product IA and may remain only as lab/legacy evidence. Missing later-stage Challenge transports must continue to render truthfully unavailable rather than substituting parked legacy routes.
+
+Stage F evolves existing CLI/SDK/MCP, DevKit auth, Stage-B `SubmissionManifest` law, and Stage-C Challenge persistence. Do not invent a second token system, submission store, project-management state machine, qualification authority, or archive authority.
 
 The substrate lock does not authorize later stages by itself. It exists so agents do not rebuild commodity document parsing, visualization, design-token tooling, builder planning or deterministic quality gates unnecessarily, and do not accidentally delegate Challenge/economic authority to those tools.
 
