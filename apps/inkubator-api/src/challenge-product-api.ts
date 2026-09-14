@@ -1,8 +1,15 @@
 import {createRequire} from 'node:module';
 import type {FastifyInstance, FastifyReply} from 'fastify';
 import {
+  BUILD_CONTRACT_SCHEMA_VERSION,
+  freezeBuildContract,
+  type BuildContract,
+} from '@rekt-ink/protocol/challenge';
+import {
   assertCompilerBlueprint,
   assertCompilerProposal,
+  assertCompilerState,
+  buildBuildContractCandidate,
   compileProposal,
   type CompilerBlueprint,
   type CompilerState,
@@ -48,6 +55,26 @@ export interface PublicChallengeView {
   updated_at: string;
 }
 
+export interface BuildContractPreviewAuthorityInput {
+  contract_version: string;
+  title: string;
+  brief: string;
+  preferences: Record<string, unknown>;
+  normative_constraints: Array<{id: string; description: string; mandatory: boolean}>;
+  normative_references: Array<{id: string; kind: string; content_digest: string; source_url?: string}>;
+  informational_references?: Array<{id: string; url: string}>;
+  prize_minor_units: number;
+  prize_display?: string;
+  settlement_asset: string;
+}
+
+export interface BuildContractPreviewView {
+  schema_version: 'build-contract.preview.v1';
+  canonical: false;
+  persisted: false;
+  contract: BuildContract & {terms_digest: string};
+}
+
 function safeDate(value: Date): string {
   return value.toISOString();
 }
@@ -85,6 +112,77 @@ export function compileOrganizerDraft(input: unknown): CompilerState {
   return compileProposal(proposal, {blueprints: [...ACTIVE_BLUEPRINTS]});
 }
 
+function organizerAcceptedInputProvenance(state: CompilerState): string[] {
+  return [
+    ...state.requirements.map((item) => item.provenance),
+    ...state.knowledge.filter((item) => item.provenance !== 'DETERMINISTIC_RULE').map((item) => item.provenance),
+    ...state.outcome_contract_candidate.criteria.filter((item) => item.provenance !== 'DETERMINISTIC_RULE').map((item) => item.provenance),
+    ...state.delivery_contract_candidate.criteria.filter((item) => item.provenance !== 'DETERMINISTIC_RULE').map((item) => item.provenance),
+  ];
+}
+
+function assertOrganizerAcceptedCompilerState(state: CompilerState): void {
+  const provenance = organizerAcceptedInputProvenance(state);
+  if (provenance.length === 0 || provenance.some((kind) => kind !== 'ORGANIZER_ACCEPTED')) {
+    throw new Error('compiler_organizer_acceptance_required');
+  }
+}
+
+export function buildFrozenBuildContractPreview(
+  compilerStateInput: unknown,
+  authority: BuildContractPreviewAuthorityInput,
+  snapshot: ChallengeSnapshot,
+): BuildContractPreviewView {
+  if (
+    snapshot.challenge.status !== 'DRAFT'
+    || snapshot.contract !== null
+    || snapshot.challenge.current_contract_version !== null
+    || snapshot.challenge.current_terms_digest !== null
+  ) {
+    throw new Error('challenge_contract_preview_requires_unfrozen_draft');
+  }
+
+  const compilerState = assertCompilerState(compilerStateInput, {blueprints: [...ACTIVE_BLUEPRINTS]});
+  assertOrganizerAcceptedCompilerState(compilerState);
+
+  const challenge = snapshot.challenge;
+  const candidate = buildBuildContractCandidate(
+    compilerState,
+    {
+      schema_version: BUILD_CONTRACT_SCHEMA_VERSION,
+      challenge_id: challenge.challenge_id,
+      contract_version: authority.contract_version,
+      mechanism_version: challenge.mechanism_version,
+      settlement_policy_version: challenge.settlement_policy_version,
+      ip_terms_version: challenge.ip_terms_version,
+      title: authority.title,
+      brief: authority.brief,
+      preferences: authority.preferences,
+      normative_constraints: authority.normative_constraints,
+      normative_references: authority.normative_references,
+      ...(authority.informational_references ? {informational_references: authority.informational_references} : {}),
+      slot_limit: challenge.slot_limit,
+      activation_minimum: challenge.activation_minimum,
+      entry_deadline: challenge.entry_deadline.getTime(),
+      build_start: challenge.build_start.getTime(),
+      submission_deadline: challenge.submission_deadline.getTime(),
+      appeal_window_ms: Number(challenge.appeal_window_ms),
+      review_deadline: challenge.review_deadline.getTime(),
+      prize_minor_units: authority.prize_minor_units,
+      ...(authority.prize_display ? {prize_display: authority.prize_display} : {}),
+      settlement_asset: authority.settlement_asset,
+    },
+    {blueprints: [...ACTIVE_BLUEPRINTS]},
+  );
+  const contract = freezeBuildContract(candidate) as BuildContract & {terms_digest: string};
+  return {
+    schema_version: 'build-contract.preview.v1',
+    canonical: false,
+    persisted: false,
+    contract,
+  };
+}
+
 function apiError(reply: FastifyReply, statusCode: number, message: string) {
   return reply.code(statusCode).send({error: message});
 }
@@ -111,6 +209,27 @@ export function registerStageEChallengeProductRoutes(app: FastifyInstance, db: I
       return compileOrganizerDraft(request.body);
     } catch {
       return apiError(reply, 400, 'compiler_input_invalid');
+    }
+  });
+
+  app.post('/v1/challenges/:challengeId/build-contract-preview', async (request, reply) => {
+    const {challengeId} = request.params as {challengeId: string};
+    const body = request.body as {
+      compiler_state?: unknown;
+      authority?: BuildContractPreviewAuthorityInput;
+    } | null;
+    try {
+      const snapshot = await readChallengeSnapshot(db, challengeId);
+      if (!snapshot) return apiError(reply, 404, 'challenge_not_found');
+      if (!body?.authority) return apiError(reply, 400, 'build_contract_preview_invalid');
+      reply.header('cache-control', 'no-store');
+      return buildFrozenBuildContractPreview(body.compiler_state, body.authority, snapshot);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'build_contract_preview_invalid';
+      if (message === 'invalid_challenge_id') return apiError(reply, 400, message);
+      if (message === 'compiler_organizer_acceptance_required') return apiError(reply, 409, message);
+      if (message === 'challenge_contract_preview_requires_unfrozen_draft') return apiError(reply, 409, message);
+      return apiError(reply, 400, 'build_contract_preview_invalid');
     }
   });
 }
