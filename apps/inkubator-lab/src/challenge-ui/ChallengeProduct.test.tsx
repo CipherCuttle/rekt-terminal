@@ -1,7 +1,12 @@
 import {cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import ChallengeProduct, {type ChallengeProductApi} from './ChallengeProduct';
-import type {CompilerProposalInput, CompilerStateView, PublicChallengeView} from '../inkubator-api';
+import type {
+  BuildContractPreviewView,
+  CompilerProposalInput,
+  CompilerStateView,
+  PublicChallengeView,
+} from '../inkubator-api';
 import {CHALLENGE_SURFACES, parseChallengeSurface, SURFACE_STATES} from './state';
 
 const compilerState: CompilerStateView = {
@@ -21,6 +26,9 @@ const compilerState: CompilerStateView = {
   selected_blueprint: {id: 'WEB_REALTIME', version: '1.0.0'},
   causal_facts: [{key: 'realtime_transport_required', value: true, provenance: 'DETERMINISTIC_RULE', rule_id: 'R_REALTIME_V1'}],
   sensitivity_points: ['realtime transport and state synchronization'],
+  outcome_contract_candidate: {criteria: []},
+  delivery_contract_candidate: {criteria: []},
+  preferences: {},
   acceptance_plan: {modules: ['realtime-consistency']},
   questions: [{id: 'Q_REALTIME_TRANSPORT', prompt: 'Which realtime transport/state consistency guarantees are actually required?', blocking: true, rule_id: 'R_REALTIME_V1'}],
   findings: [],
@@ -28,6 +36,33 @@ const compilerState: CompilerStateView = {
   reference_architecture_candidate: {shape: 'REALTIME_WEB_APP'},
   status: 'NEEDS_DECISION',
 };
+
+function readyCompilerState(provenance: 'SOURCE' | 'ORGANIZER_ACCEPTED'): CompilerStateView {
+  return {
+    schema_version: 'inkubator.compiler-state/1.0',
+    compiler_version: 'inkubator.compiler/1.0',
+    source_intent: 'Build a public static launch page',
+    project_fingerprint: {project_class: 'WEB_STATIC', signals: []},
+    knowledge: [],
+    requirements: [{key: 'realtime', value: false, provenance}],
+    production_envelope: {criteria: [], facts: []},
+    risk_profile: {level: 'LOW', reasons: []},
+    quality_profile: {level: 'STANDARD', reasons: []},
+    blueprint_candidates: [{id: 'WEB_STATIC', version: '1.0.0'}],
+    selected_blueprint: {id: 'WEB_STATIC', version: '1.0.0'},
+    causal_facts: [],
+    sensitivity_points: [],
+    outcome_contract_candidate: {criteria: []},
+    delivery_contract_candidate: {criteria: []},
+    preferences: {},
+    acceptance_plan: {modules: []},
+    questions: [],
+    findings: [],
+    unresolved_decisions: [],
+    reference_architecture_candidate: {shape: 'STATIC_WEB_APP'},
+    status: 'READY',
+  };
+}
 
 const publicChallenge: PublicChallengeView = {
   schema_version: 'challenge.public.v1',
@@ -54,10 +89,39 @@ const publicChallenge: PublicChallengeView = {
   updated_at: '2026-09-14T00:00:00.000Z',
 };
 
+const draftChallenge: PublicChallengeView = {
+  ...publicChallenge,
+  status: 'DRAFT',
+  mechanism_version: 'funded-challenge/1.1',
+  settlement_policy_version: 'funded-challenge-settlement/1.0',
+  ip_terms_version: 'bespoke-winner-transfer/1.0',
+  current_contract_version: null,
+  current_terms_digest: null,
+  has_frozen_contract: false,
+  entry_deadline: '2026-09-20T00:00:00.000Z',
+  build_start: '2026-09-20T00:00:00.000Z',
+  entry_count: 0,
+};
+
+const contractPreview: BuildContractPreviewView = {
+  schema_version: 'build-contract.preview.v1',
+  canonical: false,
+  persisted: false,
+  contract: {
+    schema_version: 'inkubator.build-contract/1.0',
+    challenge_id: draftChallenge.challenge_id,
+    contract_version: '1.0.0',
+    title: 'Static launch Challenge',
+    brief: 'Build a public static launch page',
+    terms_digest: 'a'.repeat(64),
+  },
+};
+
 function api(overrides: Partial<ChallengeProductApi> = {}): ChallengeProductApi {
   return {
     compileChallenge: vi.fn(async (_body: CompilerProposalInput) => compilerState),
     getChallenge: vi.fn(async () => publicChallenge),
+    previewBuildContract: vi.fn(async () => contractPreview),
     ...overrides,
   };
 }
@@ -107,6 +171,61 @@ describe('Stage E Challenge product shell', () => {
     expect(screen.getByText('NEEDS_DECISION')).toBeTruthy();
     expect(screen.getByText(/realtime_transport_required/)).toBeTruthy();
     expect(screen.getByText(/Q_REALTIME_TRANSPORT/)).toBeTruthy();
+    expect(screen.getByText('SOURCE', {selector: 'small'})).toBeTruthy();
+  });
+
+  it('requires explicit organizer acceptance before producing a noncanonical frozen Build Contract preview', async () => {
+    const sourceState = readyCompilerState('SOURCE');
+    const acceptedState = readyCompilerState('ORGANIZER_ACCEPTED');
+    const compileChallenge = vi.fn(async (body: CompilerProposalInput) => (
+      body.requirements.some((item) => item.provenance === 'ORGANIZER_ACCEPTED') ? acceptedState : sourceState
+    ));
+    const getChallenge = vi.fn(async () => draftChallenge);
+    const previewBuildContract = vi.fn(async () => contractPreview);
+    window.history.replaceState({}, '', `/?surface=compiler&challenge=${draftChallenge.challenge_id}`);
+    render(<ChallengeProduct api={api({compileChallenge, getChallenge, previewBuildContract})} />);
+
+    await waitFor(() => expect(getChallenge).toHaveBeenCalledWith(draftChallenge.challenge_id));
+    fireEvent.change(screen.getByLabelText('SOURCE INTENT'), {target: {value: 'Build a public static launch page'}});
+    const realtimeRow = screen.getByText('REALTIME').closest('.compiler-requirement');
+    expect(realtimeRow).not.toBeNull();
+    fireEvent.click(within(realtimeRow as HTMLElement).getByRole('button', {name: 'NO'}));
+    fireEvent.click(screen.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i}));
+
+    await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
+    const freeze = screen.getByRole('button', {name: /FREEZE NONCANONICAL PREVIEW/i}) as HTMLButtonElement;
+    expect(freeze.disabled).toBe(true);
+    expect(screen.getByText('ORGANIZER ACCEPTANCE REQUIRED')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', {name: /ACCEPT CURRENT INPUTS/i}));
+    await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(2));
+    expect(compileChallenge.mock.calls[1]![0].requirements).toEqual([
+      {key: 'realtime', value: false, provenance: 'ORGANIZER_ACCEPTED'},
+    ]);
+    expect(screen.getByText('ORGANIZER_ACCEPTED', {selector: 'small'})).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('CONTRACT VERSION'), {target: {value: '1.0.0'}});
+    fireEvent.change(screen.getByLabelText('TITLE'), {target: {value: 'Static launch Challenge'}});
+    fireEvent.change(screen.getByLabelText('PRIZE / MINOR UNITS'), {target: {value: '100'}});
+    fireEvent.change(screen.getByLabelText('SETTLEMENT ASSET'), {target: {value: 'TEST'}});
+    expect(freeze.disabled).toBe(false);
+    fireEvent.click(freeze);
+
+    await waitFor(() => expect(previewBuildContract).toHaveBeenCalledTimes(1));
+    expect(previewBuildContract).toHaveBeenCalledWith(
+      draftChallenge.challenge_id,
+      acceptedState,
+      expect.objectContaining({
+        contract_version: '1.0.0',
+        title: 'Static launch Challenge',
+        brief: 'Build a public static launch page',
+        prize_minor_units: 100,
+        settlement_asset: 'TEST',
+      }),
+    );
+    expect(screen.getByText('NONCANONICAL / NOT PERSISTED', {selector: 'strong'})).toBeTruthy();
+    expect(screen.getByText('a'.repeat(64))).toBeTruthy();
+    expect(document.querySelector('[data-build-contract-preview="noncanonical"]')).toBeTruthy();
   });
 
   it('reads a canonical public Challenge projection instead of Mission or Project state', async () => {
