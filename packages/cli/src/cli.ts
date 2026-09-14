@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+import {createHash,randomUUID} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -14,6 +15,16 @@ type Io = {out:(value:string)=>void;err:(value:string)=>void};
 type Config = {schema_version:'rekt.local.v1';api_url:string;project_id:string;mission_id:string};
 type LocalCapsule = Omit<BuilderCapsuleView,'files'> & {files:Array<Omit<BuilderCapsuleView['files'][number],'content'>>};
 type FrozenContract = BuildContract & {terms_digest:string};
+type ChallengeSubmitRetryState = {
+  schema_version:'challenge-submit-retry.v1';
+  challenge_id:string;
+  entry_id:string;
+  terms_digest:string;
+  submission_version:number;
+  payload_digest:string;
+  request_id:string;
+  submission_id:string;
+};
 
 const EXPECTED_CAPSULE_PATHS=['CHALLENGE.md','contract.json','acceptance/manifest.json','references/manifest.json'] as const;
 const EXPECTED_MEDIA_TYPES:Record<(typeof EXPECTED_CAPSULE_PATHS)[number],BuilderCapsuleView['files'][number]['media_type']>={
@@ -23,8 +34,10 @@ const EXPECTED_MEDIA_TYPES:Record<(typeof EXPECTED_CAPSULE_PATHS)[number],Builde
   'references/manifest.json':'application/json',
 };
 const ENTRY_STATES=new Set(['SEATED','WITHDRAWN_PRE_BUILD','ACTIVE','SUBMITTED','INVALID_SUBMISSION','ABANDONED']);
+const SOURCE_KINDS=new Set(['GIT_COMMIT','CONTENT_ADDRESS','ARCHIVE_DIGEST']);
 const UUID_PATTERN=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DIGEST_PATTERN=/^[0-9a-f]{64}$/;
+const GIT_COMMIT_PATTERN=/^[0-9a-f]{40}$/i;
 const defaultIo: Io = {out:(value)=>process.stdout.write(`${value}\n`),err:(value)=>process.stderr.write(`${value}\n`)};
 
 function parse(args:string[]){
@@ -46,6 +59,7 @@ function skills(value:string|undefined){return value?value.split(',').map((part)
 function sha256(value:string){return createHash('sha256').update(value,'utf8').digest('hex');}
 function defaultCapsuleDir(cwd:string){return path.join(cwd,'.rekt','challenge');}
 function capsuleMetadataPath(root:string){return path.join(root,'capsule.json');}
+function challengeSubmitRetryPath(root:string,submissionVersion:number){return path.join(root,'submission-retry',`${submissionVersion}.json`);}
 function canonicalize(value:unknown):unknown{
   if(Array.isArray(value))return value.map(canonicalize);
   if(value&&typeof value==='object'){
@@ -189,6 +203,7 @@ function readLocalCapsule(root:string):LocalCapsule{
 }
 function writeCapsule(root:string,capsule:BuilderCapsuleView){
   if(capsule.schema_version!=='builder-capsule.v1')throw new Error('builder_capsule_server_invalid');
+  for(const file of capsule.files)safeCapsuleTarget(root,file.path);
   assertCapsuleShape(capsule.files);validateCapsuleMetadata(capsule);
   assertNoSymlinkPath(root);
   const prepared=capsule.files.map((file)=>{
@@ -219,10 +234,52 @@ function checkCapsule(root:string){
   const contract=validateFrozenContract(contractContent,capsule);assertDerivedViews(contents,contract);
   return capsule;
 }
+function readChallengeSubmitRetryState(target:string):ChallengeSubmitRetryState|null{
+  if(!fs.existsSync(target))return null;
+  assertNoSymlinkPath(target);
+  let value:unknown;
+  try{value=JSON.parse(fs.readFileSync(target,'utf8'));}catch{throw new Error('challenge_submit_retry_state_invalid');}
+  if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('challenge_submit_retry_state_invalid');
+  const state=value as Partial<ChallengeSubmitRetryState>;
+  if(
+    state.schema_version!=='challenge-submit-retry.v1'||
+    typeof state.challenge_id!=='string'||!UUID_PATTERN.test(state.challenge_id)||
+    typeof state.entry_id!=='string'||!UUID_PATTERN.test(state.entry_id)||
+    typeof state.terms_digest!=='string'||!DIGEST_PATTERN.test(state.terms_digest)||
+    typeof state.submission_version!=='number'||!Number.isSafeInteger(state.submission_version)||state.submission_version<1||
+    typeof state.payload_digest!=='string'||!DIGEST_PATTERN.test(state.payload_digest)||
+    typeof state.request_id!=='string'||!UUID_PATTERN.test(state.request_id)||
+    typeof state.submission_id!=='string'||!UUID_PATTERN.test(state.submission_id)
+  )throw new Error('challenge_submit_retry_state_invalid');
+  return state as ChallengeSubmitRetryState;
+}
+function writeChallengeSubmitRetryState(target:string,state:ChallengeSubmitRetryState){
+  const parent=path.dirname(target);assertNoSymlinkPath(parent);fs.mkdirSync(parent,{recursive:true});assertNoSymlinkPath(parent);
+  const temporary=path.join(parent,`.${path.basename(target)}.${randomUUID()}.tmp`);assertNoSymlinkPath(temporary);
+  fs.writeFileSync(temporary,JSON.stringify(state,null,2)+'\n',{encoding:'utf8',mode:0o600});
+  assertNoSymlinkPath(target);
+  fs.renameSync(temporary,target);
+}
+function challengeSubmitPayloadDigest(payload:{challenge_id:string;entry_id:string;terms_digest:string;submission_version:number;immutable_source_reference:{kind:string;value:string};artifact_digest:string;evidence_references:string[];optional_live_url:string|null;ship_submission_id:string|null}){
+  return sha256(canonicalJson(payload));
+}
+function gitOutput(cwd:string,args:string[],errorCode:string){
+  try{return execFileSync('git',args,{cwd,encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();}catch{throw new Error(errorCode);}
+}
+function implicitGitSource(cwd:string){
+  const gitRoot=gitOutput(cwd,['rev-parse','--show-toplevel'],'challenge_submit_git_root_unavailable');
+  const toolRelative=path.relative(gitRoot,path.join(cwd,'.rekt')).split(path.sep).join('/');
+  if(toolRelative===''||toolRelative==='..'||toolRelative.startsWith('../'))throw new Error('challenge_submit_rekt_metadata_outside_repo');
+  const exclude=`:(exclude)${toolRelative}/**`;
+  if(gitOutput(gitRoot,['status','--porcelain','--untracked-files=all','--','.',exclude],'challenge_submit_git_status_unavailable').length>0)throw new Error('challenge_submit_dirty_worktree');
+  const head=gitOutput(gitRoot,['rev-parse','HEAD'],'challenge_submit_git_head_unavailable');
+  if(!GIT_COMMIT_PATTERN.test(head))throw new Error('challenge_submit_git_head_invalid');
+  return head.toLowerCase();
+}
 
 async function challengeCommand(rest:string[],env:NodeJS.ProcessEnv,io:Io,cwd:string):Promise<number>{
   const [subcommand,...args]=rest;
-  if(!subcommand||subcommand==='help'||subcommand==='--help'){io.out('rekt challenge pull <id> [--api URL] [--out DIR] | status [--out DIR] | check [--out DIR]');return 0;}
+  if(!subcommand||subcommand==='help'||subcommand==='--help'){io.out('rekt challenge pull <id> [--api URL] [--out DIR] | status [--out DIR] | check [--out DIR] | submit --version N --artifact-digest SHA256 [--source-kind KIND] [--source REF] [--evidence refs] [--live-url URL] [--ship-submission-id UUID] [--api URL] [--out DIR]');return 0;}
   const {values,positional}=parse(args);const root=path.resolve(cwd,values.get('out')??path.relative(cwd,defaultCapsuleDir(cwd)));
   if(subcommand==='pull'){
     const challengeId=positional[0];if(!challengeId)throw new Error('challenge_id_required');
@@ -235,6 +292,30 @@ async function challengeCommand(rest:string[],env:NodeJS.ProcessEnv,io:Io,cwd:st
   }
   if(subcommand==='check'){
     const capsule=checkCapsule(root);io.out(`challenge check: LOCAL CONSISTENCY PASS ${capsule.challenge_id} ${capsule.terms_digest}`);return 0;
+  }
+  if(subcommand==='submit'){
+    const capsule=checkCapsule(root);
+    const rawVersion=values.get('version');const submissionVersion=rawVersion?Number(rawVersion):NaN;if(!Number.isSafeInteger(submissionVersion)||submissionVersion<1)throw new Error('challenge_submit_version_required');
+    const artifactDigest=values.get('artifact-digest');if(!artifactDigest||!DIGEST_PATTERN.test(artifactDigest))throw new Error('challenge_submit_artifact_digest_required');
+    const sourceKind=(values.get('source-kind')??'GIT_COMMIT') as 'GIT_COMMIT'|'CONTENT_ADDRESS'|'ARCHIVE_DIGEST';if(!SOURCE_KINDS.has(sourceKind))throw new Error('challenge_submit_source_kind_invalid');
+    let source=values.get('source');if(!source){if(sourceKind!=='GIT_COMMIT')throw new Error('challenge_submit_source_required');source=implicitGitSource(cwd);}if(source.length<1)throw new Error('challenge_submit_source_required');
+    const evidence=values.get('evidence')?.split(',').map((item)=>item.trim()).filter(Boolean)??[];
+    const liveUrl=values.get('live-url');if(liveUrl){try{new URL(liveUrl);}catch{throw new Error('challenge_submit_live_url_invalid');}}
+    const shipSubmissionId=values.get('ship-submission-id');if(shipSubmissionId&&!UUID_PATTERN.test(shipSubmissionId))throw new Error('challenge_submit_ship_submission_id_invalid');
+    const payloadDigest=challengeSubmitPayloadDigest({challenge_id:capsule.challenge_id,entry_id:capsule.entry_id,terms_digest:capsule.terms_digest,submission_version:submissionVersion,immutable_source_reference:{kind:sourceKind,value:source},artifact_digest:artifactDigest,evidence_references:evidence,optional_live_url:liveUrl??null,ship_submission_id:shipSubmissionId??null});
+    const retryPath=challengeSubmitRetryPath(root,submissionVersion);const existingRetry=readChallengeSubmitRetryState(retryPath);
+    let requestId:string;let submissionId:string;
+    if(existingRetry){
+      if(existingRetry.challenge_id!==capsule.challenge_id||existingRetry.entry_id!==capsule.entry_id||existingRetry.terms_digest!==capsule.terms_digest||existingRetry.submission_version!==submissionVersion)throw new Error('challenge_submit_retry_state_mismatch');
+      if(existingRetry.payload_digest!==payloadDigest)throw new Error('challenge_submit_retry_payload_conflict');
+      requestId=existingRetry.request_id;submissionId=existingRetry.submission_id;
+    }else{
+      requestId=randomUUID();submissionId=randomUUID();
+      writeChallengeSubmitRetryState(retryPath,{schema_version:'challenge-submit-retry.v1',challenge_id:capsule.challenge_id,entry_id:capsule.entry_id,terms_digest:capsule.terms_digest,submission_version:submissionVersion,payload_digest:payloadDigest,request_id:requestId,submission_id:submissionId});
+    }
+    const apiUrl=values.get('api')??env.REKT_API_URL??'http://127.0.0.1:8787';
+    const result=await clientFor(env,apiUrl).challenge.submit(capsule.challenge_id,{entryId:capsule.entry_id,expectedTermsDigest:capsule.terms_digest,submissionVersion,immutableSourceReference:{kind:sourceKind,value:source},artifactDigest,evidenceReferences:evidence,idempotencyKey:requestId,submissionId,...(liveUrl?{optionalLiveUrl:liveUrl}:{}),...(shipSubmissionId?{shipSubmissionId}:{})});
+    io.out(JSON.stringify(result,null,2));return 0;
   }
   throw new Error(`unknown_challenge_command_${subcommand}`);
 }

@@ -738,8 +738,8 @@ export async function acceptChallengeSubmission(db: Kysely<DatabaseSchema>, inpu
     const normalizedManifest = canonicalizeJson(manifest);
 
     if (shipSubmissionId) {
-      const ship = await transaction.selectFrom('ship_submissions').select(['submission_id', 'project_id', 'owner_player_id']).where('submission_id', '=', shipSubmissionId).executeTakeFirst();
-      if (!ship || ship.owner_player_id !== entry.builder_player_id || (entry.project_id && ship.project_id !== entry.project_id)) throw new Error('challenge_ship_lineage_invalid');
+      const ship = await transaction.selectFrom('ship_submissions').select(['submission_id', 'project_id', 'mission_id', 'owner_player_id']).where('submission_id', '=', shipSubmissionId).executeTakeFirst();
+      if (!ship || ship.owner_player_id !== entry.builder_player_id || (entry.project_id && ship.project_id !== entry.project_id) || (entry.mission_id && ship.mission_id !== entry.mission_id)) throw new Error('challenge_ship_lineage_invalid');
     }
 
     const inserted = await sql<ChallengeSubmissionRow>`

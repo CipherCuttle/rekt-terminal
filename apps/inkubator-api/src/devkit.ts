@@ -4,7 +4,7 @@ import {readDatabaseNow, type DatabaseSchema, type DevkitCredentialClass} from '
 
 export const DEVKIT_SCOPES = [
   'player:read', 'project:read', 'mission:read', 'claim:write',
-  'update:write', 'beacon:write', 'assist:write', 'ship:prepare',
+  'update:write', 'beacon:write', 'assist:write', 'ship:prepare', 'challenge:submit',
 ] as const;
 export type DevkitScope = typeof DEVKIT_SCOPES[number];
 export const DEVKIT_RATE_LIMIT_PER_MINUTE = 60;
