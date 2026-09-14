@@ -203,7 +203,7 @@ describe('Stage E Challenge product shell', () => {
       .mockResolvedValueOnce(draftChallenge)
       .mockResolvedValueOnce(frozenDraftChallenge);
     const previewBuildContract = vi.fn(async () => contractPreview);
-    const persistBuildContract = vi.fn(async () => canonicalContract);
+    const persistBuildContract = vi.fn<ChallengeProductApi['persistBuildContract']>(async () => canonicalContract);
     window.history.replaceState({}, '', `/?surface=compiler&challenge=${draftChallenge.challenge_id}`);
     render(<ChallengeProduct api={api({compileChallenge, getChallenge, previewBuildContract, persistBuildContract})} />);
 
