@@ -1,7 +1,7 @@
 import {cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import ChallengeProduct, {type ChallengeProductApi} from './ChallengeProduct';
-import type {CompilerStateView, PublicChallengeView} from '../inkubator-api';
+import type {CompilerProposalInput, CompilerStateView, PublicChallengeView} from '../inkubator-api';
 import {CHALLENGE_SURFACES, parseChallengeSurface, SURFACE_STATES} from './state';
 
 const compilerState: CompilerStateView = {
@@ -56,7 +56,7 @@ const publicChallenge: PublicChallengeView = {
 
 function api(overrides: Partial<ChallengeProductApi> = {}): ChallengeProductApi {
   return {
-    compileChallenge: vi.fn(async () => compilerState),
+    compileChallenge: vi.fn(async (_body: CompilerProposalInput) => compilerState),
     getChallenge: vi.fn(async () => publicChallenge),
     ...overrides,
   };
@@ -88,7 +88,7 @@ describe('Stage E Challenge product shell', () => {
   });
 
   it('compiles only explicit SOURCE requirements and renders deterministic compiler state', async () => {
-    const compileChallenge = vi.fn(async () => compilerState);
+    const compileChallenge = vi.fn(async (_body: CompilerProposalInput) => compilerState);
     render(<ChallengeProduct api={api({compileChallenge})} />);
     fireEvent.click(screen.getByRole('button', {name: /COMPILER \/ CREATE/i}));
 
@@ -100,7 +100,7 @@ describe('Stage E Challenge product shell', () => {
     fireEvent.click(screen.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i}));
 
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
-    const proposal = compileChallenge.mock.calls[0][0];
+    const proposal = compileChallenge.mock.calls[0]![0];
     expect(proposal.source_intent).toBe('Build a realtime public launch dashboard');
     expect(proposal.requirements).toEqual([{key: 'realtime', value: true, provenance: 'SOURCE'}]);
     expect(screen.getByText('WEB_REALTIME@1.0.0')).toBeTruthy();
