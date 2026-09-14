@@ -3,6 +3,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import ChallengeProduct, {type ChallengeProductApi} from './ChallengeProduct';
 import type {
   BuildContractPreviewView,
+  CanonicalBuildContractView,
   CompilerProposalInput,
   CompilerStateView,
   PublicChallengeView,
@@ -117,11 +118,29 @@ const contractPreview: BuildContractPreviewView = {
   },
 };
 
+const canonicalContract: CanonicalBuildContractView = {
+  schema_version: 'build-contract.canonical.v1',
+  canonical: true,
+  persisted: true,
+  challenge_id: draftChallenge.challenge_id,
+  contract_version: '1.0.0',
+  terms_digest: contractPreview.contract.terms_digest,
+  frozen_at: '2026-09-14T00:30:00.000Z',
+};
+
+const frozenDraftChallenge: PublicChallengeView = {
+  ...draftChallenge,
+  current_contract_version: canonicalContract.contract_version,
+  current_terms_digest: canonicalContract.terms_digest,
+  has_frozen_contract: true,
+};
+
 function api(overrides: Partial<ChallengeProductApi> = {}): ChallengeProductApi {
   return {
     compileChallenge: vi.fn(async (_body: CompilerProposalInput) => compilerState),
     getChallenge: vi.fn(async () => publicChallenge),
     previewBuildContract: vi.fn(async () => contractPreview),
+    persistBuildContract: vi.fn(async () => canonicalContract),
     ...overrides,
   };
 }
@@ -174,16 +193,19 @@ describe('Stage E Challenge product shell', () => {
     expect(screen.getByText('SOURCE', {selector: 'small'})).toBeTruthy();
   });
 
-  it('requires explicit organizer acceptance before producing a noncanonical frozen Build Contract preview', async () => {
+  it('binds canonical persistence to the exact accepted preview digest and refreshes Challenge truth', async () => {
     const sourceState = readyCompilerState('SOURCE');
     const acceptedState = readyCompilerState('ORGANIZER_ACCEPTED');
     const compileChallenge = vi.fn(async (body: CompilerProposalInput) => (
       body.requirements.some((item) => item.provenance === 'ORGANIZER_ACCEPTED') ? acceptedState : sourceState
     ));
-    const getChallenge = vi.fn(async () => draftChallenge);
+    const getChallenge = vi.fn()
+      .mockResolvedValueOnce(draftChallenge)
+      .mockResolvedValueOnce(frozenDraftChallenge);
     const previewBuildContract = vi.fn(async () => contractPreview);
+    const persistBuildContract = vi.fn(async () => canonicalContract);
     window.history.replaceState({}, '', `/?surface=compiler&challenge=${draftChallenge.challenge_id}`);
-    render(<ChallengeProduct api={api({compileChallenge, getChallenge, previewBuildContract})} />);
+    render(<ChallengeProduct api={api({compileChallenge, getChallenge, previewBuildContract, persistBuildContract})} />);
 
     await waitFor(() => expect(getChallenge).toHaveBeenCalledWith(draftChallenge.challenge_id));
     fireEvent.change(screen.getByLabelText('SOURCE INTENT'), {target: {value: 'Build a public static launch page'}});
@@ -193,8 +215,10 @@ describe('Stage E Challenge product shell', () => {
     fireEvent.click(screen.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i}));
 
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
-    const freeze = screen.getByRole('button', {name: /FREEZE NONCANONICAL PREVIEW/i}) as HTMLButtonElement;
-    expect(freeze.disabled).toBe(true);
+    const previewButton = screen.getByRole('button', {name: /FREEZE NONCANONICAL PREVIEW/i}) as HTMLButtonElement;
+    const persistButton = screen.getByRole('button', {name: /PERSIST CANONICAL CONTRACT/i}) as HTMLButtonElement;
+    expect(previewButton.disabled).toBe(true);
+    expect(persistButton.disabled).toBe(true);
     expect(screen.getByText('ORGANIZER ACCEPTANCE REQUIRED')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', {name: /ACCEPT CURRENT INPUTS/i}));
@@ -208,24 +232,34 @@ describe('Stage E Challenge product shell', () => {
     fireEvent.change(screen.getByLabelText('TITLE'), {target: {value: 'Static launch Challenge'}});
     fireEvent.change(screen.getByLabelText('PRIZE / MINOR UNITS'), {target: {value: '100'}});
     fireEvent.change(screen.getByLabelText('SETTLEMENT ASSET'), {target: {value: 'TEST'}});
-    expect(freeze.disabled).toBe(false);
-    fireEvent.click(freeze);
+    expect(previewButton.disabled).toBe(false);
+    fireEvent.click(previewButton);
 
     await waitFor(() => expect(previewBuildContract).toHaveBeenCalledTimes(1));
-    expect(previewBuildContract).toHaveBeenCalledWith(
-      draftChallenge.challenge_id,
-      acceptedState,
-      expect.objectContaining({
-        contract_version: '1.0.0',
-        title: 'Static launch Challenge',
-        brief: 'Build a public static launch page',
-        prize_minor_units: 100,
-        settlement_asset: 'TEST',
-      }),
-    );
-    expect(screen.getByText('NONCANONICAL / NOT PERSISTED', {selector: 'strong'})).toBeTruthy();
-    expect(screen.getByText('a'.repeat(64))).toBeTruthy();
+    const acceptedAuthority = expect.objectContaining({
+      contract_version: '1.0.0',
+      title: 'Static launch Challenge',
+      brief: 'Build a public static launch page',
+      prize_minor_units: 100,
+      settlement_asset: 'TEST',
+    });
+    expect(previewBuildContract).toHaveBeenCalledWith(draftChallenge.challenge_id, acceptedState, acceptedAuthority);
+    expect(screen.getByText('NONCANONICAL PREVIEW / DIGEST-FROZEN', {selector: 'strong'})).toBeTruthy();
     expect(document.querySelector('[data-build-contract-preview="noncanonical"]')).toBeTruthy();
+    expect(persistButton.disabled).toBe(false);
+
+    fireEvent.click(persistButton);
+    await waitFor(() => expect(persistBuildContract).toHaveBeenCalledTimes(1));
+    const [persistChallengeId, requestId, persistState, persistAuthority, expectedDigest] = persistBuildContract.mock.calls[0]!;
+    expect(persistChallengeId).toBe(draftChallenge.challenge_id);
+    expect(requestId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(persistState).toEqual(acceptedState);
+    expect(persistAuthority).toEqual(expect.objectContaining({contract_version: '1.0.0', title: 'Static launch Challenge'}));
+    expect(expectedDigest).toBe(contractPreview.contract.terms_digest);
+    await waitFor(() => expect(getChallenge).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('CANONICAL / PERSISTED', {selector: 'strong'})).toBeTruthy();
+    expect(document.querySelector('[data-build-contract-canonical="persisted"]')).toBeTruthy();
+    expect(screen.getByText('FROZEN')).toBeTruthy();
   });
 
   it('reads a canonical public Challenge projection instead of Mission or Project state', async () => {
