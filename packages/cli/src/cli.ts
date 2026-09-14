@@ -1,11 +1,14 @@
 #!/usr/bin/env node
+import {createHash} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {createInkubatorServerClient} from '@rekt-ink/sdk/server';
+import {assertFrozenBuildContract} from '@rekt-ink/protocol/challenge';
+import {createInkubatorServerClient, type BuilderCapsuleView} from '@rekt-ink/sdk/server';
 
 type Io = {out:(value:string)=>void;err:(value:string)=>void};
 type Config = {schema_version:'rekt.local.v1';api_url:string;project_id:string;mission_id:string};
+type LocalCapsule = Omit<BuilderCapsuleView,'files'> & {files:Array<Omit<BuilderCapsuleView['files'][number],'content'>>};
 const defaultIo: Io = {out:(value)=>process.stdout.write(`${value}\n`),err:(value)=>process.stderr.write(`${value}\n`)};
 function parse(args:string[]){const values=new Map<string,string>();const positional:string[]=[];for(let i=0;i<args.length;i+=1){const item=args[i];if(item.startsWith('--')){const value=args[i+1];if(!value||value.startsWith('--'))throw new Error(`missing_value_${item.slice(2)}`);values.set(item.slice(2),value);i+=1;}else positional.push(item);}return {values,positional};}
 function configPath(cwd:string){return path.join(cwd,'.rekt','config.json');}
@@ -13,10 +16,60 @@ function readConfig(cwd:string):Config{const value=JSON.parse(fs.readFileSync(co
 function writeConfig(cwd:string,config:Config){fs.mkdirSync(path.dirname(configPath(cwd)),{recursive:true});fs.writeFileSync(configPath(cwd),JSON.stringify(config,null,2)+'\n',{mode:0o600});}
 function clientFor(env:NodeJS.ProcessEnv,apiUrl:string){const accessToken=env.REKT_DEVKIT_TOKEN;if(!accessToken)throw new Error('REKT_DEVKIT_TOKEN is required');return createInkubatorServerClient({baseUrl:apiUrl,accessToken});}
 function skills(value:string|undefined){return value?value.split(',').map((part)=>part.trim()).filter(Boolean):undefined;}
+function sha256(value:string){return createHash('sha256').update(value,'utf8').digest('hex');}
+function defaultCapsuleDir(cwd:string){return path.join(cwd,'.rekt','challenge');}
+function capsuleMetadataPath(root:string){return path.join(root,'capsule.json');}
+function safeCapsuleTarget(root:string,relativePath:string){
+  if(!relativePath||relativePath.includes('\\')||path.posix.isAbsolute(relativePath)||relativePath==='capsule.json')throw new Error(`capsule_path_invalid:${relativePath}`);
+  const normalized=path.posix.normalize(relativePath);
+  if(normalized!==relativePath||normalized==='.'||normalized==='..'||normalized.startsWith('../')||normalized.includes('/../'))throw new Error(`capsule_path_invalid:${relativePath}`);
+  const resolvedRoot=path.resolve(root);const target=path.resolve(resolvedRoot,...normalized.split('/'));
+  if(!target.startsWith(`${resolvedRoot}${path.sep}`))throw new Error(`capsule_path_invalid:${relativePath}`);
+  return target;
+}
+function readLocalCapsule(root:string):LocalCapsule{
+  const value=JSON.parse(fs.readFileSync(capsuleMetadataPath(root),'utf8')) as LocalCapsule;
+  if(value?.schema_version!=='builder-capsule.v1'||!Array.isArray(value.files))throw new Error('builder_capsule_local_invalid');
+  return value;
+}
+function writeCapsule(root:string,capsule:BuilderCapsuleView){
+  fs.mkdirSync(root,{recursive:true});
+  for(const file of capsule.files){const target=safeCapsuleTarget(root,file.path);if(sha256(file.content)!==file.sha256)throw new Error(`capsule_server_digest_mismatch:${file.path}`);fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,file.content,'utf8');}
+  const local:LocalCapsule={...capsule,files:capsule.files.map(({content:_content,...file})=>file)};
+  fs.writeFileSync(capsuleMetadataPath(root),JSON.stringify(local,null,2)+'\n','utf8');
+}
+function checkCapsule(root:string){
+  const capsule=readLocalCapsule(root);
+  for(const file of capsule.files){const target=safeCapsuleTarget(root,file.path);if(!fs.existsSync(target))throw new Error(`capsule_file_missing:${file.path}`);const content=fs.readFileSync(target,'utf8');if(sha256(content)!==file.sha256)throw new Error(`capsule_file_digest_mismatch:${file.path}`);}
+  const contractEntry=capsule.files.find((file)=>file.path==='contract.json');if(!contractEntry)throw new Error('capsule_contract_missing');
+  const contractPath=safeCapsuleTarget(root,contractEntry.path);const contract=assertFrozenBuildContract(JSON.parse(fs.readFileSync(contractPath,'utf8')));
+  if(contract.challenge_id!==capsule.challenge_id||contract.contract_version!==capsule.contract_version||contract.terms_digest!==capsule.terms_digest)throw new Error('capsule_contract_lineage_mismatch');
+  return capsule;
+}
+
+async function challengeCommand(rest:string[],env:NodeJS.ProcessEnv,io:Io,cwd:string):Promise<number>{
+  const [subcommand,...args]=rest;
+  if(!subcommand||subcommand==='help'||subcommand==='--help'){io.out('rekt challenge pull <id> [--api URL] [--out DIR] | status [--out DIR] | check [--out DIR]');return 0;}
+  const {values,positional}=parse(args);const root=path.resolve(cwd,values.get('out')??path.relative(cwd,defaultCapsuleDir(cwd)));
+  if(subcommand==='pull'){
+    const challengeId=positional[0];if(!challengeId)throw new Error('challenge_id_required');
+    const apiUrl=values.get('api')??env.REKT_API_URL??'http://127.0.0.1:8787';
+    const capsule=await clientFor(env,apiUrl).challenge.capsule(challengeId);writeCapsule(root,capsule);
+    io.out(`challenge pulled ${capsule.challenge_id} ${capsule.terms_digest}`);return 0;
+  }
+  if(subcommand==='status'){
+    const capsule=readLocalCapsule(root);io.out(JSON.stringify({schema_version:capsule.schema_version,challenge_id:capsule.challenge_id,entry_id:capsule.entry_id,entry_state:capsule.entry_state,contract_version:capsule.contract_version,terms_digest:capsule.terms_digest,submission_deadline:capsule.submission_deadline},null,2));return 0;
+  }
+  if(subcommand==='check'){
+    const capsule=checkCapsule(root);io.out(`challenge check: PASS ${capsule.challenge_id} ${capsule.terms_digest}`);return 0;
+  }
+  throw new Error(`unknown_challenge_command_${subcommand}`);
+}
 
 export async function main(argv=process.argv.slice(2),env:NodeJS.ProcessEnv=process.env,io:Io=defaultIo,cwd=process.cwd()):Promise<number>{
-  const [command,...rest]=argv; if(!command||command==='help'||command==='--help'){io.out('rekt init|status|next|update|beacon|claim|ship|doctor');return 0;}
+  const [command,...rest]=argv; if(!command||command==='help'||command==='--help'){io.out('rekt init|status|next|update|beacon|claim|ship|doctor|challenge');return 0;}
   try{
+    if(command==='challenge')return await challengeCommand(rest,env,io,cwd);
     if(command==='init'){const parsed=parse(rest);const apiUrl=parsed.values.get('api')??env.REKT_API_URL??'http://127.0.0.1:8787';const state=await clientFor(env,apiUrl).mission.current();writeConfig(cwd,{schema_version:'rekt.local.v1',api_url:apiUrl,project_id:state.project.project_id,mission_id:state.mission.mission_id});io.out(`linked ${state.project.project_id} ${state.mission.mission_id}`);return 0;}
     const config=readConfig(cwd);const client=clientFor(env,config.api_url);
     if(command==='status'){io.out(JSON.stringify(await client.mission.status(),null,2));return 0;}
