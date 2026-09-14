@@ -4,6 +4,7 @@ import ChallengeProduct, {type ChallengeProductApi} from './ChallengeProduct';
 import type {
   BuildContractPreviewView,
   CanonicalBuildContractView,
+  CompilerInputProvenance,
   CompilerProposalInput,
   CompilerStateView,
   PublicChallengeView,
@@ -72,6 +73,33 @@ const compilerState: CompilerStateView = {
   status: 'NEEDS_DECISION',
 };
 
+function staticCompilerState(provenance: CompilerInputProvenance = 'SOURCE'): CompilerStateView {
+  return {
+    schema_version: 'inkubator.compiler-state/1.0',
+    compiler_version: 'inkubator.compiler/1.0',
+    source_intent: 'Build a public static launch page',
+    project_fingerprint: {project_class: 'WEB_STATIC', signals: []},
+    knowledge: [],
+    requirements: [{key: 'realtime', value: false, provenance}],
+    production_envelope: {criteria: [], facts: []},
+    risk_profile: {level: 'LOW', reasons: []},
+    quality_profile: {level: 'STANDARD', reasons: []},
+    blueprint_candidates: [{id: 'WEB_STATIC', version: '1.0.0'}],
+    selected_blueprint: {id: 'WEB_STATIC', version: '1.0.0'},
+    causal_facts: [],
+    sensitivity_points: [],
+    outcome_contract_candidate: {criteria: []},
+    delivery_contract_candidate: {criteria: []},
+    preferences: {},
+    acceptance_plan: {modules: []},
+    questions: [],
+    findings: [],
+    unresolved_decisions: [],
+    reference_architecture_candidate: {shape: 'STATIC_WEB_APP'},
+    status: 'READY',
+  };
+}
+
 const preview: BuildContractPreviewView = {
   schema_version: 'build-contract.preview.v1',
   canonical: false,
@@ -108,6 +136,12 @@ function api(overrides: Partial<ChallengeProductApi> = {}): ChallengeProductApi 
 
 function currentState(): string | null {
   return document.querySelector('[data-surface-state]')?.getAttribute('data-surface-state') ?? null;
+}
+
+function realtimeRequirementRow(): HTMLElement {
+  const row = screen.getByText('REALTIME').closest('.compiler-requirement');
+  expect(row).not.toBeNull();
+  return row as HTMLElement;
 }
 
 afterEach(() => {
@@ -171,9 +205,7 @@ describe('Stage E closure matrix', () => {
     render(<ChallengeProduct api={api({compileChallenge})} />);
 
     fireEvent.change(screen.getByLabelText('SOURCE INTENT'), {target: {value: compilerState.source_intent}});
-    const realtimeRow = screen.getByText('REALTIME').closest('.compiler-requirement');
-    expect(realtimeRow).not.toBeNull();
-    fireEvent.click(within(realtimeRow as HTMLElement).getByRole('button', {name: 'YES'}));
+    fireEvent.click(within(realtimeRequirementRow()).getByRole('button', {name: 'YES'}));
     fireEvent.click(screen.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i}));
 
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
@@ -183,5 +215,97 @@ describe('Stage E closure matrix', () => {
     expect(screen.getByRole('heading', {name: 'FINDINGS'})).toBeTruthy();
     expect(screen.getByText(/HIGH \/ REALTIME_AMBIGUITY/)).toBeTruthy();
     expect(screen.getByText(/Realtime transport semantics are unresolved/)).toBeTruthy();
+  });
+
+  it('visibly changes deterministic readouts when a meaningful requirement changes', async () => {
+    const compileChallenge: ChallengeProductApi['compileChallenge'] = vi.fn(async (body) => (
+      body.requirements.some((item) => item.key === 'realtime' && item.value === true)
+        ? compilerState
+        : staticCompilerState('SOURCE')
+    ));
+    window.history.replaceState({}, '', '/?surface=compiler');
+    render(<ChallengeProduct api={api({compileChallenge})} />);
+
+    fireEvent.change(screen.getByLabelText('SOURCE INTENT'), {target: {value: 'Build a public launch experience'}});
+    fireEvent.click(within(realtimeRequirementRow()).getByRole('button', {name: 'YES'}));
+    fireEvent.click(screen.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i}));
+    await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('WEB_REALTIME@1.0.0')).toBeTruthy();
+    expect(screen.getByText('HIGH', {selector: 'b'})).toBeTruthy();
+    expect(screen.getAllByText(/realtime_transport_required/).length).toBeGreaterThan(0);
+
+    fireEvent.click(within(realtimeRequirementRow()).getByRole('button', {name: 'NO'}));
+    fireEvent.click(screen.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i}));
+    await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('WEB_STATIC@1.0.0')).toBeTruthy();
+    expect(screen.getByText('LOW', {selector: 'b'})).toBeTruthy();
+    expect(screen.queryAllByText(/realtime_transport_required/)).toHaveLength(0);
+  });
+
+  it('discards a stale organizer-accept response after the source draft changes', async () => {
+    let resolveAccepted: ((value: CompilerStateView) => void) | undefined;
+    const pendingAccepted = new Promise<CompilerStateView>((resolve) => { resolveAccepted = resolve; });
+    const sourceState = staticCompilerState('SOURCE');
+    const acceptedState = staticCompilerState('ORGANIZER_ACCEPTED');
+    const compileChallenge: ChallengeProductApi['compileChallenge'] = vi.fn((body) => (
+      body.requirements.some((item) => item.provenance === 'ORGANIZER_ACCEPTED')
+        ? pendingAccepted
+        : Promise.resolve(sourceState)
+    ));
+    window.history.replaceState({}, '', `/?surface=compiler&challenge=${challenge.challenge_id}`);
+    render(<ChallengeProduct api={api({compileChallenge})} />);
+
+    fireEvent.change(screen.getByLabelText('SOURCE INTENT'), {target: {value: 'Build the first draft'}});
+    fireEvent.click(within(realtimeRequirementRow()).getByRole('button', {name: 'NO'}));
+    fireEvent.click(screen.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i}));
+    await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', {name: /ACCEPT CURRENT INPUTS/i}));
+    await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(2));
+    fireEvent.change(screen.getByLabelText('SOURCE INTENT'), {target: {value: 'Build the edited second draft'}});
+    expect(screen.getByText('SOURCE DRAFT / UNCOMPILED')).toBeTruthy();
+
+    resolveAccepted?.(acceptedState);
+    await waitFor(() => expect(screen.queryByText('ORGANIZER_ACCEPTED', {selector: 'small'})).toBeNull());
+    expect(screen.getByText('SOURCE DRAFT / UNCOMPILED')).toBeTruthy();
+    expect((screen.getByRole('button', {name: /FREEZE NONCANONICAL PREVIEW/i}) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('keeps canonical persistence successful when only the post-write projection refresh fails', async () => {
+    const sourceState = staticCompilerState('SOURCE');
+    const acceptedState = staticCompilerState('ORGANIZER_ACCEPTED');
+    const compileChallenge: ChallengeProductApi['compileChallenge'] = vi.fn(async (body) => (
+      body.requirements.some((item) => item.provenance === 'ORGANIZER_ACCEPTED') ? acceptedState : sourceState
+    ));
+    const getChallenge: ChallengeProductApi['getChallenge'] = vi.fn()
+      .mockResolvedValueOnce(challenge)
+      .mockRejectedValueOnce(new Error('projection_refresh_down'));
+    const previewBuildContract: ChallengeProductApi['previewBuildContract'] = vi.fn(async () => preview);
+    const persistBuildContract: ChallengeProductApi['persistBuildContract'] = vi.fn(async () => canonical);
+    window.history.replaceState({}, '', `/?surface=compiler&challenge=${challenge.challenge_id}`);
+    render(<ChallengeProduct api={api({compileChallenge, getChallenge, previewBuildContract, persistBuildContract})} />);
+
+    await waitFor(() => expect(getChallenge).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText('SOURCE INTENT'), {target: {value: 'Build a public static launch page'}});
+    fireEvent.click(within(realtimeRequirementRow()).getByRole('button', {name: 'NO'}));
+    fireEvent.click(screen.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i}));
+    await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', {name: /ACCEPT CURRENT INPUTS/i}));
+    await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(2));
+
+    fireEvent.change(screen.getByLabelText('CONTRACT VERSION'), {target: {value: '1.0.0'}});
+    fireEvent.change(screen.getByLabelText('TITLE'), {target: {value: 'Challenge'}});
+    fireEvent.change(screen.getByLabelText('PRIZE / MINOR UNITS'), {target: {value: '100'}});
+    fireEvent.change(screen.getByLabelText('SETTLEMENT ASSET'), {target: {value: 'TEST'}});
+    fireEvent.click(screen.getByRole('button', {name: /FREEZE NONCANONICAL PREVIEW/i}));
+    await waitFor(() => expect(previewBuildContract).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', {name: /PERSIST CANONICAL CONTRACT/i}));
+
+    await waitFor(() => expect(persistBuildContract).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(getChallenge).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('CANONICAL / PERSISTED', {selector: 'strong'})).toBeTruthy();
+    expect(screen.getByText(/CANONICAL CONTRACT PERSISTED — CHALLENGE PROJECTION REFRESH UNAVAILABLE/i)).toBeTruthy();
+    expect(screen.queryByText(/CANONICAL PERSISTENCE REJECTED/i)).toBeNull();
+    expect(document.querySelector('[data-build-contract-canonical="persisted"]')).toBeTruthy();
   });
 });
