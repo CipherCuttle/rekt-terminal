@@ -192,6 +192,7 @@ function readLocalCapsule(root:string):LocalCapsule{
 }
 function writeCapsule(root:string,capsule:BuilderCapsuleView){
   if(capsule.schema_version!=='builder-capsule.v1')throw new Error('builder_capsule_server_invalid');
+  for(const file of capsule.files)safeCapsuleTarget(root,file.path);
   assertCapsuleShape(capsule.files);validateCapsuleMetadata(capsule);
   assertNoSymlinkPath(root);
   const prepared=capsule.files.map((file)=>{
