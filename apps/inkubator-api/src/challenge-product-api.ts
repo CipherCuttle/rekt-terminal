@@ -191,7 +191,8 @@ export function buildFrozenBuildContractPreview(
   snapshot: ChallengeSnapshot,
 ): BuildContractPreviewView {
   if (
-    snapshot.contract !== null
+    snapshot.challenge.status !== 'DRAFT'
+    || snapshot.contract !== null
     || snapshot.challenge.current_contract_version !== null
     || snapshot.challenge.current_terms_digest !== null
   ) {
