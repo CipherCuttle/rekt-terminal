@@ -79,12 +79,44 @@ export interface CompilerStateView {
   selected_blueprint: {id: string; version: string} | null;
   causal_facts: Array<{key: string; value: unknown; provenance: 'DETERMINISTIC_RULE'; rule_id: string}>;
   sensitivity_points: string[];
+  outcome_contract_candidate: {criteria: Array<{id: string; description: string; mandatory: boolean; provenance: string}>};
+  delivery_contract_candidate: {criteria: Array<{id: string; description: string; mandatory: boolean; provenance: string}>};
+  preferences: Record<string, unknown>;
   acceptance_plan: {modules: string[]};
   questions: Array<{id: string; prompt: string; blocking: boolean; rule_id: string}>;
   findings: Array<{severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'; code: string; message: string; rule_id: string}>;
   unresolved_decisions: Array<{id: string; reason: string}>;
   reference_architecture_candidate: Record<string, unknown>;
   status: 'READY' | 'NEEDS_DECISION' | 'UNSUPPORTED';
+}
+
+export interface BuildContractPreviewAuthorityInput {
+  contract_version: string;
+  title: string;
+  brief: string;
+  preferences: Record<string, unknown>;
+  normative_constraints: Array<{id: string; description: string; mandatory: boolean}>;
+  normative_references: Array<{id: string; kind: string; content_digest: string; source_url?: string}>;
+  informational_references?: Array<{id: string; url: string}>;
+  prize_minor_units: number;
+  prize_display?: string;
+  settlement_asset: string;
+}
+
+export interface FrozenBuildContractView extends Record<string, unknown> {
+  schema_version: string;
+  challenge_id: string;
+  contract_version: string;
+  title: string;
+  brief: string;
+  terms_digest: string;
+}
+
+export interface BuildContractPreviewView {
+  schema_version: 'build-contract.preview.v1';
+  canonical: false;
+  persisted: false;
+  contract: FrozenBuildContractView;
 }
 
 export class InkubatorProductApiClient extends InkubatorApiClient {
@@ -132,6 +164,21 @@ export class InkubatorProductApiClient extends InkubatorApiClient {
       headers: {'content-type': 'application/json'},
       body: JSON.stringify(body),
     });
+  }
+
+  async previewBuildContract(
+    challengeId: string,
+    compilerState: CompilerStateView,
+    authority: BuildContractPreviewAuthorityInput,
+  ): Promise<BuildContractPreviewView> {
+    return this.productRequest<BuildContractPreviewView>(
+      `/v1/challenges/${encodeURIComponent(challengeId)}/build-contract-preview`,
+      {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({compiler_state: compilerState, authority}),
+      },
+    );
   }
 }
 
