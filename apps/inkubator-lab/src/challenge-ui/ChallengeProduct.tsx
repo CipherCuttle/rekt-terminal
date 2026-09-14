@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState, type ReactNode} from 'react';
+import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {
   createInkubatorApiClient,
   type BuildContractPreviewAuthorityInput,
@@ -141,6 +141,20 @@ function CompilerReadout({compilerState}: {compilerState: CompilerStateView}) {
       </section>
 
       <section className="compiler-machine__section">
+        <h3>PRODUCTION ENVELOPE</h3>
+        {compilerState.production_envelope.criteria.length || compilerState.production_envelope.facts.length ? (
+          <ul>
+            {compilerState.production_envelope.criteria.map((criterion) => (
+              <li key={`criterion:${criterion.id}`}><b>{criterion.id}</b> — {criterion.description} <small>{criterion.mandatory ? 'MANDATORY' : 'OPTIONAL'} / {criterion.provenance}</small></li>
+            ))}
+            {compilerState.production_envelope.facts.map((fact) => (
+              <li key={`fact:${fact.rule_id}:${fact.key}`}><code>{fact.key}</code> = {String(fact.value)} <small>{fact.rule_id} / {fact.provenance}</small></li>
+            ))}
+          </ul>
+        ) : <p>No production-envelope criteria or facts derived yet.</p>}
+      </section>
+
+      <section className="compiler-machine__section">
         <h3>DETERMINISTIC FACTS</h3>
         {compilerState.causal_facts.length ? (
           <ul>{compilerState.causal_facts.map((fact) => <li key={`${fact.rule_id}:${fact.key}`}><code>{fact.key}</code> = {String(fact.value)} <small>{fact.rule_id}</small></li>)}</ul>
@@ -160,6 +174,13 @@ function CompilerReadout({compilerState}: {compilerState: CompilerStateView}) {
       <section className="compiler-machine__section">
         <h3>QUESTIONS</h3>
         {compilerState.questions.length ? <ul>{compilerState.questions.map((question) => <li key={`${question.rule_id}:${question.id}`}><b>{question.blocking ? 'BLOCKING' : 'OPEN'}</b> — {question.prompt}</li>)}</ul> : <p>None.</p>}
+      </section>
+
+      <section className="compiler-machine__section">
+        <h3>FINDINGS</h3>
+        {compilerState.findings.length ? (
+          <ul>{compilerState.findings.map((finding) => <li key={`${finding.rule_id}:${finding.code}`}><b>{finding.severity} / {finding.code}</b> — {finding.message} <small>{finding.rule_id}</small></li>)}</ul>
+        ) : <p>None.</p>}
       </section>
 
       <section className="compiler-machine__section">
@@ -194,6 +215,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const [persistRequestId, setPersistRequestId] = useState<string | null>(null);
   const [persistPhase, setPersistPhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
   const [canonicalContract, setCanonicalContract] = useState<CanonicalBuildContractView | null>(null);
+  const compilerRequestRevision = useRef(0);
 
   useEffect(() => {
     if (!challengeId) {
@@ -216,6 +238,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   }, [api, challengeId]);
 
   const invalidate = () => {
+    compilerRequestRevision.current += 1;
     setCompilerState(null);
     setCompilePhase('IDLE');
     setAccepted(false);
@@ -243,6 +266,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
 
   const compile = async (provenance: CompilerInputProvenance = 'SOURCE') => {
     if (!sourceIntent.trim()) return;
+    const requestRevision = ++compilerRequestRevision.current;
     setCompilePhase('LOADING');
     setCompilerState(null);
     setPreview(null);
@@ -251,10 +275,12 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     setCanonicalContract(null);
     try {
       const next = await api.compileChallenge(buildCompilerProposal(sourceIntent, answers, provenance));
+      if (compilerRequestRevision.current !== requestRevision) return;
       setCompilerState(next);
       setAccepted(provenance === 'ORGANIZER_ACCEPTED');
       setCompilePhase('IDLE');
     } catch {
+      if (compilerRequestRevision.current !== requestRevision) return;
       setAccepted(false);
       setCompilePhase('ERROR');
     }
@@ -300,8 +326,9 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     if (!challengeId || !compilerState || !preview || !previewAuthority || !persistRequestId) return;
     setPersistPhase('LOADING');
     setCanonicalContract(null);
+    let next: CanonicalBuildContractView;
     try {
-      const next = await api.persistBuildContract(
+      next = await api.persistBuildContract(
         challengeId,
         persistRequestId,
         compilerState,
@@ -309,11 +336,20 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         preview.contract.terms_digest,
       );
       if (next.terms_digest !== preview.contract.terms_digest) throw new Error('canonical_digest_mismatch');
-      setCanonicalContract(next);
-      setPersistPhase('IDLE');
-      setChallengeView(await api.getChallenge(challengeId));
     } catch {
       setPersistPhase('ERROR');
+      return;
+    }
+
+    setCanonicalContract(next);
+    setPersistPhase('IDLE');
+    setChallengeView(null);
+    setChallengePhase('LOADING');
+    try {
+      setChallengeView(await api.getChallenge(challengeId));
+      setChallengePhase('IDLE');
+    } catch {
+      setChallengePhase('ERROR');
     }
   };
 
@@ -425,7 +461,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         {!challengeId ? <p className="compiler-contract__notice">SELECT A DRAFT CHALLENGE — add a canonical <code>?challenge=&lt;id&gt;</code> context before freezing a preview.</p> : null}
         {challengePhase === 'LOADING' ? <p className="compiler-contract__notice">READING CHALLENGE AUTHORITY…</p> : null}
         {challengePhase === 'NOT_FOUND' ? <p className="compiler-contract__notice">CHALLENGE NOT FOUND.</p> : null}
-        {challengePhase === 'ERROR' ? <p className="compiler-contract__notice">CHALLENGE TRANSPORT ERROR — freeze disabled.</p> : null}
+        {challengePhase === 'ERROR' ? <p className="compiler-contract__notice">{canonicalContract ? 'CANONICAL CONTRACT PERSISTED — CHALLENGE PROJECTION REFRESH UNAVAILABLE.' : 'CHALLENGE TRANSPORT ERROR — freeze disabled.'}</p> : null}
         {challengeView ? (
           <dl className="challenge-facts" aria-label="Build Contract Challenge authority">
             <div><dt>CHALLENGE</dt><dd><code>{challengeView.challenge_id}</code></dd></div>

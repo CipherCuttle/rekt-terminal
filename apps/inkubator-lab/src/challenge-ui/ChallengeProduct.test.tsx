@@ -188,7 +188,7 @@ describe('Stage E Challenge product shell', () => {
     expect(proposal.requirements).toEqual([{key: 'realtime', value: true, provenance: 'SOURCE'}]);
     expect(screen.getByText('WEB_REALTIME@1.0.0')).toBeTruthy();
     expect(screen.getByText('NEEDS_DECISION')).toBeTruthy();
-    expect(screen.getByText(/realtime_transport_required/)).toBeTruthy();
+    expect(screen.getAllByText(/realtime_transport_required/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Q_REALTIME_TRANSPORT/)).toBeTruthy();
     expect(screen.getByText('SOURCE', {selector: 'small'})).toBeTruthy();
   });
