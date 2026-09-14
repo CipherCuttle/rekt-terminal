@@ -53,7 +53,15 @@ test('F2 immutable submission enforces builder ownership, frozen terms, DB time,
 
     const changedVersion=payload(entryId,termsDigest,{submission_version:1,artifact_digest:'c'.repeat(64)});const immutable=await app.inject({method:'POST',url,headers:{authorization:`Bearer ${builderToken}`},payload:changedVersion});assert.equal(immutable.statusCode,409);assert.equal(immutable.json().error,'challenge_submission_immutable_conflict');
 
-    await sql`update challenges set submission_deadline = clock_timestamp() - interval '1 second' where challenge_id=${challengeId}`.execute(db);
+    await sql`
+      with boundary as (select clock_timestamp() as now)
+      update challenges
+      set entry_deadline = boundary.now - interval '2 seconds',
+          build_start = boundary.now - interval '2 seconds',
+          submission_deadline = boundary.now - interval '1 second'
+      from boundary
+      where challenge_id = ${challengeId}
+    `.execute(db);
     const late=payload(entryId,termsDigest,{submission_version:2});const lateResponse=await app.inject({method:'POST',url,headers:{authorization:`Bearer ${builderToken}`},payload:late});assert.equal(lateResponse.statusCode,409);assert.equal(lateResponse.json().error,'challenge_submission_deadline_elapsed');
   }finally{await app.close();await db.destroy();}
 });
