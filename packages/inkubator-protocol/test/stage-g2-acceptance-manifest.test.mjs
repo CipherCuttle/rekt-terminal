@@ -143,6 +143,7 @@ test('G2A rejects non-canonical JSON executor configs before hashing', () => {
     {at: new Date(0)},
     {mapping: new Map([['expected_status', 200]])},
     {unsafe_number: 1.5},
+    {signed_zero: -0},
   ]) {
     const manifest = withAutomatedBinding(acceptanceManifest(), {config});
     assert.throws(
