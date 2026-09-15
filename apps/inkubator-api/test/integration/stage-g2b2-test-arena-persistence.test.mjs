@@ -15,6 +15,7 @@ import {
   markFinalChallengeSubmission,
   persistFrozenBuildContract,
 } from '../../dist/challenge-store.js';
+import {handleChallengeSubmissionArchiveJob} from '../../dist/challenge-archive.js';
 import {recordStageG2BQualification} from '../../dist/challenge-test-arena-api.js';
 import {trustedTestModuleCatalog} from '../../dist/challenge-test-runners.js';
 import {createDatabase} from '../../dist/database.js';
@@ -100,6 +101,27 @@ function contractFor(challengeId, manifest) {
   });
 }
 
+async function captureCanonicalArchive(db, submissionId) {
+  const job = await db.selectFrom('outbox_jobs')
+    .selectAll()
+    .where('idempotency_key', '=', `challenge.submission.archive:${submissionId}`)
+    .executeTakeFirstOrThrow();
+  await handleChallengeSubmissionArchiveJob(db, job, {
+    capture: async (input) => {
+      assert.equal(input.submissionId, submissionId);
+      return {
+        outcome: 'CAPTURED',
+        archive_digest: 'b'.repeat(64),
+        archive_reference: 'PRIVATE_G2B2_ARCHIVE_REFERENCE',
+      };
+    },
+  });
+  const archive = await db.selectFrom('challenge_submission_archives').selectAll().where('submission_id', '=', submissionId).executeTakeFirstOrThrow();
+  assert.equal(archive.status, 'CAPTURED');
+  assert.equal(archive.archive_digest, 'b'.repeat(64));
+  assert.equal(archive.archive_reference, 'PRIVATE_G2B2_ARCHIVE_REFERENCE');
+}
+
 async function preparedChallenge(db, {archiveStatus = 'CAPTURED'} = {}) {
   const organizer = await player(db, 'g2b2-organizer');
   const builder = await player(db, 'g2b2-builder');
@@ -154,18 +176,12 @@ async function preparedChallenge(db, {archiveStatus = 'CAPTURED'} = {}) {
     },
   });
 
+  if (archiveStatus === 'CAPTURED') await captureCanonicalArchive(db, submissionId);
+
   await sql`update challenges set status = 'SUBMISSIONS_LOCKED' where challenge_id = ${challengeId}`.execute(db);
   await markFinalChallengeSubmission(db, {
     requestId: randomUUID(), challengeId, entryId, submissionId,
   });
-
-  if (archiveStatus === 'CAPTURED') {
-    await sql`
-      update challenge_submission_archives
-      set status = 'CAPTURED', archive_digest = ${'b'.repeat(64)}, reason_code = null, observed_at = clock_timestamp()
-      where submission_id = ${submissionId}
-    `.execute(db);
-  }
 
   await sql`update challenges set status = 'QUALIFICATION' where challenge_id = ${challengeId}`.execute(db);
   return {organizer, builder, challengeId, entryId, submissionId, manifest, contract, submission};
@@ -218,6 +234,7 @@ test('G2B2 persists one immutable qualification and one replay-safe execution ev
     assert.equal(executionEvents.rows[0].payload.submission_id, state.submissionId);
     assert.deepEqual(executionEvents.rows[0].payload.acceptance_manifest, state.manifest);
     assert.equal(executionEvents.rows[0].payload.execution.submission.manifest_digest, state.submission.manifest_digest);
+    assert.equal(JSON.stringify(executionEvents.rows[0].payload).includes('PRIVATE_G2B2_ARCHIVE_REFERENCE'), false);
 
     await assert.rejects(
       recordStageG2BQualification(db, {
