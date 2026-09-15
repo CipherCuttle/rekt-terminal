@@ -48,6 +48,7 @@ export interface TestArenaExecution {
   submission: {
     entry_id: string;
     submission_version: number;
+    manifest_digest: string;
     artifact_digest: string;
     immutable_source_reference: SubmissionManifest['immutable_source_reference'];
   };
