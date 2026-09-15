@@ -31,14 +31,14 @@ Target flow:
 ```text
 FROZEN BUILD CONTRACT
   + FROZEN ACCEPTANCE MANIFEST
-  + FINAL IMMUTABLE SUBMISSION
+  + PROTOCOL-SELECTED FINAL IMMUTABLE SUBMISSION
   + EXACT OBSERVATIONS
   → CONTENT-ADDRESSED TEST-ARENA EXECUTION
   → EXISTING computeQualification()
   → EXISTING recordChallengeQualification()
 ```
 
-G2B1 in this PR freezes the execution/result authority contract. Trusted browser/API/security runner adapters and their scheduling/wiring are subsequent G2B slices; they must plug into this contract rather than bypass it.
+G2B1 in this PR freezes the execution/result authority contract. Trusted browser/API/security runner adapters and their durable-store scheduling/wiring are subsequent G2B slices; they must plug into this contract rather than bypass it.
 
 ## 2. Execution artifact
 
@@ -55,7 +55,8 @@ Every execution is bound to:
 - frozen Challenge id and contract version;
 - frozen `terms_digest`;
 - canonical acceptance-manifest digest;
-- exact final-submission lineage supplied to the executor;
+- one entry id plus a candidate submission-manifest set;
+- the final eligible submission selected from that set by existing `selectFinalSubmission()` law;
 - exact mandatory criterion set;
 - exact observation mode for each criterion;
 - frozen automated module id/version/content digest;
@@ -66,7 +67,7 @@ The deterministic `qualification_version` is derived from the execution-profile 
 
 ## 3. Observation law
 
-### AUTOMATED
+### `AUTOMATED`
 
 An automated observation MUST match the frozen acceptance binding exactly:
 
@@ -80,7 +81,7 @@ An automated observation MUST match the frozen acceptance binding exactly:
 
 A caller cannot relabel a different runner as the frozen module.
 
-### HUMAN_OBSERVATION
+### `HUMAN_OBSERVATION`
 
 A human observation contains only:
 
@@ -108,22 +109,30 @@ Observation order and evidence-reference order are canonicalized so ordering-onl
 
 ## 5. Submission lineage
 
-The protocol execution artifact verifies that the supplied submission manifest:
+G2B1 does not let a caller directly nominate which eligible submission should be tested.
 
-- belongs to the frozen Challenge;
-- carries the frozen `terms_digest`;
-- was accepted by the frozen submission deadline.
+The protocol reducer receives:
 
-Durable API persistence MUST still go through existing `recordChallengeQualification()`, which independently requires QUALIFICATION state and an `is_final = true` submission row for the same Challenge/entry/submission and terms digest. The protocol layer does not replace that database authority.
+- one `entryId`;
+- a set of candidate submission manifests.
+
+It then calls the existing Stage-B `selectFinalSubmission()` law itself. Therefore, within the provided candidate set:
+
+- only protocol-eligible submissions can be selected;
+- a later eligible final version wins according to existing protocol semantics;
+- duplicate eligible submission versions fail closed;
+- wrong-Challenge, wrong-entry, wrong-terms or late candidates cannot become the selected final submission.
+
+**Completeness boundary:** a pure protocol reducer cannot independently prove that an arbitrary caller supplied the complete durable submission set. G2B2 MUST source the candidate set from the canonical `challenge_submissions` store for the entry before execution/persistence. Durable qualification MUST still go through existing `recordChallengeQualification()`, which independently requires QUALIFICATION state and an `is_final = true` submission row for the same Challenge/entry/submission and terms digest. The G2B1 reducer is not a substitute for that database authority.
 
 ## 6. Qualification law reuse
 
 G2B MUST reuse existing:
 
+- `selectFinalSubmission()` for final work selection;
 - `computeQualification()` for overall `QUALIFIED | NOT_QUALIFIED | DISPUTED`;
 - `recordChallengeQualification()` for immutable durable storage;
 - `challenge_qualifications` rather than a new score/result table;
-- existing final-submission lineage;
 - existing appeal/final-qualifier law after first-pass qualification.
 
 No weighted score, LLM grade, secret rubric, taste score, or parallel evaluator is authorized.
@@ -134,7 +143,7 @@ Compiler blueprint names such as `http-smoke`, `accessibility-basic`, `asset-bud
 
 A future trusted runner adapter may execute an AUTOMATED binding only when its implementation identity/version/content digest matches the frozen acceptance manifest. Unsupported criteria remain on their explicitly frozen `HUMAN_OBSERVATION` path; G2B must not fake automation certainty.
 
-G2B1 therefore establishes the runner/output contract but does not claim that browser/API/security runners already exist.
+G2B1 therefore establishes the runner/output contract but does not claim that browser/API/security runners already exist. Likewise, a caller repeating the correct module id/version/digest does not itself prove runner provenance; G2B2 must produce automated observations from a trusted adapter boundary before durable persistence.
 
 ## 8. Acceptance matrix
 
@@ -150,8 +159,10 @@ G2B1 therefore establishes the runner/output contract but does not claim that br
 | duplicate observation | fail closed |
 | undeclared/post-hoc observation | fail closed |
 | observation has no evidence refs | fail closed |
-| submission terms digest differs | fail closed |
-| submission accepted after frozen deadline | fail closed |
+| candidate set has no eligible final submission | fail closed |
+| newer eligible version exists in supplied candidate set | existing `selectFinalSubmission()` chooses it |
+| duplicate eligible submission version | fail closed |
+| wrong entry/terms/deadline candidate only | fail closed |
 | only observation/evidence ordering changes | execution digest stable |
 | frozen acceptance law changes | qualification version changes |
 | criterion FAIL | existing law returns NOT_QUALIFIED |
@@ -161,7 +172,8 @@ G2B1 therefore establishes the runner/output contract but does not claim that br
 
 G2B1 does not authorize:
 
-- arbitrary organizer-supplied values being treated as automated test output;
+- arbitrary organizer-supplied values being treated as trusted automated test output;
+- treating a caller-supplied candidate submission subset as durable proof of set completeness;
 - network/browser runner implementation yet;
 - executing untrusted participant code on platform infrastructure;
 - hidden tests or post-hoc acceptance requirements;
@@ -182,7 +194,7 @@ IMPLEMENT G2B1 EXECUTION AUTHORITY
 → fix Critical/High only
 → ONE targeted rereview only if required
 → CLOSE G2B1
-→ MOVE TO TRUSTED RUNNER + PERSISTENCE WIRING
+→ MOVE TO TRUSTED RUNNER + DURABLE-STORE/PERSISTENCE WIRING
 ```
 
 **Merge authority: NONE.**
@@ -192,9 +204,9 @@ IMPLEMENT G2B1 EXECUTION AUTHORITY
 ```text
 G1 SYNCHRONIZED REVEAL + ARENA INPUT          CLOSED / PASS
 G2A FROZEN ACCEPTANCE MANIFEST                CLOSED / PASS @ 7bd6182d...
-G2B1 EXECUTION AUTHORITY CONTRACT              ACTIVE
-G2B2 TRUSTED RUNNER + QUALIFICATION PERSIST    SEQUENCED AFTER G2B1
-G3 COMPARISON / SELECTION / RECEIPT TRANSPORT  SEQUENCED AFTER G2B
-PRODUCTION MONEY                               NOT AUTHORIZED
-MERGE AUTHORITY                                NONE
+G2B1 EXECUTION AUTHORITY CONTRACT             ACTIVE
+G2B2 TRUSTED RUNNER + QUALIFICATION PERSIST   SEQUENCED AFTER G2B1
+G3 COMPARISON / SELECTION / RECEIPT TRANSPORT SEQUENCED AFTER G2B
+PRODUCTION MONEY                              NOT AUTHORIZED
+MERGE AUTHORITY                               NONE
 ```
