@@ -216,6 +216,7 @@ test('G2B2 persists one immutable qualification and one replay-safe execution ev
     assert.equal(executionEvents.rows.length, 1);
     assert.equal(executionEvents.rows[0].payload.execution_digest, first.execution_digest);
     assert.equal(executionEvents.rows[0].payload.submission_id, state.submissionId);
+    assert.deepEqual(executionEvents.rows[0].payload.acceptance_manifest, state.manifest);
     assert.equal(executionEvents.rows[0].payload.execution.submission.manifest_digest, state.submission.manifest_digest);
 
     await assert.rejects(
