@@ -109,9 +109,14 @@ function criterionResultsFromObservations(observations) {
   }));
 }
 
-export function qualificationVersionForTestArena(contract, acceptanceManifest) {
+export function qualificationVersionForTestArena(contract, acceptanceManifest, acceptanceManifestReferenceId) {
   const frozenContract = assertFrozenBuildContract(contract);
-  const acceptanceManifestDigest = digestAcceptanceManifest(acceptanceManifest);
+  const boundManifest = bindAcceptanceManifestToContract(
+    frozenContract,
+    acceptanceManifest,
+    acceptanceManifestReferenceId,
+  );
+  const acceptanceManifestDigest = digestAcceptanceManifest(boundManifest);
   const authorityDigest = digestRecord({
     execution_profile_version: TEST_ARENA_EXECUTION_PROFILE_VERSION,
     terms_digest: frozenContract.terms_digest,
@@ -158,7 +163,11 @@ export function canonicalTestArenaExecution({
   const criterionResults = criterionResultsFromObservations(normalizedObservations);
   const qualification = computeQualification(frozenContract, criterionResults);
   const acceptanceManifestDigest = digestAcceptanceManifest(boundManifest);
-  const qualificationVersion = qualificationVersionForTestArena(frozenContract, boundManifest);
+  const qualificationVersion = qualificationVersionForTestArena(
+    frozenContract,
+    boundManifest,
+    acceptanceManifestReferenceId,
+  );
 
   return deepFreeze({
     schema_version: TEST_ARENA_EXECUTION_SCHEMA_VERSION,
