@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {sql, type Kysely} from 'kysely';
 import {canonicalizeJson} from './canonical-json.js';
+import {CHALLENGE_SUBMISSION_ARCHIVE_CAPTURE_JOB_TYPE, handleChallengeSubmissionArchiveJob, type ChallengeSubmissionArchiveCaptureClient} from './challenge-archive.js';
 import {CHALLENGE_DUE_STATE_JOB_TYPE, handleChallengeDueStateJob} from './challenge-due-state.js';
 import {readDatabaseNow, type DatabaseSchema, type OutboxJobRow, type OutboxJobState} from './database.js';
 import {appendHistoryEvent} from './events.js';
@@ -35,6 +36,7 @@ export interface RunOneJobOptions {
   leaseMs?: number;
   retryBaseMs?: number;
   shipVerifierClient?: ShipVerifierClient;
+  challengeSubmissionArchiveClient?: ChallengeSubmissionArchiveCaptureClient;
 }
 
 export type RunOneJobResult =
@@ -132,6 +134,7 @@ async function claimDueJob(
   db: Kysely<DatabaseSchema>,
   databaseNow: Date,
   leaseMs: number,
+  allowChallengeSubmissionArchive: boolean,
 ): Promise<OutboxJobRow | null> {
   const staleBefore = new Date(databaseNow.getTime() - leaseMs);
   const lockToken = randomUUID();
@@ -140,6 +143,7 @@ async function claimDueJob(
       select job_id
       from outbox_jobs
       where attempts < max_attempts
+        and (${allowChallengeSubmissionArchive} or job_type <> ${CHALLENGE_SUBMISSION_ARCHIVE_CAPTURE_JOB_TYPE})
         and (
           (state = 'pending' and next_attempt_at <= ${databaseNow})
           or
@@ -588,6 +592,9 @@ async function handleJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, database
     case CHALLENGE_DUE_STATE_JOB_TYPE:
       await handleChallengeDueStateJob(db, job, databaseNow);
       return;
+    case CHALLENGE_SUBMISSION_ARCHIVE_CAPTURE_JOB_TYPE:
+      await handleChallengeSubmissionArchiveJob(db, job, options.challengeSubmissionArchiveClient);
+      return;
     default:
       throw new Error(`unsupported_job_type:${job.job_type}`);
   }
@@ -602,7 +609,7 @@ export async function runOneJob(
   const claimTime = await readDatabaseNow(db);
 
   await failExhaustedStaleJobs(db, claimTime, leaseMs);
-  const job = await claimDueJob(db, claimTime, leaseMs);
+  const job = await claimDueJob(db, claimTime, leaseMs, options.challengeSubmissionArchiveClient !== undefined);
   if (!job) return {status: 'idle'};
 
   try {

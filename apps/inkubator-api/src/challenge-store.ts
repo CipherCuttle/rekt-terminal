@@ -20,8 +20,10 @@ import {
 } from '@rekt-ink/protocol/challenge';
 import {sql, type Kysely} from 'kysely';
 import {canonicalizeJson} from './canonical-json.js';
+import {challengeSubmissionArchiveJob, ensureChallengeSubmissionArchiveState} from './challenge-archive.js';
 import {readDatabaseNow, type DatabaseSchema} from './database.js';
 import {appendHistoryEvent, HISTORY_EVENT_VERSION} from './events.js';
+import {enqueueOutboxJob} from './jobs.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DIGEST_PATTERN = /^[0-9a-f]{64}$/;
@@ -727,6 +729,8 @@ export async function acceptChallengeSubmission(db: Kysely<DatabaseSchema>, inpu
     if (await existingCommand(transaction, dedupeKey, 'challenge.submission.accepted', entry.builder_player_id, 'challenge', challengeId, payload)) {
       const replay = await sql<ChallengeSubmissionRow>`select * from challenge_submissions where submission_id = ${submissionId}`.execute(transaction);
       if (!replay.rows[0]) throw new Error('challenge_submission_replay_missing');
+      const archivePayload = await ensureChallengeSubmissionArchiveState(transaction, replay.rows[0]);
+      await enqueueOutboxJob(transaction, challengeSubmissionArchiveJob(archivePayload));
       return replay.rows[0];
     }
     if (challenge.status !== 'BUILDING') throw new Error('challenge_not_building');
@@ -750,6 +754,8 @@ export async function acceptChallengeSubmission(db: Kysely<DatabaseSchema>, inpu
     `.execute(transaction);
     const row = inserted.rows[0] ?? (await sql<ChallengeSubmissionRow>`select * from challenge_submissions where entry_id = ${entryId} and submission_version = ${submissionVersion}`.execute(transaction)).rows[0];
     if (!row || row.manifest_digest !== normalizedManifest.sha256 || row.submission_id !== submissionId) throw new Error('challenge_submission_immutable_conflict');
+    const archivePayload = await ensureChallengeSubmissionArchiveState(transaction, row);
+    await enqueueOutboxJob(transaction, challengeSubmissionArchiveJob(archivePayload));
     await appendHistoryEvent(transaction, {
       eventFamily: 'activity', eventType: 'challenge.submission.accepted', dedupeKey,
       actorPlayerId: entry.builder_player_id, subjectType: 'challenge', subjectId: challengeId, payload,
