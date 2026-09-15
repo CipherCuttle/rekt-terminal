@@ -143,6 +143,7 @@ export function canonicalTestArenaExecution({
   invariant(Array.isArray(submissionManifests), 'test arena submissionManifests must be an array');
   const submission = selectFinalSubmission(submissionManifests, frozenContract, entryId);
   invariant(submission, 'test arena final submission missing');
+  const submissionManifestDigest = digestRecord(submission);
   invariant(Array.isArray(observations), 'test arena observations must be an array');
   invariant(observations.length === boundManifest.bindings.length, 'test arena observations must exactly match frozen bindings');
 
@@ -181,6 +182,7 @@ export function canonicalTestArenaExecution({
     submission: {
       entry_id: submission.entry_id,
       submission_version: submission.submission_version,
+      manifest_digest: submissionManifestDigest,
       artifact_digest: submission.artifact_digest,
       immutable_source_reference: {...submission.immutable_source_reference},
     },
