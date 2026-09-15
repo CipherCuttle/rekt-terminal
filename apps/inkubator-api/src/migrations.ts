@@ -21,6 +21,7 @@ import {stageCQualificationOverallMigration} from './migrations/022-stage-c-qual
 import {stageCAppealAuthorityMigration} from './migrations/023-stage-c-appeal-authority.js';
 import {stageCIndependentAppealResolverMigration} from './migrations/024-stage-c-independent-appeal-resolver.js';
 import {stageF3ArchiveEvidenceMigration} from './migrations/025-stage-f3-archive-evidence.js';
+import {stageF3bGitHubSourceLineageMigration} from './migrations/026-stage-f3b-github-source-lineage.js';
 
 const initialMigration: Migration = {
   async up(db) {
@@ -330,6 +331,7 @@ class StaticMigrationProvider implements MigrationProvider {
       '023_stage_c_appeal_authority': stageCAppealAuthorityMigration,
       '024_stage_c_independent_appeal_resolver': stageCIndependentAppealResolverMigration,
       '025_stage_f3_archive_evidence': stageF3ArchiveEvidenceMigration,
+      '026_stage_f3b_github_source_lineage': stageF3bGitHubSourceLineageMigration,
     };
   }
 }
