@@ -44,6 +44,7 @@ export interface SafeArchiveInput {
 
 export interface PreparedStageG2BQualification {
   submission_id: string;
+  acceptance_manifest: AcceptanceManifest;
   qualification: TestArenaQualification;
 }
 
@@ -182,7 +183,7 @@ export function buildStageG2BQualificationFromSnapshot(
   if (qualification.execution.submission.manifest_digest !== finalRow.manifest_digest) {
     throw new Error('challenge_test_execution_lineage_mismatch');
   }
-  return {submission_id: finalRow.submission_id, qualification};
+  return {submission_id: finalRow.submission_id, acceptance_manifest: boundManifest, qualification};
 }
 
 export async function recordStageG2BQualification(
@@ -237,6 +238,7 @@ export async function recordStageG2BQualification(
       submission_id: prepared.submission_id,
       qualification_version: prepared.qualification.qualification_version,
       result: prepared.qualification.overall,
+      acceptance_manifest: prepared.acceptance_manifest,
       execution_digest: prepared.qualification.execution_digest,
       execution: prepared.qualification.execution,
     },
