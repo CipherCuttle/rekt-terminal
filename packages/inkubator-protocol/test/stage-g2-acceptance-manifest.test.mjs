@@ -46,6 +46,13 @@ function acceptanceManifest(overrides = {}) {
   };
 }
 
+function withAutomatedBinding(manifest, patch) {
+  return acceptanceManifest({
+    ...manifest,
+    bindings: manifest.bindings.map((binding) => binding.mode === 'AUTOMATED' ? {...binding, ...patch} : binding),
+  });
+}
+
 function contractFor(manifest, overrides = {}) {
   return freezeBuildContract({
     schema_version: BUILD_CONTRACT_SCHEMA_VERSION,
@@ -123,11 +130,7 @@ test('G2A rejects optional or post-hoc criteria as qualification bindings', () =
 test('G2A content digest binds module/config semantics and fails closed on tampering', () => {
   const manifest = acceptanceManifest();
   const contract = contractFor(manifest);
-  const tampered = acceptanceManifest({
-    bindings: manifest.bindings.map((binding) => binding.mode === 'AUTOMATED'
-      ? {...binding, config: {expected_status: 201}}
-      : binding),
-  });
+  const tampered = withAutomatedBinding(manifest, {config: {expected_status: 201}});
   assert.notEqual(digestAcceptanceManifest(manifest), digestAcceptanceManifest(tampered));
   assert.throws(
     () => bindAcceptanceManifestToContract(contract, tampered, manifestReferenceId),
@@ -135,12 +138,22 @@ test('G2A content digest binds module/config semantics and fails closed on tampe
   );
 });
 
+test('G2A rejects non-canonical JSON executor configs before hashing', () => {
+  for (const config of [
+    {at: new Date(0)},
+    {mapping: new Map([['expected_status', 200]])},
+    {unsafe_number: 1.5},
+  ]) {
+    const manifest = withAutomatedBinding(acceptanceManifest(), {config});
+    assert.throws(
+      () => digestAcceptanceManifest(manifest),
+      /must contain only canonical JSON values/,
+    );
+  }
+});
+
 test('G2A automated fixtures must already exist as frozen normative references', () => {
-  const manifest = acceptanceManifest({
-    bindings: acceptanceManifest().bindings.map((binding) => binding.mode === 'AUTOMATED'
-      ? {...binding, fixture_reference_ids: ['REF-MISSING']}
-      : binding),
-  });
+  const manifest = withAutomatedBinding(acceptanceManifest(), {fixture_reference_ids: ['REF-MISSING']});
   const contract = contractFor(manifest);
   assert.throws(
     () => bindAcceptanceManifestToContract(contract, manifest, manifestReferenceId),
@@ -149,15 +162,27 @@ test('G2A automated fixtures must already exist as frozen normative references',
 });
 
 test('G2A acceptance manifest cannot reference itself as an automated fixture', () => {
-  const manifest = acceptanceManifest({
-    bindings: acceptanceManifest().bindings.map((binding) => binding.mode === 'AUTOMATED'
-      ? {...binding, fixture_reference_ids: [manifestReferenceId]}
-      : binding),
-  });
+  const manifest = withAutomatedBinding(acceptanceManifest(), {fixture_reference_ids: [manifestReferenceId]});
   const contract = contractFor(manifest);
   assert.throws(
     () => bindAcceptanceManifestToContract(contract, manifest, manifestReferenceId),
     /cannot use itself as an automated fixture/,
+  );
+});
+
+test('G2A rejects content-addressed self-aliases with a different fixture id', () => {
+  const aliasReferenceId = 'REF-MANIFEST-ALIAS';
+  const manifest = withAutomatedBinding(acceptanceManifest(), {fixture_reference_ids: [aliasReferenceId]});
+  const manifestDigest = digestAcceptanceManifest(manifest);
+  const contract = contractFor(manifest, {
+    normative_references: [
+      {id: aliasReferenceId, kind: 'FIXTURE', content_digest: manifestDigest},
+      {id: manifestReferenceId, kind: ACCEPTANCE_MANIFEST_REFERENCE_KIND, content_digest: manifestDigest},
+    ],
+  });
+  assert.throws(
+    () => bindAcceptanceManifestToContract(contract, manifest, manifestReferenceId),
+    /content-addressed self-alias/,
   );
 });
 
