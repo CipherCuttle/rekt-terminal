@@ -73,7 +73,11 @@ export interface TestArenaQualification {
   execution: TestArenaExecution;
 }
 
-export function qualificationVersionForTestArena(contract: BuildContract, acceptanceManifest: AcceptanceManifest): string;
+export function qualificationVersionForTestArena(
+  contract: BuildContract,
+  acceptanceManifest: AcceptanceManifest,
+  acceptanceManifestReferenceId: string,
+): string;
 export function canonicalTestArenaExecution(input: TestArenaExecutionInput): TestArenaExecution;
 export function digestTestArenaExecution(input: TestArenaExecutionInput): string;
 export function buildTestArenaQualification(input: TestArenaExecutionInput): TestArenaQualification;
