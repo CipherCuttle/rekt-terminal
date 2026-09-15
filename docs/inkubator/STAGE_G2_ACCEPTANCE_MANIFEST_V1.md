@@ -25,7 +25,7 @@ Target flow:
 FROZEN MANDATORY CRITERIA
   → ONE DECLARED BINDING PER CRITERION
   → CONTENT-ADDRESSED ACCEPTANCE MANIFEST
-  → EXISTING BUILD-CONTRACT NORMATIVE REFERENCE
+  → EXACTLY ONE BUILD-CONTRACT ACCEPTANCE-MANIFEST REFERENCE
   → TERMS DIGEST
   → LATER G2B EXECUTION
 ```
@@ -48,6 +48,8 @@ A manifest contains:
 - `contract_version`;
 - exactly one binding for every mandatory frozen criterion;
 - no binding for optional criteria or organizer preferences.
+
+If a valid frozen Build Contract has zero mandatory criteria, the acceptance manifest has zero bindings. G2A does not make the qualification law stricter than the existing Stage-B protocol.
 
 Binding modes:
 
@@ -79,11 +81,13 @@ Human observation cannot silently carry an automated executor, hidden config or 
 2. manifest `challenge_id` matches the contract;
 3. manifest `contract_version` matches the contract;
 4. binding criterion ids exactly equal the set of frozen mandatory criteria from Outcome Contract, Production Envelope, Delivery Contract and normative constraints;
-5. the Build Contract contains the named normative reference;
-6. that reference kind is exactly `ACCEPTANCE_MANIFEST`;
-7. that reference digest equals the canonical acceptance-manifest digest;
+5. the Build Contract contains **exactly one** normative reference whose kind is `ACCEPTANCE_MANIFEST`;
+6. that unique reference id equals the requested acceptance-manifest reference id;
+7. that unique reference digest equals the canonical acceptance-manifest digest;
 8. every automated fixture reference is already a frozen normative reference;
 9. the acceptance manifest cannot reference itself as an automated fixture.
+
+Multiple `ACCEPTANCE_MANIFEST` references are invalid even if one of them has the expected digest. An operator may not choose evaluation authority after the Build Contract is frozen.
 
 No optional criterion, preference, compiler-only module, hidden test or later operator choice may become qualification law through G2A.
 
@@ -113,9 +117,13 @@ Those remain G2B execution/result-persistence authority.
 | Case | Required result |
 | --- | --- |
 | every mandatory criterion bound exactly once | PASS |
+| zero mandatory criteria + zero bindings | PASS |
 | mandatory criterion missing | fail closed |
 | optional criterion added | fail closed |
 | hidden/post-hoc criterion added | fail closed |
+| zero `ACCEPTANCE_MANIFEST` references | fail closed |
+| multiple `ACCEPTANCE_MANIFEST` references | fail closed |
+| selected reference id differs from unique frozen authority | fail closed |
 | manifest digest differs from frozen normative reference | fail closed |
 | automated fixture reference not frozen in Build Contract | fail closed |
 | acceptance manifest references itself as fixture | fail closed |
