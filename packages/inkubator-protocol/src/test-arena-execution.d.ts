@@ -32,7 +32,8 @@ export interface TestArenaExecutionInput {
   contract: BuildContract;
   acceptanceManifest: AcceptanceManifest;
   acceptanceManifestReferenceId: string;
-  submissionManifest: SubmissionManifest;
+  entryId: string;
+  submissionManifests: SubmissionManifest[];
   observations: TestArenaObservation[];
 }
 
