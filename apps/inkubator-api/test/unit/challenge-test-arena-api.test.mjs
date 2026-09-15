@@ -182,8 +182,11 @@ test('G2B2 produces QUALIFIED from trusted CAPTURED archive evidence plus exact 
   assert.equal(result.qualification.execution.observations[1].mode, 'HUMAN_OBSERVATION');
 });
 
-test('G2B2 maps platform-owned archive uncertainty to DISPUTED rather than a fabricated PASS/FAIL', () => {
-  assert.equal(prepare({archiveStatus: 'PENDING'}).qualification.overall, 'DISPUTED');
+test('G2B2 does not crystallize pending archive intent into an immutable qualification', () => {
+  assert.throws(() => prepare({archiveStatus: 'PENDING'}), /challenge_test_archive_pending/);
+});
+
+test('G2B2 maps terminal platform-owned archive uncertainty to DISPUTED rather than builder failure', () => {
   assert.equal(prepare({archiveStatus: 'PLATFORM_UNAVAILABLE'}).qualification.overall, 'DISPUTED');
 });
 
