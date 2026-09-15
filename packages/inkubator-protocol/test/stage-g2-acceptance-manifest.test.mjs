@@ -148,6 +148,47 @@ test('G2A automated fixtures must already exist as frozen normative references',
   );
 });
 
+test('G2A acceptance manifest cannot reference itself as an automated fixture', () => {
+  const manifest = acceptanceManifest({
+    bindings: acceptanceManifest().bindings.map((binding) => binding.mode === 'AUTOMATED'
+      ? {...binding, fixture_reference_ids: [manifestReferenceId]}
+      : binding),
+  });
+  const contract = contractFor(manifest);
+  assert.throws(
+    () => bindAcceptanceManifestToContract(contract, manifest, manifestReferenceId),
+    /cannot use itself as an automated fixture/,
+  );
+});
+
+test('G2A contract cannot freeze multiple competing acceptance authorities', () => {
+  const manifest = acceptanceManifest();
+  const digest = digestAcceptanceManifest(manifest);
+  const contract = contractFor(manifest, {
+    normative_references: [
+      {id: fixtureReferenceId, kind: 'FIXTURE', content_digest: fixtureDigest},
+      {id: manifestReferenceId, kind: ACCEPTANCE_MANIFEST_REFERENCE_KIND, content_digest: digest},
+      {id: 'REF-ACCEPTANCE-V2', kind: ACCEPTANCE_MANIFEST_REFERENCE_KIND, content_digest: digest},
+    ],
+  });
+  assert.throws(
+    () => bindAcceptanceManifestToContract(contract, manifest, manifestReferenceId),
+    /reference authority must be unique/,
+  );
+});
+
+test('G2A supports the existing protocol edge case with zero mandatory criteria', () => {
+  const manifest = acceptanceManifest({bindings: []});
+  const contract = contractFor(manifest, {
+    outcome_contract: {criteria: [{id: 'OPTIONAL-1', description: 'Optional only.', mandatory: false}]},
+    production_envelope: {criteria: []},
+    delivery_contract: {criteria: []},
+    normative_constraints: [],
+  });
+  const bound = bindAcceptanceManifestToContract(contract, manifest, manifestReferenceId);
+  assert.deepEqual(bound.bindings, []);
+});
+
 test('G2A digest is stable across non-semantic binding and fixture ordering', () => {
   const a = acceptanceManifest();
   const automated = {...a.bindings[0], fixture_reference_ids: ['REF-Z', fixtureReferenceId]};
