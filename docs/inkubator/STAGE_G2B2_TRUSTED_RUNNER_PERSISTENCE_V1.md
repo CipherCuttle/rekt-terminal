@@ -108,15 +108,15 @@ Authority:
 
 Result map:
 
-| Archive state | Qualification observation |
+| Archive state | Qualification behavior |
 | --- | --- |
-| `CAPTURED` with valid archive digest | `PASS` |
-| `PENDING` | `DISPUTED` |
-| `PLATFORM_UNAVAILABLE` | `DISPUTED` |
-| `BUILDER_CAUSED_UNAVAILABLE` | `FAIL` |
-| `UNSUPPORTED_SOURCE` | `FAIL` |
+| `CAPTURED` with valid archive digest | automated `PASS` |
+| `PENDING` | **no qualification is recorded; fail command closed until a terminal observation exists** |
+| `PLATFORM_UNAVAILABLE` | automated `DISPUTED` |
+| `BUILDER_CAUSED_UNAVAILABLE` | automated `FAIL` |
+| `UNSUPPORTED_SOURCE` | automated `FAIL` |
 
-This preserves the Stage-G rule that platform uncertainty cannot be silently relabeled as builder failure.
+`PENDING` is capture intent, not an evidence observation. Because Stage-C qualification rows are immutable and first-pass completion can advance the Challenge lifecycle, a temporary queue state MUST NOT be crystallized into a durable qualification result. `PLATFORM_UNAVAILABLE`, by contrast, is a terminal ambiguous platform observation and remains `DISPUTED`, never builder fault.
 
 V1 trusted modules accept no runner-specific config or fixture references. A frozen binding that attempts to add either fails closed as unsupported rather than changing module semantics underneath a known module id/version.
 
@@ -205,7 +205,8 @@ Unsupported automated module id/version/digest/config/fixture combinations fail 
 | caller supplies automated observation | rejected by request contract |
 | human criterion missing/extra/duplicate | fail closed |
 | archive `CAPTURED` + valid digest | automated PASS |
-| archive `PENDING` / platform unavailable | automated DISPUTED |
+| archive `PENDING` | no immutable qualification; fail closed until terminal observation |
+| archive `PLATFORM_UNAVAILABLE` | automated DISPUTED |
 | builder-caused unavailable / unsupported source | automated FAIL |
 | archive lineage differs from final submission | fail closed |
 | exact result set complete | existing `computeQualification()` semantics |
