@@ -75,7 +75,7 @@ function frozenContract(manifest = acceptanceManifest()) {
     slot_limit: 3,
     activation_minimum: 1,
     entry_deadline: t0 + 100,
-    build_start: t0 + 200,
+    build_start: t0 + 100,
     submission_deadline: t0 + 1000,
     appeal_window_ms: 1000,
     review_deadline: t0 + 5000,
