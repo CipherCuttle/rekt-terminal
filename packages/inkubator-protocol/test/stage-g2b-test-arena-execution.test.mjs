@@ -149,6 +149,7 @@ test('G2B builds qualification only from exact frozen execution bindings', () =>
   assert.equal(result.execution.observations[0].criterion_id, 'AUTO-1');
   assert.equal(result.execution.observations[1].criterion_id, 'HUMAN-1');
   assert.deepEqual(result.criterion_results.map((criterion) => criterion.criterion_id), ['AUTO-1', 'HUMAN-1']);
+  assert.match(result.execution.submission.manifest_digest, /^[0-9a-f]{64}$/);
   assert.match(result.execution_digest, /^[0-9a-f]{64}$/);
   assert.equal(Object.isFrozen(result.execution), true);
 });
@@ -240,6 +241,27 @@ test('G2B selects the protocol-final eligible submission from the candidate set'
   assert.equal(result.execution.submission.submission_version, 2);
   assert.equal(result.execution.submission.artifact_digest, '2'.repeat(64));
   assert.equal(result.execution.submission.immutable_source_reference.value, 'newer');
+});
+
+test('G2B execution identity binds the complete protocol-selected submission manifest', () => {
+  const manifest = acceptanceManifest();
+  const contract = contractFor(manifest);
+  const base = submissionFor(contract, {
+    accepted_at: contract.submission_deadline - 20,
+    evidence_references: ['EVIDENCE-A'],
+    optional_live_url: 'https://example.invalid/a',
+  });
+  const baseline = buildTestArenaQualification(executionInput({manifest, contract, submissionManifests: [base]}));
+
+  for (const candidate of [
+    {...base, accepted_at: contract.submission_deadline - 19},
+    {...base, evidence_references: ['EVIDENCE-B']},
+    {...base, optional_live_url: 'https://example.invalid/b'},
+  ]) {
+    const changed = buildTestArenaQualification(executionInput({manifest, contract, submissionManifests: [candidate]}));
+    assert.notEqual(changed.execution.submission.manifest_digest, baseline.execution.submission.manifest_digest);
+    assert.notEqual(changed.execution_digest, baseline.execution_digest);
+  }
 });
 
 test('G2B fails closed when the candidate set has no protocol-eligible final submission', () => {
