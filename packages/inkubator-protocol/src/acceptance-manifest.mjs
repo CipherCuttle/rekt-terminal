@@ -51,7 +51,7 @@ function uniqueSortedStrings(values, label) {
 function assertCanonicalJsonValue(value, label, seen = new WeakSet()) {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
   if (typeof value === 'number') {
-    invariant(Number.isSafeInteger(value), `${label} must contain only canonical JSON values`);
+    invariant(Number.isSafeInteger(value) && !Object.is(value, -0), `${label} must contain only canonical JSON values`);
     return;
   }
   invariant(typeof value === 'object', `${label} must contain only canonical JSON values`);
