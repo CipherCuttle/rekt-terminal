@@ -98,7 +98,7 @@ export function canonicalAcceptanceManifest(manifest) {
   invariant(manifest.schema_version === ACCEPTANCE_MANIFEST_SCHEMA_VERSION, `unsupported acceptance manifest schema ${manifest.schema_version}`);
   assertString(manifest.challenge_id, 'acceptance manifest.challenge_id');
   assertString(manifest.contract_version, 'acceptance manifest.contract_version');
-  invariant(Array.isArray(manifest.bindings) && manifest.bindings.length > 0, 'acceptance manifest.bindings must be a non-empty array');
+  invariant(Array.isArray(manifest.bindings), 'acceptance manifest.bindings must be an array');
   const bindings = manifest.bindings.map(normalizeBinding).sort((left, right) => byteCompare(left.criterion_id, right.criterion_id));
   invariant(new Set(bindings.map((binding) => binding.criterion_id)).size === bindings.length, 'acceptance manifest criterion bindings must be unique');
   return {
@@ -143,9 +143,10 @@ export function bindAcceptanceManifestToContract(contract, manifest, referenceId
     'acceptance manifest bindings must exactly match frozen mandatory criteria',
   );
 
-  const reference = frozenContract.normative_references.find((candidate) => candidate.id === referenceId);
-  invariant(reference, 'acceptance manifest normative reference missing');
-  invariant(reference.kind === ACCEPTANCE_MANIFEST_REFERENCE_KIND, 'acceptance manifest normative reference kind mismatch');
+  const manifestReferences = frozenContract.normative_references.filter((candidate) => candidate.kind === ACCEPTANCE_MANIFEST_REFERENCE_KIND);
+  invariant(manifestReferences.length === 1, 'acceptance manifest reference authority must be unique');
+  const reference = manifestReferences[0];
+  invariant(reference.id === referenceId, 'acceptance manifest normative reference id mismatch');
   invariant(reference.content_digest === digestAcceptanceManifest(canonicalManifest), 'acceptance manifest normative reference digest mismatch');
 
   const normativeReferenceIds = new Set(frozenContract.normative_references.map((candidate) => candidate.id));
