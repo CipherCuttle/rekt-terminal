@@ -418,7 +418,7 @@ async function validateSettlementIntent(
     if (resolution.type !== 'DEFAULT_DISTRIBUTION') throw new Error('challenge_settlement_intent_resolution_mismatch');
     const recipientByEntryId = await payoutIdentityByEntryIds(db, challenge.challenge_id, finalQualifierIds);
     const expected = buildSettlementIntent({contract, resolution, recipientByEntryId});
-    if (canonicalizeJson(expected).sha256 !== canonicalizeJson(intent).sha256) throw new Error('challenge_settlement_intent_resolution_mismatch');
+    if (canonicalizeJson(decisionInput).sha256 !== canonicalizeJson(intent).sha256) throw new Error('challenge_settlement_intent_resolution_mismatch');
     return intent;
   }
 
@@ -734,6 +734,10 @@ export async function acceptChallengeSubmission(db: Kysely<DatabaseSchema>, inpu
       return replay.rows[0];
     }
     if (challenge.status !== 'BUILDING') throw new Error('challenge_not_building');
+    if (entry.project_id) {
+      const projectRepositoryLinkLock = `rekt:project-repository-link:project:${entry.project_id}`;
+      await sql`select pg_advisory_xact_lock(hashtextextended(${projectRepositoryLinkLock}, 0))`.execute(transaction);
+    }
     const databaseNow = await readDatabaseNow(transaction);
     if (databaseNow.getTime() > challenge.submission_deadline.getTime()) throw new Error('challenge_submission_deadline_elapsed');
     const contract = await contractForChallenge(transaction, challenge);
