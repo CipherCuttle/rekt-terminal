@@ -1,4 +1,5 @@
 import {createDatabase} from './database.js';
+import {createGitHubR2ChallengeArchiveCaptureClient, loadGitHubR2ArchiveOptions} from './challenge-archive-github-r2.js';
 import {runOneJob} from './jobs.js';
 import {reconcileShipAcceptances} from './ship-acceptance.js';
 import {createShipVerifierClient} from './ship-verifier-client.js';
@@ -29,6 +30,10 @@ const leaseMs = parsePositiveInt('INKUBATOR_WORKER_LEASE_MS', 30_000, 1_000, 300
 const retryBaseMs = parsePositiveInt('INKUBATOR_WORKER_RETRY_BASE_MS', 1_000, 100, 60_000);
 const shipVerifierUrl = process.env.INKUBATOR_VERIFIER_URL?.trim();
 const shipVerifierClient = shipVerifierUrl ? createShipVerifierClient(shipVerifierUrl) : undefined;
+const archiveOptions = loadGitHubR2ArchiveOptions();
+const challengeSubmissionArchiveClient = archiveOptions
+  ? createGitHubR2ChallengeArchiveCaptureClient(db, archiveOptions)
+  : undefined;
 let stopping = false;
 
 process.once('SIGTERM', () => {
@@ -41,7 +46,12 @@ process.once('SIGINT', () => {
 try {
   while (!stopping) {
     try {
-      const result = await runOneJob(db, {leaseMs, retryBaseMs, ...(shipVerifierClient ? {shipVerifierClient} : {})});
+      const result = await runOneJob(db, {
+        leaseMs,
+        retryBaseMs,
+        ...(shipVerifierClient ? {shipVerifierClient} : {}),
+        ...(challengeSubmissionArchiveClient ? {challengeSubmissionArchiveClient} : {}),
+      });
       await reconcileShipAcceptances(db);
       if (result.status === 'idle') await sleep(pollMs);
     } catch (error) {
