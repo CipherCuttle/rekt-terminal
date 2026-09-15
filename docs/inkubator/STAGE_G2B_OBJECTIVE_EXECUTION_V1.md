@@ -57,6 +57,7 @@ Every execution is bound to:
 - canonical acceptance-manifest digest;
 - one entry id plus a candidate submission-manifest set;
 - the final eligible submission selected from that set by existing `selectFinalSubmission()` law;
+- the canonical digest of the **complete selected submission manifest**, not merely a display projection;
 - exact mandatory criterion set;
 - exact observation mode for each criterion;
 - frozen automated module id/version/content digest;
@@ -64,6 +65,8 @@ Every execution is bound to:
 - the existing Stage-B qualification law.
 
 The deterministic `qualification_version` is derived from the execution-profile version, Build-Contract `terms_digest`, and acceptance-manifest digest. A change in contract law, acceptance law, or execution profile therefore cannot silently overwrite the same immutable qualification version.
+
+The execution artifact separately carries the selected submission's full manifest digest. Changes to authoritative submission facts such as `accepted_at`, submission `evidence_references`, or `optional_live_url` therefore change execution identity even when entry/version/artifact/source projection fields remain the same.
 
 ## 3. Observation law
 
@@ -123,6 +126,8 @@ It then calls the existing Stage-B `selectFinalSubmission()` law itself. Therefo
 - duplicate eligible submission versions fail closed;
 - wrong-Challenge, wrong-entry, wrong-terms or late candidates cannot become the selected final submission.
 
+After selection, G2B1 hashes the complete selected manifest with the existing canonical protocol digest and stores that `manifest_digest` in the execution artifact. The execution digest is therefore bound to all authoritative selected-manifest fields, including fields omitted from the compact display projection.
+
 **Completeness boundary:** a pure protocol reducer cannot independently prove that an arbitrary caller supplied the complete durable submission set. G2B2 MUST source the candidate set from the canonical `challenge_submissions` store for the entry before execution/persistence. Durable qualification MUST still go through existing `recordChallengeQualification()`, which independently requires QUALIFICATION state and an `is_final = true` submission row for the same Challenge/entry/submission and terms digest. The G2B1 reducer is not a substitute for that database authority.
 
 ## 6. Qualification law reuse
@@ -163,6 +168,9 @@ G2B1 therefore establishes the runner/output contract but does not claim that br
 | newer eligible version exists in supplied candidate set | existing `selectFinalSubmission()` chooses it |
 | duplicate eligible submission version | fail closed |
 | wrong entry/terms/deadline candidate only | fail closed |
+| selected manifest `accepted_at` changes | selected manifest + execution digest change |
+| selected manifest submission evidence changes | selected manifest + execution digest change |
+| selected manifest optional live URL changes | selected manifest + execution digest change |
 | only observation/evidence ordering changes | execution digest stable |
 | frozen acceptance law changes | qualification version changes |
 | criterion FAIL | existing law returns NOT_QUALIFIED |
@@ -185,15 +193,27 @@ G2B1 does not authorize:
 - Stage H;
 - merging the stacked PR chain.
 
-## 10. Bounded completion
+## 10. Review / bounded completion
+
+The single independent hostile review at exact tested head `4d0de4490d560d6f7eb27c13266889d47df13b71` found one P1 authority defect:
+
+- the execution artifact projected only part of the selected submission, so distinct complete submission manifests with the same projected entry/version/artifact/source facts could collapse to the same execution digest.
+
+Repair:
+
+- execution now carries the canonical digest of the complete protocol-selected submission manifest;
+- focused regression proves changes to `accepted_at`, submission evidence, or optional live URL change both selected-manifest identity and execution identity.
+
+Bounded completion:
 
 ```text
 IMPLEMENT G2B1 EXECUTION AUTHORITY
 → TEST
 → ONE independent hostile review
 → fix Critical/High only
-→ ONE targeted rereview only if required
-→ CLOSE G2B1
+→ REVERIFY EXACT REPAIR HEAD
+→ ONE targeted rereview of the P1 repair
+→ CLOSE G2B1 IF CLEAN
 → MOVE TO TRUSTED RUNNER + DURABLE-STORE/PERSISTENCE WIRING
 ```
 
@@ -204,7 +224,7 @@ IMPLEMENT G2B1 EXECUTION AUTHORITY
 ```text
 G1 SYNCHRONIZED REVEAL + ARENA INPUT          CLOSED / PASS
 G2A FROZEN ACCEPTANCE MANIFEST                CLOSED / PASS @ 7bd6182d...
-G2B1 EXECUTION AUTHORITY CONTRACT             ACTIVE
+G2B1 EXECUTION AUTHORITY CONTRACT             ACTIVE / P1 REPAIRED / REVERIFY NEXT
 G2B2 TRUSTED RUNNER + QUALIFICATION PERSIST   SEQUENCED AFTER G2B1
 G3 COMPARISON / SELECTION / RECEIPT TRANSPORT SEQUENCED AFTER G2B
 PRODUCTION MONEY                              NOT AUTHORIZED
