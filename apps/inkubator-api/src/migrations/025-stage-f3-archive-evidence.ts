@@ -59,7 +59,7 @@ export const stageF3ArchiveEvidenceMigration = {
         update challenge_submission_archives
         set status = 'PLATFORM_UNAVAILABLE',
             observed_at = clock_timestamp(),
-            reason_code = ${ARCHIVE_LEASE_EXHAUSTED_REASON},
+            reason_code = ${sql.lit(ARCHIVE_LEASE_EXHAUSTED_REASON)},
             updated_at = clock_timestamp()
         where submission_id::text = new.payload ->> 'submission_id'
           and status = 'PENDING';
@@ -75,8 +75,8 @@ export const stageF3ArchiveEvidenceMigration = {
       when (
         old.state = 'running'
         and new.state = 'failed'
-        and new.job_type = ${ARCHIVE_JOB_TYPE}
-        and new.last_error = ${ARCHIVE_LEASE_EXHAUSTED_REASON}
+        and new.job_type = ${sql.lit(ARCHIVE_JOB_TYPE)}
+        and new.last_error = ${sql.lit(ARCHIVE_LEASE_EXHAUSTED_REASON)}
       )
       execute function ${sql.ref(ARCHIVE_LEASE_EXHAUSTED_FUNCTION)}()
     `.execute(db);
