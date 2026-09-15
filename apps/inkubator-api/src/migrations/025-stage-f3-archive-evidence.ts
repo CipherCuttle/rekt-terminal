@@ -4,6 +4,7 @@ import type {DatabaseSchema} from '../database.js';
 import {enqueueOutboxJob} from '../jobs.js';
 
 const ARCHIVE_JOB_TYPE = 'challenge.submission_archive_capture.v1';
+const ARCHIVE_JOB_LEASE_EXHAUSTED_ERROR = 'worker_lease_expired_after_max_attempts';
 const ARCHIVE_LEASE_EXHAUSTED_REASON = 'WORKER_LEASE_EXPIRED_AFTER_MAX_ATTEMPTS';
 const ARCHIVE_LEASE_EXHAUSTED_TRIGGER = 'stage_f3_archive_outbox_lease_exhausted';
 const ARCHIVE_LEASE_EXHAUSTED_FUNCTION = 'stage_f3_archive_outbox_lease_exhausted_fn';
@@ -76,7 +77,7 @@ export const stageF3ArchiveEvidenceMigration = {
         old.state = 'running'
         and new.state = 'failed'
         and new.job_type = ${sql.lit(ARCHIVE_JOB_TYPE)}
-        and new.last_error = ${sql.lit(ARCHIVE_LEASE_EXHAUSTED_REASON)}
+        and new.last_error = ${sql.lit(ARCHIVE_JOB_LEASE_EXHAUSTED_ERROR)}
       )
       execute function ${sql.ref(ARCHIVE_LEASE_EXHAUSTED_FUNCTION)}()
     `.execute(db);
