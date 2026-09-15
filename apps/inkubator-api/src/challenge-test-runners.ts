@@ -62,10 +62,9 @@ const ARCHIVE_CAPTURE = Object.freeze({
   module_id: 'archive-capture-integrity',
   module_version: '1.0.0',
   authority: 'canonical challenge_submission_archives row',
-  semantics: 'PASS for CAPTURED; DISPUTED for PENDING or PLATFORM_UNAVAILABLE; FAIL for BUILDER_CAUSED_UNAVAILABLE or UNSUPPORTED_SOURCE, after exact final-submission lineage validation.',
+  semantics: 'PENDING is not an observation and cannot qualify; PASS for CAPTURED; DISPUTED for terminal PLATFORM_UNAVAILABLE; FAIL for BUILDER_CAUSED_UNAVAILABLE or UNSUPPORTED_SOURCE, after exact final-submission lineage validation.',
   result_map: {
     CAPTURED: 'PASS',
-    PENDING: 'DISPUTED',
     PLATFORM_UNAVAILABLE: 'DISPUTED',
     BUILDER_CAUSED_UNAVAILABLE: 'FAIL',
     UNSUPPORTED_SOURCE: 'FAIL',
@@ -134,6 +133,7 @@ function runArchiveCapture(
   ) {
     throw new Error('challenge_test_archive_lineage_mismatch');
   }
+  if (archive.status === 'PENDING') throw new Error('challenge_test_archive_pending');
   const result = descriptor.result_map[archive.status];
   if (!result) throw new Error('challenge_test_archive_status_unsupported');
   if (archive.status === 'CAPTURED' && !/^[0-9a-f]{64}$/.test(archive.archive_digest ?? '')) {
