@@ -30,6 +30,10 @@
       "types": "./src/acceptance-manifest.d.ts",
       "import": "./src/acceptance-manifest.mjs"
     },
+    "./test-arena-execution": {
+      "types": "./src/test-arena-execution.d.ts",
+      "import": "./src/test-arena-execution.mjs"
+    },
     "./compiler": {
       "types": "./src/compiler.d.ts",
       "import": "./src/compiler.mjs"
