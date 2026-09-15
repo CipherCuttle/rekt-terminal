@@ -141,7 +141,6 @@ export function buildStageG2BQualificationFromSnapshot(
     humanObservations: HumanObservationInput[];
   },
 ): PreparedStageG2BQualification {
-  if (snapshot.challenge.status !== 'QUALIFICATION') throw new Error('challenge_not_qualifying');
   if (!snapshot.entries.some((entry) => entry.entry_id === input.entryId)) throw new Error('challenge_entry_not_found');
   const contract = frozenContract(snapshot);
   const boundManifest = bindAcceptanceManifestToContract(contract, input.acceptanceManifest, input.acceptanceManifestReferenceId);
@@ -152,6 +151,7 @@ export function buildStageG2BQualificationFromSnapshot(
   const matchingArchives = archives.filter((archive) => archive.submission_id === finalRow.submission_id);
   if (matchingArchives.length > 1) throw new Error('challenge_test_archive_ambiguous');
   const archive = matchingArchives[0] ?? null;
+  if (archive?.status === 'PENDING') throw new Error('challenge_test_archive_pending');
   const humanByCriterion = humanObservationMap(boundManifest.bindings, input.humanObservations);
 
   const observations = boundManifest.bindings.map((binding) => {
@@ -279,13 +279,11 @@ export function registerStageG2BTestArenaRoutes(app: FastifyInstance, db: Inkuba
     if (!actorPlayerId) return apiError(reply, 401, 'authentication_required');
     const {challengeId, entryId} = request.params as {challengeId: string; entryId: string};
     const body = request.body as Record<string, unknown> | null;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return apiError(reply, 400, 'invalid_request_body');
     try {
-      if (!body || !exactKeys(body, ['request_id', 'qualification_id', 'acceptance_manifest_reference_id', 'acceptance_manifest', 'human_observations'])) {
-        return apiError(reply, 400, 'challenge_test_arena_input_invalid');
-      }
       const result = await recordStageG2BQualification(db, {
-        requestId: requireString(body.request_id, 'request_id'),
-        qualificationId: requireString(body.qualification_id, 'qualification_id'),
+        requestId: requireUuid(body.request_id, 'request_id'),
+        qualificationId: requireUuid(body.qualification_id, 'qualification_id'),
         challengeId,
         entryId,
         actorPlayerId,
@@ -295,21 +293,12 @@ export function registerStageG2BTestArenaRoutes(app: FastifyInstance, db: Inkuba
       });
       reply.header('cache-control', 'no-store');
       return result;
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : 'challenge_test_arena_failed';
-      if (message.startsWith('invalid_') || message.includes('acceptance manifest') || message.includes('test arena')) {
-        return apiError(reply, 400, 'challenge_test_arena_input_invalid');
-      }
-      if (message === 'challenge_not_found') return apiError(reply, 404, message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'challenge_test_arena_failed';
+      if (message === 'challenge_not_found' || message === 'challenge_entry_not_found') return apiError(reply, 404, message);
       if (message === 'challenge_organizer_required') return apiError(reply, 403, message);
-      if (
-        message === 'challenge_not_qualifying'
-        || message === 'challenge_entry_not_found'
-        || message.startsWith('challenge_test_')
-        || message.startsWith('challenge_qualification_')
-        || message.includes('idempotency_conflict')
-      ) return apiError(reply, 409, message);
-      throw cause;
+      if (message.startsWith('invalid_')) return apiError(reply, 400, message);
+      return apiError(reply, 409, message);
     }
   });
 }
