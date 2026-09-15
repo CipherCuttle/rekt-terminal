@@ -48,6 +48,41 @@ function uniqueSortedStrings(values, label) {
   return [...values].sort(byteCompare);
 }
 
+function assertCanonicalJsonValue(value, label, seen = new WeakSet()) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
+  if (typeof value === 'number') {
+    invariant(Number.isSafeInteger(value), `${label} must contain only canonical JSON values`);
+    return;
+  }
+  invariant(typeof value === 'object', `${label} must contain only canonical JSON values`);
+  invariant(!seen.has(value), `${label} must contain only canonical JSON values`);
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    invariant(Object.getOwnPropertySymbols(value).length === 0, `${label} must contain only canonical JSON values`);
+    const keys = Object.keys(value);
+    invariant(keys.length === value.length, `${label} must contain only canonical JSON values`);
+    for (let index = 0; index < value.length; index += 1) {
+      invariant(keys[index] === String(index), `${label} must contain only canonical JSON values`);
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      invariant(descriptor?.enumerable === true && 'value' in descriptor, `${label} must contain only canonical JSON values`);
+      assertCanonicalJsonValue(descriptor.value, `${label}[${index}]`, seen);
+    }
+    seen.delete(value);
+    return;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  invariant(prototype === Object.prototype || prototype === null, `${label} must contain only canonical JSON values`);
+  invariant(Object.getOwnPropertySymbols(value).length === 0, `${label} must contain only canonical JSON values`);
+  for (const key of Object.keys(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    invariant(descriptor?.enumerable === true && 'value' in descriptor, `${label} must contain only canonical JSON values`);
+    assertCanonicalJsonValue(descriptor.value, `${label}.${key}`, seen);
+  }
+  seen.delete(value);
+}
+
 function deepFreeze(value) {
   if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
   Object.freeze(value);
@@ -71,6 +106,7 @@ function normalizeBinding(binding, index) {
     assertString(binding.module_version, `${label}.module_version`);
     assertDigest(binding.module_digest, `${label}.module_digest`);
     assertObject(binding.config, `${label}.config`);
+    assertCanonicalJsonValue(binding.config, `${label}.config`);
     digestRecord(binding.config);
     return {
       criterion_id: binding.criterion_id,
@@ -147,14 +183,17 @@ export function bindAcceptanceManifestToContract(contract, manifest, referenceId
   invariant(manifestReferences.length === 1, 'acceptance manifest reference authority must be unique');
   const reference = manifestReferences[0];
   invariant(reference.id === referenceId, 'acceptance manifest normative reference id mismatch');
-  invariant(reference.content_digest === digestAcceptanceManifest(canonicalManifest), 'acceptance manifest normative reference digest mismatch');
+  const manifestDigest = digestAcceptanceManifest(canonicalManifest);
+  invariant(reference.content_digest === manifestDigest, 'acceptance manifest normative reference digest mismatch');
 
-  const normativeReferenceIds = new Set(frozenContract.normative_references.map((candidate) => candidate.id));
+  const normativeReferencesById = new Map(frozenContract.normative_references.map((candidate) => [candidate.id, candidate]));
   for (const binding of canonicalManifest.bindings) {
     if (binding.mode !== 'AUTOMATED') continue;
     for (const fixtureReferenceId of binding.fixture_reference_ids) {
       invariant(fixtureReferenceId !== referenceId, 'acceptance manifest cannot use itself as an automated fixture');
-      invariant(normativeReferenceIds.has(fixtureReferenceId), `acceptance fixture reference missing: ${fixtureReferenceId}`);
+      const fixtureReference = normativeReferencesById.get(fixtureReferenceId);
+      invariant(fixtureReference, `acceptance fixture reference missing: ${fixtureReferenceId}`);
+      invariant(fixtureReference.content_digest !== manifestDigest, 'acceptance manifest cannot use a content-addressed self-alias as an automated fixture');
     }
   }
 
