@@ -25,6 +25,7 @@ const fixtureReferenceId = 'REF-FIXTURE-V1';
 const fixtureDigest = 'f'.repeat(64);
 const moduleDigest = 'a'.repeat(64);
 const artifactDigest = 'b'.repeat(64);
+const entryId = 'ENTRY-1';
 
 function acceptanceManifest(overrides = {}) {
   return {
@@ -95,7 +96,7 @@ function submissionFor(contract, overrides = {}) {
   return {
     schema_version: 'inkubator.submission-manifest/1.0',
     challenge_id: contract.challenge_id,
-    entry_id: 'ENTRY-1',
+    entry_id: entryId,
     terms_digest: contract.terms_digest,
     submission_version: 1,
     immutable_source_reference: {kind: 'GIT_COMMIT', value: 'deadbeef'},
@@ -129,13 +130,14 @@ function observations(overrides = {}) {
   ];
 }
 
-function executionInput({manifest = acceptanceManifest(), contract = null, submission = null, observed = null} = {}) {
+function executionInput({manifest = acceptanceManifest(), contract = null, submissionManifests = null, observed = null} = {}) {
   const frozen = contract ?? contractFor(manifest);
   return {
     contract: frozen,
     acceptanceManifest: manifest,
     acceptanceManifestReferenceId: manifestReferenceId,
-    submissionManifest: submission ?? submissionFor(frozen),
+    entryId,
+    submissionManifests: submissionManifests ?? [submissionFor(frozen)],
     observations: observed ?? observations(),
   };
 }
@@ -215,15 +217,57 @@ test('G2B requires durable evidence references for every qualification observati
   );
 });
 
-test('G2B fails closed on submission lineage mismatch or late submission', () => {
+test('G2B selects the protocol-final eligible submission from the candidate set', () => {
+  const manifest = acceptanceManifest();
+  const contract = contractFor(manifest);
+  const older = submissionFor(contract, {
+    submission_version: 1,
+    accepted_at: contract.submission_deadline - 100,
+    artifact_digest: '1'.repeat(64),
+    immutable_source_reference: {kind: 'GIT_COMMIT', value: 'older'},
+  });
+  const newer = submissionFor(contract, {
+    submission_version: 2,
+    accepted_at: contract.submission_deadline - 10,
+    artifact_digest: '2'.repeat(64),
+    immutable_source_reference: {kind: 'GIT_COMMIT', value: 'newer'},
+  });
+  const result = buildTestArenaQualification(executionInput({
+    manifest,
+    contract,
+    submissionManifests: [newer, older],
+  }));
+  assert.equal(result.execution.submission.submission_version, 2);
+  assert.equal(result.execution.submission.artifact_digest, '2'.repeat(64));
+  assert.equal(result.execution.submission.immutable_source_reference.value, 'newer');
+});
+
+test('G2B fails closed when the candidate set has no protocol-eligible final submission', () => {
   const input = executionInput();
+  const submission = input.submissionManifests[0];
   assert.throws(
-    () => buildTestArenaQualification({...input, submissionManifest: {...input.submissionManifest, terms_digest: 'd'.repeat(64)}}),
-    /submission terms digest mismatch/,
+    () => buildTestArenaQualification({...input, submissionManifests: [{...submission, terms_digest: 'd'.repeat(64)}]}),
+    /final submission missing/,
   );
   assert.throws(
-    () => buildTestArenaQualification({...input, submissionManifest: {...input.submissionManifest, accepted_at: input.contract.submission_deadline + 1}}),
-    /missed frozen deadline/,
+    () => buildTestArenaQualification({...input, submissionManifests: [{...submission, accepted_at: input.contract.submission_deadline + 1}]}),
+    /final submission missing/,
+  );
+  assert.throws(
+    () => buildTestArenaQualification({...input, submissionManifests: [{...submission, entry_id: 'OTHER-ENTRY'}]}),
+    /final submission missing/,
+  );
+});
+
+test('G2B rejects duplicate eligible submission versions through existing finality law', () => {
+  const input = executionInput();
+  const first = input.submissionManifests[0];
+  assert.throws(
+    () => buildTestArenaQualification({
+      ...input,
+      submissionManifests: [first, {...first, artifact_digest: '3'.repeat(64)}],
+    }),
+    /eligible submission versions must be unique/,
   );
 });
 
