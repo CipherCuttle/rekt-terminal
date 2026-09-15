@@ -64,7 +64,7 @@ The frozen binding declares:
 - frozen `fixture_reference_ids` that must already exist in the Build Contract's normative references;
 - frozen `config`.
 
-Automated `config` is restricted recursively to the existing protocol canonical JSON value domain: `null`, strings, booleans, safe integers, arrays and plain string-keyed objects composed only from those values. Prototype-bearing/non-JSON values such as `Date` or `Map`, accessors, symbols, sparse arrays, cycles, unsupported primitives and non-safe/non-integer numbers fail closed before hashing. The executor-visible config therefore cannot carry semantics that disappear from the content digest.
+Automated `config` is restricted recursively to the existing protocol canonical JSON value domain: `null`, strings, booleans, non-negative-zero safe integers, arrays and plain string-keyed objects composed only from those values. Prototype-bearing/non-JSON values such as `Date` or `Map`, accessors, symbols, sparse arrays, cycles, unsupported primitives, non-safe/non-integer numbers and signed negative zero fail closed before hashing. The executor-visible config therefore cannot carry semantics that disappear from the content digest.
 
 ### `HUMAN_OBSERVATION`
 
@@ -99,7 +99,7 @@ Manifest digests are deterministic under the existing protocol canonicalization 
 
 Binding order and automated fixture-reference order are normalized so non-semantic ordering changes do not mint a different acceptance law.
 
-Changing module identity/version/digest, canonical config, fixture bindings, human instructions, criterion coverage, Challenge identity or contract version changes the manifest meaning and therefore its digest. Values outside the canonical protocol domain are rejected rather than being normalized into a misleading digest.
+Changing module identity/version/digest, canonical config, fixture bindings, human instructions, criterion coverage, Challenge identity or contract version changes the manifest meaning and therefore its digest. Values outside the canonical protocol domain are rejected rather than being normalized into a misleading digest. `-0` is rejected because the protocol canonicalizer serializes it as `0` while JavaScript executors can distinguish the signed value.
 
 ## 4. Reuse rule
 
@@ -127,7 +127,7 @@ Those remain G2B execution/result-persistence authority.
 | multiple `ACCEPTANCE_MANIFEST` references | fail closed |
 | selected reference id differs from unique frozen authority | fail closed |
 | manifest digest differs from frozen normative reference | fail closed |
-| automated config contains `Date`, `Map`, unsafe/non-integer number or other non-canonical value | fail closed |
+| automated config contains `Date`, `Map`, unsafe/non-integer number, signed `-0` or other non-canonical value | fail closed |
 | automated fixture reference not frozen in Build Contract | fail closed |
 | acceptance manifest references itself directly as fixture | fail closed |
 | different fixture reference id aliases the acceptance-manifest content digest | fail closed |
@@ -174,7 +174,9 @@ G2A's single independent hostile review at `f7c752825509217bf45d1cc6b12a3d4a0250
 1. cloneable non-JSON automated config values could preserve executor-visible semantics while collapsing under canonical hashing;
 2. a differently named normative reference could alias the acceptance-manifest content digest and bypass id-only self-reference rejection.
 
-Both are repaired in the current branch with focused regression coverage. Per the bounded completion policy, only one targeted rereview of those repairs is permitted after exact-head verification.
+Both were repaired with focused regression coverage and exact-head verification. The one policy-authorized targeted rereview at `1ae62e0166e4fe79a81ff4be36077b257c080eb3` then found one additional P1 within the config repair: JavaScript `-0` passed the safe-integer check and canonicalized to the same digest text as `0` while remaining executor-distinguishable. G2A now rejects signed negative zero and includes a focused regression.
+
+The bounded review budget is consumed. After this targeted-rereview repair, run exact-head verification and close G2A if green; do not open a third review loop.
 
 Bounded completion:
 
@@ -184,6 +186,8 @@ IMPLEMENT G2A
 → ONE independent hostile review
 → fix Critical/High only
 → ONE targeted re-review only if required
+→ fix any Critical/High found by that targeted rereview
+→ REVERIFY EXACT HEAD
 → CLOSE G2A
 → MOVE TO G2B EXECUTION
 ```
@@ -194,7 +198,7 @@ IMPLEMENT G2A
 
 ```text
 G1 SYNCHRONIZED REVEAL + ARENA INPUT         CLOSED / PASS
-G2A FROZEN ACCEPTANCE MANIFEST               ACTIVE / P1 REPAIRS APPLIED / REVERIFY NEXT
+G2A FROZEN ACCEPTANCE MANIFEST               ACTIVE / TARGETED-REREVIEW P1 REPAIRED / REVERIFY NEXT
 G2B OBJECTIVE TEST EXECUTION                  SEQUENCED AFTER G2A
 G3 COMPARISON / SELECTION / RECEIPT TRANSPORT SEQUENCED AFTER G2B
 PRODUCTION MONEY                              NOT AUTHORIZED
