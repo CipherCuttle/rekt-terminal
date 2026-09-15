@@ -410,7 +410,7 @@ async function validateSettlementIntent(
     return intent;
   }
 
-  if (entryId !== null) throw new Error('challenge_decision_entry_mismatch');
+  if (entryId !== null) throw new Error('challenge_settlement_intent_resolution_mismatch');
 
   if (intent.type === 'DEFAULT_DISTRIBUTION') {
     const finalQualifierIds = await storedFinalQualifierIds(db, challenge, contract);
@@ -418,7 +418,7 @@ async function validateSettlementIntent(
     if (resolution.type !== 'DEFAULT_DISTRIBUTION') throw new Error('challenge_settlement_intent_resolution_mismatch');
     const recipientByEntryId = await payoutIdentityByEntryIds(db, challenge.challenge_id, finalQualifierIds);
     const expected = buildSettlementIntent({contract, resolution, recipientByEntryId});
-    if (canonicalizeJson(decisionInput).sha256 !== canonicalizeJson(intent).sha256) throw new Error('challenge_settlement_intent_resolution_mismatch');
+    if (canonicalizeJson(expected).sha256 !== canonicalizeJson(intent).sha256) throw new Error('challenge_settlement_intent_resolution_mismatch');
     return intent;
   }
 
