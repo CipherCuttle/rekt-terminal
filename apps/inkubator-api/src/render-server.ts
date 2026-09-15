@@ -2,6 +2,7 @@ import {readFile} from 'node:fs/promises';
 import {extname, resolve, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {buildApp} from './app.js';
+import {registerStageGRevealArenaRoutes} from './challenge-reveal-api.js';
 import {loadRuntimeConfig} from './config.js';
 import {createDatabase} from './database.js';
 import {registerGitHubLoginRoutes} from './github-login-routes.js';
@@ -19,6 +20,8 @@ const app = buildApp({
     : null,
 });
 
+registerStageGRevealArenaRoutes(app, db);
+
 if (config.github) {
   registerGitHubLoginRoutes(app, {
     db,
@@ -35,7 +38,7 @@ const mimeTypes: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.ico': 'image/x-icon',
   '.jpeg': 'image/jpeg',
-  '.jpg': 'image/jpeg',
+  '.jpg': 'image/jpg',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
