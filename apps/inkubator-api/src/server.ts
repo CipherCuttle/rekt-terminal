@@ -1,5 +1,6 @@
 import {buildApp} from './app.js';
 import {registerStageEChallengeProductRoutes} from './challenge-product-api.js';
+import {registerStageGRevealArenaRoutes} from './challenge-reveal-api.js';
 import {loadRuntimeConfig} from './config.js';
 import {createDatabase} from './database.js';
 import {registerGitHubLoginRoutes} from './github-login-routes.js';
@@ -27,6 +28,7 @@ const app = buildApp({
 });
 
 registerStageEChallengeProductRoutes(app, db);
+registerStageGRevealArenaRoutes(app, db);
 
 if (config.github) {
   registerGitHubLoginRoutes(app, {

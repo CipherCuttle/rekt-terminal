@@ -25,7 +25,8 @@ Forward product strategy and staged roadmap are governed by:
 19. `STAGE_F2_IMMUTABLE_SUBMISSION_V1.md` — closed F2 builder-owned immutable submission contract over existing Stage-B/C law.
 20. `STAGE_F3_ARCHIVE_EVIDENCE_V1.md` — F3A provider-independent durable asynchronous archive/evidence contract.
 21. `STAGE_F3_ARCHIVE_EVIDENCE_CLOSURE_V1.md` — Stage-F3/Stage-F closure receipt covering F3A orchestration and F3B GitHub→private-R2 provider wiring.
-22. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+22. `STAGE_G_REVEAL_TEST_ARENA_RECEIPTS_V1.md` — active Stage-G authority; G1 synchronized reveal + Test Arena input projection is the current authorized slice.
+23. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -53,15 +54,19 @@ Stage-F1 Builder Capsule                     CLOSED / PASS BY EXPLICIT GOVERNANC
 Stage-F2 Immutable Submission                CLOSED / PASS / PR #100 / UNMERGED
 Stage-F3 Archive / Evidence                  CLOSED / PASS / PR #101 + PR #102 / UNMERGED
 Stage F                                      CLOSED / PASS / STACKED
-Stage G Reveal / Test Arena / Receipts       NEXT / NOT AUTHORIZED
+Stage G Reveal / Test Arena / Receipts       AUTHORIZED / ACTIVE G1 / STACKED AFTER F3
+G1 synchronized reveal + Arena input         AUTHORIZED / CURRENT
+G2 objective Test Arena execution            SEQUENCED AFTER G1
+G3 comparison / selection / receipt transport SEQUENCED AFTER G2
+Stage H trust hardening                      NOT AUTHORIZED BY G1
 Production money                             NOT AUTHORIZED
 Merge authority                              NONE
 ```
 
-**Execution verdict:** Stage F is closed. F1, F2 and F3 have bounded closure evidence, with F3A providing durable provider-independent archive/evidence truth and F3B providing point-in-time GitHub repository lineage plus production-capable private R2 capture. The next roadmap stage is Stage G Reveal / Test Arena / Receipts, but Stage G implementation authority has not yet been granted. Do not begin Stage-G production changes until a bounded Stage-G implementation contract is authorized. Stage-E PR #97, Stage-F1 PR #98, Stage-F2 PR #100, Stage-F3A PR #101 and Stage-F3B PR #102 remain stacked/unmerged dependencies and must not be merged out of order without explicit merge authority.
+**Execution verdict:** Stage G is user-authorized and G1 is the current bounded implementation slice. Build a pure organizer-only reveal/Test Arena projection over the closed Stage-F submission/evidence substrate: no competitor work before durable `SUBMISSIONS_LOCKED`, no wall-clock GET mutation, deterministic protocol-selected final manifests, frozen mandatory criteria only, and no private archive locations or raw source leakage. Reuse existing protocol qualification/selection/receipt law rather than creating a parallel evaluator. Do not begin G2 or G3 until G1 closes under the bounded review policy. Stage-E PR #97, Stage-F1 PR #98, Stage-F2 PR #100, Stage-F3A PR #101 and Stage-F3B PR #102 remain stacked/unmerged dependencies and must not be merged out of order without explicit merge authority.
 
-F1's independent hostile-review requirement was explicitly replaced by user authority on 2026-09-14 with the completed adversarial self-audit plus green exact-head CI/Auth evidence. Do not claim an independent F1 review occurred. That waiver does not alter the default bounded-review policy used for F2/F3.
+F1's independent hostile-review requirement was explicitly replaced by user authority on 2026-09-14 with the completed adversarial self-audit plus green exact-head CI/Auth evidence. Do not claim an independent F1 review occurred. That waiver does not alter the default bounded-review policy used for F2/F3/G1.
 
 The existing `apps/inkubator-lab` runtime remains the Inkubator frontend root; do not create `apps/inkubator-web` and never reuse Terminal `apps/web`. Historical WORLD/COMMAND/PROJECT/PLAYER/SHIP surfaces remain parked compatibility substrate unless a bounded migration explicitly promotes them.
 
-No funding, production-money, wallet custody/signing/broadcast, reveal/Test Arena, qualification, selection or Stage-G authority is granted by Stage-F closure.
+G1 grants no authority for automated qualification mutation, hidden tests, winner selection mutation, settlement execution, production money, wallet custody/signing/broadcast, public raw private-source retrieval, archive retention/DSAR infrastructure, Stage-H implementation or merge.
