@@ -173,3 +173,41 @@ test('F3A ambiguous absence and unsupported source fail closed without authorita
     assert.equal((await archiveJob(db, unsupported.submissionId)).job_id, unsupportedJob.job_id);
   } finally { await db.destroy(); }
 });
+
+test('F3A final lease exhaustion terminalizes evidence availability without rewriting acceptance', async () => {
+  const db = createDatabase(databaseUrl);
+  await migrateToLatest(db);
+  try {
+    const fixture = await acceptedFixture(db);
+    const before = await db.selectFrom('challenge_submissions').selectAll().where('submission_id', '=', fixture.submissionId).executeTakeFirstOrThrow();
+    const job = await archiveJob(db, fixture.submissionId);
+    await db.updateTable('outbox_jobs').set({
+      state: 'running',
+      attempts: 1,
+      max_attempts: 1,
+      locked_at: new Date(0),
+      lock_token: randomUUID(),
+      last_error: null,
+      next_attempt_at: new Date(0),
+    }).where('job_id', '=', job.job_id).execute();
+
+    const run = await runOneJob(db, {leaseMs: 1_000});
+    assert.equal(run.status, 'idle');
+
+    const exhausted = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', job.job_id).executeTakeFirstOrThrow();
+    assert.equal(exhausted.state, 'failed');
+    assert.equal(exhausted.last_error, 'worker_lease_expired_after_max_attempts');
+
+    const state = await archiveState(db, fixture.submissionId);
+    assert.equal(state.status, 'PLATFORM_UNAVAILABLE');
+    assert.equal(state.reason_code, 'WORKER_LEASE_EXPIRED_AFTER_MAX_ATTEMPTS');
+    assert.ok(state.observed_at instanceof Date);
+
+    const after = await db.selectFrom('challenge_submissions').selectAll().where('submission_id', '=', fixture.submissionId).executeTakeFirstOrThrow();
+    assert.equal(after.manifest_digest, before.manifest_digest);
+    assert.equal(after.accepted_at.getTime(), before.accepted_at.getTime());
+    assert.deepEqual(after.manifest_json, before.manifest_json);
+    const entry = await db.selectFrom('challenge_entries').select('state').where('entry_id', '=', fixture.entryId).executeTakeFirstOrThrow();
+    assert.equal(entry.state, 'ACTIVE');
+  } finally { await db.destroy(); }
+});
