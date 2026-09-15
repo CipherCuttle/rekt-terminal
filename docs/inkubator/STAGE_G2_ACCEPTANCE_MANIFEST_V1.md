@@ -64,6 +64,8 @@ The frozen binding declares:
 - frozen `fixture_reference_ids` that must already exist in the Build Contract's normative references;
 - frozen `config`.
 
+Automated `config` is restricted recursively to the existing protocol canonical JSON value domain: `null`, strings, booleans, safe integers, arrays and plain string-keyed objects composed only from those values. Prototype-bearing/non-JSON values such as `Date` or `Map`, accessors, symbols, sparse arrays, cycles, unsupported primitives and non-safe/non-integer numbers fail closed before hashing. The executor-visible config therefore cannot carry semantics that disappear from the content digest.
+
 ### `HUMAN_OBSERVATION`
 
 The frozen binding declares:
@@ -85,9 +87,9 @@ Human observation cannot silently carry an automated executor, hidden config or 
 6. that unique reference id equals the requested acceptance-manifest reference id;
 7. that unique reference digest equals the canonical acceptance-manifest digest;
 8. every automated fixture reference is already a frozen normative reference;
-9. the acceptance manifest cannot reference itself as an automated fixture.
+9. an automated fixture may not reference the acceptance manifest by id **or by a different reference id whose content digest aliases the acceptance-manifest digest**.
 
-Multiple `ACCEPTANCE_MANIFEST` references are invalid even if one of them has the expected digest. An operator may not choose evaluation authority after the Build Contract is frozen.
+Multiple `ACCEPTANCE_MANIFEST` references are invalid even if one of them has the expected digest. An operator may not choose evaluation authority after the Build Contract is frozen. Content-addressed identity, not merely reference naming, controls circular-lineage rejection.
 
 No optional criterion, preference, compiler-only module, hidden test or later operator choice may become qualification law through G2A.
 
@@ -97,7 +99,7 @@ Manifest digests are deterministic under the existing protocol canonicalization 
 
 Binding order and automated fixture-reference order are normalized so non-semantic ordering changes do not mint a different acceptance law.
 
-Changing module identity/version/digest, config, fixture bindings, human instructions, criterion coverage, Challenge identity or contract version changes the manifest meaning and therefore its digest.
+Changing module identity/version/digest, canonical config, fixture bindings, human instructions, criterion coverage, Challenge identity or contract version changes the manifest meaning and therefore its digest. Values outside the canonical protocol domain are rejected rather than being normalized into a misleading digest.
 
 ## 4. Reuse rule
 
@@ -125,8 +127,10 @@ Those remain G2B execution/result-persistence authority.
 | multiple `ACCEPTANCE_MANIFEST` references | fail closed |
 | selected reference id differs from unique frozen authority | fail closed |
 | manifest digest differs from frozen normative reference | fail closed |
+| automated config contains `Date`, `Map`, unsafe/non-integer number or other non-canonical value | fail closed |
 | automated fixture reference not frozen in Build Contract | fail closed |
-| acceptance manifest references itself as fixture | fail closed |
+| acceptance manifest references itself directly as fixture | fail closed |
+| different fixture reference id aliases the acceptance-manifest content digest | fail closed |
 | module/config semantics change | manifest digest changes |
 | only binding/fixture ordering changes | canonical digest remains stable |
 | human binding contains executor/config fields | fail closed |
@@ -165,6 +169,13 @@ Evidence:
 
 G2A is stacked directly on that closure head.
 
+G2A's single independent hostile review at `f7c752825509217bf45d1cc6b12a3d4a0250aa51` found two P1 authority defects:
+
+1. cloneable non-JSON automated config values could preserve executor-visible semantics while collapsing under canonical hashing;
+2. a differently named normative reference could alias the acceptance-manifest content digest and bypass id-only self-reference rejection.
+
+Both are repaired in the current branch with focused regression coverage. Per the bounded completion policy, only one targeted rereview of those repairs is permitted after exact-head verification.
+
 Bounded completion:
 
 ```text
@@ -183,7 +194,7 @@ IMPLEMENT G2A
 
 ```text
 G1 SYNCHRONIZED REVEAL + ARENA INPUT         CLOSED / PASS
-G2A FROZEN ACCEPTANCE MANIFEST               AUTHORIZED / ACTIVE
+G2A FROZEN ACCEPTANCE MANIFEST               ACTIVE / P1 REPAIRS APPLIED / REVERIFY NEXT
 G2B OBJECTIVE TEST EXECUTION                  SEQUENCED AFTER G2A
 G3 COMPARISON / SELECTION / RECEIPT TRANSPORT SEQUENCED AFTER G2B
 PRODUCTION MONEY                              NOT AUTHORIZED
