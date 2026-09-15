@@ -3,6 +3,11 @@ import {challengeSubmissionArchiveJob, ensureChallengeSubmissionArchiveState} fr
 import type {DatabaseSchema} from '../database.js';
 import {enqueueOutboxJob} from '../jobs.js';
 
+const ARCHIVE_JOB_TYPE = 'challenge.submission_archive_capture.v1';
+const ARCHIVE_LEASE_EXHAUSTED_REASON = 'WORKER_LEASE_EXPIRED_AFTER_MAX_ATTEMPTS';
+const ARCHIVE_LEASE_EXHAUSTED_TRIGGER = 'stage_f3_archive_outbox_lease_exhausted';
+const ARCHIVE_LEASE_EXHAUSTED_FUNCTION = 'stage_f3_archive_outbox_lease_exhausted_fn';
+
 export const stageF3ArchiveEvidenceMigration = {
   async up(db: Kysely<DatabaseSchema>) {
     await db.schema
@@ -40,6 +45,42 @@ export const stageF3ArchiveEvidenceMigration = {
       .columns(['challenge_id', 'entry_id'])
       .execute();
 
+    // Generic outbox cleanup terminally fails a stale running job once its final
+    // leased attempt expires. Archive evidence truth must not remain PENDING in
+    // that crash-only path. Keep the projection transition in the same database
+    // transaction as the outbox failure so queue state and product truth cannot
+    // diverge.
+    await sql`
+      create function ${sql.ref(ARCHIVE_LEASE_EXHAUSTED_FUNCTION)}()
+      returns trigger
+      language plpgsql
+      as $$
+      begin
+        update challenge_submission_archives
+        set status = 'PLATFORM_UNAVAILABLE',
+            observed_at = clock_timestamp(),
+            reason_code = ${ARCHIVE_LEASE_EXHAUSTED_REASON},
+            updated_at = clock_timestamp()
+        where submission_id::text = new.payload ->> 'submission_id'
+          and status = 'PENDING';
+        return new;
+      end;
+      $$
+    `.execute(db);
+
+    await sql`
+      create trigger ${sql.ref(ARCHIVE_LEASE_EXHAUSTED_TRIGGER)}
+      after update of state, last_error on outbox_jobs
+      for each row
+      when (
+        old.state = 'running'
+        and new.state = 'failed'
+        and new.job_type = ${ARCHIVE_JOB_TYPE}
+        and new.last_error = ${ARCHIVE_LEASE_EXHAUSTED_REASON}
+      )
+      execute function ${sql.ref(ARCHIVE_LEASE_EXHAUSTED_FUNCTION)}()
+    `.execute(db);
+
     const existingSubmissions = await sql<{
       submission_id: string;
       challenge_id: string;
@@ -58,7 +99,9 @@ export const stageF3ArchiveEvidenceMigration = {
     }
   },
   async down(db: Kysely<DatabaseSchema>) {
-    await db.deleteFrom('outbox_jobs').where('job_type', '=', 'challenge.submission_archive_capture.v1').execute();
+    await sql`drop trigger if exists ${sql.ref(ARCHIVE_LEASE_EXHAUSTED_TRIGGER)} on outbox_jobs`.execute(db);
+    await sql`drop function if exists ${sql.ref(ARCHIVE_LEASE_EXHAUSTED_FUNCTION)}()`.execute(db);
+    await db.deleteFrom('outbox_jobs').where('job_type', '=', ARCHIVE_JOB_TYPE).execute();
     await db.schema.dropTable('challenge_submission_archives').execute();
   },
 };
