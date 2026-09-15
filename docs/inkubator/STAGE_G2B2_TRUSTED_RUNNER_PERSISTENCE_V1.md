@@ -74,6 +74,8 @@ The runtime MUST call existing `bindAcceptanceManifestToContract()` and therefor
 
 The request does not gain authority by supplying manifest content; it only supplies content whose digest must equal frozen law.
 
+The validated canonical acceptance-manifest body is retained in the internal Test Arena evidence event together with the G2B1 execution artifact. This makes the evaluation law reconstructable from durable evidence rather than requiring an external copy of the manifest body.
+
 ## 5. Trusted automated runner boundary
 
 Automated observations may only be produced by the server-owned trusted module registry.
@@ -85,6 +87,24 @@ A frozen automated binding must match all three exactly:
 - `module_digest`.
 
 The runtime does not accept automated PASS/FAIL/DISPUTED values from the request.
+
+### 5.1 Runner-contract identity
+
+`module_digest` is the canonical digest of a declarative trusted-module contract. That contract includes:
+
+- module schema version;
+- `runner_engine_version = trusted-fact-runner/1.0`;
+- module id/version;
+- executor kind;
+- durable authority description;
+- declared semantics;
+- config policy;
+- fixture policy;
+- blocked archive states;
+- archive states that require a content digest;
+- result map.
+
+The generic trusted-fact engine dispatches from this frozen declarative contract. A semantic runner change therefore requires a changed declarative contract and/or runner-engine version, which changes `module_digest`; retaining only the same friendly module name is insufficient authority.
 
 G2B2 V1 intentionally supports only server-owned deterministic modules whose inputs are already canonical durable facts.
 
@@ -163,12 +183,21 @@ The event is content-addressed/idempotent through existing `appendHistoryEvent()
 - command request id;
 - qualification id/version/result;
 - Challenge/entry/submission lineage;
+- the validated canonical acceptance manifest;
 - G2B1 execution digest;
 - the safe execution artifact including trusted module identity and evidence refs.
 
 It does not contain private archive object references or raw private source bodies.
 
 If qualification persistence succeeds but event append is interrupted, retry replays the immutable qualification and can complete the idempotent evidence append; no alternate qualification truth is created.
+
+The Postgres acceptance test must prove:
+
+- one real immutable `challenge_qualifications` row;
+- one replay-safe `challenge.test_arena.executed` event;
+- preserved acceptance-manifest body and selected-manifest digest in evidence;
+- changed replay fails closed;
+- `PENDING` archive state creates zero qualification rows.
 
 ## 9. Explicitly unsupported in G2B2 V1
 
@@ -200,6 +229,7 @@ Unsupported automated module id/version/digest/config/fixture combinations fail 
 | caller attempts to choose submission set | impossible at route boundary |
 | acceptance-manifest body differs from frozen digest | fail closed |
 | trusted module id/version/digest exact | runner may execute |
+| runner contract / engine version changes | module digest changes |
 | module digest substituted | fail closed |
 | trusted V1 module receives config/fixtures | fail closed |
 | caller supplies automated observation | rejected by request contract |
@@ -212,6 +242,7 @@ Unsupported automated module id/version/digest/config/fixture combinations fail 
 | exact result set complete | existing `computeQualification()` semantics |
 | qualification replay same payload | idempotent |
 | qualification replay changed payload | immutable/idempotency conflict |
+| durable evidence event | retains canonical acceptance manifest + execution identity |
 | canonical Render runtime | G2B routes registered |
 
 ## 11. Bounded completion
