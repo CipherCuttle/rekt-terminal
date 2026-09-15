@@ -410,7 +410,7 @@ async function validateSettlementIntent(
     return intent;
   }
 
-  if (entryId !== null) throw new Error('challenge_settlement_intent_resolution_mismatch');
+  if (entryId !== null) throw new Error('challenge_decision_entry_mismatch');
 
   if (intent.type === 'DEFAULT_DISTRIBUTION') {
     const finalQualifierIds = await storedFinalQualifierIds(db, challenge, contract);
