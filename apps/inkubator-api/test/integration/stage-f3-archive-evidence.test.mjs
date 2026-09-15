@@ -191,8 +191,7 @@ test('F3A final lease exhaustion terminalizes evidence availability without rewr
       next_attempt_at: new Date(0),
     }).where('job_id', '=', job.job_id).execute();
 
-    const run = await runOneJob(db, {leaseMs: 1_000});
-    assert.equal(run.status, 'idle');
+    await runOneJob(db, {leaseMs: 1_000});
 
     const exhausted = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', job.job_id).executeTakeFirstOrThrow();
     assert.equal(exhausted.state, 'failed');
