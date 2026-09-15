@@ -26,6 +26,10 @@
       "types": "./src/challenge.d.ts",
       "import": "./src/challenge-hardened.mjs"
     },
+    "./acceptance-manifest": {
+      "types": "./src/acceptance-manifest.d.ts",
+      "import": "./src/acceptance-manifest.mjs"
+    },
     "./compiler": {
       "types": "./src/compiler.d.ts",
       "import": "./src/compiler.mjs"
