@@ -2,8 +2,8 @@ import {digestRecord} from './index.mjs';
 import {
   QUALIFICATION_RESULTS,
   assertFrozenBuildContract,
-  assertSubmissionManifest,
   computeQualification,
+  selectFinalSubmission,
 } from './challenge-hardened.mjs';
 import {
   bindAcceptanceManifestToContract,
@@ -129,7 +129,8 @@ export function canonicalTestArenaExecution({
   contract,
   acceptanceManifest,
   acceptanceManifestReferenceId,
-  submissionManifest,
+  entryId,
+  submissionManifests,
   observations,
 }) {
   const frozenContract = assertFrozenBuildContract(contract);
@@ -138,10 +139,10 @@ export function canonicalTestArenaExecution({
     acceptanceManifest,
     acceptanceManifestReferenceId,
   );
-  const submission = assertSubmissionManifest(submissionManifest);
-  invariant(submission.challenge_id === frozenContract.challenge_id, 'test arena submission Challenge mismatch');
-  invariant(submission.terms_digest === frozenContract.terms_digest, 'test arena submission terms digest mismatch');
-  invariant(submission.accepted_at <= frozenContract.submission_deadline, 'test arena submission missed frozen deadline');
+  assertString(entryId, 'test arena entryId');
+  invariant(Array.isArray(submissionManifests), 'test arena submissionManifests must be an array');
+  const submission = selectFinalSubmission(submissionManifests, frozenContract, entryId);
+  invariant(submission, 'test arena final submission missing');
   invariant(Array.isArray(observations), 'test arena observations must be an array');
   invariant(observations.length === boundManifest.bindings.length, 'test arena observations must exactly match frozen bindings');
 
