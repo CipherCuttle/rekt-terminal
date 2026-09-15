@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {sql, type Kysely} from 'kysely';
 import {canonicalizeJson} from './canonical-json.js';
+import {CHALLENGE_SUBMISSION_ARCHIVE_CAPTURE_JOB_TYPE, handleChallengeSubmissionArchiveJob, type ChallengeSubmissionArchiveCaptureClient} from './challenge-archive.js';
 import {CHALLENGE_DUE_STATE_JOB_TYPE, handleChallengeDueStateJob} from './challenge-due-state.js';
 import {readDatabaseNow, type DatabaseSchema, type OutboxJobRow, type OutboxJobState} from './database.js';
 import {appendHistoryEvent} from './events.js';
@@ -35,6 +36,7 @@ export interface RunOneJobOptions {
   leaseMs?: number;
   retryBaseMs?: number;
   shipVerifierClient?: ShipVerifierClient;
+  challengeSubmissionArchiveClient?: ChallengeSubmissionArchiveCaptureClient;
 }
 
 export type RunOneJobResult =
@@ -587,6 +589,9 @@ async function handleJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, database
       return;
     case CHALLENGE_DUE_STATE_JOB_TYPE:
       await handleChallengeDueStateJob(db, job, databaseNow);
+      return;
+    case CHALLENGE_SUBMISSION_ARCHIVE_CAPTURE_JOB_TYPE:
+      await handleChallengeSubmissionArchiveJob(db, job, options.challengeSubmissionArchiveClient);
       return;
     default:
       throw new Error(`unsupported_job_type:${job.job_type}`);

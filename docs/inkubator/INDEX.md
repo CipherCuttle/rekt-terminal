@@ -1,6 +1,6 @@
 # REKT INKUBATOR — AUTHORITY POINTER
 
-**Updated:** 2026-09-14
+**Updated:** 2026-09-15
 
 Forward product strategy and staged roadmap are governed by:
 
@@ -23,7 +23,8 @@ Forward product strategy and staged roadmap are governed by:
 17. `STAGE_E_CHALLENGE_UI_CLOSURE_V1.md` — Stage-E closure receipt and verification evidence.
 18. `STAGE_F_BUILDER_CAPSULE_V1.md` — active Stage-F authority; F1 Builder Capsule is closed by the explicit 2026-09-14 governance waiver recorded in that document.
 19. `STAGE_F2_IMMUTABLE_SUBMISSION_V1.md` — current authorized F2 implementation contract: builder-owned immutable submission over existing Stage-B/C law.
-20. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+20. `STAGE_F3_ARCHIVE_EVIDENCE_V1.md` — active F3A contract: durable asynchronous archive/evidence orchestration after immutable acceptance.
+21. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -48,17 +49,17 @@ Stage-C Postgres bridge                      CLOSED / PASS
 Stage-D Compiler                             CLOSED / PASS / MERGED
 Stage-E Challenge UI                         CLOSED / PASS / PR #97 / UNMERGED DEPENDENCY
 Stage-F1 Builder Capsule                     CLOSED / PASS BY EXPLICIT GOVERNANCE WAIVER / PR #98
-Stage-F2 Immutable Submission                AUTHORIZED / ACTIVE IMPLEMENTATION
-Stage-F3 Archive / Evidence                  SEQUENCED AFTER F2
+Stage-F2 Immutable Submission                CLOSED / PASS / PR #100 / UNMERGED
+Stage-F3 Archive / Evidence                  AUTHORIZED / ACTIVE F3A / STACKED AFTER F2
 Stage G Reveal / Test Arena / Receipts       NOT AUTHORIZED
 Production money                             NOT AUTHORIZED
 Merge authority                              NONE
 ```
 
-**Execution verdict:** Stage F2 is the current authorized implementation slice. Reuse the existing DevKit, SDK, CLI, Stage-B `SubmissionManifest`, Stage-C `acceptChallengeSubmission()`, PostgreSQL clock, idempotency and immutable submission storage. Do not invent parallel submission/domain authority. Stage-E PR #97 remains an unmerged dependency; Stage-F work must not merge ahead of it without explicit merge authority.
+**Execution verdict:** Stage F3A is the current authorized implementation slice. Reuse the existing PostgreSQL outbox/worker, `FOR UPDATE SKIP LOCKED`, lease/retry machinery and Stage-C/F2 submission persistence. Keep accepted-submission truth separate from asynchronous archive/evidence truth; provider wiring remains F3B when a compatible private archive substrate is selected. Stage-E PR #97, Stage-F1 PR #98 and Stage-F2 PR #100 remain unmerged dependencies; this branch must not merge ahead of them without explicit merge authority.
 
 F1's independent hostile-review requirement was explicitly replaced by user authority on 2026-09-14 with the completed adversarial self-audit plus green exact-head CI/Auth evidence. Do not claim an independent F1 review occurred. That waiver does not alter the default bounded-review policy for F2.
 
 The existing `apps/inkubator-lab` runtime remains the Inkubator frontend root; do not create `apps/inkubator-web` and never reuse Terminal `apps/web`. Historical WORLD/COMMAND/PROJECT/PLAYER/SHIP surfaces remain parked compatibility substrate unless a bounded migration explicitly promotes them.
 
-No funding, production-money, wallet custody/signing/broadcast, reveal/Test Arena, qualification, selection or Stage-G authority is granted by Stage F2.
+No funding, production-money, wallet custody/signing/broadcast, reveal/Test Arena, qualification, selection or Stage-G authority is granted by Stage F3A.
