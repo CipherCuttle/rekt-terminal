@@ -179,7 +179,7 @@ async function claimDueJob(
   return result.rows[0] ?? null;
 }
 
-async function completeJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date): Promise<boolean> {
+async function completeJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date, leaseMs: number): Promise<boolean> {
   if (!job.lock_token) return false;
   const result = await db
     .updateTable('outbox_jobs')
@@ -187,6 +187,7 @@ async function completeJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databa
     .where('job_id', '=', job.job_id)
     .where('state', '=', 'running')
     .where('lock_token', '=', job.lock_token)
+    .where('locked_at', '>', new Date(databaseNow.getTime() - leaseMs))
     .executeTakeFirst();
   return Number(result.numUpdatedRows) === 1;
 }
@@ -197,6 +198,7 @@ async function recordFailure(
   databaseNow: Date,
   retryBaseMs: number,
   error: unknown,
+  leaseMs: number,
 ): Promise<{state: OutboxJobState; applied: boolean}> {
   if (!job.lock_token) return {state: 'running', applied: false};
   const terminal = job.attempts >= job.max_attempts;
@@ -224,6 +226,7 @@ async function recordFailure(
     .where('job_id', '=', job.job_id)
     .where('state', '=', 'running')
     .where('lock_token', '=', job.lock_token)
+    .where('locked_at', '>', new Date(databaseNow.getTime() - leaseMs))
     .executeTakeFirst();
   return {state: terminal ? 'failed' : 'pending', applied: Number(result.numUpdatedRows) === 1};
 }
@@ -248,6 +251,8 @@ function createJobLease(
   let activeRenewal: Promise<void> | null = null;
   let timer: NodeJS.Timeout | undefined;
 
+  const leaseFreshAfter = () => sql<Date>`clock_timestamp() - (${leaseMs} * interval '1 millisecond')`;
+
   const renew = async (): Promise<void> => {
     if (stopped || lost) return;
     try {
@@ -257,6 +262,7 @@ function createJobLease(
         .where('job_id', '=', job.job_id)
         .where('state', '=', 'running')
         .where('lock_token', '=', job.lock_token)
+        .where('locked_at', '>', leaseFreshAfter())
         .executeTakeFirst();
       if (Number(result.numUpdatedRows) !== 1) {
         lost = true;
@@ -300,6 +306,7 @@ function createJobLease(
         .where('job_id', '=', job.job_id)
         .where('state', '=', 'running')
         .where('lock_token', '=', job.lock_token)
+        .where('locked_at', '>', leaseFreshAfter())
         .forUpdate()
         .executeTakeFirst();
       if (!owned) {
@@ -735,7 +742,7 @@ export async function runOneJob(
       emitJobEvent(options.onEvent, {event: 'lost_lease', jobId: job.job_id, attempts: job.attempts, reason: 'heartbeat'});
       return {status: 'lost_lease', jobId: job.job_id, attempts: job.attempts};
     }
-    const failure = await recordFailure(db, job, await readDatabaseNow(db), retryBaseMs, handlerError);
+    const failure = await recordFailure(db, job, await readDatabaseNow(db), retryBaseMs, handlerError, leaseMs);
     if (!failure.applied) {
       emitJobEvent(options.onEvent, {event: 'lost_lease', jobId: job.job_id, attempts: job.attempts, reason: 'failure_fence'});
       return {status: 'lost_lease', jobId: job.job_id, attempts: job.attempts};
@@ -760,7 +767,7 @@ export async function runOneJob(
     return {status: 'lost_lease', jobId: job.job_id, attempts: job.attempts};
   }
 
-  const completed = await completeJob(db, job, await readDatabaseNow(db));
+  const completed = await completeJob(db, job, await readDatabaseNow(db), leaseMs);
   if (!completed) {
     emitJobEvent(options.onEvent, {event: 'lost_lease', jobId: job.job_id, attempts: job.attempts, reason: 'completion_fence'});
     return {status: 'lost_lease', jobId: job.job_id, attempts: job.attempts};

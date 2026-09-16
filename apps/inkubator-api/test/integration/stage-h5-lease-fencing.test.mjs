@@ -209,3 +209,79 @@ test('H5 stale verifier cannot persist authority after token theft', async () =>
     await db.destroy();
   }
 });
+
+test('H5 expired verifier lease cannot self-resurrect or commit before token theft', async () => {
+  const db = createDatabase(databaseUrl);
+  await migrateToLatest(db);
+  const app = buildApp({db, appOrigin, allowDevAuth: true, sessionTtlSeconds: 3600, github: null});
+  try {
+    const {job, submissionId, projectId} = await setupVerifier(db, app, 'H5 expired');
+    const started = deferred();
+    const release = deferred();
+    let verifierCalls = 0;
+
+    const workerA = runOneJob(db, {
+      leaseMs: 60_000,
+      shipVerifierClient: {
+        verify: async ({submissionId: id, url}) => {
+          verifierCalls += 1;
+          started.resolve();
+          await release.promise;
+          return verifierResult(id, url);
+        },
+      },
+    });
+    await started.promise;
+    await sleep(100);
+
+    const claimed = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', job.job_id).executeTakeFirstOrThrow();
+    assert.equal(claimed.state, 'running');
+    assert.ok(claimed.lock_token);
+    const originalToken = claimed.lock_token;
+
+    await db.updateTable('outbox_jobs')
+      .set({locked_at: new Date(0)})
+      .where('job_id', '=', job.job_id)
+      .where('lock_token', '=', originalToken)
+      .execute();
+
+    const expired = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', job.job_id).executeTakeFirstOrThrow();
+    assert.equal(expired.lock_token, originalToken, 'expiry fixture must not steal the token');
+    assert.equal(expired.locked_at?.getTime(), 0);
+
+    release.resolve();
+    assert.deepEqual(await workerA, {status: 'lost_lease', jobId: job.job_id, attempts: 1});
+    assert.equal(verifierCalls, 1);
+    assert.equal((await db.selectFrom('ship_verifier_observations').selectAll().where('submission_id', '=', submissionId).execute()).length, 0);
+    assert.equal((await db.selectFrom('history_events').selectAll()
+      .where('event_type', '=', 'project.ship_verifier.observed')
+      .where('subject_id', '=', projectId)
+      .execute()).length, 0);
+
+    const afterStaleWorker = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', job.job_id).executeTakeFirstOrThrow();
+    assert.equal(afterStaleWorker.state, 'running');
+    assert.equal(afterStaleWorker.attempts, 1);
+    assert.equal(afterStaleWorker.lock_token, originalToken, 'stale worker must not rewrite job authority');
+    assert.equal(afterStaleWorker.locked_at?.getTime(), 0, 'expired lease must not be renewed after expiry');
+
+    const replacement = await runOneJob(db, {
+      leaseMs: 1_000,
+      shipVerifierClient: {
+        verify: async ({submissionId: id, url}) => {
+          verifierCalls += 1;
+          return verifierResult(id, url);
+        },
+      },
+    });
+    assert.deepEqual(replacement, {status: 'succeeded', jobId: job.job_id});
+    assert.equal(verifierCalls, 2);
+    assert.equal((await db.selectFrom('ship_verifier_observations').selectAll().where('submission_id', '=', submissionId).execute()).length, 1);
+    assert.equal((await db.selectFrom('history_events').selectAll()
+      .where('event_type', '=', 'project.ship_verifier.observed')
+      .where('subject_id', '=', projectId)
+      .execute()).length, 1);
+  } finally {
+    await app.close();
+    await db.destroy();
+  }
+});
