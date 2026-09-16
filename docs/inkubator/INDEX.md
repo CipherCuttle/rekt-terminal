@@ -26,7 +26,7 @@ Forward product strategy and staged roadmap are governed by:
 20. `STAGE_F3_ARCHIVE_EVIDENCE_V1.md` — F3A provider-independent durable asynchronous archive/evidence contract.
 21. `STAGE_F3_ARCHIVE_EVIDENCE_CLOSURE_V1.md` — Stage-F3/Stage-F closure receipt covering F3A orchestration and F3B GitHub→private-R2 provider wiring.
 22. `STAGE_G_REVEAL_TEST_ARENA_RECEIPTS_V1.md` — Stage-G parent authority; G1 synchronized reveal is closed/pass.
-23. `STAGE_G2_ACCEPTANCE_MANIFEST_V1.md` — active G2A authority; freezes exact automated/human criterion bindings before any Test Arena execution.
+23. `STAGE_G2_ACCEPTANCE_MANIFEST_V1.md` — closed G2A authority; freezes exact automated/human criterion bindings before any Test Arena execution.
 24. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
@@ -57,8 +57,8 @@ Stage-F3 Archive / Evidence                   CLOSED / PASS / PR #101 + PR #102 
 Stage F                                       CLOSED / PASS / STACKED
 Stage G Reveal / Test Arena / Receipts        USER-AUTHORIZED / ACTIVE / STACKED AFTER F3
 G1 synchronized reveal + Arena input          CLOSED / PASS / PR #103 / UNMERGED
-G2A frozen acceptance manifest                AUTHORIZED / CURRENT
-G2B objective Test Arena execution            SEQUENCED AFTER G2A
+G2A frozen acceptance manifest                CLOSED / PASS @ 7bd6182d...
+G2B objective Test Arena execution            CURRENT / G2B2 IMPLEMENTATION SLICE
 G3 comparison / selection / receipt transport SEQUENCED AFTER G2B
 Stage H trust hardening                       NOT AUTHORIZED BY G2A
 Production money                              NOT AUTHORIZED
@@ -67,7 +67,7 @@ Merge authority                               NONE
 
 **G1 closure:** exact head `e2e24ee55a0e81294660055a6a6ed7094f61ddba` passed Inkubator Auth Foundation #534 and CI #1612. The single hostile review found one P1 combined-Render-runtime wiring defect; that defect was repaired on the exact head, the one allowed targeted Codex rereview found no major issues, and the review thread is resolved. G1 is closed/pass without merge.
 
-**Execution verdict:** G2A is the current bounded implementation slice. Freeze Test Arena evaluation meaning before execution by introducing one content-addressed `inkubator.acceptance-manifest/1.0` artifact referenced through the existing Build Contract `normative_references`. Every frozen mandatory criterion must have exactly one declared binding: either versioned/content-addressed automated execution with frozen fixture/config lineage, or explicit human observation instructions. Optional criteria, preferences, compiler-only module proposals, hidden tests and post-hoc operator choices may not become qualification law. Do not execute participant code or record qualification in G2A; G2B owns execution and result persistence through existing `computeQualification()` / `recordChallengeQualification()` law.
+**Execution verdict:** G2A is closed/pass. G2B currently implements the smallest objective path: one allowlisted deterministic artifact-digest executor, organizer human observations, append-only evidence events, exact completion gating, and existing `computeQualification()` / `recordChallengeQualification()` persistence. No participant code execution, hidden tests, LLM judging, selection, settlement or production money is authorized.
 
 Current dependency order remains stacked and unmerged. Stage-E PR #97, Stage-F1 PR #98, Stage-F2 PR #100, Stage-F3A PR #101, Stage-F3B PR #102 and G1 PR #103 must not be merged out of order without explicit merge authority.
 

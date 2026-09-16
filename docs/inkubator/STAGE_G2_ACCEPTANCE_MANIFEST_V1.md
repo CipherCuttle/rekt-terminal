@@ -1,7 +1,7 @@
 # REKT INKUBATOR — STAGE G2A ACCEPTANCE MANIFEST V1
 
-**Status:** USER-AUTHORIZED / ACTIVE  
-**Date:** 2026-09-15  
+**Status:** CLOSED / PASS
+**Date:** 2026-09-16
 **Base:** `e2e24ee55a0e81294660055a6a6ed7094f61ddba` (`agent/stage-g1-reveal-arena-v1`)  
 **Parent authority:** `STAGE_G_REVEAL_TEST_ARENA_RECEIPTS_V1.md`
 
@@ -176,7 +176,7 @@ G2A's single independent hostile review at `f7c752825509217bf45d1cc6b12a3d4a0250
 
 Both were repaired with focused regression coverage and exact-head verification. The one policy-authorized targeted rereview at `1ae62e0166e4fe79a81ff4be36077b257c080eb3` then found one additional P1 within the config repair: JavaScript `-0` passed the safe-integer check and canonicalized to the same digest text as `0` while remaining executor-distinguishable. G2A now rejects signed negative zero and includes a focused regression.
 
-The bounded review budget is consumed. After this targeted-rereview repair, run exact-head verification and close G2A if green; do not open a third review loop.
+The bounded review budget is consumed. Exact-head CI #1637 and Inkubator Verification #631 passed at `7bd6182d6d03971d6235931cdbdfd6e2633c8005`. Do not open a third review loop.
 
 Bounded completion:
 
@@ -198,8 +198,8 @@ IMPLEMENT G2A
 
 ```text
 G1 SYNCHRONIZED REVEAL + ARENA INPUT         CLOSED / PASS
-G2A FROZEN ACCEPTANCE MANIFEST               ACTIVE / TARGETED-REREVIEW P1 REPAIRED / REVERIFY NEXT
-G2B OBJECTIVE TEST EXECUTION                  SEQUENCED AFTER G2A
+G2A FROZEN ACCEPTANCE MANIFEST               CLOSED / PASS @ 7bd6182d...
+G2B OBJECTIVE TEST EXECUTION                 CURRENT / G2B1 AUTHORITY CONTRACT + G2B2 SLICE IMPLEMENTED
 G3 COMPARISON / SELECTION / RECEIPT TRANSPORT SEQUENCED AFTER G2B
 PRODUCTION MONEY                              NOT AUTHORIZED
 MERGE AUTHORITY                               NONE

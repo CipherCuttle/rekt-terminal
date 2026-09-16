@@ -3,6 +3,7 @@ import {extname, resolve, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {buildApp} from './app.js';
 import {registerStageGRevealArenaRoutes} from './challenge-reveal-api.js';
+import {registerStageG2bTestArenaRoutes} from './challenge-test-arena.js';
 import {loadRuntimeConfig} from './config.js';
 import {createDatabase} from './database.js';
 import {registerGitHubLoginRoutes} from './github-login-routes.js';
@@ -21,6 +22,7 @@ const app = buildApp({
 });
 
 registerStageGRevealArenaRoutes(app, db);
+registerStageG2bTestArenaRoutes(app, db);
 
 if (config.github) {
   registerGitHubLoginRoutes(app, {
