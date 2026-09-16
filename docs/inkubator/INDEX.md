@@ -29,7 +29,9 @@ Forward product strategy and staged roadmap are governed by:
 23. `STAGE_G2_ACCEPTANCE_MANIFEST_V1.md` — closed G2A frozen evaluation-meaning authority.
 24. `STAGE_G2B_OBJECTIVE_EXECUTION_V1.md` — closed G2B1 content-addressed execution/result authority contract.
 25. `STAGE_G2B2_TRUSTED_RUNNER_PERSISTENCE_V1.md` — closed G2B2 trusted server-runner + durable qualification bridge.
-26. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+26. `STAGE_G3_COMPARISON_SELECTION_RECEIPT_TRANSPORT_V1.md` — closed G3 comparison / organizer-selection / safe receipt-transport authority.
+27. `STAGE_G3_COMPARISON_SELECTION_RECEIPT_TRANSPORT_CLOSURE_V1.md` — G3 and Stage-G closure receipt / verification evidence.
+28. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -57,13 +59,13 @@ Stage-F1 Builder Capsule                      CLOSED / PASS BY EXPLICIT GOVERNAN
 Stage-F2 Immutable Submission                 CLOSED / PASS / PR #100 / UNMERGED
 Stage-F3 Archive / Evidence                   CLOSED / PASS / PR #101 + PR #102 / UNMERGED
 Stage F                                       CLOSED / PASS / STACKED
-Stage G Reveal / Test Arena / Receipts        USER-AUTHORIZED / ACTIVE / STACKED AFTER F3
+Stage G Reveal / Test Arena / Receipts        CLOSED / PASS / STACKED / UNMERGED
 G1 synchronized reveal + Arena input          CLOSED / PASS / PR #103 / UNMERGED
 G2A frozen acceptance manifest                CLOSED / PASS / PR #104 / UNMERGED
 G2B1 execution authority contract             CLOSED / PASS / PR #105 / UNMERGED
 G2B2 trusted runner + qualification persist   CLOSED / PASS / PR #106 / UNMERGED
-G3 comparison / selection / receipt transport USER-AUTHORIZED / CURRENT
-Stage H trust hardening                       NOT AUTHORIZED BY G3
+G3 comparison / selection / receipt transport CLOSED / PASS / PR #107 / UNMERGED
+Stage H trust hardening                       NEXT / NOT AUTHORIZED BY STAGE-G CLOSURE
 Production money                              NOT AUTHORIZED
 Merge authority                               NONE
 ```
@@ -76,12 +78,14 @@ Merge authority                               NONE
 
 **G2B2 closure:** reviewed implementation/repair head `4331cf6709e15cb12693d0124aad4a885be64eb1` passed CI #1702 and Inkubator Auth Foundation #550 including the full Postgres suite. The independent hostile review found two P1s: archive `PENDING` could be bypassed by a non-archive binding mix, and an interrupted execution-evidence append could become unrecoverable after lifecycle advance. Repairs moved the final-submission `PENDING` gate before all binding dispatch and restored exact persisted-command replay through existing `recordChallengeQualification()`. Focused unit/Postgres regressions passed, both P1 threads were resolved, and the single targeted Codex rereview of commit `4331cf6709` found no major issues. G2B2 is closed/pass without merge.
 
-**Execution verdict:** G3 is the current bounded implementation slice. Preserve the hard separation between objective qualification and organizer preference: comparison may project only frozen/qualified facts; organizer selection may choose only from the existing final qualified set; selection persistence and receipt filing must reuse existing Stage-B/C decision and receipt authority rather than create parallel winner or receipt truth. G3 may transport durable receipts and safe comparison facts, but it may not execute settlement, move production value, expose private archive/source internals, introduce LLM judging/scoring, or rewrite qualification.
+**G3 / Stage-G closure:** exact reviewed implementation head `e6c7e0abeaf1be79a9ac35a697c050f51e81e31b` passed CI #1729 and Inkubator Auth Foundation #562 including the full Postgres suite. G3 projects only durable final qualifiers into organizer comparison, keeps frozen preferences non-normative, fixes organizer selection to existing `SELECTION` authority, preserves exact-command replay through the existing Stage-C store/DB lifecycle boundary, proves concurrent choices collapse to one durable selection, and exposes only a privacy-bounded read-only projection of existing durable receipts/corrections. The single independent Codex hostile review found no major issues, so no targeted rereview was required. G3 and Stage G are closed/pass without merge.
 
-Current dependency order remains stacked and unmerged. Stage-E PR #97, Stage-F1 PR #98, Stage-F2 PR #100, Stage-F3A PR #101, Stage-F3B PR #102, G1 PR #103, G2A PR #104, G2B1 PR #105 and G2B2 PR #106 must not be merged out of order without explicit merge authority.
+**Execution verdict:** Stage G is closed. The next roadmap stage is Stage H trust hardening, but Stage-G closure does not authorize implementation. A Stage-H scope/authority lock must explicitly cover threat modeling, production-route inventory, private-source leakage, operator/resolver authority, evidence tampering/corrections, account takeover, rate/concurrency behavior, backup/restore and verifier isolation before implementation begins.
+
+Current dependency order remains stacked and unmerged. Stage-E PR #97, Stage-F1 PR #98, Stage-F2 PR #100, Stage-F3A PR #101, Stage-F3B PR #102, G1 PR #103, G2A PR #104, G2B1 PR #105, G2B2 PR #106 and G3 PR #107 must not be merged out of order without explicit merge authority.
 
 F1's independent hostile-review requirement was explicitly replaced by user authority on 2026-09-14 with the completed adversarial self-audit plus green exact-head CI/Auth evidence. Do not claim an independent F1 review occurred. That waiver does not alter the default bounded-review policy used for later slices.
 
 The existing `apps/inkubator-lab` runtime remains the Inkubator frontend root; do not create `apps/inkubator-web` and never reuse Terminal `apps/web`. Historical WORLD/COMMAND/PROJECT/PLAYER/SHIP surfaces remain parked compatibility substrate unless a bounded migration explicitly promotes them.
 
-G3 grants no authority for arbitrary network/browser runners, participant-code execution, hidden tests, LLM judging/scoring, qualification mutation, settlement execution, production money, wallet custody/signing/broadcast, public raw private-source retrieval, archive retention/DSAR infrastructure, Stage-H implementation or merge.
+Stage-G closure grants no authority for arbitrary network/browser runners, participant-code execution, hidden tests, LLM judging/scoring, qualification mutation outside frozen law, settlement execution, production money, wallet custody/signing/broadcast, public raw private-source retrieval, archive retention/DSAR infrastructure, Stage-H implementation or merge.
