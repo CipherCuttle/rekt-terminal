@@ -16,7 +16,7 @@ jobs:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       H3_BASE_SHA: 12c0acf6539145cce10035f73fa285ba68992b49
       H3_TARGET_SHA: ed91567f98221355ba08bd197a8be389007b892c
-      REVIEW_MODEL: nvidia/nemotron-3-ultra-550b-a55b:free
+      REVIEW_MODEL: thinkingmachines/inkling:free
     steps:
       - name: Check out exact H3 target
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
