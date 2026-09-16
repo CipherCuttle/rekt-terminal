@@ -42,6 +42,7 @@
       "types": "./src/compiler-provider.d.ts",
       "import": "./src/compiler-provider.mjs"
     },
+    "./compiler-provider-egress": "./src/compiler-provider-egress.mjs",
     "./schema/*": "./schema/*"
   },
   "publishConfig": {
