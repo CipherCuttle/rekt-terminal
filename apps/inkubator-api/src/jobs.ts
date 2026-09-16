@@ -32,11 +32,23 @@ export interface ShipVerifierClient {
   verify(input: {submissionId: string; url: string}): Promise<unknown>;
 }
 
+export type JobWorkerEvent =
+  | {event: 'lease_renewal_failed'; jobId: string; attempts: number; error: string}
+  | {event: 'lost_lease'; jobId: string; attempts: number; reason: string}
+  | {event: 'retry_exhausted'; jobId: string; attempts: number; error: string};
+
+export interface JobLease {
+  assertOwned(db: Kysely<DatabaseSchema>): Promise<void>;
+  isLost(): boolean;
+  stop(): Promise<void>;
+}
+
 export interface RunOneJobOptions {
   leaseMs?: number;
   retryBaseMs?: number;
   shipVerifierClient?: ShipVerifierClient;
   challengeSubmissionArchiveClient?: ChallengeSubmissionArchiveCaptureClient;
+  onEvent?: (event: JobWorkerEvent) => void;
 }
 
 export type RunOneJobResult =
@@ -214,6 +226,90 @@ async function recordFailure(
     .where('lock_token', '=', job.lock_token)
     .executeTakeFirst();
   return {state: terminal ? 'failed' : 'pending', applied: Number(result.numUpdatedRows) === 1};
+}
+
+function emitJobEvent(onEvent: ((event: JobWorkerEvent) => void) | undefined, event: JobWorkerEvent): void {
+  try {
+    onEvent?.(event);
+  } catch {
+    // Observability must never change job authority or retry behavior.
+  }
+}
+
+function createJobLease(
+  db: Kysely<DatabaseSchema>,
+  job: OutboxJobRow,
+  leaseMs: number,
+  onEvent: ((event: JobWorkerEvent) => void) | undefined,
+  heartbeatEnabled: boolean,
+): JobLease {
+  let stopped = false;
+  let lost = false;
+  let heartbeat = Promise.resolve();
+  let timer: NodeJS.Timeout | undefined;
+
+  const renew = async (): Promise<void> => {
+    if (stopped || lost) return;
+    try {
+      const result = await db
+        .updateTable('outbox_jobs')
+        .set({locked_at: sql`clock_timestamp()`})
+        .where('job_id', '=', job.job_id)
+        .where('state', '=', 'running')
+        .where('lock_token', '=', job.lock_token)
+        .executeTakeFirst();
+      if (Number(result.numUpdatedRows) !== 1) {
+        lost = true;
+        emitJobEvent(onEvent, {
+          event: 'lease_renewal_failed',
+          jobId: job.job_id,
+          attempts: job.attempts,
+          error: 'job_lease_lost',
+        });
+      }
+    } catch (error) {
+      lost = true;
+      emitJobEvent(onEvent, {
+        event: 'lease_renewal_failed',
+        jobId: job.job_id,
+        attempts: job.attempts,
+        error: truncateError(error),
+      });
+    }
+  };
+
+  const scheduleRenewal = (): void => {
+    heartbeat = heartbeat.then(renew, renew);
+  };
+
+  if (heartbeatEnabled) {
+    timer = setInterval(scheduleRenewal, Math.max(10, Math.floor(leaseMs / 3)));
+    timer.unref?.();
+  }
+
+  return {
+    isLost: () => lost,
+    assertOwned: async (transaction): Promise<void> => {
+      if (lost) throw new Error('job_lease_lost');
+      const owned = await transaction
+        .selectFrom('outbox_jobs')
+        .select('job_id')
+        .where('job_id', '=', job.job_id)
+        .where('state', '=', 'running')
+        .where('lock_token', '=', job.lock_token)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!owned) {
+        lost = true;
+        throw new Error('job_lease_lost');
+      }
+    },
+    stop: async (): Promise<void> => {
+      stopped = true;
+      if (timer) clearInterval(timer);
+      await heartbeat;
+    },
+  };
 }
 
 function sessionIdFromPayload(payload: unknown): string {
@@ -555,13 +651,14 @@ function verifierResult(raw:unknown,submissionId:string){
   const httpStatus=v.http_status===undefined?null:Number(v.http_status);if(httpStatus!==null&&(!Number.isInteger(httpStatus)||httpStatus<100||httpStatus>599))throw new Error('ship_verifier_result_invalid');
   return{outcome:v.outcome as 'PASS'|'FAILED'|'UNAVAILABLE',reasonCode:String(v.reason_code),finalUrl,httpStatus,durationMs:Number(v.duration_ms),redirects:Number(v.redirects)};
 }
-async function handleShipVerification(db:Kysely<DatabaseSchema>,job:OutboxJobRow,client:ShipVerifierClient|undefined):Promise<void>{
+async function handleShipVerification(db:Kysely<DatabaseSchema>,job:OutboxJobRow,client:ShipVerifierClient|undefined,lease:JobLease):Promise<void>{
   const input=shipVerificationPayload(job.payload);
   const existing=await db.selectFrom('ship_verifier_observations').select('observation_id').where('submission_id','=',input.submissionId).executeTakeFirst();if(existing)return;
   if(!client)throw new Error('ship_verifier_unavailable');
   const result=verifierResult(await client.verify({submissionId:input.submissionId,url:input.artifactUrl}),input.submissionId);
   if(result.outcome==='UNAVAILABLE'&&job.attempts<job.max_attempts)throw new Error(`ship_verifier_transient_unavailable:${result.reasonCode}`);
   await db.transaction().execute(async tx=>{
+    await lease.assertOwned(tx);
     const submission=await tx.selectFrom('ship_submissions').selectAll().where('submission_id','=',input.submissionId).forUpdate().executeTakeFirst();
     if(!submission||submission.artifact_url!==input.artifactUrl)throw new Error('ship_verification_submission_invalid');
     const replay=await tx.selectFrom('ship_verifier_observations').select('observation_id').where('submission_id','=',input.submissionId).executeTakeFirst();if(replay)return;
@@ -577,7 +674,7 @@ async function handleShipVerification(db:Kysely<DatabaseSchema>,job:OutboxJobRow
   });
 }
 
-async function handleJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date, options: RunOneJobOptions): Promise<void> {
+async function handleJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, databaseNow: Date, options: RunOneJobOptions, lease: JobLease): Promise<void> {
   if (job.job_version !== OUTBOX_JOB_VERSION) throw new Error(`unsupported_job_version:${job.job_version}`);
   switch (job.job_type) {
     case SESSION_EXPIRY_JOB_TYPE:
@@ -587,13 +684,13 @@ async function handleJob(db: Kysely<DatabaseSchema>, job: OutboxJobRow, database
       await handleProjectGitHubObservation(db, job);
       return;
     case SHIP_VERIFICATION_JOB_TYPE:
-      await handleShipVerification(db, job, options.shipVerifierClient);
+      await handleShipVerification(db, job, options.shipVerifierClient, lease);
       return;
     case CHALLENGE_DUE_STATE_JOB_TYPE:
       await handleChallengeDueStateJob(db, job, databaseNow);
       return;
     case CHALLENGE_SUBMISSION_ARCHIVE_CAPTURE_JOB_TYPE:
-      await handleChallengeSubmissionArchiveJob(db, job, options.challengeSubmissionArchiveClient);
+      await handleChallengeSubmissionArchiveJob(db, job, options.challengeSubmissionArchiveClient, lease);
       return;
     default:
       throw new Error(`unsupported_job_type:${job.job_type}`);
@@ -612,11 +709,42 @@ export async function runOneJob(
   const job = await claimDueJob(db, claimTime, leaseMs, options.challengeSubmissionArchiveClient !== undefined);
   if (!job) return {status: 'idle'};
 
+  const lease = createJobLease(
+    db,
+    job,
+    leaseMs,
+    options.onEvent,
+    job.job_type === SHIP_VERIFICATION_JOB_TYPE || job.job_type === CHALLENGE_SUBMISSION_ARCHIVE_CAPTURE_JOB_TYPE,
+  );
+  let handlerError: unknown;
+  let handlerFailed = false;
   try {
-    await handleJob(db, job, await readDatabaseNow(db), options);
+    await handleJob(db, job, await readDatabaseNow(db), options, lease);
   } catch (error) {
-    const failure = await recordFailure(db, job, await readDatabaseNow(db), retryBaseMs, error);
-    if (!failure.applied) return {status: 'lost_lease', jobId: job.job_id, attempts: job.attempts};
+    handlerFailed = true;
+    handlerError = error;
+  }
+
+  await lease.stop();
+
+  if (handlerFailed) {
+    if (lease.isLost()) {
+      emitJobEvent(options.onEvent, {event: 'lost_lease', jobId: job.job_id, attempts: job.attempts, reason: 'heartbeat'});
+      return {status: 'lost_lease', jobId: job.job_id, attempts: job.attempts};
+    }
+    const failure = await recordFailure(db, job, await readDatabaseNow(db), retryBaseMs, handlerError);
+    if (!failure.applied) {
+      emitJobEvent(options.onEvent, {event: 'lost_lease', jobId: job.job_id, attempts: job.attempts, reason: 'failure_fence'});
+      return {status: 'lost_lease', jobId: job.job_id, attempts: job.attempts};
+    }
+    if (failure.state === 'failed') {
+      emitJobEvent(options.onEvent, {
+        event: 'retry_exhausted',
+        jobId: job.job_id,
+        attempts: job.attempts,
+        error: truncateError(handlerError),
+      });
+    }
     return {
       status: failure.state === 'failed' ? 'failed' : 'retry',
       jobId: job.job_id,
@@ -624,7 +752,15 @@ export async function runOneJob(
     };
   }
 
+  if (lease.isLost()) {
+    emitJobEvent(options.onEvent, {event: 'lost_lease', jobId: job.job_id, attempts: job.attempts, reason: 'heartbeat'});
+    return {status: 'lost_lease', jobId: job.job_id, attempts: job.attempts};
+  }
+
   const completed = await completeJob(db, job, await readDatabaseNow(db));
-  if (!completed) return {status: 'lost_lease', jobId: job.job_id, attempts: job.attempts};
+  if (!completed) {
+    emitJobEvent(options.onEvent, {event: 'lost_lease', jobId: job.job_id, attempts: job.attempts, reason: 'completion_fence'});
+    return {status: 'lost_lease', jobId: job.job_id, attempts: job.attempts};
+  }
   return {status: 'succeeded', jobId: job.job_id};
 }

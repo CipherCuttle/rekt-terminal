@@ -1,4 +1,5 @@
 import {sql, type Kysely} from 'kysely';
+import type {JobLease} from './jobs.js';
 import {canonicalizeJson} from './canonical-json.js';
 import {readDatabaseNow, type ChallengeSubmissionArchiveSourceKind, type ChallengeSubmissionArchiveStatus, type DatabaseSchema, type OutboxJobRow} from './database.js';
 import {appendHistoryEvent} from './events.js';
@@ -308,6 +309,7 @@ export async function handleChallengeSubmissionArchiveJob(
   db: Kysely<DatabaseSchema>,
   job: OutboxJobRow,
   client: ChallengeSubmissionArchiveCaptureClient | undefined,
+  lease: JobLease,
 ): Promise<void> {
   const reference = captureJobPayload(job.payload);
   const archive = await db.selectFrom('challenge_submission_archives').selectAll().where('submission_id', '=', reference.submission_id).executeTakeFirst();
@@ -365,6 +367,7 @@ export async function handleChallengeSubmissionArchiveJob(
   }
   const status = terminal ?? 'PLATFORM_UNAVAILABLE';
   await db.transaction().execute(async (transaction) => {
+    await lease.assertOwned(transaction);
     const locked = await transaction.selectFrom('challenge_submission_archives').selectAll().where('submission_id', '=', payload.submission_id).forUpdate().executeTakeFirst();
     if (!locked) throw new Error('challenge_archive_state_missing');
     if (locked.source_reference === CHALLENGE_SUBMISSION_PRIVATE_MATERIAL_PURGED_REFERENCE || locked.status !== 'PENDING') return;

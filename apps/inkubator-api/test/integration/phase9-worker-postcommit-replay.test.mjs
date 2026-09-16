@@ -127,7 +127,7 @@ test('P9-H03 replay after verifier DB commit but before durable job completion d
     }).where('job_id', '=', job.job_id).execute();
 
     const replay = await runOneJob(db, {
-      leaseMs: 10,
+      leaseMs: 1_000,
       shipVerifierClient: {
         verify: async () => {
           verifierCalls += 1;
