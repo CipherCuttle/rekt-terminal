@@ -4,7 +4,7 @@ import type {DatabaseSchema, PlayerRow} from './database.js';
 import type {GitHubRuntimeOptions} from './github.js';
 import {enqueueOutboxJob, SESSION_EXPIRY_JOB_TYPE} from './jobs.js';
 import {createPlayer, getPlayer} from './players.js';
-import {createSession} from './session.js';
+import {createSession, revokeAllPlayerSessions} from './session.js';
 
 const GITHUB_API_VERSION = '2026-03-10';
 const OAUTH_TTL_SECONDS = 10 * 60;
@@ -210,6 +210,11 @@ export async function establishGitHubLoginSession(
     }
 
     if (!player) throw new Error('github_identity_player_missing');
+
+    // A successful provider reauthentication is a security boundary: any bearer
+    // sessions created before it are immediately invalidated before the fresh
+    // replacement session is issued.
+    await revokeAllPlayerSessions(transaction, player.player_id);
     const session = await createSession(transaction, player.player_id, ttlSeconds);
     await enqueueOutboxJob(transaction, {
       jobType: SESSION_EXPIRY_JOB_TYPE,

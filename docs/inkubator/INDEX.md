@@ -22,18 +22,21 @@ Forward product strategy and staged roadmap are governed by:
 16. `STAGE_E_CHALLENGE_UI_V1.md` — closed Stage-E Challenge UI authority.
 17. `STAGE_E_CHALLENGE_UI_CLOSURE_V1.md` — Stage-E closure receipt and verification evidence.
 18. `STAGE_F_BUILDER_CAPSULE_V1.md` — Stage-F Builder Capsule / immutable-submission / asynchronous-archive authority.
-19. `STAGE_F2_IMMUTABLE_SUBMISSION_V1.md` — closed F2 builder-owned immutable submission contract over existing Stage-B/C law.
+19. `STAGE_F2_IMMUTABLE_SUBMISSION_V1.md` — closed F2 builder-owned immutable submission contract.
 20. `STAGE_F3_ARCHIVE_EVIDENCE_V1.md` — F3A provider-independent durable asynchronous archive/evidence contract.
-21. `STAGE_F3_ARCHIVE_EVIDENCE_CLOSURE_V1.md` — Stage-F3/Stage-F closure receipt covering F3A orchestration and F3B GitHub→private-R2 provider wiring.
+21. `STAGE_F3_ARCHIVE_EVIDENCE_CLOSURE_V1.md` — Stage-F3/Stage-F closure receipt.
 22. `STAGE_G_REVEAL_TEST_ARENA_RECEIPTS_V1.md` — Stage-G parent authority.
-23. `STAGE_G2_ACCEPTANCE_MANIFEST_V1.md` — closed G2A frozen evaluation-meaning authority.
-24. `STAGE_G2B_OBJECTIVE_EXECUTION_V1.md` — closed G2B1 content-addressed execution/result authority contract.
+23. `STAGE_G2_ACCEPTANCE_MANIFEST_V1.md` — closed G2A evaluation-meaning authority.
+24. `STAGE_G2B_OBJECTIVE_EXECUTION_V1.md` — closed G2B1 content-addressed execution/result authority.
 25. `STAGE_G2B2_TRUSTED_RUNNER_PERSISTENCE_V1.md` — closed G2B2 trusted server-runner + durable qualification bridge.
-26. `STAGE_G3_COMPARISON_SELECTION_RECEIPT_TRANSPORT_V1.md` — closed G3 comparison / organizer-selection / safe receipt-transport authority.
-27. `STAGE_G3_COMPARISON_SELECTION_RECEIPT_TRANSPORT_CLOSURE_V1.md` — G3 and Stage-G closure receipt / verification evidence.
-28. `INKUBATOR_TRUST_AND_REPUTATION_THREAT_MODEL_V1.md` — Stage-H trust/reputation threat-model authority and bounded H1–H6 sequence.
-29. `STAGE_H1_PRODUCTION_ROUTE_BOUNDARY_V1.md` — active H1 production-route and privilege-boundary implementation contract.
-30. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+26. `STAGE_G3_COMPARISON_SELECTION_RECEIPT_TRANSPORT_V1.md` — closed G3 comparison / organizer-selection / receipt-transport authority.
+27. `STAGE_G3_COMPARISON_SELECTION_RECEIPT_TRANSPORT_CLOSURE_V1.md` — G3 / Stage-G closure receipt.
+28. `INKUBATOR_TRUST_AND_REPUTATION_THREAT_MODEL_V1.md` — Stage-H threat-model authority and bounded H1–H6 sequence.
+29. `STAGE_H1_PRODUCTION_ROUTE_BOUNDARY_V1.md` — closed H1 production-route and privilege-boundary contract.
+30. `STAGE_H2_PRIVATE_DATA_RETENTION_V1.md` — closed H2 private-data retention/deletion contract.
+31. `STAGE_H2_EGRESS_BACKUP_EVIDENCE_V1.md` — H2 provider/logging/disclosure/backup evidence contract.
+32. `STAGE_H3_AUTH_OPERATOR_INCIDENT_V1.md` — active H3 session/operator/incident hardening contract.
+33. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -69,9 +72,9 @@ G2B2 trusted runner + qualification persist   CLOSED / PASS / PR #106 / UNMERGED
 G3 comparison / selection / receipt transport CLOSED / PASS / PR #107 / UNMERGED
 Stage H trust hardening                       USER-AUTHORIZED / ACTIVE
 H0 authority lock                             CLOSED / PASS / PR #109 / UNMERGED
-H1 production route + privilege boundary      IMPLEMENTATION ACTIVE
-H2 private-data + retention/deletion          BLOCKED UNTIL H1 PASS
-H3 auth/operator + incident controls          NOT YET AUTHORIZED BY H2
+H1 production route + privilege boundary      CLOSED / PASS / PR #110 / UNMERGED
+H2 private-data + retention/deletion          CLOSED / PASS / PR #111 / UNMERGED
+H3 auth/operator + incident controls          IMPLEMENTATION ACTIVE
 H4 verifier + supply-chain isolation          NOT YET AUTHORIZED BY H3
 H5 failure/load + zero-inference              NOT YET AUTHORIZED BY H4
 H6 restore + final trust gate                 NOT YET AUTHORIZED BY H5
@@ -80,23 +83,33 @@ Production money                              NOT AUTHORIZED
 Merge authority                               NONE
 ```
 
-**G1 closure:** exact head `e2e24ee55a0e81294660055a6a6ed7094f61ddba` passed Inkubator Auth Foundation #534 and CI #1612. The single hostile review found one P1 combined-Render-runtime wiring defect; that defect was repaired on the exact head, the one allowed targeted Codex rereview found no major issues, and the review thread is resolved. G1 is closed/pass without merge.
+## Closure chain
 
-**G2A closure:** exact head `7bd6182d6d03971d6235931cdbdfd6e2633c8005` passed final CI #1637 and Inkubator Verification #631 after its bounded review/repair cycle. G2A freezes content-addressed automated/human criterion meaning in the Build Contract's existing `normative_references` without creating a second contract law.
+- **G1:** `e2e24ee55a0e81294660055a6a6ed7094f61ddba` — bounded hostile-review repair closed.
+- **G2A:** `7bd6182d6d03971d6235931cdbdfd6e2633c8005` — frozen acceptance-manifest authority closed.
+- **G2B1:** `9ec1577b1b6a86d2904bed4af6c9e96952f2ac48` — execution identity repair closed. Alternate `19f38e2392beae86cd83bdddbaa9b0540f60e514` is archived on `archive/g2b2-alternate-19f38e-2026-09-16` and is noncanonical.
+- **G2B2:** `4331cf6709e15cb12693d0124aad4a885be64eb1` — archive-pending and persisted-command replay P1 repairs closed.
+- **G3 / Stage G:** `e6c7e0abeaf1be79a9ac35a697c050f51e81e31b` — comparison/selection/receipt transport closed.
+- **H0:** `19c04c4cb26477979c1190a5b9173c27822e3d6a` — threat-model authority repaired and closed after targeted rereview.
+- **H1:** `525402d73f03174b29977e256f9aebfd3c14dbce` — canonical funded-Challenge production route inventory/entrypoint parity closed after one P1 repair and targeted rereview.
+- **H2:** `12c0acf6539145cce10035f73fa285ba68992b49` — private-data deletion/retention/provider-egress boundary closed after exact-head CI/Auth/Postgres and one independent external hostile review returning `CLEAN_NO_CRITICAL_HIGH`.
 
-**G2B1 closure:** exact head `9ec1577b1b6a86d2904bed4af6c9e96952f2ac48` passed CI #1662 and Inkubator Verification #640. The independent hostile review found one P1 execution-identity defect; the repair bound execution identity to the canonical digest of the complete protocol-selected submission manifest, the single targeted rereview found no major issues, and the review thread is resolved. The accidental later alternate G2B2 head `19f38e2392beae86cd83bdddbaa9b0540f60e514` is preserved on `archive/g2b2-alternate-19f38e-2026-09-16`; the G2B1 branch was restored to this closure SHA so PR #106 again stacks cleanly from canonical G2B1.
+## Current H3 authority
 
-**G2B2 closure:** reviewed implementation/repair head `4331cf6709e15cb12693d0124aad4a885be64eb1` passed CI #1702 and Inkubator Auth Foundation #550 including the full Postgres suite. The independent hostile review found two P1s: archive `PENDING` could be bypassed by a non-archive binding mix, and an interrupted execution-evidence append could become unrecoverable after lifecycle advance. Repairs moved the final-submission `PENDING` gate before all binding dispatch and restored exact persisted-command replay through existing `recordChallengeQualification()`. Focused unit/Postgres regressions passed, both P1 threads were resolved, and the single targeted Codex rereview of commit `4331cf6709` found no major issues. G2B2 is closed/pass without merge.
+`STAGE_H3_AUTH_OPERATOR_INCIDENT_V1.md` is current. H3 may implement only the supported auth/operator/incident surface:
 
-**G3 / Stage-G closure:** exact reviewed implementation head `e6c7e0abeaf1be79a9ac35a697c050f51e81e31b` passed CI #1729 and Inkubator Auth Foundation #562 including the full Postgres suite. G3 projects only durable final qualifiers into organizer comparison, keeps frozen preferences non-normative, fixes organizer selection to existing `SELECTION` authority, preserves exact-command replay through the existing Stage-C store/DB lifecycle boundary, proves concurrent choices collapse to one durable selection, and exposes only a privacy-bounded read-only projection of existing durable receipts/corrections. The single independent Codex hostile review found no major issues, so no targeted rereview was required. G3 and Stage G are closed/pass without merge.
+- token-specific and account-wide session revocation;
+- provider reauthentication session rotation;
+- fresh-session/step-up semantics for existing security-sensitive GitHub operations;
+- actual reachable privilege inventory and explicit non-promotion of parked resolver/admin code;
+- bounded incident write-freeze and GitHub-disable controls;
+- credential/session compromise runbooks and recovery gates.
 
-**H0 closure:** exact repair head `19c04c4cb26477979c1190a5b9173c27822e3d6a` passed CI #1756 after the first hostile review's five P1 authority omissions were repaired: provider egress, promoted-blueprint provenance, stolen-session containment, long-job lease fencing and backup confidentiality/integrity/provenance. All five review threads were resolved. The single allowed targeted Codex rereview reviewed `19c04c4cb2` and found no major issues. H0 is closed/pass without merge.
+H3 must not create a generic administrator/resolver API simply to satisfy the threat-model checklist. The current production privileged role remains Challenge organizer only; resolver/admin/moderation prefixes remain forbidden by H1.
 
-**H1 authority:** `STAGE_H1_PRODUCTION_ROUTE_BOUNDARY_V1.md` is current. H1 replaces production use of the historical `buildApp()` with one canonical funded-Challenge production builder, exact route allowlisting, entrypoint parity and an explicit organizer-only privilege inventory. Historical compatibility code may remain in the repository but must be absent from production route registration.
+**Execution verdict:** implement and verify H3 only. Do not start H4 until H3 exact-head CI/Auth/Postgres and the single independent hostile review close cleanly under the bounded policy.
 
-**Execution verdict:** implement and verify H1 only. Do not start H2 until H1 exact-head CI/relevant Inkubator verification and the single independent hostile review close cleanly under the bounded policy.
-
-Current dependency order remains stacked and unmerged. Stage-E PR #97, Stage-F1 PR #98, Stage-F2 PR #100, Stage-F3A PR #101, Stage-F3B PR #102, G1 PR #103, G2A PR #104, G2B1 PR #105, G2B2 PR #106, G3 PR #107 and H0 PR #109 must not be merged out of order without explicit merge authority. H1 is stacked on H0 closure head and is also unmerged.
+Current dependency order remains stacked and unmerged. Stage-E PR #97, Stage-F1 PR #98, Stage-F2 PR #100, Stage-F3A PR #101, Stage-F3B PR #102, G1 PR #103, G2A PR #104, G2B1 PR #105, G2B2 PR #106, G3 PR #107, H0 PR #109, H1 PR #110 and H2 PR #111 must not be merged out of order without explicit merge authority. H3 is stacked directly on the exact H2 closure head and is also unmerged.
 
 F1's independent hostile-review requirement was explicitly replaced by user authority on 2026-09-14 with the completed adversarial self-audit plus green exact-head CI/Auth evidence. Do not claim an independent F1 review occurred. That waiver does not alter the default bounded-review policy used for later slices.
 

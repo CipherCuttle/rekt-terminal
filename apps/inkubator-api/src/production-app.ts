@@ -22,6 +22,7 @@ import {
   clearSessionCookie,
   readSessionToken,
   resolveSessionActor,
+  revokeAllPlayerSessions,
   revokeSession,
 } from './session.js';
 
@@ -29,6 +30,8 @@ export interface BuildFundedChallengeProductionAppOptions {
   db: InkubatorDatabase;
   appOrigin: string;
   sessionTtlSeconds: number;
+  incidentWriteFreeze?: boolean;
+  incidentDisableGitHub?: boolean;
   github?: {
     runtime: GitHubRuntimeOptions;
     githubAppAuth?: GitHubAppServerAuthOptions | null;
@@ -38,6 +41,7 @@ export interface BuildFundedChallengeProductionAppOptions {
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const CORS_METHODS = new Set(['GET', 'POST', 'DELETE']);
 const CORS_HEADERS = new Set(['content-type']);
+const INCIDENT_REVOCATION_PATHS = new Set(['/v1/session', '/v1/sessions']);
 
 function error(reply: FastifyReply, statusCode: number, message: string) {
   return reply.code(statusCode).send({error: message});
@@ -148,6 +152,8 @@ function registerGitHubProductionRoutes(
 export function buildFundedChallengeProductionApp(options: BuildFundedChallengeProductionAppOptions) {
   const app = Fastify({logger: false});
   const observedRoutes = new Set<ProductionRouteSignature>();
+  const incidentWriteFreeze = options.incidentWriteFreeze === true;
+  const githubEnabled = Boolean(options.github) && options.incidentDisableGitHub !== true && !incidentWriteFreeze;
 
   app.addHook('onRoute', (routeOptions) => {
     observeProductionRoute(observedRoutes, routeOptions.method, routeOptions.url);
@@ -173,6 +179,9 @@ export function buildFundedChallengeProductionApp(options: BuildFundedChallengeP
   app.addHook('preHandler', async (request, reply) => {
     if (!MUTATING_METHODS.has(request.method)) return;
     const pathname = request.url.split('?', 1)[0];
+    if (incidentWriteFreeze && !INCIDENT_REVOCATION_PATHS.has(pathname)) {
+      return error(reply, 503, 'incident_write_freeze');
+    }
     if (pathname === '/v1/github/webhook') return;
     if (request.headers.origin !== options.appOrigin) return error(reply, 403, 'origin_not_allowed');
   });
@@ -195,17 +204,27 @@ export function buildFundedChallengeProductionApp(options: BuildFundedChallengeP
     return reply.code(204).send();
   });
 
+  app.delete('/v1/sessions', async (request, reply) => {
+    const token = readSessionToken(request.headers.cookie);
+    if (token) {
+      const actor = await resolveSessionActor(options.db, token);
+      if (actor) await revokeAllPlayerSessions(options.db, actor.playerId);
+    }
+    reply.header('set-cookie', clearSessionCookie());
+    return reply.code(204).send();
+  });
+
   registerStageEChallengeProductRoutes(app, options.db);
   registerStageGRevealArenaRoutes(app, options.db);
   registerStageG2BTestArenaRoutes(app, options.db);
   registerStageG3Routes(app, options.db);
 
-  if (options.github) {
+  if (githubEnabled && options.github) {
     registerGitHubProductionRoutes(app, {...options, github: options.github});
   }
 
   app.addHook('onReady', async () => {
-    assertProductionRouteInventory(observedRoutes, Boolean(options.github));
+    assertProductionRouteInventory(observedRoutes, githubEnabled);
   });
 
   return app;

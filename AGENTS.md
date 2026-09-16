@@ -32,20 +32,22 @@ Historical Player/Mission/WORLD/social/DevKit product surfaces remain compatibil
 
 Stages B through G are closed under their recorded bounded gates and remain stacked/unmerged where noted in `docs/inkubator/INDEX.md`.
 
-Stage-H H0 threat-model authority is **CLOSED / PASS** at reviewed head:
+Stage-H closure heads:
 
-`19c04c4cb26477979c1190a5b9173c27822e3d6a`
+- H0 authority lock — **CLOSED / PASS** at `19c04c4cb26477979c1190a5b9173c27822e3d6a`;
+- H1 production route + privilege boundary — **CLOSED / PASS** at `525402d73f03174b29977e256f9aebfd3c14dbce`;
+- H2 private-data + retention/deletion — **CLOSED / PASS** at `12c0acf6539145cce10035f73fa285ba68992b49`.
 
-The active authorized implementation slice is **H1 — Production Route + Privilege Boundary**. Hydrate from:
+The active authorized implementation slice is **H3 — Auth / Operator / Incident Hardening**. Hydrate from:
 
-- `docs/inkubator/STAGE_H1_PRODUCTION_ROUTE_BOUNDARY_V1.md`;
+- `docs/inkubator/STAGE_H3_AUTH_OPERATOR_INCIDENT_V1.md`;
 - `docs/inkubator/INKUBATOR_TRUST_AND_REPUTATION_THREAT_MODEL_V1.md`;
-- `docs/inkubator/FUNDED_CHALLENGE_SURVIVOR_PLAN_V1_1.md`;
-- current Stage-E/G route/store authority.
+- `docs/inkubator/STAGE_H1_PRODUCTION_ROUTE_BOUNDARY_V1.md`;
+- H2 privacy/retention authority and current Stage-E/G route/store authority.
 
-H1 may create one canonical funded-Challenge production route assembly, enforce exact route inventory/entrypoint parity and lock the current organizer privilege boundary. It may not implement H2+, Stage I, production money, settlement execution, arbitrary participant-code execution, hidden tests or LLM judging/scoring.
+H3 may harden session revocation/rotation, fresh reauthentication for supported security-sensitive operations, actual reachable privilege boundaries and bounded incident disable/recovery controls. It may not create a generic admin/resolver surface, implement H4+, Stage I, production money, settlement execution, arbitrary participant-code execution, hidden tests or LLM judging/scoring.
 
-Do not use historical `buildApp()` route breadth as production authority. Production funded-Challenge entrypoints must follow the active H1 route manifest.
+Do not use historical `buildApp()` route breadth as production authority. Production funded-Challenge entrypoints must continue to use the H1 canonical route manifest. Parked resolver/domain code is not production authority merely because it exists in the repository.
 
 ### Third-party substrate rule
 

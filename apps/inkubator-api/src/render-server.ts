@@ -11,6 +11,8 @@ const app = buildFundedChallengeProductionApp({
   db,
   appOrigin: config.appOrigin,
   sessionTtlSeconds: config.sessionTtlSeconds,
+  incidentWriteFreeze: config.incidentWriteFreeze,
+  incidentDisableGitHub: config.incidentDisableGitHub,
   github: config.github
     ? {
         runtime: config.github,
