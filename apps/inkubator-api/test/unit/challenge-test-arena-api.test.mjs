@@ -47,6 +47,21 @@ function acceptanceManifest(module = archiveModule()) {
   };
 }
 
+function humanOnlyAcceptanceManifest() {
+  return {
+    schema_version: ACCEPTANCE_MANIFEST_SCHEMA_VERSION,
+    challenge_id: challengeId,
+    contract_version: 'g2b2-v1',
+    bindings: [
+      {
+        criterion_id: 'HUMAN-UX',
+        mode: 'HUMAN_OBSERVATION',
+        instructions: 'Confirm the frozen user interaction requirement.',
+      },
+    ],
+  };
+}
+
 function frozenContract(manifest = acceptanceManifest()) {
   return freezeBuildContract({
     schema_version: 'inkubator.build-contract/1.0',
@@ -57,13 +72,13 @@ function frozenContract(manifest = acceptanceManifest()) {
     ip_terms_version: 'bespoke-winner-transfer/1.0',
     title: 'G2B2 qualification contract',
     brief: 'Use only frozen Test Arena authority.',
-    outcome_contract: {criteria: [
-      {id: 'AUTO-ARCHIVE', description: 'Final work must have the frozen archive outcome.', mandatory: true},
-    ]},
+    outcome_contract: {criteria: manifest.bindings
+      .filter((binding) => binding.mode === 'AUTOMATED')
+      .map((binding) => ({id: binding.criterion_id, description: 'Frozen automated criterion.', mandatory: true}))},
     production_envelope: {criteria: []},
-    delivery_contract: {criteria: [
-      {id: 'HUMAN-UX', description: 'Frozen interaction is observed.', mandatory: true},
-    ]},
+    delivery_contract: {criteria: manifest.bindings
+      .filter((binding) => binding.mode === 'HUMAN_OBSERVATION')
+      .map((binding) => ({id: binding.criterion_id, description: 'Frozen human observation.', mandatory: true}))},
     preferences: {},
     reference_architecture: {},
     normative_constraints: [],
@@ -100,7 +115,7 @@ function submissionManifest(contract, overrides = {}) {
   };
 }
 
-function fixture({manifest = acceptanceManifest(), contract = null, isFinal = true, archiveStatus = 'CAPTURED', archivePatch = {}} = {}) {
+function fixture({manifest = acceptanceManifest(), contract = null, isFinal = true, archiveStatus = 'CAPTURED', archivePatch = {}, challengeStatus = 'QUALIFICATION'} = {}) {
   const frozen = contract ?? frozenContract(manifest);
   const submission = submissionManifest(frozen);
   const manifestDigest = canonicalizeJson(submission).sha256;
@@ -108,7 +123,7 @@ function fixture({manifest = acceptanceManifest(), contract = null, isFinal = tr
     challenge: {
       challenge_id: challengeId,
       organizer_player_id: organizer,
-      status: 'QUALIFICATION',
+      status: challengeStatus,
       current_contract_version: frozen.contract_version,
       current_terms_digest: frozen.terms_digest,
     },
@@ -184,6 +199,18 @@ test('G2B2 produces QUALIFIED from trusted CAPTURED archive evidence plus exact 
 
 test('G2B2 does not crystallize pending archive intent into an immutable qualification', () => {
   assert.throws(() => prepare({archiveStatus: 'PENDING'}), /challenge_test_archive_pending/);
+});
+
+test('G2B2 blocks pending archive intent before binding dispatch even for a human-only manifest', () => {
+  const manifest = humanOnlyAcceptanceManifest();
+  const contract = frozenContract(manifest);
+  assert.throws(() => prepare({manifest, contract, archiveStatus: 'PENDING'}), /challenge_test_archive_pending/);
+});
+
+test('G2B2 pure execution reconstruction remains possible after lifecycle advance', () => {
+  const result = prepare({challengeStatus: 'APPEAL_WINDOW'});
+  assert.equal(result.submission_id, submissionId);
+  assert.equal(result.qualification.overall, 'QUALIFIED');
 });
 
 test('G2B2 maps terminal platform-owned archive uncertainty to DISPUTED rather than builder failure', () => {
