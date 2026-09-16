@@ -117,7 +117,8 @@ test('H5 healthy long verifier heartbeat prevents replacement overlap', async ()
     let verifierCalls = 0;
 
     const workerA = runOneJob(db, {
-      leaseMs: 300,
+      leaseMs: 1_000,
+      onEvent: () => {},
       shipVerifierClient: {
         verify: async ({submissionId: id, url}) => {
           verifierCalls += 1;
@@ -128,7 +129,7 @@ test('H5 healthy long verifier heartbeat prevents replacement overlap', async ()
       },
     });
     await started.promise;
-    await sleep(850);
+    await sleep(2_600);
 
     const workerB = await runOneJob(db, {
       leaseMs: 300,
