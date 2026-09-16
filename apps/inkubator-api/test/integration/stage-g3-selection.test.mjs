@@ -60,7 +60,7 @@ function contractFor(challengeId) {
   });
 }
 
-async function acceptAndFinalize(db, {challengeId, entryId, contract, suffix}) {
+async function acceptSubmission(db, {challengeId, entryId, contract, suffix}) {
   const submissionId = randomUUID();
   await acceptChallengeSubmission(db, {
     requestId: randomUUID(),
@@ -120,8 +120,8 @@ async function preparedSelection(db, {qualifierCount = 2} = {}) {
   await acquireChallengeSeat(db, {requestId: randomUUID(), entryId: q2, challengeId, builderPlayerId: builder2, payoutIdentity: `pay-${q2}`});
 
   await sql`update challenges set status = 'BUILDING' where challenge_id = ${challengeId}`.execute(db);
-  const submission1 = await acceptAndFinalize(db, {challengeId, entryId: q1, contract, suffix: 'a'});
-  const submission2 = await acceptAndFinalize(db, {challengeId, entryId: q2, contract, suffix: 'b'});
+  const submission1 = await acceptSubmission(db, {challengeId, entryId: q1, contract, suffix: 'a'});
+  const submission2 = await acceptSubmission(db, {challengeId, entryId: q2, contract, suffix: 'b'});
 
   await sql`update challenges set status = 'SUBMISSIONS_LOCKED' where challenge_id = ${challengeId}`.execute(db);
   await markFinalChallengeSubmission(db, {requestId: randomUUID(), challengeId, entryId: q1, submissionId: submission1});
@@ -176,7 +176,7 @@ test('G3 selection persists once and exact command replays after lifecycle advan
 
     await assert.rejects(
       recordStageG3Selection(db, {...input, requestId: randomUUID(), decisionId: randomUUID()}),
-      /challenge_selection_not_open/,
+      /challenge_selection_lifecycle_invalid/,
     );
   } finally {
     await db.destroy();
@@ -202,6 +202,36 @@ test('G3 selection rejects a non-qualifier and a non-organizer', async () => {
       }),
       /challenge_organizer_required/,
     );
+  } finally {
+    await db.destroy();
+  }
+});
+
+test('G3 concurrent organizer choices produce exactly one durable selection', async () => {
+  const db = createDatabase(databaseUrl);
+  await migrateToLatest(db);
+  try {
+    const state = await preparedSelection(db);
+    const attempts = await Promise.allSettled([
+      recordStageG3Selection(db, {
+        requestId: randomUUID(), decisionId: randomUUID(), challengeId: state.challengeId,
+        selectedEntryId: state.q1, actorPlayerId: state.organizer,
+      }),
+      recordStageG3Selection(db, {
+        requestId: randomUUID(), decisionId: randomUUID(), challengeId: state.challengeId,
+        selectedEntryId: state.q2, actorPlayerId: state.organizer,
+      }),
+    ]);
+    assert.equal(attempts.filter((attempt) => attempt.status === 'fulfilled').length, 1);
+    assert.equal(attempts.filter((attempt) => attempt.status === 'rejected').length, 1);
+
+    const rows = await sql`
+      select decision_id, entry_id, decision_json
+      from challenge_decisions
+      where challenge_id = ${state.challengeId} and decision_type = 'SELECTION'
+    `.execute(db);
+    assert.equal(rows.rows.length, 1);
+    assert.ok([state.q1, state.q2].includes(rows.rows[0].entry_id));
   } finally {
     await db.destroy();
   }
