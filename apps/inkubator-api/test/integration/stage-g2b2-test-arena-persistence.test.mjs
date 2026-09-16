@@ -17,7 +17,7 @@ import {
   readChallengeSnapshot,
   recordChallengeQualification,
 } from '../../dist/challenge-store.js';
-import {handleChallengeSubmissionArchiveJob} from '../../dist/challenge-archive.js';
+import {runOneJob} from '../../dist/jobs.js';
 import {
   buildStageG2BQualificationFromSnapshot,
   recordStageG2BQualification,
@@ -111,16 +111,20 @@ async function captureCanonicalArchive(db, submissionId) {
     .selectAll()
     .where('idempotency_key', '=', `challenge.submission.archive:${submissionId}`)
     .executeTakeFirstOrThrow();
-  await handleChallengeSubmissionArchiveJob(db, job, {
-    capture: async (input) => {
-      assert.equal(input.submissionId, submissionId);
-      return {
-        outcome: 'CAPTURED',
-        archive_digest: 'b'.repeat(64),
-        archive_reference: 'PRIVATE_G2B2_ARCHIVE_REFERENCE',
-      };
+  await db.updateTable('outbox_jobs').set({next_attempt_at: new Date(0)}).where('job_id', '=', job.job_id).execute();
+  const result = await runOneJob(db, {
+    challengeSubmissionArchiveClient: {
+      capture: async (input) => {
+        assert.equal(input.submissionId, submissionId);
+        return {
+          outcome: 'CAPTURED',
+          archive_digest: 'b'.repeat(64),
+          archive_reference: 'PRIVATE_G2B2_ARCHIVE_REFERENCE',
+        };
+      },
     },
   });
+  assert.deepEqual(result, {status: 'succeeded', jobId: job.job_id});
   const archive = await db.selectFrom('challenge_submission_archives').selectAll().where('submission_id', '=', submissionId).executeTakeFirstOrThrow();
   assert.equal(archive.status, 'CAPTURED');
   assert.equal(archive.archive_digest, 'b'.repeat(64));
