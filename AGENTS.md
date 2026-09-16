@@ -15,7 +15,7 @@ If two authorities conflict, stop implementation at the conflicting surface and 
 
 For **any Inkubator planning or implementation work**, read `docs/inkubator/INDEX.md` first and follow the authority files it names.
 
-As of 2026-09-13 the forward Inkubator direction is **not** the historical Player→Mission MVP roadmap or agent-first Challenge OS where those conflict with the new authority.
+The forward Inkubator direction is **not** the historical Player→Mission MVP roadmap or agent-first Challenge OS where those conflict with current authority.
 
 Current Inkubator hierarchy includes:
 
@@ -23,29 +23,42 @@ Current Inkubator hierarchy includes:
 - `docs/inkubator/FUNDED_CHALLENGE_SURVIVOR_PLAN_V1_1.md` — near-term mechanism/trust constraints;
 - `docs/inkubator/SOLO_OPERATOR_CONSTRAINTS_V1.md` — one-human operating constraint / Alpha cutline;
 - `docs/inkubator/PRE_REVENUE_INFRA_CAP_V1.md` — bootstrap budget/operational-spend constraints;
-- `docs/inkubator/THIRD_PARTY_SUBSTRATE_LOCK_V1.md` — external/open-source adoption boundary, pinned/fallback/removal rules and the approved product substrate composition;
+- `docs/inkubator/THIRD_PARTY_SUBSTRATE_LOCK_V1.md` — external/open-source adoption boundary, pinned/fallback/removal rules and approved substrate composition;
 - `docs/inkubator/PREIMPLEMENTATION_READINESS_V1.md` — stage planning/readiness gates;
-- current stage-specific protocol/test contracts named by `docs/inkubator/INDEX.md`;
+- `docs/inkubator/STAGE_H_TRUST_HARDENING_V1.md` — active Stage-H execution contract;
+- `docs/inkubator/INKUBATOR_TRUST_AND_REPUTATION_THREAT_MODEL_V1.md` — active trust/reputation threat, claims, privacy, runbook and failure authority;
+- current closed stage-specific protocol/test contracts named by `docs/inkubator/INDEX.md`;
 - `docs/inkubator/REKT_TECHNICAL_FACEPLATE_V1.md` — highest Inkubator visual execution authority.
 
 ### Current Inkubator implementation state
 
-Stage A authority/migration lock is closed.
+Stages B through G are closed under their stage-specific authority/evidence, with the stacked Stage-E/F/G PR chain still unmerged unless explicit merge authority is granted.
 
-Stage B pure Challenge / Build Contract protocol is implemented and closed into the planning authority branch. Its semantics in `packages/inkubator-protocol` remain authoritative.
+Stage G Reveal / Test Arena / Receipts is **CLOSED / PASS**. Its permanent invariants remain in force:
 
-Stage C Postgres Domain Bridge is **CLOSED / PASS**. Its durable concurrency/persistence invariants remain in force and may not be weakened by compiler work.
+- sealed immutable submissions before synchronized reveal;
+- frozen mandatory acceptance meaning;
+- objective qualification separate from organizer preference;
+- organizer selection only among durable final qualifiers;
+- append-only durable receipt/correction history;
+- private archive/source facts excluded from public projections;
+- no production-money authority.
 
-The active authorized implementation phase is **Stage D: Compiler Engine + Blueprints + Low-Cost Chat**. Hydrate from:
+The active authorized phase is **Stage H: Trust / OPSEC / Privacy / Failure Hardening**.
 
-- `docs/inkubator/STAGE_D_COMPILER_ENGINE_V1.md`;
-- `docs/inkubator/STAGE_D_COMPILER_GAUNTLET_V1.md`;
-- `docs/inkubator/PREIMPLEMENTATION_READINESS_V1.md` D-GATEs;
-- the Stage-B Build Contract protocol/validator authority in `packages/inkubator-protocol`.
+Hydrate from:
 
-Stage D is additive deterministic compiler work alongside the canonical protocol package. Model/provider output is untrusted interpretation input only. It may propose meaning but may not freeze Build Contracts, redefine Stage-B semantics, or become required for already-frozen Challenge operation.
+- `docs/inkubator/STAGE_H_TRUST_HARDENING_V1.md`;
+- `docs/inkubator/INKUBATOR_TRUST_AND_REPUTATION_THREAT_MODEL_V1.md`;
+- `docs/inkubator/PREIMPLEMENTATION_READINESS_V1.md` H-GATEs;
+- `docs/inkubator/FUNDED_CHALLENGE_SURVIVOR_PLAN_V1_1.md` trust/privacy/load rules;
+- closed Stage-B/C/G executable authority in protocol/store/tests.
 
-Do not begin Stage E+ production UI, Builder Capsule, Reveal/Test Arena, chain/payment work, production-money rails, or distant North-Star features while Stage D is active unless an explicit successor/scope decision authorizes it.
+Stage-H H0 is an authority lock before hardening implementation. Until H0 closes, do not begin H1 code changes.
+
+Once H0 closes, the first bounded implementation slice is **H1 production route assembly + runtime entrypoint parity**. The funded-Challenge production process must explicitly allowlist its route surface. Historical Player/Project/Mission/social/help/assist/devkit/development code may remain in-repo but does not regain production-route authority by inheritance.
+
+Do not begin Stage I external Alpha, Stage J production-value work, Challenge Vault/payment execution, arbitrary hosted participant-code execution, hidden tests, LLM judging/scoring, or new social-product expansion while Stage H is active unless an explicit successor/scope decision authorizes it.
 
 Historical Inkubator systems remain reusable substrate where compatible, but old public nouns/navigation do not regain authority merely because code exists.
 
@@ -76,6 +89,10 @@ Medium/Low findings do not restart a phase unless they invalidate the stated obj
 - Canonical financial quantities use explicit fixed-point/integer arithmetic; no unconstrained JS floating point in ledger/economic state.
 - Unsupported/stale/ambiguous source data fails closed; never relabel fixtures as LIVE.
 - Inkubator participant/client code cannot mint authoritative qualification, PROVEN evidence, receipt, settlement or payment facts merely by claiming them.
+- Model/provider output cannot mint Inkubator product truth.
+- Public GETs must remain pure with respect to funded-Challenge lifecycle/economic authority.
+- Private source/archive data must not become public projection or diagnostic/log material.
+- Production-money authority remains absent until an independently authorized later gate.
 
 ## RPS donor boundary
 
