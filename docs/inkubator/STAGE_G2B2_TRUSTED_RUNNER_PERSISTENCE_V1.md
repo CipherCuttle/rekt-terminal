@@ -1,6 +1,6 @@
 # REKT INKUBATOR — STAGE G2B2 TRUSTED RUNNER + QUALIFICATION PERSISTENCE V1
 
-**Status:** USER-AUTHORIZED / ACTIVE  
+**Status:** USER-AUTHORIZED / ACTIVE / HOSTILE-REVIEW P1 REPAIRS IMPLEMENTED  
 **Date:** 2026-09-16  
 **Base / G2B1 closure head:** `9ec1577b1b6a86d2904bed4af6c9e96952f2ac48`  
 **Parent authorities:** `STAGE_G_REVEAL_TEST_ARENA_RECEIPTS_V1.md`, `STAGE_G2_ACCEPTANCE_MANIFEST_V1.md`, `STAGE_G2B_OBJECTIVE_EXECUTION_V1.md`
@@ -62,9 +62,12 @@ For the target entry it MUST:
 2. independently run existing `selectFinalSubmission()` over that set;
 3. require exactly one durable `is_final = true` row;
 4. require that durable final row to equal the protocol-selected complete manifest digest/version;
-5. refuse qualification if durable finality and protocol finality disagree.
+5. refuse qualification if durable finality and protocol finality disagree;
+6. inspect the canonical archive row for that final submission before binding dispatch and refuse qualification while its status is `PENDING`, regardless of whether the frozen binding mix itself contains an archive runner.
 
 A request cannot provide, remove or reorder the durable candidate set.
+
+`PENDING` is a property of the canonical final submission's archive lifecycle, not a property that can be bypassed by choosing a human-only or lineage-only acceptance manifest.
 
 ## 4. Acceptance-manifest authority
 
@@ -136,7 +139,7 @@ Result map:
 | `BUILDER_CAUSED_UNAVAILABLE` | automated `FAIL` |
 | `UNSUPPORTED_SOURCE` | automated `FAIL` |
 
-`PENDING` is capture intent, not an evidence observation. Because Stage-C qualification rows are immutable and first-pass completion can advance the Challenge lifecycle, a temporary queue state MUST NOT be crystallized into a durable qualification result. `PLATFORM_UNAVAILABLE`, by contrast, is a terminal ambiguous platform observation and remains `DISPUTED`, never builder fault.
+`PENDING` is capture intent, not an evidence observation. Because Stage-C qualification rows are immutable and first-pass completion can advance the Challenge lifecycle, a temporary queue state MUST NOT be crystallized into a durable qualification result. G2B2 therefore applies the `PENDING` block to the protocol-selected final submission before any frozen binding executes, not only inside `archive-capture-integrity`. `PLATFORM_UNAVAILABLE`, by contrast, is a terminal ambiguous platform observation and remains `DISPUTED`, never builder fault.
 
 V1 trusted modules accept no runner-specific config or fixture references. A frozen binding that attempts to add either fails closed as unsupported rather than changing module semantics underneath a known module id/version.
 
@@ -164,11 +167,13 @@ After G2B1 constructs the execution artifact, G2B2 MUST call existing `recordCha
 
 Existing Stage-C law therefore remains authoritative for:
 
-- `QUALIFICATION` lifecycle state;
+- `QUALIFICATION` lifecycle state for new qualification commands;
 - final-submission lineage;
 - immutable qualification conflicts;
-- idempotency;
+- idempotency and exact replay after lifecycle progress;
 - durable `challenge_qualifications` storage.
+
+G2B2's pure execution reconstruction MUST NOT independently reject later lifecycle states before `recordChallengeQualification()` gets the chance to classify the command. This preserves the existing Stage-C rule: a new command after lifecycle advance fails closed, while the exact already-recorded command may replay idempotently.
 
 No G2B2 qualification table or score store is authorized.
 
@@ -189,7 +194,7 @@ The event is content-addressed/idempotent through existing `appendHistoryEvent()
 
 It does not contain private archive object references or raw private source bodies.
 
-If qualification persistence succeeds but event append is interrupted, retry replays the immutable qualification and can complete the idempotent evidence append; no alternate qualification truth is created.
+If qualification persistence succeeds but event append is interrupted, retry MUST reconstruct the same frozen execution artifact even if the Challenge lifecycle has already advanced, then pass through existing `recordChallengeQualification()`. The existing store replays the matching immutable qualification before its new-command lifecycle gate, after which the missing idempotent execution evidence event can be appended. A different/new command after lifecycle advance still fails closed.
 
 The Postgres acceptance test must prove:
 
@@ -197,7 +202,9 @@ The Postgres acceptance test must prove:
 - one replay-safe `challenge.test_arena.executed` event;
 - preserved acceptance-manifest body and selected-manifest digest in evidence;
 - changed replay fails closed;
-- `PENDING` archive state creates zero qualification rows.
+- `PENDING` archive state creates zero qualification rows;
+- simulated crash after qualification persistence but before execution-evidence append can be repaired by the exact request after lifecycle advance;
+- a new qualification request after lifecycle advance remains rejected.
 
 ## 9. Explicitly unsupported in G2B2 V1
 
@@ -234,18 +241,38 @@ Unsupported automated module id/version/digest/config/fixture combinations fail 
 | trusted V1 module receives config/fixtures | fail closed |
 | caller supplies automated observation | rejected by request contract |
 | human criterion missing/extra/duplicate | fail closed |
-| archive `CAPTURED` + valid digest | automated PASS |
-| archive `PENDING` | no immutable qualification; fail closed until terminal observation |
-| archive `PLATFORM_UNAVAILABLE` | automated DISPUTED |
-| builder-caused unavailable / unsupported source | automated FAIL |
-| archive lineage differs from final submission | fail closed |
+| final archive `PENDING`, including human-only/lineage-only binding mix | no immutable qualification; fail closed before binding dispatch |
+| archive `CAPTURED` + valid digest | automated PASS when bound to archive runner |
+| archive `PLATFORM_UNAVAILABLE` | automated DISPUTED when bound to archive runner |
+| builder-caused unavailable / unsupported source | automated FAIL when bound to archive runner |
+| archive lineage differs from final submission | fail closed when consumed by archive runner |
 | exact result set complete | existing `computeQualification()` semantics |
-| qualification replay same payload | idempotent |
+| new qualification command outside `QUALIFICATION` | fail closed in existing Stage-C store |
+| exact persisted qualification replay after lifecycle advance | idempotent replay allowed |
+| interrupted execution-evidence append after persisted qualification | exact replay reconstructs and backfills evidence |
 | qualification replay changed payload | immutable/idempotency conflict |
 | durable evidence event | retains canonical acceptance manifest + execution identity |
 | canonical Render runtime | G2B routes registered |
 
-## 11. Bounded completion
+## 11. Hostile review and bounded repair
+
+The single independent hostile review on tested head `26f4e64bc66ffa23def87f6f661b38ec8e0e9871` found two P1 defects:
+
+1. **Global pending-archive gate missing:** `PENDING` was inspected only inside `archive-capture-integrity`, so a human-only or `submission-lineage-integrity` binding mix could mint an immutable qualification while canonical archive capture was still queued.
+2. **Post-advance evidence recovery blocked:** qualification persistence and execution-evidence append are separate durable operations; if the first committed and the second was interrupted, lifecycle could advance before retry, while G2B2's early `QUALIFICATION` status check prevented the exact replay needed to backfill evidence.
+
+Repairs:
+
+- the protocol-selected final submission's canonical archive row is checked for `PENDING` before any binding dispatch, independent of acceptance-manifest binding mix;
+- the pure execution builder no longer owns lifecycle gating; existing `recordChallengeQualification()` remains the lifecycle authority and already distinguishes an exact persisted-command replay before enforcing the new-command `QUALIFICATION` gate;
+- focused unit coverage proves human-only `PENDING` is blocked before binding dispatch and deterministic execution can be reconstructed after lifecycle advance;
+- focused Postgres coverage simulates qualification committed with missing execution evidence, advances the Challenge to `APPEAL_WINDOW`, proves the exact request backfills the evidence event, and proves a new request still fails closed.
+
+The first repair verification attempt exposed only a test-query typo (`history_events.event_id` does not exist); no product-code defect was implicated. The test now counts the known `event_type` column instead.
+
+Bounded policy now requires exact-head verification followed by **one targeted rereview of these two P1 repairs only**. No third review loop is authorized.
+
+## 12. Bounded completion
 
 ```text
 IMPLEMENT G2B2
@@ -259,13 +286,13 @@ IMPLEMENT G2B2
 
 **Merge authority: NONE.**
 
-## 12. Current verdict
+## 13. Current verdict
 
 ```text
 G1 SYNCHRONIZED REVEAL + ARENA INPUT          CLOSED / PASS
 G2A FROZEN ACCEPTANCE MANIFEST                CLOSED / PASS
 G2B1 EXECUTION AUTHORITY CONTRACT             CLOSED / PASS @ 9ec1577b...
-G2B2 TRUSTED RUNNER + QUALIFICATION PERSIST   ACTIVE
+G2B2 TRUSTED RUNNER + QUALIFICATION PERSIST   ACTIVE / TWO HOSTILE-REVIEW P1s REPAIRED / REVERIFY + TARGETED REREVIEW NEXT
 G3 COMPARISON / SELECTION / RECEIPT TRANSPORT SEQUENCED AFTER G2B
 NETWORK/BROWSER RUNNERS                       NOT AUTHORIZED BY G2B2 V1
 PRODUCTION MONEY                              NOT AUTHORIZED
