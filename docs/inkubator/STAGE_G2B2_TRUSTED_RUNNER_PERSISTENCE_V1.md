@@ -1,8 +1,9 @@
 # REKT INKUBATOR — STAGE G2B2 TRUSTED RUNNER + QUALIFICATION PERSISTENCE V1
 
-**Status:** USER-AUTHORIZED / ACTIVE / HOSTILE-REVIEW P1 REPAIRS IMPLEMENTED  
+**Status:** CLOSED / PASS  
 **Date:** 2026-09-16  
 **Base / G2B1 closure head:** `9ec1577b1b6a86d2904bed4af6c9e96952f2ac48`  
+**Reviewed implementation / repair head:** `4331cf6709e15cb12693d0124aad4a885be64eb1`  
 **Parent authorities:** `STAGE_G_REVEAL_TEST_ARENA_RECEIPTS_V1.md`, `STAGE_G2_ACCEPTANCE_MANIFEST_V1.md`, `STAGE_G2B_OBJECTIVE_EXECUTION_V1.md`
 
 ## 0. Dependency closure
@@ -20,7 +21,7 @@ Closure evidence:
 - the P1 thread is resolved;
 - review budget is consumed.
 
-G2B2 starts directly from that frozen closure head.
+G2B2 started directly from that frozen closure head.
 
 ## 1. Objective
 
@@ -196,7 +197,7 @@ It does not contain private archive object references or raw private source bodi
 
 If qualification persistence succeeds but event append is interrupted, retry MUST reconstruct the same frozen execution artifact even if the Challenge lifecycle has already advanced, then pass through existing `recordChallengeQualification()`. The existing store replays the matching immutable qualification before its new-command lifecycle gate, after which the missing idempotent execution evidence event can be appended. A different/new command after lifecycle advance still fails closed.
 
-The Postgres acceptance test must prove:
+The Postgres acceptance test proves:
 
 - one real immutable `challenge_qualifications` row;
 - one replay-safe `challenge.test_arena.executed` event;
@@ -254,7 +255,7 @@ Unsupported automated module id/version/digest/config/fixture combinations fail 
 | durable evidence event | retains canonical acceptance manifest + execution identity |
 | canonical Render runtime | G2B routes registered |
 
-## 11. Hostile review and bounded repair
+## 11. Hostile review, repair, and closure evidence
 
 The single independent hostile review on tested head `26f4e64bc66ffa23def87f6f661b38ec8e0e9871` found two P1 defects:
 
@@ -268,9 +269,16 @@ Repairs:
 - focused unit coverage proves human-only `PENDING` is blocked before binding dispatch and deterministic execution can be reconstructed after lifecycle advance;
 - focused Postgres coverage simulates qualification committed with missing execution evidence, advances the Challenge to `APPEAL_WINDOW`, proves the exact request backfills the evidence event, and proves a new request still fails closed.
 
-The first repair verification attempt exposed only a test-query typo (`history_events.event_id` does not exist); no product-code defect was implicated. The test now counts the known `event_type` column instead.
+The first repair verification attempt exposed only a test-query typo (`history_events.event_id` does not exist); no product-code defect was implicated. The test was corrected to count a known column.
 
-Bounded policy now requires exact-head verification followed by **one targeted rereview of these two P1 repairs only**. No third review loop is authorized.
+Closure evidence on exact reviewed repair head `4331cf6709e15cb12693d0124aad4a885be64eb1`:
+
+- CI #1702 PASS, including invariant gates, generated client contract, typecheck, repo unit tests and canonical production build;
+- Inkubator Auth Foundation #550 PASS, including API build, generated client, unit tests, migrations and the full Postgres integration suite;
+- both original P1 review threads were answered with exact-head evidence and resolved;
+- the single allowed targeted Codex rereview reviewed commit `4331cf6709` and reported: **"Didn't find any major issues."**;
+- targeted rereview produced no new Critical/High defect;
+- review budget is consumed; no third review loop is authorized.
 
 ## 12. Bounded completion
 
@@ -281,19 +289,19 @@ IMPLEMENT G2B2
 → fix Critical/High only
 → ONE targeted rereview only if required
 → CLOSE G2B2
-→ MOVE TO G3 OR A SEPARATELY AUTHORIZED NETWORK-RUNNER SLICE
+→ MOVE TO G3
 ```
 
 **Merge authority: NONE.**
 
-## 13. Current verdict
+## 13. Final verdict
 
 ```text
 G1 SYNCHRONIZED REVEAL + ARENA INPUT          CLOSED / PASS
 G2A FROZEN ACCEPTANCE MANIFEST                CLOSED / PASS
 G2B1 EXECUTION AUTHORITY CONTRACT             CLOSED / PASS @ 9ec1577b...
-G2B2 TRUSTED RUNNER + QUALIFICATION PERSIST   ACTIVE / TWO HOSTILE-REVIEW P1s REPAIRED / REVERIFY + TARGETED REREVIEW NEXT
-G3 COMPARISON / SELECTION / RECEIPT TRANSPORT SEQUENCED AFTER G2B
+G2B2 TRUSTED RUNNER + QUALIFICATION PERSIST   CLOSED / PASS @ reviewed implementation head 4331cf67...
+G3 COMPARISON / SELECTION / RECEIPT TRANSPORT NEXT / USER-AUTHORIZED SEQUENTIAL SLICE
 NETWORK/BROWSER RUNNERS                       NOT AUTHORIZED BY G2B2 V1
 PRODUCTION MONEY                              NOT AUTHORIZED
 MERGE AUTHORITY                               NONE
