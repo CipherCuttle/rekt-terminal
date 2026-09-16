@@ -1,5 +1,6 @@
 import {buildApp} from './app.js';
 import {registerStageEChallengeProductRoutes} from './challenge-product-api.js';
+import {registerStageG3Routes} from './challenge-g3-api.js';
 import {registerStageGRevealArenaRoutes} from './challenge-reveal-api.js';
 import {registerStageG2BTestArenaRoutes} from './challenge-test-arena-api.js';
 import {loadRuntimeConfig} from './config.js';
@@ -31,6 +32,7 @@ const app = buildApp({
 registerStageEChallengeProductRoutes(app, db);
 registerStageGRevealArenaRoutes(app, db);
 registerStageG2BTestArenaRoutes(app, db);
+registerStageG3Routes(app, db);
 
 if (config.github) {
   registerGitHubLoginRoutes(app, {
