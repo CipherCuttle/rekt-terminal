@@ -1,6 +1,6 @@
 # REKT INKUBATOR — STAGE H4 VERIFIER / SUPPLY-CHAIN ISOLATION V1
 
-**Status:** IMPLEMENTED / EXACT-HEAD VERIFICATION PENDING  
+**Status:** IMPLEMENTED / CLOSURE GATE OPEN  
 **Date:** 2026-09-16  
 **Branch:** `agent/stage-h4-verifier-supply-chain-v1`  
 **Parent closure:** H3 `ed91567f98221355ba08bd197a8be389007b892c` (`CLOSED/PASS_WITH_REVIEW_WAIVER`)  
@@ -75,9 +75,11 @@ The allowed egress shape remains:
 - total verification budget capped at 8 seconds;
 - output remains an observation and cannot mint Challenge truth directly.
 
-H4 extends the blocked-address policy to cover IPv4 special relay space plus IPv6 translation/tunnel/special-use ranges that could otherwise encode or route toward non-public targets, including NAT64 and 6to4 classes. Cloud metadata/link-local targets remain rejected before any request.
+H4 extends the blocked-address policy to cover IPv4 special relay space plus IPv6 translation/tunnel/current non-global/special-use ranges that could otherwise encode or route toward non-public targets. This includes NAT64, 6to4, the current Dummy IPv6 prefix, SRv6 SID space, deprecated IPv4-compatible/site-local space, unique-local, link-local and multicast ranges. Cloud metadata/link-local targets remain rejected before any request.
 
-The HTTPS requester now has an absolute watchdog in addition to socket-idle timeout, and the verifier wraps requester execution in its own bounded deadline. A peer or requester that never settles therefore becomes `UNAVAILABLE/TIMEOUT` rather than holding verifier work indefinitely.
+A bounded H4 self-audit found that the first implementation did not cover current non-global `100:0:0:1::/64` and `5f00::/16`, nor deprecated `::/96` IPv4-compatible and `fec0::/10` site-local space. Those ranges now fail closed before any request. This self-audit repair is implementation evidence only and does **not** count as the independent hostile review required by the H4 closure gate.
+
+The HTTPS requester has an absolute watchdog in addition to socket-idle timeout, and the verifier wraps requester execution in its own bounded deadline. A peer or requester that never settles therefore becomes `UNAVAILABLE/TIMEOUT` rather than holding verifier work indefinitely.
 
 ## 5. Credential isolation
 
@@ -94,7 +96,7 @@ H4 adds/extends executable evidence for:
 3. trusted-runner implementation Git-object provenance;
 4. runtime trusted-module catalog exactly matching promoted module ID/version/digests;
 5. cloud metadata target rejection before request;
-6. NAT64/6to4/private/link-local address rejection;
+6. NAT64/6to4/current non-global/deprecated private/link-local address rejection;
 7. DNS rebinding and redirect re-resolution;
 8. response-size and redirect bounds;
 9. stalled requester deadline;

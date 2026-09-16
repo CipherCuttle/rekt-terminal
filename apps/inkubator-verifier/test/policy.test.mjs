@@ -11,7 +11,7 @@ test('URL policy rejects schemes, credentials, ports, literals and local names',
   assert.equal(normalizePublicHttpsUrl('https://Example.COM/a#frag').href, 'https://example.com/a');
 });
 
-test('DNS policy rejects RFC1918, local IPv6, translation/tunnel ranges, IPv4-mapped IPv6 and mixed answer sets', async () => {
+test('DNS policy rejects private, current non-global, translation/tunnel and legacy special IPv6 ranges', async () => {
   for (const address of [
     {address: '127.0.0.1', family: 4},
     {address: '10.0.0.1', family: 4},
@@ -19,11 +19,15 @@ test('DNS policy rejects RFC1918, local IPv6, translation/tunnel ranges, IPv4-ma
     {address: '192.168.0.1', family: 4},
     {address: '169.254.169.254', family: 4},
     {address: '::1', family: 6},
+    {address: '::c0a8:1', family: 6},
     {address: 'fc00::1', family: 6},
     {address: 'fe80::1', family: 6},
+    {address: 'fec0::1', family: 6},
     {address: '64:ff9b::a00:1', family: 6},
     {address: '64:ff9b:1::a00:1', family: 6},
+    {address: '100:0:0:1::1', family: 6},
     {address: '2002:a00:1::', family: 6},
+    {address: '5f00::1', family: 6},
     {address: '::ffff:127.0.0.1', family: 6},
     {address: '::ffff:8.8.8.8', family: 6},
   ]) {

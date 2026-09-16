@@ -51,9 +51,9 @@ for (const [network, prefix] of [
   ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
 ] as const) block.addSubnet(network, prefix, 'ipv4');
 for (const [network, prefix] of [
-  ['::', 128], ['::1', 128], ['64:ff9b::', 96], ['64:ff9b:1::', 48], ['100::', 64],
-  ['2001::', 23], ['2001:db8::', 32], ['2002::', 16], ['3fff::', 20],
-  ['fc00::', 7], ['fe80::', 10], ['ff00::', 8],
+  ['::', 96], ['64:ff9b::', 96], ['64:ff9b:1::', 48], ['100::', 64], ['100:0:0:1::', 64],
+  ['2001::', 23], ['2001:db8::', 32], ['2002::', 16], ['3fff::', 20], ['5f00::', 16],
+  ['fc00::', 7], ['fe80::', 10], ['fec0::', 10], ['ff00::', 8],
 ] as const) block.addSubnet(network, prefix, 'ipv6');
 
 function publicAddress(address: ResolvedAddress): boolean {
