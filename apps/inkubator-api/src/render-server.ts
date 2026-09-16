@@ -1,39 +1,23 @@
 import {readFile} from 'node:fs/promises';
 import {extname, resolve, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {buildApp} from './app.js';
-import {registerStageG3Routes} from './challenge-g3-api.js';
-import {registerStageGRevealArenaRoutes} from './challenge-reveal-api.js';
-import {registerStageG2BTestArenaRoutes} from './challenge-test-arena-api.js';
 import {loadRuntimeConfig} from './config.js';
 import {createDatabase} from './database.js';
-import {registerGitHubLoginRoutes} from './github-login-routes.js';
-import {createGitHubUserVerifier} from './github.js';
+import {buildFundedChallengeProductionApp} from './production-app.js';
 
 const config = loadRuntimeConfig();
 const db = createDatabase(config.databaseUrl);
-const app = buildApp({
+const app = buildFundedChallengeProductionApp({
   db,
   appOrigin: config.appOrigin,
-  allowDevAuth: config.allowDevAuth,
   sessionTtlSeconds: config.sessionTtlSeconds,
   github: config.github
-    ? {runtime: config.github, verifier: createGitHubUserVerifier(config.github)}
+    ? {
+        runtime: config.github,
+        githubAppAuth: config.githubAppAuth,
+      }
     : null,
 });
-
-registerStageGRevealArenaRoutes(app, db);
-registerStageG2BTestArenaRoutes(app, db);
-registerStageG3Routes(app, db);
-
-if (config.github) {
-  registerGitHubLoginRoutes(app, {
-    db,
-    appOrigin: config.appOrigin,
-    sessionTtlSeconds: config.sessionTtlSeconds,
-    github: config.github,
-  });
-}
 
 const staticRoot = resolve(fileURLToPath(new URL('../../inkubator-lab/dist/', import.meta.url)));
 const indexPath = resolve(staticRoot, 'index.html');
@@ -54,7 +38,7 @@ const mimeTypes: Record<string, string> = {
 
 app.get('/*', async (request, reply) => {
   const pathname = new URL(request.url, config.appOrigin).pathname;
-  if (pathname.startsWith('/v1/') || pathname === '/openapi.json' || pathname === '/health') {
+  if (pathname.startsWith('/v1/') || pathname === '/health') {
     return reply.code(404).send({error: 'not_found'});
   }
 

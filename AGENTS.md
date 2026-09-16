@@ -15,39 +15,37 @@ If two authorities conflict, stop implementation at the conflicting surface and 
 
 For **any Inkubator planning or implementation work**, read `docs/inkubator/INDEX.md` first and follow the authority files it names.
 
-As of 2026-09-13 the forward Inkubator direction is **not** the historical Player→Mission MVP roadmap or agent-first Challenge OS where those conflict with the new authority.
-
-Current Inkubator hierarchy includes:
+The forward Inkubator product is the curated funded-Challenge system governed by:
 
 - `docs/inkubator/REKT_INKUBATOR_NORTH_STAR_V2.md` — product strategy + staged roadmap;
 - `docs/inkubator/FUNDED_CHALLENGE_SURVIVOR_PLAN_V1_1.md` — near-term mechanism/trust constraints;
 - `docs/inkubator/SOLO_OPERATOR_CONSTRAINTS_V1.md` — one-human operating constraint / Alpha cutline;
 - `docs/inkubator/PRE_REVENUE_INFRA_CAP_V1.md` — bootstrap budget/operational-spend constraints;
-- `docs/inkubator/THIRD_PARTY_SUBSTRATE_LOCK_V1.md` — external/open-source adoption boundary, pinned/fallback/removal rules and the approved product substrate composition;
-- `docs/inkubator/PREIMPLEMENTATION_READINESS_V1.md` — stage planning/readiness gates;
-- current stage-specific protocol/test contracts named by `docs/inkubator/INDEX.md`;
-- `docs/inkubator/REKT_TECHNICAL_FACEPLATE_V1.md` — highest Inkubator visual execution authority.
+- `docs/inkubator/THIRD_PARTY_SUBSTRATE_LOCK_V1.md` — external/open-source adoption boundary;
+- `docs/inkubator/INKUBATOR_TRUST_AND_REPUTATION_THREAT_MODEL_V1.md` — Stage-H threat model and H1→H6 authority sequence;
+- the current stage-specific contract named by `docs/inkubator/INDEX.md`;
+- `docs/inkubator/REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority.
+
+Historical Player/Mission/WORLD/social/DevKit product surfaces remain compatibility substrate only. Their code existing in the repository does not authorize them as funded-Challenge production routes.
 
 ### Current Inkubator implementation state
 
-Stage A authority/migration lock is closed.
+Stages B through G are closed under their recorded bounded gates and remain stacked/unmerged where noted in `docs/inkubator/INDEX.md`.
 
-Stage B pure Challenge / Build Contract protocol is implemented and closed into the planning authority branch. Its semantics in `packages/inkubator-protocol` remain authoritative.
+Stage-H H0 threat-model authority is **CLOSED / PASS** at reviewed head:
 
-Stage C Postgres Domain Bridge is **CLOSED / PASS**. Its durable concurrency/persistence invariants remain in force and may not be weakened by compiler work.
+`19c04c4cb26477979c1190a5b9173c27822e3d6a`
 
-The active authorized implementation phase is **Stage D: Compiler Engine + Blueprints + Low-Cost Chat**. Hydrate from:
+The active authorized implementation slice is **H1 — Production Route + Privilege Boundary**. Hydrate from:
 
-- `docs/inkubator/STAGE_D_COMPILER_ENGINE_V1.md`;
-- `docs/inkubator/STAGE_D_COMPILER_GAUNTLET_V1.md`;
-- `docs/inkubator/PREIMPLEMENTATION_READINESS_V1.md` D-GATEs;
-- the Stage-B Build Contract protocol/validator authority in `packages/inkubator-protocol`.
+- `docs/inkubator/STAGE_H1_PRODUCTION_ROUTE_BOUNDARY_V1.md`;
+- `docs/inkubator/INKUBATOR_TRUST_AND_REPUTATION_THREAT_MODEL_V1.md`;
+- `docs/inkubator/FUNDED_CHALLENGE_SURVIVOR_PLAN_V1_1.md`;
+- current Stage-E/G route/store authority.
 
-Stage D is additive deterministic compiler work alongside the canonical protocol package. Model/provider output is untrusted interpretation input only. It may propose meaning but may not freeze Build Contracts, redefine Stage-B semantics, or become required for already-frozen Challenge operation.
+H1 may create one canonical funded-Challenge production route assembly, enforce exact route inventory/entrypoint parity and lock the current organizer privilege boundary. It may not implement H2+, Stage I, production money, settlement execution, arbitrary participant-code execution, hidden tests or LLM judging/scoring.
 
-Do not begin Stage E+ production UI, Builder Capsule, Reveal/Test Arena, chain/payment work, production-money rails, or distant North-Star features while Stage D is active unless an explicit successor/scope decision authorizes it.
-
-Historical Inkubator systems remain reusable substrate where compatible, but old public nouns/navigation do not regain authority merely because code exists.
+Do not use historical `buildApp()` route breadth as production authority. Production funded-Challenge entrypoints must follow the active H1 route manifest.
 
 ### Third-party substrate rule
 
@@ -65,17 +63,21 @@ Before adding/replacing an Inkubator third-party dependency, hydrate from `docs/
 
 IMPLEMENT → TEST → ONE independent hostile review → fix Critical/High → ONE targeted re-review only if Critical/High fixes were needed → MERGE WHEN AUTHORIZED → MOVE FORWARD.
 
-Medium/Low findings do not restart a phase unless they invalidate the stated objective, evidence, a frozen invariant, or fail-closed/safety behavior.
+Medium/Low findings do not restart a phase unless they invalidate the stated objective, evidence, a frozen invariant, authority boundary, privacy boundary or fail-closed/safety behavior.
+
+No review loops.
 
 ## Frozen repository invariants
 
-- REKT Terminal and REKT Inkubator are distinct products in one monorepo. Terminal runtime roots are `apps/web` + `apps/api`; Inkubator runtime roots remain governed by `docs/PRODUCT_BOUNDARIES_V1.md` until that frozen boundary is explicitly amended. Direct cross-product application imports/routing and a shared canonical deployment identity are forbidden. Shared packages/tooling do not merge product authority.
+- REKT Terminal and REKT Inkubator are distinct products in one monorepo. Terminal runtime roots are `apps/web` + `apps/api`; Inkubator runtime roots remain governed by `docs/PRODUCT_BOUNDARIES_V1.md`. Direct cross-product application imports/routing and a shared canonical deployment identity are forbidden. Shared packages/tooling do not merge product authority.
 - REKT Terminal remains practice simulation only. No private keys, wallet signing, approvals, transaction broadcast, or real-money execution may be added to Terminal by Inkubator work.
 - Market state, simulator state, Career state, Inkubator Challenge state and presentation effects are separate domains.
 - React/UI must never be canonical accounting/economic state.
 - Canonical financial quantities use explicit fixed-point/integer arithmetic; no unconstrained JS floating point in ledger/economic state.
 - Unsupported/stale/ambiguous source data fails closed; never relabel fixtures as LIVE.
 - Inkubator participant/client code cannot mint authoritative qualification, PROVEN evidence, receipt, settlement or payment facts merely by claiming them.
+- Model/provider output is untrusted proposal input only and may not become frozen Challenge authority without deterministic validation + explicit organizer acceptance.
+- No merge or production-money authority exists unless the user explicitly grants it.
 
 ## RPS donor boundary
 
