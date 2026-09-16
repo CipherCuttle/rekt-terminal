@@ -82,6 +82,19 @@ test('canonical production builder boots with and without GitHub routes', async 
   }
 });
 
+test('production route inventory rejects caller plugins added after builder creation', async () => {
+  const app = buildFundedChallengeProductionApp(buildOptions(false));
+  app.register(async (latePlugin) => {
+    latePlugin.get('/v1/world/signals', async () => ({ok: true}));
+  });
+
+  await assert.rejects(
+    () => app.ready(),
+    /inkubator_production_route_inventory_invalid.*unexpected=.*world\/signals.*forbidden=/,
+  );
+  await app.close();
+});
+
 test('both production entrypoints delegate to the same canonical builder', async () => {
   const server = await readFile(new URL('../../src/server.ts', import.meta.url), 'utf8');
   const renderServer = await readFile(new URL('../../src/render-server.ts', import.meta.url), 'utf8');

@@ -204,8 +204,7 @@ export function buildFundedChallengeProductionApp(options: BuildFundedChallengeP
     registerGitHubProductionRoutes(app, {...options, github: options.github});
   }
 
-  app.after((cause) => {
-    if (cause) throw cause;
+  app.addHook('onReady', async () => {
     assertProductionRouteInventory(observedRoutes, Boolean(options.github));
   });
 
