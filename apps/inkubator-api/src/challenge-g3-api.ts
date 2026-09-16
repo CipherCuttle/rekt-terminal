@@ -137,6 +137,7 @@ function safeBaseReceipt(row: ChallengeReceiptRow, contract: BuildContract) {
     || receipt.schema_version !== row.receipt_version
     || receipt.receipt_id !== row.protocol_receipt_id
     || receipt.digest !== row.receipt_digest
+    || row.challenge_id !== contract.challenge_id
     || row.terms_digest !== contract.terms_digest
   ) throw new Error('challenge_receipt_transport_authority_mismatch');
   const intent = requireObject(receipt.settlement_intent, 'stored_settlement_intent');
@@ -163,12 +164,20 @@ function safeCorrectionReceipt(
   row: ChallengeReceiptRow,
   priorRows: ChallengeReceiptRow[],
   internalToProtocolId: Map<string, string>,
+  contract: BuildContract,
 ) {
   const receipt = requireObject(row.receipt_json, 'stored_receipt_correction');
   if (row.receipt_version !== 'inkubator.challenge-receipt-correction/1.0' || receipt.schema_version !== row.receipt_version) {
     throw new Error('challenge_receipt_schema_unsupported');
   }
-  if (receipt.receipt_id !== row.protocol_receipt_id || receipt.digest !== row.receipt_digest || !row.supersedes_receipt_id) {
+  if (
+    receipt.receipt_id !== row.protocol_receipt_id
+    || receipt.digest !== row.receipt_digest
+    || row.challenge_id !== contract.challenge_id
+    || row.terms_digest !== contract.terms_digest
+    || receipt.challenge_id !== contract.challenge_id
+    || !row.supersedes_receipt_id
+  ) {
     throw new Error('challenge_receipt_transport_authority_mismatch');
   }
   const predecessorProtocolId = internalToProtocolId.get(row.supersedes_receipt_id);
@@ -208,7 +217,7 @@ export function buildStageG3ReceiptTransport(snapshot: ChallengeSnapshot) {
     if (row.receipt_version === 'inkubator.challenge-receipt/1.0') {
       projected = safeBaseReceipt(row, contract);
     } else if (row.receipt_version === 'inkubator.challenge-receipt-correction/1.0') {
-      projected = safeCorrectionReceipt(row, priorRows, internalToProtocolId);
+      projected = safeCorrectionReceipt(row, priorRows, internalToProtocolId, contract);
     } else {
       throw new Error('challenge_receipt_schema_unsupported');
     }
@@ -232,17 +241,14 @@ export async function recordStageG3Selection(
   const challengeId = requireUuid(input.challengeId, 'challenge_id');
   const selectedEntryId = requireUuid(input.selectedEntryId, 'selected_entry_id');
   const actorPlayerId = requireUuid(input.actorPlayerId, 'actor_player_id');
-  const dedupeKey = `activity:challenge.decision.recorded:${challengeId}:${requestId}`;
-  const existingCommand = await db.selectFrom('history_events').select('history_event_id').where('dedupe_key', '=', dedupeKey).executeTakeFirst();
   const snapshot = await readChallengeSnapshot(db, challengeId);
   if (!snapshot) throw new Error('challenge_not_found');
   if (snapshot.challenge.organizer_player_id !== actorPlayerId) throw new Error('challenge_organizer_required');
 
-  if (!existingCommand) {
-    if (snapshot.challenge.status !== 'SELECTION') throw new Error('challenge_selection_not_open');
-    if (storedSelection(snapshot)) throw new Error('challenge_selection_already_recorded');
-  }
-
+  // Canonical lifecycle and replay classification stay in the existing Stage-C
+  // decision store + DB trigger. The store returns an exact persisted command
+  // before a new insert reaches the lifecycle guard; a new command outside
+  // SELECTION therefore still fails closed without creating parallel authority.
   return recordChallengeDecision(db, {
     requestId,
     decisionId,
