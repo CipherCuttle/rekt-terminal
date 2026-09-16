@@ -303,7 +303,7 @@ test('G2B2 exact replay can backfill missing execution evidence after lifecycle 
     assert.equal(qualification.result, 'QUALIFIED');
 
     const before = await sql`
-      select event_id from history_events
+      select event_type from history_events
       where subject_id = ${state.challengeId} and event_type = 'challenge.test_arena.executed'
     `.execute(db);
     assert.equal(before.rows.length, 0);
