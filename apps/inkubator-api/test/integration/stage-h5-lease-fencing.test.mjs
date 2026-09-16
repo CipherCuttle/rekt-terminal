@@ -132,7 +132,7 @@ test('H5 healthy long verifier heartbeat prevents replacement overlap', async ()
     await sleep(2_600);
 
     const workerB = await runOneJob(db, {
-      leaseMs: 300,
+      leaseMs: 1_000,
       shipVerifierClient: {verify: async () => { throw new Error('replacement_must_not_run'); }},
     });
     assert.deepEqual(workerB, {status: 'idle'});
