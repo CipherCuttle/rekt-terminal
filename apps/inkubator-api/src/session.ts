@@ -4,6 +4,14 @@ import type {Actor} from './authorization.js';
 import {readDatabaseNow, type DatabaseSchema} from './database.js';
 
 export const SESSION_COOKIE_NAME = '__Host-rekt_session';
+export const SESSION_STEP_UP_MAX_AGE_SECONDS = 10 * 60;
+
+export interface ResolvedSession {
+  sessionId: string;
+  playerId: string;
+  createdAt: Date;
+  expiresAt: Date;
+}
 
 export function createOpaqueSessionToken(): string {
   return randomBytes(32).toString('base64url');
@@ -52,13 +60,44 @@ export async function createSession(
   return {sessionId, token, expiresAt};
 }
 
-export async function resolveSessionActor(db: Kysely<DatabaseSchema>, token: string): Promise<Actor | null> {
+export async function resolveSession(db: Kysely<DatabaseSchema>, token: string): Promise<ResolvedSession | null> {
   const session = await db
     .selectFrom('sessions')
-    .select(['player_id'])
+    .select(['session_id', 'player_id', 'created_at', 'expires_at'])
     .where('token_hash', '=', hashSessionToken(token))
     .where('revoked_at', 'is', null)
     .where('expires_at', '>', sql<Date>`clock_timestamp()`)
+    .executeTakeFirst();
+  return session
+    ? {
+        sessionId: session.session_id,
+        playerId: session.player_id,
+        createdAt: session.created_at,
+        expiresAt: session.expires_at,
+      }
+    : null;
+}
+
+export async function resolveSessionActor(db: Kysely<DatabaseSchema>, token: string): Promise<Actor | null> {
+  const session = await resolveSession(db, token);
+  return session ? {playerId: session.playerId} : null;
+}
+
+export async function resolveFreshSessionActor(
+  db: Kysely<DatabaseSchema>,
+  token: string,
+  maxAgeSeconds = SESSION_STEP_UP_MAX_AGE_SECONDS,
+): Promise<Actor | null> {
+  if (!Number.isInteger(maxAgeSeconds) || maxAgeSeconds < 1 || maxAgeSeconds > 24 * 60 * 60) {
+    throw new Error('session_freshness_window_invalid');
+  }
+  const session = await db
+    .selectFrom('sessions')
+    .select('player_id')
+    .where('token_hash', '=', hashSessionToken(token))
+    .where('revoked_at', 'is', null)
+    .where('expires_at', '>', sql<Date>`clock_timestamp()`)
+    .where('created_at', '>=', sql<Date>`clock_timestamp() - (${maxAgeSeconds} * interval '1 second')`)
     .executeTakeFirst();
   return session ? {playerId: session.player_id} : null;
 }
@@ -68,6 +107,15 @@ export async function revokeSession(db: Kysely<DatabaseSchema>, token: string): 
     .updateTable('sessions')
     .set({revoked_at: sql<Date>`clock_timestamp()`})
     .where('token_hash', '=', hashSessionToken(token))
+    .where('revoked_at', 'is', null)
+    .execute();
+}
+
+export async function revokeAllPlayerSessions(db: Kysely<DatabaseSchema>, playerId: string): Promise<void> {
+  await db
+    .updateTable('sessions')
+    .set({revoked_at: sql<Date>`clock_timestamp()`})
+    .where('player_id', '=', playerId)
     .where('revoked_at', 'is', null)
     .execute();
 }

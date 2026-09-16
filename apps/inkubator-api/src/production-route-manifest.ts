@@ -4,6 +4,7 @@ export const FUNDED_CHALLENGE_CORE_ROUTES = Object.freeze([
   'GET /health',
   'GET /v1/me',
   'DELETE /v1/session',
+  'DELETE /v1/sessions',
   'GET /v1/challenges/:challengeId',
   'POST /v1/compiler/compile',
   'POST /v1/challenges/:challengeId/build-contract-preview',
