@@ -14,9 +14,14 @@ import {
   createChallenge,
   markFinalChallengeSubmission,
   persistFrozenBuildContract,
+  readChallengeSnapshot,
+  recordChallengeQualification,
 } from '../../dist/challenge-store.js';
 import {handleChallengeSubmissionArchiveJob} from '../../dist/challenge-archive.js';
-import {recordStageG2BQualification} from '../../dist/challenge-test-arena-api.js';
+import {
+  buildStageG2BQualificationFromSnapshot,
+  recordStageG2BQualification,
+} from '../../dist/challenge-test-arena-api.js';
 import {trustedTestModuleCatalog} from '../../dist/challenge-test-runners.js';
 import {createDatabase} from '../../dist/database.js';
 import {migrateToLatest} from '../../dist/migrations.js';
@@ -201,6 +206,14 @@ function command(state, overrides = {}) {
   };
 }
 
+async function safeArchives(db, state) {
+  return db.selectFrom('challenge_submission_archives')
+    .select(['submission_id', 'challenge_id', 'entry_id', 'terms_digest', 'manifest_digest', 'status', 'archive_digest', 'reason_code'])
+    .where('challenge_id', '=', state.challengeId)
+    .where('entry_id', '=', state.entryId)
+    .execute();
+}
+
 test('G2B2 persists one immutable qualification and one replay-safe execution evidence event', async () => {
   const db = createDatabase(databaseUrl);
   await migrateToLatest(db);
@@ -258,6 +271,62 @@ test('G2B2 refuses to persist qualification while canonical archive capture is s
       select qualification_id from challenge_qualifications where challenge_id = ${state.challengeId} and entry_id = ${state.entryId}
     `.execute(db);
     assert.equal(qualifications.rows.length, 0);
+  } finally {
+    await db.destroy();
+  }
+});
+
+test('G2B2 exact replay can backfill missing execution evidence after lifecycle advance', async () => {
+  const db = createDatabase(databaseUrl);
+  await migrateToLatest(db);
+  try {
+    const state = await preparedChallenge(db);
+    const input = command(state);
+    const snapshot = await readChallengeSnapshot(db, state.challengeId);
+    assert.ok(snapshot);
+    const prepared = buildStageG2BQualificationFromSnapshot(snapshot, await safeArchives(db, state), {
+      entryId: state.entryId,
+      acceptanceManifestReferenceId: acceptanceReferenceId,
+      acceptanceManifest: state.manifest,
+      humanObservations: input.humanObservations,
+    });
+
+    const qualification = await recordChallengeQualification(db, {
+      requestId: input.requestId,
+      qualificationId: input.qualificationId,
+      challengeId: state.challengeId,
+      entryId: state.entryId,
+      submissionId: prepared.submission_id,
+      qualificationVersion: prepared.qualification.qualification_version,
+      criterionResults: prepared.qualification.criterion_results,
+    });
+    assert.equal(qualification.result, 'QUALIFIED');
+
+    const before = await sql`
+      select event_id from history_events
+      where subject_id = ${state.challengeId} and event_type = 'challenge.test_arena.executed'
+    `.execute(db);
+    assert.equal(before.rows.length, 0);
+
+    await sql`update challenges set status = 'APPEAL_WINDOW' where challenge_id = ${state.challengeId}`.execute(db);
+
+    const recovered = await recordStageG2BQualification(db, input);
+    assert.equal(recovered.qualification_id, input.qualificationId);
+    assert.equal(recovered.result, 'QUALIFIED');
+    assert.equal(recovered.execution_digest, prepared.qualification.execution_digest);
+
+    const after = await sql`
+      select payload from history_events
+      where subject_id = ${state.challengeId} and event_type = 'challenge.test_arena.executed'
+    `.execute(db);
+    assert.equal(after.rows.length, 1);
+    assert.equal(after.rows[0].payload.execution_digest, prepared.qualification.execution_digest);
+    assert.equal(after.rows[0].payload.qualification_id, input.qualificationId);
+
+    await assert.rejects(
+      recordStageG2BQualification(db, command(state)),
+      /challenge_not_qualifying/,
+    );
   } finally {
     await db.destroy();
   }
