@@ -245,7 +245,7 @@ function createJobLease(
 ): JobLease {
   let stopped = false;
   let lost = false;
-  let heartbeat = Promise.resolve();
+  let activeRenewal: Promise<void> | null = null;
   let timer: NodeJS.Timeout | undefined;
 
   const renew = async (): Promise<void> => {
@@ -279,12 +279,15 @@ function createJobLease(
   };
 
   const scheduleRenewal = (): void => {
-    heartbeat = heartbeat.then(renew, renew);
+    if (stopped || lost || activeRenewal) return;
+    activeRenewal = renew().finally(() => {
+      activeRenewal = null;
+    });
   };
 
   if (heartbeatEnabled) {
     timer = setInterval(scheduleRenewal, Math.max(10, Math.floor(leaseMs / 3)));
-    timer.unref?.();
+    scheduleRenewal();
   }
 
   return {
@@ -307,7 +310,7 @@ function createJobLease(
     stop: async (): Promise<void> => {
       stopped = true;
       if (timer) clearInterval(timer);
-      await heartbeat;
+      if (activeRenewal) await activeRenewal;
     },
   };
 }
