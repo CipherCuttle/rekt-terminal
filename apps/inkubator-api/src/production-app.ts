@@ -1,4 +1,4 @@
-import Fastify, {type FastifyReply, type FastifyRequest} from 'fastify';
+import Fastify, {type FastifyInstance, type FastifyReply, type FastifyRequest} from 'fastify';
 import {registerStageG3Routes} from './challenge-g3-api.js';
 import {registerStageEChallengeProductRoutes} from './challenge-product-api.js';
 import {registerStageGRevealArenaRoutes} from './challenge-reveal-api.js';
@@ -79,7 +79,7 @@ function observeProductionRoute(
 }
 
 function registerGitHubProductionRoutes(
-  app: ReturnType<typeof Fastify>,
+  app: FastifyInstance,
   options: BuildFundedChallengeProductionAppOptions & {
     github: NonNullable<BuildFundedChallengeProductionAppOptions['github']>;
   },
