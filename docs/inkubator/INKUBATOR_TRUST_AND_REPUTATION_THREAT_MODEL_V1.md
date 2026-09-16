@@ -61,6 +61,7 @@ Compromise of these assets can change who qualifies, who wins, or what history s
 - OAuth/session credentials;
 - GitHub App credentials/install authority;
 - object-storage credentials and private archive references;
+- archive encryption/key-unwrapping authority;
 - operator/resolver authentication material;
 - backup copies containing any of the above.
 
@@ -92,11 +93,11 @@ Can control their browser/client, repository content, submitted links, immutable
 
 ### Authenticated organizer
 
-Can control Challenge text/preferences and organizer-authorized selection commands, but may not rewrite frozen qualification law, admit hidden requirements, mint qualification or access unrelated builders' private source.
+Can control Challenge text/preferences and organizer-authorized selection commands, but may not rewrite frozen qualification law, admit hidden requirements, mint qualification or access unrelated builders' private source. The ambient organizer participant session alone is not sufficient authority for the irreversible winner-selection mutation after Stage H.
 
 ### Compromised participant account
 
-Possesses normal participant session authority. Must not thereby gain resolver/admin, other-player, broad source-export or settlement authority.
+Possesses normal participant session authority. Must not thereby gain resolver/admin, other-player, broad source-export or settlement authority, and compromise of an organizer participant session alone must not be sufficient to choose the irreversible winner.
 
 ### Malicious organizer + builder collusion
 
@@ -120,7 +121,7 @@ May be unavailable, stale, revoked, misconfigured or compromised. Provider state
 
 ### Object/archive provider
 
-May lose responses, delay writes, return stale/incorrect metadata or become unavailable. Platform archive failure is not builder failure.
+May lose responses, delay writes, return stale/incorrect metadata, become unavailable, or have a storage credential compromised. Possession of the object-store credential alone must not be enough to recover plaintext for the entire private-source corpus.
 
 ### Verifier target / hostile URL
 
@@ -148,7 +149,8 @@ Required properties:
 - actor authentication/authorization;
 - actor+operation scoped idempotency for sensitive commands;
 - origin/CSRF boundary where cookie auth applies;
-- no authority derived from client-supplied role/status flags.
+- no authority derived from client-supplied role/status flags;
+- irreversible winner `SELECTION` requires recent reauthentication or a second independent confirmation factor/challenge bound to the exact Challenge and selected entry; the ambient participant session cookie alone is insufficient.
 
 ## TB-2 — Model/provider → Compiler
 
@@ -185,7 +187,11 @@ Required properties:
 - object location/reference never exposed by public projections;
 - access audit;
 - bounded retention/deletion;
-- provider outage cannot rewrite acceptance truth.
+- provider outage cannot rewrite acceptance truth;
+- compromise of the object-store API credential alone cannot expose plaintext across the private-source corpus;
+- retrieval is challenge/object-scoped **or** private source is encrypted before provider write with per-object/per-Challenge data keys and key-unwrapping authority isolated from the object-store credential;
+- no single long-lived bucket credential plus globally available decryption key may list/read/decrypt all private snapshots;
+- any key-unwrapping path is explicit, audited, Challenge/object-bound and unavailable to public routes.
 
 ## TB-5 — Inkubator → verifier
 
@@ -219,7 +225,7 @@ Privileged action is explicit product surface, not implicit database access.
 
 Required properties:
 
-- stronger authentication than ordinary participant session where feasible for Alpha;
+- **every resolver/admin privileged mutation requires stronger authentication than the ordinary participant session; there is no Alpha escape hatch**;
 - explicit role/capability;
 - no self-resolution/conflict-of-interest;
 - full durable audit;
@@ -253,10 +259,12 @@ Required properties:
 9. **Private source is private and temporary.** Public routes never expose raw source/archive references.
 10. **Provider outage is not builder failure.** Platform/GitHub/archive uncertainty maps to pending/disputed law already frozen by Stage F/G.
 11. **Legacy/dev/test routes are absent from production funded-Challenge assembly.** In-repo historical code may remain.
-12. **Resolver/admin is not organizer authority.** Policy/dispute resolution requires separate capability and audit.
-13. **Normal web/API authority cannot redirect production prize funds.** Production money remains unauthorized in Stage H.
-14. **No single credential should expose every trust domain.** API, verifier, object storage and later settlement authority remain separable.
-15. **Zero-inference core operation.** Frozen-Challenge lifecycle/evidence/decision/receipt semantics do not depend on a live model.
+12. **Resolver/admin is not organizer authority.** Policy/dispute resolution requires separate capability, stronger authentication and audit.
+13. **Winner choice is step-up protected.** Compromise of the ordinary organizer session alone cannot authorize irreversible `SELECTION`.
+14. **Archive confidentiality is compartmentalized.** Compromise of an object-store credential alone cannot reveal plaintext for all private work.
+15. **Normal web/API authority cannot redirect production prize funds.** Production money remains unauthorized in Stage H.
+16. **No single credential should expose every trust domain.** API, verifier, object storage, archive key-unwrapping and later settlement authority remain separable.
+17. **Zero-inference core operation.** Frozen-Challenge lifecycle/evidence/decision/receipt semantics do not depend on a live model.
 
 ---
 
@@ -340,13 +348,15 @@ Severity is Stage-H launch severity, not generic CVSS.
 
 **Required control:** immutable receipt rows; protocol-validated correction chain; durable audit; public transport projects only validated safe fields.
 
-## T-10 — participant account takeover escalates to platform authority
+## T-10 — participant account takeover exercises sensitive authority
 
-**Risk:** stolen organizer/builder session can access resolver/admin actions, other users' private source or arbitrary platform controls.
+**Risk:** a stolen organizer/builder ordinary session accesses resolver/admin actions, other users' private source, arbitrary platform controls, **or uses the compromised organizer's own ambient authority to make the first irreversible winner selection**.
 
-**Severity:** HIGH.
+**Severity:** HIGH; winner selection becomes a Critical trust impact if the ordinary session alone can finalize it.
 
-**Required control:** capability separation; stronger privileged auth; short/bounded sessions; credential rotation/revocation; sensitive action audit.
+**Required control:** capability separation; resolver/admin stronger authentication than ordinary participant sessions; short/bounded sessions; credential rotation/revocation; sensitive-action audit; and recent reauthentication or a second independent confirmation bound to the exact `SELECTION` command before winner choice is accepted.
+
+**Pass condition:** replay/CSRF/session-theft tests prove that possession of the ambient organizer session alone cannot create `SELECTION`, while a correctly step-up-authorized organizer can still issue exactly one canonical selection through existing G3/Stage-C authority.
 
 ## T-11 — OAuth/GitHub installation confusion
 
@@ -427,6 +437,16 @@ Severity is Stage-H launch severity, not generic CVSS.
 **Severity:** HIGH for claims that materially affect participant trust/value decisions; otherwise Medium.
 
 **Required control:** claims policy in §8 + copy/projection review/tests where machine-enforceable.
+
+## T-21 — broad private-archive credential compromise
+
+**Risk:** the current/provider-equivalent archive integration uses one broad object-store credential, and compromise of that credential can otherwise enumerate or read every losing source snapshot even though buckets are private and public projections are clean.
+
+**Severity:** CRITICAL if a single storage credential exposes plaintext across the archive corpus.
+
+**Required control:** before Alpha, make plaintext confidentiality independent of the broad object-store credential. Use challenge/object-scoped provider credentials where the substrate can enforce them, or encrypt private source before object-store write using per-object/per-Challenge data keys with key-unwrapping authority isolated from storage credentials. The retrieval path must bind actor/capability + Challenge/object identity, be audited, and must not expose a global decryption key to the same credential/domain that lists the bucket.
+
+**Pass condition:** an adversarial test with the object-store credential but without the independent retrieval/key-unwrapping authority cannot recover plaintext from archived private source; ordinary authorized evaluation/recovery can retrieve only the explicitly authorized Challenge/object set.
 
 ---
 
@@ -518,8 +538,8 @@ These are **closed-Alpha operational defaults**. Legal/compliance review may req
 | OAuth/provider access token | provider access | never | server integration boundary | no diagnostic/log persistence; revoke/delete as soon as no longer required; unlink/compromise triggers immediate revocation path |
 | GitHub App/private provider secret | service credential | never | deployment secret boundary | rotate on compromise/scheduled key policy; never stored in product DB/history/logs |
 | Accepted submission manifest | deadline/lineage authority | safe projection only | Challenge domain | durable for Challenge history; contains references/digests, not raw private source |
-| Losing private source snapshot | evaluation/dispute evidence | never | evaluation/resolver boundary only | delete 14 days after terminal receipt or dispute closure; hard maximum 30 days after terminal state absent documented legal hold |
-| Winner private source snapshot | delivery/evidence | never by default | winner-delivery/resolver boundary | delete platform copy within 30 days after verified delivery unless frozen winning terms explicitly require another period |
+| Losing private source snapshot | evaluation/dispute evidence | never | evaluation/resolver boundary only; storage credential alone must not reveal plaintext corpus | delete 14 days after terminal receipt or dispute closure; hard maximum 30 days after terminal state absent documented legal hold |
+| Winner private source snapshot | delivery/evidence | never by default | winner-delivery/resolver boundary; storage credential alone must not reveal plaintext corpus | delete platform copy within 30 days after verified delivery unless frozen winning terms explicitly require another period |
 | Raw private evidence | qualification/dispute | never | evaluation/resolver boundary | same schedule as corresponding private source/evidence purpose; durable digest/result may remain |
 | Public-safe evidence digest/result | explainability/history | yes where justified | Challenge projection | durable with Challenge/receipt history |
 | History/audit event | accountability/recovery | not raw-public | operator/audit boundary | 365 days minimum for Alpha unless event is part of permanent receipt authority; no raw secrets/source in payload |
@@ -528,7 +548,7 @@ These are **closed-Alpha operational defaults**. Legal/compliance review may req
 | Raw model/chat prompt/output | compiler assistance | never public by default | organizer/compiler support | maximum 30 days for Alpha diagnostics; prefer shorter/no retention; must never contain raw private repository source by default |
 | Application/security logs | operations/incident response | never | operator | 30 days default; security incident subset may be retained up to 365 days if redacted/purpose-bound |
 | Database backups | disaster recovery | never | restricted operator/infra | rolling maximum 35 days; restored systems must replay deletion/tombstone policy before serving private data |
-| Private object-storage backups/versions | recovery | never | restricted infra | must not exceed the effective 35-day backup window; lifecycle rules required |
+| Private object-storage backups/versions | recovery | never | restricted infra + independent retrieval/key boundary | must not exceed the effective 35-day backup window; lifecycle rules required |
 
 ### Retention invariants
 
@@ -537,6 +557,7 @@ These are **closed-Alpha operational defaults**. Legal/compliance review may req
 - A restore must execute pending deletion/tombstone policy before public/authenticated service resumes.
 - Account deletion during active Challenge liability may defer deletion of minimum necessary authority facts, but must not justify retaining unrelated profile/private-source data.
 - Public receipt/history should use opaque IDs/digests rather than unnecessary personal identity.
+- The object-store credential and the private-source plaintext-retrieval/key-unwrapping authority are separate trust domains; backup/restore may not collapse them into one global secret.
 
 ---
 
@@ -554,6 +575,8 @@ Cannot:
 - resolve own platform-policy conflict as privileged resolver;
 - mutate receipt history;
 - execute production settlement in Stage H.
+
+The irreversible `SELECTION` mutation additionally requires recent reauthentication or a second independent confirmation factor/challenge bound to the exact Challenge and selected entry. Possession of the ambient organizer participant session alone is insufficient.
 
 ## Builder
 
@@ -573,7 +596,7 @@ Must use explicit privileged capability separate from normal organizer/builder a
 
 At minimum:
 
-- privileged mutation is authenticated;
+- every resolver/admin privileged mutation uses stronger authentication than the ordinary participant session;
 - target/reason/evidence/request ID are recorded;
 - self-resolution is forbidden where resolver has organizer/builder conflict;
 - correction is append-only;
@@ -631,8 +654,9 @@ It must never instruct the operator to invent authority by editing canonical row
 4. reconcile history/outbox/idempotency;
 5. replay retention deletion/tombstones;
 6. verify Challenge authority invariants and receipt counts/digests;
-7. run smoke/auth/private-projection checks;
-8. reopen only after authority conservation receipt passes.
+7. verify archive key/retrieval boundary remains separated from object-storage credentials and restored plaintext is not broadly exposed;
+8. run smoke/auth/private-projection checks;
+9. reopen only after authority conservation receipt passes.
 
 ## R-06 worker retry storm
 
@@ -654,9 +678,9 @@ It must never instruct the operator to invent authority by editing canonical row
 ## R-08 suspected private-source exposure
 
 1. stop affected public/private serving path;
-2. revoke exposed credentials/URLs;
+2. revoke exposed object-store and/or key-unwrapping credentials independently as applicable;
 3. preserve audit evidence without copying raw source into tickets/chat;
-4. identify exact objects/principals/time window;
+4. identify exact objects/principals/time window and which trust domain was compromised;
 5. delete/restrict unintended replicas;
 6. notify affected parties according to legal/incident policy;
 7. add regression preventing the leak class before resume.
@@ -664,7 +688,7 @@ It must never instruct the operator to invent authority by editing canonical row
 ## R-09 account takeover
 
 1. revoke sessions/provider tokens;
-2. freeze privileged actions for affected principal;
+2. freeze privileged actions and pending step-up selection confirmations for affected principal;
 3. preserve immutable prior actions/history;
 4. re-establish identity through approved recovery;
 5. do not rewrite legitimate historical receipts; use append-only correction/resolution only where authority permits.
@@ -680,9 +704,10 @@ It must never instruct the operator to invent authority by editing canonical row
 ## R-11 receipt correction
 
 1. verify correction authority and predecessor;
-2. never update/delete prior receipt;
-3. append protocol-valid correction;
-4. public projection exposes safe supersession lineage only.
+2. require resolver/admin stronger authentication before privileged correction mutation;
+3. never update/delete prior receipt;
+4. append protocol-valid correction;
+5. public projection exposes safe supersession lineage only.
 
 ## R-12 budget cap reached
 
@@ -702,19 +727,22 @@ It must never instruct the operator to invent authority by editing canonical row
 | Submission replay | duplicate/crash-after-commit submit | one accepted semantic effect; exact replay recoverable |
 | Qualification replay | crash after qualification before evidence/history completion | one durable qualification; evidence can reconcile without second truth |
 | Selection race | simultaneous organizer choices | exactly one durable `SELECTION` |
+| Organizer session theft | attacker has ambient organizer participant session but no step-up proof | attacker cannot create `SELECTION`; correct recent-auth/independent confirmation can create one canonical selection |
+| Resolver session theft | attacker has ordinary participant session but no privileged stronger-auth proof | resolver/admin mutation fails closed |
 | GitHub outage | timeout/5xx/revocation after accepted submission | pending/unknown as frozen law requires; not automatic builder failure |
 | Archive lost response | write succeeds but acknowledgement lost | deterministic retry key; no duplicate semantic archive authority |
+| Archive credential compromise | attacker has object-store credential only | cannot recover plaintext corpus; key/retrieval boundary remains independent and audited |
 | Worker lease expiry | slow healthy job beyond nominal lease | heartbeat/lease prevents duplicate active execution or duplicate authority |
 | DB connection exhaustion | saturate pool under mixed reads/mutations | bounded failure; no invariant violation; recovery without DB surgery |
 | Mixed deployment | old/new API/worker handling active Challenge version | active terms unchanged; unsupported version fails closed |
 | Verifier SSRF suite | loopback/private IP, redirects, rebinding, oversized/slow body | verifier cannot reach forbidden target/credentials; bounded failure |
 | Verifier outage | unavailable verifier during check | unavailable/unknown; no fabricated PASS/FAIL |
 | Provider/model outage | all inference unavailable | frozen Challenge core still operates; compiler assistance degrades explicitly |
-| Secret rotation | rotate webhook/OAuth/app credential | old credential stops; new path works; no secret logging |
+| Secret rotation | rotate webhook/OAuth/app/archive credential | old credential stops; new path works; no secret logging; archive key boundary remains separate |
 | Private-source projection | hostile source metadata/paths in errors/routes | no raw source/archive reference/private repo identity escapes public projection |
 | Live deletion | losing source retention expires | object/raw evidence deleted; digest/history retained as allowed |
 | Backup restore after deletion | restore backup containing previously deleted source | deletion/tombstone replay occurs before serving; restored source remains inaccessible/deleted |
-| Receipt correction | correction chain + malformed predecessor | valid append succeeds; forged/mismatched predecessor fails closed |
+| Receipt correction | correction chain + malformed predecessor | valid append succeeds only with privileged stronger auth; forged/mismatched predecessor fails closed |
 | Rate burst | auth/seat/submission/selection burst across instances | shared durable constraints remain effective; intentional 409/429 not 5xx storm |
 | Zero inference | disable model/provider completely | join/build/submit/reveal/evaluate/select/receipt core remains deterministic where required inputs exist |
 
@@ -749,6 +777,7 @@ Before Alpha the verifier must prove:
 - no direct product DB credentials;
 - no GitHub App private key/OAuth secret;
 - no object-store write credential unless a narrowly scoped future authority explicitly requires it;
+- no private-archive key-unwrapping authority;
 - outbound network policy denies loopback, link-local, RFC1918/private, cloud metadata and other forbidden ranges after DNS resolution and redirects;
 - protocol allowlist;
 - bounded redirects;
@@ -784,6 +813,7 @@ For privileged/sensitive actions record, where applicable:
 - event type/version;
 - request/command ID;
 - actor opaque ID + capability;
+- stronger-auth/recent-auth confirmation class for privileged resolver/admin and irreversible selection actions, without recording secret material;
 - target type/opaque ID;
 - Challenge/entry ID;
 - prior/result authority digest or row ID;
@@ -796,8 +826,10 @@ Never log:
 
 - session cookies/tokens;
 - OAuth access tokens;
+- stronger-auth secrets/codes;
 - GitHub App private keys;
 - object-store secrets;
+- archive encryption/data keys or key-unwrapping credentials;
 - private archive object paths when a nonsecret digest can serve diagnosis;
 - raw private source;
 - arbitrary unbounded request bodies on sensitive routes.
@@ -810,9 +842,10 @@ Never log:
 
 Examples:
 
-- broad private-source exposure;
+- broad private-source exposure, including compromise of a single archive credential that yields plaintext corpus access;
 - frozen terms/selection/receipt authority corruption;
 - unauthorized privileged action capable of changing winner/economic history;
+- organizer ambient-session compromise that can finalize irreversible selection without step-up proof;
 - verifier escapes into privileged network/credentials;
 - future settlement-redirection authority exposed.
 
@@ -858,7 +891,9 @@ Stage H may close only when:
 
 - no known Critical/High threat in this model remains unmitigated inside Alpha scope;
 - route inventory proves production surface minimization;
-- privileged-action matrix passes;
+- privileged-action matrix proves every resolver/admin mutation requires stronger authentication than the ordinary participant session;
+- selection-auth tests prove the ambient organizer participant session alone cannot create irreversible `SELECTION`;
+- archive isolation tests prove object-storage credential compromise alone cannot recover plaintext across the private-source corpus;
 - private-source projection/deletion/backup tests pass;
 - verifier isolation suite passes;
 - backup/restore drill passes;
@@ -877,8 +912,16 @@ Stage-H PASS authorizes consideration of Stage I closed Alpha only. It does not 
 
 This threat model is the Stage-H trust authority once linked from `INDEX.md` and verified under the H0 bounded gate.
 
-Known immediate implementation priority after H0 closure:
+The H0 hostile review identified three P1 planning gaps that are now frozen as mandatory Stage-H blockers:
+
+1. resolver/admin stronger authentication is unconditional, not “where feasible”;
+2. irreversible organizer `SELECTION` requires recent reauthentication or independent command-bound confirmation beyond the ambient participant session;
+3. private-archive plaintext confidentiality must survive compromise of the object-store credential through scoped retrieval or an independent per-object/per-Challenge encryption/key-unwrapping boundary.
+
+Known immediate implementation priority after H0 closure remains:
 
 `H1 = EXPLICIT PRODUCTION ROUTE ASSEMBLY + ENTRYPOINT PARITY + FORBIDDEN-ROUTE INVENTORY TEST`
+
+These P1 repairs do not reorder H1→H5. They become mandatory H2/H4 closure requirements and Stage-H final acceptance evidence.
 
 No production-money, vault, arbitrary code-execution or merge authority is created by this document.
