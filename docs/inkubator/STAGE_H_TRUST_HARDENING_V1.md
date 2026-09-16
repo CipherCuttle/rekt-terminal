@@ -171,13 +171,16 @@ Objective:
 Required outcomes:
 
 - sensitive mutations have durable actor/operation-scoped idempotency and appropriate cross-instance abuse controls;
-- resolver/admin authority is separate from ordinary organizer/builder capability;
+- resolver/admin authority is separate from ordinary organizer/builder capability **and every resolver/admin mutation requires stronger authentication than the ordinary participant session**;
 - self-resolution/conflict-of-interest is fail-closed;
+- the irreversible organizer `SELECTION` mutation cannot be authorized by the ambient participant session cookie alone: it requires a recent reauthentication proof or a second independent confirmation factor/challenge bound to the exact Challenge and selected entry;
 - auth/session/GitHub credential handling is secret-safe and rotation-compatible;
 - private-source access is explicit, audited and unavailable to public routes;
+- compromise of the object-store credential alone cannot reveal the plaintext contents of every private source snapshot: retrieval must be challenge/object-scoped or private source must use per-object/per-Challenge envelope encryption with key-unwrapping authority isolated from the storage credential;
+- no single long-lived bucket credential plus globally available key may list/read/decrypt all private snapshots;
 - no normal web/API path gains arbitrary source-export or settlement-redirection power.
 
-Do not introduce a shared rate-limit service unless measured need earns it; PostgreSQL/edge controls may satisfy low-volume Alpha constraints.
+Do not introduce a shared rate-limit service unless measured need earns it; PostgreSQL/edge controls may satisfy low-volume Alpha constraints. The stronger-auth, organizer-selection confirmation and archive blast-radius controls are mandatory Stage-H blockers, not optional hardening.
 
 ### H3 — retention, audit, correction and operator exception surface
 
@@ -208,6 +211,7 @@ Required outcomes:
 - provider/model outage leaves deterministic core Challenge operation usable;
 - DB backup/restore drill proves authority conservation and idempotent recovery;
 - worker restart/reconciliation cannot duplicate economic/product authority;
+- private-archive confidentiality survives object-storage credential compromise through the H2-scoped retrieval/encryption boundary;
 - zero-inference operation test passes for core frozen-Challenge flows.
 
 ### H5 — production-equivalent load/chaos + trust closure
@@ -288,8 +292,8 @@ No review loops.
 Stage H cannot close on prose alone. Closure evidence must include:
 
 1. exact production route inventory proving forbidden legacy/dev/test routes absent;
-2. auth/privileged-action matrix;
-3. private-source access + deletion tests;
+2. auth/privileged-action matrix proving resolver/admin stronger-auth enforcement and organizer `SELECTION` recent-auth/independent-confirmation enforcement;
+3. private-source access + deletion tests, including proof that object-storage credential compromise alone cannot recover plaintext across the archive corpus;
 4. claims/projection tests for public trust language where machine-enforceable;
 5. audit/correction lineage tests;
 6. provider/GitHub/verifier outage tests;
