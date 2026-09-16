@@ -35,8 +35,9 @@ Forward product strategy and staged roadmap are governed by:
 29. `STAGE_H1_PRODUCTION_ROUTE_BOUNDARY_V1.md` — closed H1 production-route and privilege-boundary contract.
 30. `STAGE_H2_PRIVATE_DATA_RETENTION_V1.md` — closed H2 private-data retention/deletion contract.
 31. `STAGE_H2_EGRESS_BACKUP_EVIDENCE_V1.md` — H2 provider/logging/disclosure/backup evidence contract.
-32. `STAGE_H3_AUTH_OPERATOR_INCIDENT_V1.md` — active H3 session/operator/incident hardening contract.
-33. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+32. `STAGE_H3_AUTH_OPERATOR_INCIDENT_V1.md` — closed H3 session/operator/incident hardening contract; closure used an explicit review-gate waiver.
+33. `STAGE_H4_VERIFIER_SUPPLY_CHAIN_V1.md` — active H4 verifier/supply-chain isolation contract.
+34. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -74,8 +75,8 @@ Stage H trust hardening                       USER-AUTHORIZED / ACTIVE
 H0 authority lock                             CLOSED / PASS / PR #109 / UNMERGED
 H1 production route + privilege boundary      CLOSED / PASS / PR #110 / UNMERGED
 H2 private-data + retention/deletion          CLOSED / PASS / PR #111 / UNMERGED
-H3 auth/operator + incident controls          IMPLEMENTATION ACTIVE
-H4 verifier + supply-chain isolation          NOT YET AUTHORIZED BY H3
+H3 auth/operator + incident controls          CLOSED / PASS WITH REVIEW WAIVER / PR #113 / UNMERGED
+H4 verifier + supply-chain isolation          IMPLEMENTATION ACTIVE
 H5 failure/load + zero-inference              NOT YET AUTHORIZED BY H4
 H6 restore + final trust gate                 NOT YET AUTHORIZED BY H5
 Stage I external-human Alpha                  NOT AUTHORIZED
@@ -93,25 +94,27 @@ Merge authority                               NONE
 - **H0:** `19c04c4cb26477979c1190a5b9173c27822e3d6a` — threat-model authority repaired and closed after targeted rereview.
 - **H1:** `525402d73f03174b29977e256f9aebfd3c14dbce` — canonical funded-Challenge production route inventory/entrypoint parity closed after one P1 repair and targeted rereview.
 - **H2:** `12c0acf6539145cce10035f73fa285ba68992b49` — private-data deletion/retention/provider-egress boundary closed after exact-head CI/Auth/Postgres and one independent external hostile review returning `CLEAN_NO_CRITICAL_HIGH`.
+- **H3:** `ed91567f98221355ba08bd197a8be389007b892c` — auth/session/operator/incident implementation and exact-head CI/Auth/Postgres were green; the independent-review gate was explicitly waived by the user after bounded reviewer-capacity attempts failed. Do not claim an admissible H3 hostile review occurred.
 
-## Current H3 authority
+## Current H4 authority
 
-`STAGE_H3_AUTH_OPERATOR_INCIDENT_V1.md` is current. H3 may implement only the supported auth/operator/incident surface:
+`STAGE_H4_VERIFIER_SUPPLY_CHAIN_V1.md` is current. H4 may implement only the T2/T11 surface:
 
-- token-specific and account-wide session revocation;
-- provider reauthentication session rotation;
-- fresh-session/step-up semantics for existing security-sensitive GitHub operations;
-- actual reachable privilege inventory and explicit non-promotion of parked resolver/admin code;
-- bounded incident write-freeze and GitHub-disable controls;
-- credential/session compromise runbooks and recovery gates.
+- promoted compiler-blueprint content identity + promotion provenance without silently changing Stage-D semantics;
+- trusted-module/runner provenance checks while preserving frozen Challenge module digests;
+- isolated verifier public-HTTPS target/egress policy;
+- DNS/IP rebinding, metadata/special-address, redirect, response-size and timeout fail-closed regressions;
+- verifier credential-isolation evidence.
 
-H3 must not create a generic administrator/resolver API simply to satisfy the threat-model checklist. The current production privileged role remains Challenge organizer only; resolver/admin/moderation prefixes remain forbidden by H1.
+H4 must not authorize participant/arbitrary code execution, hidden tests, LLM judging/scoring, H5/H6 work, Stage-I external-human Alpha, production money, settlement execution, wallet custody/signing/broadcast or merge.
 
-**Execution verdict:** implement and verify H3 only. Do not start H4 until H3 exact-head CI/Auth/Postgres and the single independent hostile review close cleanly under the bounded policy.
+**Execution verdict:** implement and verify H4 only. Do not start H5 until H4 exact-head verification and the single independent hostile review close under the bounded policy.
 
-Current dependency order remains stacked and unmerged. Stage-E PR #97, Stage-F1 PR #98, Stage-F2 PR #100, Stage-F3A PR #101, Stage-F3B PR #102, G1 PR #103, G2A PR #104, G2B1 PR #105, G2B2 PR #106, G3 PR #107, H0 PR #109, H1 PR #110 and H2 PR #111 must not be merged out of order without explicit merge authority. H3 is stacked directly on the exact H2 closure head and is also unmerged.
+Current dependency order remains stacked and unmerged. Stage-E PR #97, Stage-F1 PR #98, Stage-F2 PR #100, Stage-F3A PR #101, Stage-F3B PR #102, G1 PR #103, G2A PR #104, G2B1 PR #105, G2B2 PR #106, G3 PR #107, H0 PR #109, H1 PR #110, H2 PR #111 and H3 PR #113 must not be merged out of order without explicit merge authority. H4 is stacked directly on exact H3 closure `ed91567f98221355ba08bd197a8be389007b892c` and remains unmerged.
 
 F1's independent hostile-review requirement was explicitly replaced by user authority on 2026-09-14 with the completed adversarial self-audit plus green exact-head CI/Auth evidence. Do not claim an independent F1 review occurred. That waiver does not alter the default bounded-review policy used for later slices.
+
+H3's independent hostile-review gate was separately and explicitly waived by the user after implementation was exact-head green and bounded external-review attempts failed for capacity/provider reasons. Do not generalize that exception to H4 or later slices.
 
 The existing `apps/inkubator-lab` runtime remains the Inkubator frontend root; do not create `apps/inkubator-web` and never reuse Terminal `apps/web`. Historical WORLD/COMMAND/PROJECT/PLAYER/SHIP surfaces remain parked compatibility substrate unless a bounded migration explicitly promotes them.
 

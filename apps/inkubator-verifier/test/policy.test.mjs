@@ -11,15 +11,23 @@ test('URL policy rejects schemes, credentials, ports, literals and local names',
   assert.equal(normalizePublicHttpsUrl('https://Example.COM/a#frag').href, 'https://example.com/a');
 });
 
-test('DNS policy rejects RFC1918, local IPv6, IPv4-mapped IPv6 and mixed answer sets', async () => {
+test('DNS policy rejects private, current non-global, translation/tunnel and legacy special IPv6 ranges', async () => {
   for (const address of [
     {address: '127.0.0.1', family: 4},
     {address: '10.0.0.1', family: 4},
     {address: '172.16.0.1', family: 4},
     {address: '192.168.0.1', family: 4},
+    {address: '169.254.169.254', family: 4},
     {address: '::1', family: 6},
+    {address: '::c0a8:1', family: 6},
     {address: 'fc00::1', family: 6},
     {address: 'fe80::1', family: 6},
+    {address: 'fec0::1', family: 6},
+    {address: '64:ff9b::a00:1', family: 6},
+    {address: '64:ff9b:1::a00:1', family: 6},
+    {address: '100:0:0:1::1', family: 6},
+    {address: '2002:a00:1::', family: 6},
+    {address: '5f00::1', family: 6},
     {address: '::ffff:127.0.0.1', family: 6},
     {address: '::ffff:8.8.8.8', family: 6},
   ]) {
@@ -27,6 +35,17 @@ test('DNS policy rejects RFC1918, local IPv6, IPv4-mapped IPv6 and mixed answer 
   }
   await assert.rejects(resolveSafeTarget('https://ship.example', async () => [{address: '8.8.8.8', family: 4}, {address: '10.0.0.1', family: 4}]), /TARGET_NOT_PUBLIC/);
   assert.equal((await resolveSafeTarget('https://ship.example', pub)).addresses.length, 2);
+});
+
+test('cloud metadata target fails closed before any request', async () => {
+  let requests = 0;
+  const result = await verifyPublicUrl('00000000-0000-4000-8000-000000000030', 'https://metadata.example/latest/meta-data/', {
+    resolver: async () => [{address: '169.254.169.254', family: 4}],
+    request: async () => { requests += 1; return {kind: 'response', status: 200, bytes: 1}; },
+  });
+  assert.equal(result.outcome, 'FAILED');
+  assert.equal(result.reason_code, 'TARGET_NOT_PUBLIC');
+  assert.equal(requests, 0);
 });
 
 test('DNS policy fails closed on empty, oversized and malformed answer sets', async () => {
@@ -123,7 +142,20 @@ test('oversize and timeout fail closed', async () => {
   assert.equal(timeout.reason_code, 'TIMEOUT');
 });
 
+test('stalled requester is bounded by verifier hop deadline', async () => {
+  const started = Date.now();
+  const result = await verifyPublicUrl('00000000-0000-4000-8000-000000000040', 'https://ship.example', {
+    resolver: pub,
+    request: async () => new Promise(() => {}),
+  });
+  assert.equal(result.outcome, 'UNAVAILABLE');
+  assert.equal(result.reason_code, 'TIMEOUT');
+  assert.ok(Date.now() - started < 5_000);
+});
+
 test('verifier refuses platform credential environment', () => {
   assert.throws(() => assertSafeVerifierEnvironment({DATABASE_URL: 'postgres://secret'}), /verifier_forbidden_environment/);
+  assert.throws(() => assertSafeVerifierEnvironment({GITHUB_WEBHOOK_SECRET: 'secret'}), /verifier_forbidden_environment/);
+  assert.throws(() => assertSafeVerifierEnvironment({OPENROUTER_API_KEY: 'secret'}), /verifier_forbidden_environment/);
   assert.doesNotThrow(() => assertSafeVerifierEnvironment({INKUBATOR_VERIFIER_PORT: '4180'}));
 });

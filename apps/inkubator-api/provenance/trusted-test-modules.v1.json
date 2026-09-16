@@ -1,0 +1,24 @@
+{
+  "schema_version": "inkubator.trusted-test-module-provenance/1.0",
+  "promotion": {
+    "authority": "STAGE_H_T2",
+    "promotion_parent_commit": "ed91567f98221355ba08bd197a8be389007b892c"
+  },
+  "runner_engine": {
+    "version": "trusted-fact-runner/1.0",
+    "source_path": "src/challenge-test-runners.ts",
+    "source_git_blob_sha1": "f31d36fc8cd3985886aeffb44468f4e14e50c446"
+  },
+  "modules": [
+    {
+      "module_id": "submission-lineage-integrity",
+      "module_version": "1.0.0",
+      "module_digest": "fc5c7ef5cafb1decced48bfccb8be852ff6218db32a8606158f6403771629022"
+    },
+    {
+      "module_id": "archive-capture-integrity",
+      "module_version": "1.0.0",
+      "module_digest": "da675fcc9f8813a42b565310e1e75871269d8fda6db6e7465abb649453f5e3c3"
+    }
+  ]
+}
