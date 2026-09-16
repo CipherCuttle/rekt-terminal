@@ -2,17 +2,23 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import test from 'node:test';
 
-const registration = /registerStageGRevealArenaRoutes\(app, db\);/;
+const registration = /registerStageGRevealArenaRoutes\(app, options\.db\);/;
+const productionBuilder = /buildFundedChallengeProductionApp/;
 
 async function source(name) {
   return readFile(new URL(`../../src/${name}`, import.meta.url), 'utf8');
 }
 
-test('G1 reveal routes stay registered in both Inkubator API entrypoints', async () => {
-  const [server, renderServer] = await Promise.all([
+test('G1 reveal routes stay registered through the canonical production builder used by both entrypoints', async () => {
+  const [productionApp, server, renderServer] = await Promise.all([
+    source('production-app.ts'),
     source('server.ts'),
     source('render-server.ts'),
   ]);
-  assert.match(server, registration);
-  assert.match(renderServer, registration);
+
+  assert.match(productionApp, registration);
+  for (const entrypoint of [server, renderServer]) {
+    assert.match(entrypoint, productionBuilder);
+    assert.doesNotMatch(entrypoint, /registerStageGRevealArenaRoutes/);
+  }
 });
