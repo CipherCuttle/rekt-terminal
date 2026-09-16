@@ -74,8 +74,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node <<'NODE'
-          const fs = require('node:fs');
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
           const context = fs.readFileSync('/tmp/h2-review-context.txt', 'utf8');
           const maxChars = 700000;
           const bounded = context.length > maxChars ? context.slice(0, maxChars) + '\n[CONTEXT TRUNCATED AT 700000 CHARS]' : context;
