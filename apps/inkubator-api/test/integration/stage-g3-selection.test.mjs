@@ -4,10 +4,13 @@ import test from 'node:test';
 import {sql} from 'kysely';
 import {freezeBuildContract} from '@rekt-ink/protocol/challenge';
 import {
+  acceptChallengeSubmission,
   acquireChallengeSeat,
   createChallenge,
+  markFinalChallengeSubmission,
   persistFrozenBuildContract,
   recordChallengeDecision,
+  recordChallengeQualification,
 } from '../../dist/challenge-store.js';
 import {recordStageG3Selection} from '../../dist/challenge-g3-api.js';
 import {createDatabase} from '../../dist/database.js';
@@ -16,6 +19,7 @@ import {migrateToLatest} from '../../dist/migrations.js';
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required');
 const t0 = 2_000_000_000_000;
+const qualificationCriterionId = 'G3-QUAL';
 
 async function player(db, label) {
   const playerId = randomUUID();
@@ -33,7 +37,9 @@ function contractFor(challengeId) {
     ip_terms_version: 'bespoke-winner-transfer/1.0',
     title: 'G3 selection challenge',
     brief: 'Prove one human choice among final qualifiers.',
-    outcome_contract: {criteria: []},
+    outcome_contract: {criteria: [
+      {id: qualificationCriterionId, description: 'Submission satisfies frozen qualification law.', mandatory: true},
+    ]},
     production_envelope: {criteria: []},
     delivery_contract: {criteria: []},
     preferences: {taste: 'organizer-only'},
@@ -51,6 +57,40 @@ function contractFor(challengeId) {
     review_deadline: t0 + 20_000,
     prize_minor_units: 100,
     settlement_asset: 'TEST',
+  });
+}
+
+async function acceptAndFinalize(db, {challengeId, entryId, contract, suffix}) {
+  const submissionId = randomUUID();
+  await acceptChallengeSubmission(db, {
+    requestId: randomUUID(),
+    submissionId,
+    challengeId,
+    entryId,
+    manifest: {
+      schema_version: 'inkubator.submission-manifest/1.0',
+      challenge_id: challengeId,
+      entry_id: entryId,
+      terms_digest: contract.terms_digest,
+      submission_version: 1,
+      immutable_source_reference: {kind: 'GIT_COMMIT', value: `g3-commit-${suffix}`},
+      artifact_digest: suffix.repeat(64),
+      evidence_references: [`G3-EVIDENCE-${suffix}`],
+      accepted_at: 0,
+    },
+  });
+  return submissionId;
+}
+
+async function firstPass(db, {challengeId, entryId, submissionId, result}) {
+  return recordChallengeQualification(db, {
+    requestId: randomUUID(),
+    qualificationId: randomUUID(),
+    challengeId,
+    entryId,
+    submissionId,
+    qualificationVersion: 'g3-fixture-v1',
+    criterionResults: [{criterion_id: qualificationCriterionId, result, evidence_refs: [`G3-QUAL-${entryId}`]}],
   });
 }
 
@@ -78,13 +118,36 @@ async function preparedSelection(db, {qualifierCount = 2} = {}) {
   await sql`update challenges set status = 'ENTRY_OPEN' where challenge_id = ${challengeId}`.execute(db);
   await acquireChallengeSeat(db, {requestId: randomUUID(), entryId: q1, challengeId, builderPlayerId: builder1, payoutIdentity: `pay-${q1}`});
   await acquireChallengeSeat(db, {requestId: randomUUID(), entryId: q2, challengeId, builderPlayerId: builder2, payoutIdentity: `pay-${q2}`});
-  await sql`update challenges set status = 'SELECTION' where challenge_id = ${challengeId}`.execute(db);
+
+  await sql`update challenges set status = 'BUILDING' where challenge_id = ${challengeId}`.execute(db);
+  const submission1 = await acceptAndFinalize(db, {challengeId, entryId: q1, contract, suffix: 'a'});
+  const submission2 = await acceptAndFinalize(db, {challengeId, entryId: q2, contract, suffix: 'b'});
+
+  await sql`update challenges set status = 'SUBMISSIONS_LOCKED' where challenge_id = ${challengeId}`.execute(db);
+  await markFinalChallengeSubmission(db, {requestId: randomUUID(), challengeId, entryId: q1, submissionId: submission1});
+  await markFinalChallengeSubmission(db, {requestId: randomUUID(), challengeId, entryId: q2, submissionId: submission2});
+
+  await sql`update challenges set status = 'QUALIFICATION' where challenge_id = ${challengeId}`.execute(db);
+  await firstPass(db, {challengeId, entryId: q1, submissionId: submission1, result: 'PASS'});
+  await firstPass(db, {
+    challengeId,
+    entryId: q2,
+    submissionId: submission2,
+    result: qualifierCount === 2 ? 'PASS' : 'FAIL',
+  });
+
+  await sql`
+    update challenges
+    set status = 'APPEAL_WINDOW', appeal_opened_at = clock_timestamp() - interval '2 seconds'
+    where challenge_id = ${challengeId}
+  `.execute(db);
   const qualifierIds = qualifierCount === 2 ? [q1, q2].sort() : [q1];
   await recordChallengeDecision(db, {
     requestId: randomUUID(), decisionId: randomUUID(), challengeId, entryId: null,
     decisionType: 'FINAL_QUALIFIERS', decisionVersion: 'stage-c-effective-v1',
     decision: {final_qualifier_ids: qualifierIds},
   });
+  await sql`update challenges set status = 'SELECTION' where challenge_id = ${challengeId}`.execute(db);
   return {organizer, builder1, builder2, challengeId, q1, q2};
 }
 
