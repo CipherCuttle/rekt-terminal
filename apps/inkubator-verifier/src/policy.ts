@@ -47,11 +47,12 @@ const block = new BlockList();
 for (const [network, prefix] of [
   ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8],
   ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24],
-  ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24], ['203.0.113.0', 24],
-  ['224.0.0.0', 4], ['240.0.0.0', 4],
+  ['192.88.99.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24],
+  ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
 ] as const) block.addSubnet(network, prefix, 'ipv4');
 for (const [network, prefix] of [
-  ['::', 128], ['::1', 128], ['100::', 64], ['2001:db8::', 32],
+  ['::', 128], ['::1', 128], ['64:ff9b::', 96], ['64:ff9b:1::', 48], ['100::', 64],
+  ['2001::', 23], ['2001:db8::', 32], ['2002::', 16], ['3fff::', 20],
   ['fc00::', 7], ['fe80::', 10], ['ff00::', 8],
 ] as const) block.addSubnet(network, prefix, 'ipv6');
 
@@ -121,7 +122,13 @@ export const pinnedHttpsRequest: HopRequester = (target, timeoutMs, maxBytes) =>
   const pinned = target.addresses[0];
   if (!pinned) return resolve({kind: 'network_error'});
   let settled = false;
-  const finish = (result: HopResult) => { if (!settled) { settled = true; resolve(result); } };
+  let deadline: NodeJS.Timeout | undefined;
+  const finish = (result: HopResult) => {
+    if (settled) return;
+    settled = true;
+    if (deadline) clearTimeout(deadline);
+    resolve(result);
+  };
   const req = https.request({
     protocol: 'https:',
     hostname: pinned.address,
@@ -156,10 +163,32 @@ export const pinnedHttpsRequest: HopRequester = (target, timeoutMs, maxBytes) =>
       ? {kind: 'response', status: response.statusCode ?? 0, bytes}
       : {kind: 'network_error'}));
   });
+  deadline = setTimeout(() => {
+    req.destroy();
+    finish({kind: 'timeout'});
+  }, Math.max(1, Math.ceil(timeoutMs)));
+  deadline.unref?.();
   req.setTimeout(timeoutMs, () => { req.destroy(); finish({kind: 'timeout'}); });
   req.on('error', () => finish({kind: 'network_error'}));
   req.end();
 });
+
+async function requestWithTimeout(target: SafeTarget, request: HopRequester, timeoutMs: number, maxBytes: number): Promise<HopResult> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return {kind: 'timeout'};
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      request(target, timeoutMs, maxBytes),
+      new Promise<HopResult>((resolve) => {
+        timer = setTimeout(() => resolve({kind: 'timeout'}), Math.max(1, Math.ceil(timeoutMs)));
+      }),
+    ]);
+  } catch {
+    return {kind: 'network_error'};
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 function failure(submissionId: string, start: number, redirects: number, outcome: VerifierOutcome, reason: VerifierReasonCode, extra: Partial<VerifierObservation> = {}): VerifierObservation {
   return {
@@ -190,7 +219,12 @@ export async function verifyPublicUrl(
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
     const elapsed = performance.now() - start;
     if (elapsed >= TOTAL_TIMEOUT_MS) return failure(submissionId, start, redirects, 'UNAVAILABLE', 'TIMEOUT');
-    const hop = await request(current, Math.min(PER_HOP_TIMEOUT_MS, TOTAL_TIMEOUT_MS - elapsed), MAX_RESPONSE_BYTES);
+    const hop = await requestWithTimeout(
+      current,
+      request,
+      Math.min(PER_HOP_TIMEOUT_MS, TOTAL_TIMEOUT_MS - elapsed),
+      MAX_RESPONSE_BYTES,
+    );
     if (hop.kind === 'timeout') return failure(submissionId, start, redirects, 'UNAVAILABLE', 'TIMEOUT');
     if (hop.kind === 'network_error') return failure(submissionId, start, redirects, 'UNAVAILABLE', 'NETWORK_ERROR');
     if (hop.bytes > MAX_RESPONSE_BYTES) return failure(submissionId, start, redirects, 'FAILED', 'RESPONSE_TOO_LARGE', {final_url: current.url.href, http_status: hop.status});
@@ -221,7 +255,16 @@ export async function verifyPublicUrl(
 }
 
 export function assertSafeVerifierEnvironment(env: NodeJS.ProcessEnv): void {
-  const forbidden = ['DATABASE_URL', 'GITHUB_TOKEN', 'GITHUB_APP_PRIVATE_KEY', 'GITHUB_CLIENT_SECRET', 'INKUBATOR_SESSION_SECRET', 'REACT_BITS_PRO_KEY'];
+  const forbidden = [
+    'DATABASE_URL',
+    'GITHUB_TOKEN',
+    'GITHUB_APP_PRIVATE_KEY',
+    'GITHUB_CLIENT_SECRET',
+    'GITHUB_WEBHOOK_SECRET',
+    'INKUBATOR_SESSION_SECRET',
+    'OPENROUTER_API_KEY',
+    'REACT_BITS_PRO_KEY',
+  ];
   const present = forbidden.filter((name) => typeof env[name] === 'string' && env[name]!.length > 0);
   if (present.length) throw new Error(`verifier_forbidden_environment:${present.join(',')}`);
 }

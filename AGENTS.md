@@ -36,16 +36,20 @@ Stage-H closure heads:
 
 - H0 authority lock — **CLOSED / PASS** at `19c04c4cb26477979c1190a5b9173c27822e3d6a`;
 - H1 production route + privilege boundary — **CLOSED / PASS** at `525402d73f03174b29977e256f9aebfd3c14dbce`;
-- H2 private-data + retention/deletion — **CLOSED / PASS** at `12c0acf6539145cce10035f73fa285ba68992b49`.
+- H2 private-data + retention/deletion — **CLOSED / PASS** at `12c0acf6539145cce10035f73fa285ba68992b49`;
+- H3 auth/operator + incident controls — **CLOSED / PASS WITH EXPLICIT REVIEW-GATE WAIVER** at `ed91567f98221355ba08bd197a8be389007b892c`.
 
-The active authorized implementation slice is **H3 — Auth / Operator / Incident Hardening**. Hydrate from:
+The active authorized implementation slice is **H4 — Verifier / Supply-Chain Isolation**. Hydrate from:
 
-- `docs/inkubator/STAGE_H3_AUTH_OPERATOR_INCIDENT_V1.md`;
-- `docs/inkubator/INKUBATOR_TRUST_AND_REPUTATION_THREAT_MODEL_V1.md`;
-- `docs/inkubator/STAGE_H1_PRODUCTION_ROUTE_BOUNDARY_V1.md`;
-- H2 privacy/retention authority and current Stage-E/G route/store authority.
+- `docs/inkubator/STAGE_H4_VERIFIER_SUPPLY_CHAIN_V1.md`;
+- `docs/inkubator/INKUBATOR_TRUST_AND_REPUTATION_THREAT_MODEL_V1.md` T2 + T11;
+- `docs/inkubator/STAGE_D_COMPILER_ENGINE_V1.md`;
+- `docs/inkubator/STAGE_G2B2_TRUSTED_RUNNER_PERSISTENCE_V1.md`;
+- current verifier and Test Arena implementation.
 
-H3 may harden session revocation/rotation, fresh reauthentication for supported security-sensitive operations, actual reachable privilege boundaries and bounded incident disable/recovery controls. It may not create a generic admin/resolver surface, implement H4+, Stage I, production money, settlement execution, arbitrary participant-code execution, hidden tests or LLM judging/scoring.
+H4 may add compiler-blueprint/trusted-module promotion provenance, fail-closed substitution regressions, and harden the isolated public-HTTPS verifier target/egress/redirect/size/time policy. It may not rewrite frozen Challenge module digests merely to record provenance, authorize participant-code execution, implement H5+, Stage I, production money, settlement execution, hidden tests or LLM judging/scoring.
+
+The H3 independent-review requirement was explicitly waived by user authority after exact-head implementation/CI/Auth/Postgres evidence and repeated independent-review capacity failures. Do not rewrite history to claim an admissible H3 hostile review occurred. That one gate exception does not waive H4 or later review requirements.
 
 Do not use historical `buildApp()` route breadth as production authority. Production funded-Challenge entrypoints must continue to use the H1 canonical route manifest. Parked resolver/domain code is not production authority merely because it exists in the repository.
 
