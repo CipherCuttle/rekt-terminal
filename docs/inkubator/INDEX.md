@@ -25,13 +25,15 @@ Forward product strategy and staged roadmap are governed by:
 19. `STAGE_F2_IMMUTABLE_SUBMISSION_V1.md` — closed F2 builder-owned immutable submission contract over existing Stage-B/C law.
 20. `STAGE_F3_ARCHIVE_EVIDENCE_V1.md` — F3A provider-independent durable asynchronous archive/evidence contract.
 21. `STAGE_F3_ARCHIVE_EVIDENCE_CLOSURE_V1.md` — Stage-F3/Stage-F closure receipt covering F3A orchestration and F3B GitHub→private-R2 provider wiring.
-22. `STAGE_G_REVEAL_TEST_ARENA_RECEIPTS_V1.md` — Stage-G parent authority.
+22. `STAGE_G_REVEAL_TEST_ARENA_RECEIPTS_V1.md` — closed Stage-G parent authority.
 23. `STAGE_G2_ACCEPTANCE_MANIFEST_V1.md` — closed G2A frozen evaluation-meaning authority.
 24. `STAGE_G2B_OBJECTIVE_EXECUTION_V1.md` — closed G2B1 content-addressed execution/result authority contract.
 25. `STAGE_G2B2_TRUSTED_RUNNER_PERSISTENCE_V1.md` — closed G2B2 trusted server-runner + durable qualification bridge.
 26. `STAGE_G3_COMPARISON_SELECTION_RECEIPT_TRANSPORT_V1.md` — closed G3 comparison / organizer-selection / safe receipt-transport authority.
 27. `STAGE_G3_COMPARISON_SELECTION_RECEIPT_TRANSPORT_CLOSURE_V1.md` — G3 and Stage-G closure receipt / verification evidence.
-28. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+28. `STAGE_H_TRUST_HARDENING_V1.md` — active Stage-H execution/scope authority.
+29. `INKUBATOR_TRUST_AND_REPUTATION_THREAT_MODEL_V1.md` — active threat, claims, retention, runbook and failure authority.
+30. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -65,7 +67,10 @@ G2A frozen acceptance manifest                CLOSED / PASS / PR #104 / UNMERGED
 G2B1 execution authority contract             CLOSED / PASS / PR #105 / UNMERGED
 G2B2 trusted runner + qualification persist   CLOSED / PASS / PR #106 / UNMERGED
 G3 comparison / selection / receipt transport CLOSED / PASS / PR #107 / UNMERGED
-Stage H trust hardening                       NEXT / NOT AUTHORIZED BY STAGE-G CLOSURE
+Stage H trust hardening                       USER-AUTHORIZED / ACTIVE
+H0 authority + threat-model lock              ACTIVE / IMPLEMENTATION BLOCKED UNTIL H0 CLOSES
+H1 production route assembly                  NEXT AFTER H0 / NOT STARTED
+Stage I closed Alpha                          NOT AUTHORIZED
 Production money                              NOT AUTHORIZED
 Merge authority                               NONE
 ```
@@ -78,14 +83,16 @@ Merge authority                               NONE
 
 **G2B2 closure:** reviewed implementation/repair head `4331cf6709e15cb12693d0124aad4a885be64eb1` passed CI #1702 and Inkubator Auth Foundation #550 including the full Postgres suite. The independent hostile review found two P1s: archive `PENDING` could be bypassed by a non-archive binding mix, and an interrupted execution-evidence append could become unrecoverable after lifecycle advance. Repairs moved the final-submission `PENDING` gate before all binding dispatch and restored exact persisted-command replay through existing `recordChallengeQualification()`. Focused unit/Postgres regressions passed, both P1 threads were resolved, and the single targeted Codex rereview of commit `4331cf6709` found no major issues. G2B2 is closed/pass without merge.
 
-**G3 / Stage-G closure:** exact reviewed implementation head `e6c7e0abeaf1be79a9ac35a697c050f51e81e31b` passed CI #1729 and Inkubator Auth Foundation #562 including the full Postgres suite. G3 projects only durable final qualifiers into organizer comparison, keeps frozen preferences non-normative, fixes organizer selection to existing `SELECTION` authority, preserves exact-command replay through the existing Stage-C store/DB lifecycle boundary, proves concurrent choices collapse to one durable selection, and exposes only a privacy-bounded read-only projection of existing durable receipts/corrections. The single independent Codex hostile review found no major issues, so no targeted rereview was required. G3 and Stage G are closed/pass without merge.
+**G3 / Stage-G closure:** exact reviewed implementation head `e6c7e0abeaf1be79a9ac35a697c050f51e81e31b` passed CI #1729 and Inkubator Auth Foundation #562 including the full Postgres suite. G3 projects only durable final qualifiers into organizer comparison, keeps frozen preferences non-normative, fixes organizer selection to existing `SELECTION` authority, preserves exact-command replay through the existing Stage-C store/DB lifecycle boundary, proves concurrent choices collapse to one durable selection, and exposes only a privacy-bounded read-only projection of existing durable receipts/corrections. The single independent Codex hostile review found no major issues, so no targeted rereview was required. G3 and Stage G are closed/pass without merge. The Stage-G closure authority head `04365d2d4a20948c15d76d02c566499c5ed5bd57` passed CI #1733 and Inkubator Auth Foundation #564.
 
-**Execution verdict:** Stage G is closed. The next roadmap stage is Stage H trust hardening, but Stage-G closure does not authorize implementation. A Stage-H scope/authority lock must explicitly cover threat modeling, production-route inventory, private-source leakage, operator/resolver authority, evidence tampering/corrections, account takeover, rate/concurrency behavior, backup/restore and verifier isolation before implementation begins.
+**Stage-H H0 authority lock:** branch `agent/stage-h-trust-hardening-v1` begins exactly from Stage-G closure head `04365d2d4a20948c15d76d02c566499c5ed5bd57`. H0 freezes the trust/reputation threat model, claims policy, Alpha data-retention defaults, operator runbooks, failure/chaos matrix, severity law and the bounded H1→H5 execution sequence before hardening code begins. Concrete starting blockers include implicit legacy route inheritance through `buildApp()` and drift between `server.ts` and `render-server.ts` product-route composition. H1 may not start until H0 exact-head verification and bounded hostile review close cleanly.
 
-Current dependency order remains stacked and unmerged. Stage-E PR #97, Stage-F1 PR #98, Stage-F2 PR #100, Stage-F3A PR #101, Stage-F3B PR #102, G1 PR #103, G2A PR #104, G2B1 PR #105, G2B2 PR #106 and G3 PR #107 must not be merged out of order without explicit merge authority.
+**Execution verdict:** H0 is the only active work. Do not begin H1 code changes until H0 closes. After H0, H1 is the explicit production funded-Challenge route assembly + runtime entrypoint parity slice.
+
+Current dependency order remains stacked and unmerged. Stage-E PR #97, Stage-F1 PR #98, Stage-F2 PR #100, Stage-F3A PR #101, Stage-F3B PR #102, G1 PR #103, G2A PR #104, G2B1 PR #105, G2B2 PR #106 and G3 PR #107 must not be merged out of order without explicit merge authority. Any Stage-H PR stacks after G3/Stage-G closure authority; no merge is authorized.
 
 F1's independent hostile-review requirement was explicitly replaced by user authority on 2026-09-14 with the completed adversarial self-audit plus green exact-head CI/Auth evidence. Do not claim an independent F1 review occurred. That waiver does not alter the default bounded-review policy used for later slices.
 
-The existing `apps/inkubator-lab` runtime remains the Inkubator frontend root; do not create `apps/inkubator-web` and never reuse Terminal `apps/web`. Historical WORLD/COMMAND/PROJECT/PLAYER/SHIP surfaces remain parked compatibility substrate unless a bounded migration explicitly promotes them.
+The existing `apps/inkubator-lab` runtime remains the Inkubator frontend root; do not create `apps/inkubator-web` and never reuse Terminal `apps/web`. Historical WORLD/COMMAND/PROJECT/PLAYER/SHIP/social/devkit surfaces remain parked compatibility substrate unless a bounded migration explicitly promotes them. During Stage H, keeping code in-repo does not grant production-route authority.
 
-Stage-G closure grants no authority for arbitrary network/browser runners, participant-code execution, hidden tests, LLM judging/scoring, qualification mutation outside frozen law, settlement execution, production money, wallet custody/signing/broadcast, public raw private-source retrieval, archive retention/DSAR infrastructure, Stage-H implementation or merge.
+Stage-H authority grants no production money, wallet custody/signing/broadcast, Challenge Vault, arbitrary participant-code execution, hidden tests, LLM judging/scoring, open anonymous marketplace, public raw private-source retrieval, Stage-I external Alpha or merge authority.
