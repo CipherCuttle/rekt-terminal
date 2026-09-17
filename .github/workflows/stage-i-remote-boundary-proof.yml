@@ -1,0 +1,138 @@
+name: Stage I remote boundary proof
+
+on:
+  push:
+    branches:
+      - rehearsal/stage-i-remote-proof-v1
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      TARGET_URL: https://rekt-inkubator-rehearsal.onrender.com
+      EXPECTED_PRODUCT_SHA: 1504c70089644cbee9f9630a4432cdb1826144f3
+    steps:
+      - name: Check out rehearsal proof harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify canonical toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = 'v24.20.0'
+          test "$(npm -v)" = '11.19.0'
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Prove deployed public and authority boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {chromium, request} from '@playwright/test';
+          import fs from 'node:fs';
+
+          const base = process.env.TARGET_URL;
+          assert.ok(base);
+          const api = await request.newContext({baseURL: base});
+          const evidence = {target: base, expected_product_sha: process.env.EXPECTED_PRODUCT_SHA, checks: []};
+          const record = (name, status, detail = null) => evidence.checks.push({name, status, detail});
+
+          try {
+            let response = await api.get('/health');
+            assert.equal(response.status(), 200);
+            const health = await response.json();
+            assert.deepEqual(health, {status: 'ok', service: 'inkubator-api'});
+            record('health', 'PASS', health);
+
+            response = await api.post('/v1/challenges', {
+              headers: {origin: base, 'content-type': 'application/json'},
+              data: {},
+            });
+            assert.equal(response.status(), 401);
+            assert.deepEqual(await response.json(), {error: 'authentication_required'});
+            record('unauthenticated_challenge_create_denied', 'PASS');
+
+            response = await api.post('/v1/challenges', {
+              headers: {origin: 'https://attacker.invalid', 'content-type': 'application/json'},
+              data: {},
+            });
+            assert.equal(response.status(), 403);
+            assert.deepEqual(await response.json(), {error: 'origin_not_allowed'});
+            record('foreign_origin_write_denied', 'PASS');
+
+            response = await api.post('/v1/devkit/tokens', {
+              headers: {origin: base, 'content-type': 'application/json'},
+              data: {},
+            });
+            assert.equal(response.status(), 404);
+            record('legacy_devkit_route_absent', 'PASS');
+
+            const challengeId = '11111111-1111-4111-8111-111111111111';
+            response = await api.post(`/v1/challenges/${challengeId}/submissions`, {
+              headers: {authorization: 'Bearer rekt_dk_not_a_real_credential', 'content-type': 'application/json'},
+              data: {},
+            });
+            assert.equal(response.status(), 401);
+            assert.deepEqual(await response.json(), {error: 'challenge_submit_credential_invalid'});
+            record('invalid_bearer_submission_denied', 'PASS');
+
+            response = await api.get('/v1/auth/github/start', {maxRedirects: 0});
+            assert.ok([302, 303].includes(response.status()), `unexpected OAuth start status ${response.status()}`);
+            const location = response.headers()['location'];
+            assert.ok(location?.startsWith('https://github.com/login/oauth/authorize?'));
+            const redirect = new URL(location);
+            assert.equal(redirect.searchParams.get('code_challenge_method'), 'S256');
+            assert.equal(redirect.searchParams.get('redirect_uri'), `${base}/v1/auth/github/callback`);
+            const cookies = response.headersArray().filter((header) => header.name.toLowerCase() === 'set-cookie').map((header) => header.value);
+            assert.ok(cookies.some((cookie) => cookie.includes('__Host-rekt_github_oauth_state=')));
+            assert.ok(cookies.some((cookie) => cookie.includes('__Host-rekt_github_oauth_verifier=')));
+            record('github_oauth_start_pkce', 'PASS');
+
+            const browser = await chromium.launch();
+            try {
+              const page = await browser.newPage({viewport: {width: 1440, height: 1000}});
+              const root = await page.goto(base, {waitUntil: 'domcontentloaded', timeout: 60_000});
+              assert.equal(root?.status(), 200);
+              await page.waitForTimeout(1500);
+              const text = (await page.locator('body').innerText()).trim();
+              assert.ok(text.length > 20, 'frontend body is unexpectedly empty');
+              assert.match(text, /REKT/i);
+              await page.screenshot({path: 'stage-i-live-root.png', fullPage: true});
+              record('browser_frontend_load', 'PASS', {body_chars: text.length});
+            } finally {
+              await browser.close();
+            }
+
+            fs.writeFileSync('stage-i-remote-boundary-proof.json', JSON.stringify(evidence, null, 2) + '\n');
+            console.log(JSON.stringify(evidence, null, 2));
+          } finally {
+            await api.dispose();
+          }
+          NODE
+
+      - name: Upload remote proof evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: stage-i-remote-boundary-proof
+          path: |
+            stage-i-remote-boundary-proof.json
+            stage-i-live-root.png
+          if-no-files-found: error
+          retention-days: 14
