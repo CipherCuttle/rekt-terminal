@@ -226,7 +226,7 @@ export function StageIJoinBridge({api}: {api: StageIProductApi}) {
     setPhase('LOADING');
     setMessage(null);
     try {
-      const view = await api.joinChallenge(
+      const view = await api.joinChallenge!(
         challengeId,
         crypto.randomUUID(),
         crypto.randomUUID(),
