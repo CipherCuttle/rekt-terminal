@@ -16,7 +16,7 @@ jobs:
     env:
       TARGET_URL: https://rekt-inkubator-rehearsal.onrender.com
       EXPECTED_PRODUCT_SHA: 1504c70089644cbee9f9630a4432cdb1826144f3
-      SESSION_FILE: ${{ runner.temp }}/stage-i-sessions.json
+      SESSION_FILE: /tmp/stage-i-sessions.json
     steps:
       - name: Check out exact harness base
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
