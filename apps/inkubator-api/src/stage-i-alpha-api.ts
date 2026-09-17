@@ -380,13 +380,13 @@ export function registerStageIAlphaRoutes(app: FastifyInstance, db: InkubatorDat
     const {challengeId} = request.params as {challengeId: string};
     try {
       const normalizedChallengeId = uuid(challengeId, 'challenge_id');
-      if (auth.challengeId !== normalizedChallengeId) return error(reply, 403, 'challenge_submit_credential_challenge_mismatch');
       const input: SubmissionInput = submissionInput(request.body);
       const snapshot = await readChallengeSnapshot(db, normalizedChallengeId);
       if (!snapshot) return error(reply, 404, 'challenge_not_found');
       const entry = snapshot.entries.find((candidate) => candidate.entry_id === input.entryId);
       if (!entry) return error(reply, 404, 'challenge_entry_not_found');
       if (entry.builder_player_id !== auth.playerId) return error(reply, 403, 'challenge_entry_owner_required');
+      if (auth.challengeId !== normalizedChallengeId) return error(reply, 403, 'challenge_submit_credential_challenge_mismatch');
       if (!snapshot.contract || !snapshot.challenge.current_terms_digest) return error(reply, 409, 'challenge_contract_not_frozen');
       if (snapshot.contract.terms_digest !== snapshot.challenge.current_terms_digest) return error(reply, 409, 'challenge_contract_pointer_invalid');
       if (input.expectedTermsDigest !== snapshot.challenge.current_terms_digest) return error(reply, 409, 'challenge_terms_digest_stale');
