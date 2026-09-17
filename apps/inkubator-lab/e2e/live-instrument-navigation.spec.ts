@@ -157,7 +157,7 @@ test('integrated Instrument OS switches all five live surfaces in-place and pres
   await page.setViewportSize({width: 1440, height: 900});
   await routeIntegratedApp(page);
 
-  await page.goto('/?mode=command');
+  await page.goto('/?lab=live-legacy&mode=command');
   await expectMode(page, 'command');
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'}).first()).toBeVisible();
 
@@ -191,7 +191,7 @@ test('integrated Instrument OS keeps every live mode usable on the 390px rehears
   await page.emulateMedia({reducedMotion: 'reduce'});
   await routeIntegratedApp(page);
 
-  await page.goto('/?mode=world');
+  await page.goto('/?lab=live-legacy&mode=world');
   for (const mode of ['world', 'command', 'project', 'player', 'ship'] as const) {
     if (mode !== 'world') await page.locator(`button[data-mode="${mode}"]`).click();
     await expectMode(page, mode);
