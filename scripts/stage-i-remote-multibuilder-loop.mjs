@@ -180,7 +180,9 @@ try {
     }), 201, `builder ${index + 1} join`);
     assert.equal(joined.entry_id, entryId);
     const capsule = assertStatus(await browserJson(builderPages[index], 'GET', `/v1/challenges/${challengeId}/my-build`), 200, `builder ${index + 1} capsule`);
-    assert.equal(capsule.entry.entry_id, entryId);
+    assert.equal(capsule.entry_id, entryId);
+    assert.equal(capsule.challenge_id, challengeId);
+    assert.equal(capsule.terms_digest, termsDigest);
     entries.push({entryId, page: builderPages[index]});
   }
   stage('JOIN', {entries: entries.length});
