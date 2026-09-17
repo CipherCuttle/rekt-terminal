@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import type {FastifyInstance, FastifyReply, FastifyRequest} from 'fastify';
+import {sql} from 'kysely';
 import {
   IP_TERMS_VERSION,
   MECHANISM_VERSION,
@@ -176,7 +177,11 @@ async function launchStageIMockChallenge(db: InkubatorDatabase, challengeId: str
   const dedupeKey = `activity:challenge.stage_i_mock_launched:${normalizedChallengeId}:${normalizedRequestId}`;
 
   await db.transaction().execute(async (tx) => {
-    const locked = await tx.selectFrom('challenges').selectAll().where('challenge_id', '=', normalizedChallengeId).forUpdate().executeTakeFirst();
+    const locked = (await sql<{organizer_player_id: string; status: string}>`
+      select organizer_player_id, status from challenges
+      where challenge_id = ${normalizedChallengeId}
+      for update
+    `.execute(tx)).rows[0];
     if (!locked) throw new Error('challenge_not_found');
     if (locked.organizer_player_id !== actorPlayerId) throw new Error('challenge_organizer_required');
 
@@ -191,8 +196,8 @@ async function launchStageIMockChallenge(db: InkubatorDatabase, challengeId: str
     if (contract.settlement_asset !== MOCK_SETTLEMENT_ASSET) throw new Error('stage_i_mock_settlement_asset_required');
 
     const now = await readDatabaseNow(tx);
-    const initial = {challenge_id: normalizedChallengeId, status: 'DRAFT', contract};
-    const awaiting = transitionChallenge(initial, 'AWAITING_FUNDING');
+    const protocolChallenge = {challenge_id: normalizedChallengeId, status: 'DRAFT' as const, contract};
+    transitionChallenge(protocolChallenge, 'AWAITING_FUNDING');
     const fundingFact = {
       status: 'CONFIRMED',
       challenge_id: normalizedChallengeId,
@@ -201,10 +206,16 @@ async function launchStageIMockChallenge(db: InkubatorDatabase, challengeId: str
       contract_digest: digestBuildContract(contract),
       evidence: 'STAGE_I_MOCK_ONLY',
     };
-    const funded = transitionChallenge(awaiting, 'FUNDED', {fundingFact});
-    const opened = transitionChallenge(funded, 'ENTRY_OPEN', {now: now.getTime()});
+    transitionChallenge({...protocolChallenge, status: 'AWAITING_FUNDING' as const}, 'FUNDED', {fundingFact});
+    transitionChallenge({...protocolChallenge, status: 'FUNDED' as const}, 'ENTRY_OPEN', {now: now.getTime()});
 
-    await tx.updateTable('challenges').set({status: opened.status, updated_at: now}).where('challenge_id', '=', normalizedChallengeId).executeTakeFirstOrThrow();
+    const updated = await sql<{challenge_id: string}>`
+      update challenges
+      set status = 'ENTRY_OPEN', updated_at = ${now}
+      where challenge_id = ${normalizedChallengeId}
+      returning challenge_id
+    `.execute(tx);
+    if (!updated.rows[0]) throw new Error('challenge_not_found');
     await appendHistoryEvent(tx, {
       eventFamily: 'activity',
       eventType: 'challenge.stage_i_mock_launched',
