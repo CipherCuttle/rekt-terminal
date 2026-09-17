@@ -57,7 +57,7 @@ describe('Stage I owner journey composition', () => {
     renderJourney(client());
 
     expect(await screen.findByRole('navigation', {name: 'Inkubator journey'})).toBeTruthy();
-    expect(screen.getByText('COMPILER / CREATE', {selector: 'h1'})).toBeTruthy();
+    expect(document.querySelector('.challenge-journey-header h1')?.textContent).toBe('COMPILER / CREATE');
     expect(document.querySelector('.challenge-journey-runtime .challenge-product')).toBeTruthy();
     expect(screen.queryByText('WORLD')).toBeNull();
   });
