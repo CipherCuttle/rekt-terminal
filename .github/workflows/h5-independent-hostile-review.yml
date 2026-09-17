@@ -16,7 +16,7 @@ jobs:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       H5_BASE_SHA: 73c37922574b27c6052d6149ee02c45e42888afd
       H5_TARGET_SHA: b2c67646a65307d05b6aa0fa7392092fd21eb483
-      REVIEW_MODEL: poolside/laguna-s-2.1:free
+      REVIEW_MODEL: nvidia/nemotron-3-ultra-550b-a55b:free
     steps:
       - name: Check out exact H5 target
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -92,7 +92,8 @@ jobs:
             body: JSON.stringify({
               model: process.env.REVIEW_MODEL,
               temperature: 0.1,
-              max_tokens: 6000,
+              max_tokens: 7000,
+              reasoning: {effort: 'high'},
               messages: [
                 {role: 'system', content: system},
                 {role: 'user', content: user},
@@ -100,7 +101,9 @@ jobs:
             }),
           });
           if (!response.ok) {
+            const errorBody = await response.text();
             console.error(`OpenRouter review failed with HTTP ${response.status}`);
+            console.error(errorBody.slice(0, 1000));
             process.exit(1);
           }
           const data = await response.json();
