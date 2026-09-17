@@ -92,7 +92,7 @@ describe('Stage I alpha browser bridge', () => {
   it('mock-launches only an already frozen DRAFT through the test-only endpoint', async () => {
     const launchStageIMockChallenge = vi.fn(async () => entryOpen);
     window.history.replaceState({}, '', `/?surface=compiler&challenge=${challengeId}`);
-    render(<StageIOrganizerBridge api={baseApi({
+    render(<StageIOrganizerBridge challenge={draft} api={baseApi({
       createChallenge: vi.fn(async () => draft),
       launchStageIMockChallenge,
     })} />);
@@ -116,7 +116,7 @@ describe('Stage I alpha browser bridge', () => {
     window.history.replaceState({}, '', `/?surface=challenge&challenge=${challengeId}`);
     render(<StageIJoinBridge api={baseApi({getChallenge: vi.fn(async () => entryOpen), joinChallenge})} />);
 
-    await waitFor(() => expect(screen.getByRole('button', {name: 'JOIN CHALLENGE'})).not.toBeDisabled());
+    await waitFor(() => expect((screen.getByRole('button', {name: 'JOIN CHALLENGE'}) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole('button', {name: 'JOIN CHALLENGE'}));
     await waitFor(() => expect(joinChallenge).toHaveBeenCalledTimes(1));
     const [joinedChallengeId, requestId, generatedEntryId, expectedTermsDigest] = joinChallenge.mock.calls[0]!;
