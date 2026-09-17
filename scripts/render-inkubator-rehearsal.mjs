@@ -2,6 +2,7 @@ import {createServer, request as httpRequest} from 'node:http';
 import {readFile, stat} from 'node:fs/promises';
 import {extname, join, normalize} from 'node:path';
 import {spawn} from 'node:child_process';
+import {handleStageIRehearsalBootstrap} from './stage-i-oidc-bootstrap.mjs';
 
 const publicPort = Number(process.env.PORT || 10000);
 const apiPort = Number(process.env.INKUBATOR_INTERNAL_API_PORT || 8788);
@@ -117,6 +118,14 @@ async function serveStatic(req, res) {
 
 const server = createServer((req, res) => {
   const path = req.url || '/';
+  if (path === '/__stage-i-rehearsal/bootstrap') {
+    void handleStageIRehearsalBootstrap(req, res).catch((error) => {
+      console.error('stage-i rehearsal bootstrap failed', error);
+      if (!res.headersSent) res.writeHead(500, {'content-type': 'application/json', 'cache-control': 'no-store'});
+      res.end(JSON.stringify({error: 'bootstrap_failed'}));
+    });
+    return;
+  }
   if (path === '/health' || path.startsWith('/v1/') || path === '/openapi.json') return proxy(req, res);
   void serveStatic(req, res).catch((error) => {
     console.error('static serving failed', error);
