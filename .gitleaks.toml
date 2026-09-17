@@ -4,9 +4,11 @@ title = "rekt-terminal secret scanning"
 useDefault = true
 
 [allowlist]
-description = "Public chain/address evidence and one documented Git commit identifier are not credentials."
+description = "Public EVM token-address evidence plus one docs-only Stage-H closure commit known to contain a public Git SHA, not a credential."
 regexTarget = "line"
+commits = [
+  "2a0a4c50831508d88364574bc9ead0c72b4cbab8"
+]
 regexes = [
-  '''^\s*"baseTokenAddress"\s*:\s*"0x[a-fA-F0-9]{40}",?\s*$''',
-  '''^- H0 authority lock: `19c04c4cb26477979c1190a5b9173c27822e3d6a`$'''
+  '''^\s*"baseTokenAddress"\s*:\s*"0x[a-fA-F0-9]{40}",?\s*$'''
 ]
