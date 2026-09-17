@@ -1,4 +1,4 @@
-name: Stage I remote multibuilder auth rehearsal
+name: Stage I remote multibuilder Challenge rehearsal
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
       EXPECTED_PRODUCT_SHA: 1504c70089644cbee9f9630a4432cdb1826144f3
       SESSION_FILE: /tmp/stage-i-sessions.json
     steps:
-      - name: Check out exact harness base
+      - name: Check out rehearsal harness
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 1
@@ -60,7 +60,7 @@ jobs:
             throw new Error(`bootstrap_failed_${response.status}_${JSON.stringify(body)}`);
           }
           fs.writeFileSync(process.env.SESSION_FILE, JSON.stringify(body));
-          console.log('BOOTSTRAP_ACQUIRED: 4 disposable identities; tokens retained only in runner temp');
+          console.log('BOOTSTRAP_ACQUIRED: organizer + 3 builders; tokens retained only in runner temp');
           NODE
 
       - name: Wait for bootstrap shim removal and exact candidate restore
@@ -90,59 +90,11 @@ jobs:
           throw new Error('exact_candidate_restore_timeout');
           NODE
 
-      - name: Prove four authenticated browser identities on exact candidate
+      - name: Run full three-builder Challenge loop on exact candidate
         shell: bash
         run: |
           set -euo pipefail
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import assert from 'node:assert/strict';
-          import {chromium} from '@playwright/test';
-          const bootstrap = JSON.parse(fs.readFileSync(process.env.SESSION_FILE, 'utf8'));
-          const base = process.env.TARGET_URL;
-          const url = new URL(base);
-          const browser = await chromium.launch();
-          const evidence = [];
-          try {
-            for (let index = 0; index < bootstrap.identities.length; index += 1) {
-              const identity = bootstrap.identities[index];
-              const context = await browser.newContext();
-              try {
-                await context.addCookies([{
-                  name: '__Host-rekt_session',
-                  value: identity.session_token,
-                  domain: url.hostname,
-                  path: '/',
-                  httpOnly: true,
-                  secure: true,
-                  sameSite: 'Lax',
-                }]);
-                const page = await context.newPage();
-                const root = await page.goto(base, {waitUntil: 'domcontentloaded', timeout: 60_000});
-                assert.equal(root?.status(), 200);
-                const me = await page.evaluate(async () => {
-                  const response = await fetch('/v1/me', {credentials: 'include'});
-                  return {status: response.status, body: await response.json()};
-                });
-                assert.equal(me.status, 200);
-                assert.equal(me.body.player_id, identity.player_id);
-                evidence.push({index, player_id: identity.player_id, display_name: identity.display_name, status: 'AUTHENTICATED'});
-              } finally {
-                await context.close();
-              }
-            }
-          } finally {
-            await browser.close();
-          }
-          assert.equal(new Set(evidence.map((item) => item.player_id)).size, 4);
-          fs.writeFileSync('stage-i-multibuilder-auth-proof.json', JSON.stringify({
-            schema_version: 'stage-i.multibuilder-auth-proof/1.0',
-            expected_product_sha: process.env.EXPECTED_PRODUCT_SHA,
-            identity_count: evidence.length,
-            identities: evidence,
-          }, null, 2) + '\n');
-          console.log(JSON.stringify({identity_count: evidence.length, distinct_players: 4, verdict: 'PASS'}));
-          NODE
+          node scripts/stage-i-remote-multibuilder-loop.mjs
 
       - name: Revoke disposable sessions
         if: always()
@@ -165,11 +117,11 @@ jobs:
           console.log('DISPOSABLE_SESSIONS_REVOKED');
           NODE
 
-      - name: Upload auth proof
+      - name: Upload full-loop proof
         if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: stage-i-multibuilder-auth-proof-${{ env.EXPECTED_PRODUCT_SHA }}
-          path: stage-i-multibuilder-auth-proof.json
+          name: stage-i-remote-multibuilder-loop-${{ env.EXPECTED_PRODUCT_SHA }}
+          path: stage-i-remote-multibuilder-loop-proof.json
           if-no-files-found: error
           retention-days: 14
