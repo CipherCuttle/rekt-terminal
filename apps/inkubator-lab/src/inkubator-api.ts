@@ -51,6 +51,176 @@ export interface PublicChallengeView {
   updated_at: string;
 }
 
+export interface StageIChallengeCreateInput {
+  request_id: string;
+  challenge_id: string;
+  slot_limit: number;
+  activation_minimum: number;
+  entry_deadline_ms: number;
+  submission_deadline_ms: number;
+  appeal_window_ms: number;
+  review_deadline_ms: number;
+}
+
+export interface StageIChallengeEntryView {
+  schema_version: 'challenge.entry.joined.v1';
+  challenge_id: string;
+  entry_id: string;
+  state: string;
+  terms_digest: string;
+}
+
+export interface BuilderCapsuleFileView {
+  path: string;
+  media_type: 'text/markdown' | 'application/json';
+  sha256: string;
+  content: string;
+}
+
+export interface BuilderCapsuleView {
+  schema_version: 'builder-capsule.v1';
+  challenge_id: string;
+  entry_id: string;
+  entry_state: string;
+  contract_version: string;
+  terms_digest: string;
+  submission_deadline: string;
+  files: BuilderCapsuleFileView[];
+}
+
+export interface StageISubmitCredentialView {
+  schema_version: 'devkit.token.issued.v1';
+  token_id: string;
+  credential_class: 'CLI';
+  label: string;
+  scopes: ['challenge:submit'];
+  token: string;
+  expires_at: string;
+  challenge_id: string;
+  purpose: 'FINAL_SUBMISSION_ONLY';
+}
+
+export interface RevealArenaCriterionView {
+  criterion_id: string;
+  group: 'OUTCOME' | 'PRODUCTION_ENVELOPE' | 'DELIVERY' | 'NORMATIVE_CONSTRAINT';
+  description: string;
+}
+
+export interface RevealArenaSubmissionView {
+  entry_id: string;
+  submission_id: string;
+  submission_version: number;
+  accepted_at: string;
+  immutable_source_reference: {kind: string; value: string};
+  artifact_digest: string;
+  optional_live_url?: string;
+  archive: {
+    status: string;
+    archive_digest: string | null;
+    reason_code: string | null;
+    observed_at: string | null;
+  } | null;
+}
+
+export interface RevealArenaView {
+  schema_version: 'challenge.reveal-arena/1.0';
+  challenge_id: string;
+  contract_version: string;
+  terms_digest: string;
+  reveal_state: 'REVEALED';
+  criteria: RevealArenaCriterionView[];
+  submissions: RevealArenaSubmissionView[];
+}
+
+export interface TestArenaModuleCatalogView {
+  schema_version: 'challenge.test-module-catalog/1.0';
+  modules: Array<Record<string, unknown>>;
+}
+
+export interface StageIHumanObservationInput {
+  criterion_id: string;
+  result: 'PASS' | 'FAIL' | 'DISPUTED';
+  evidence_refs: string[];
+}
+
+export interface StageIQualificationInput {
+  request_id: string;
+  qualification_id: string;
+  acceptance_manifest_reference_id: string;
+  acceptance_manifest: Record<string, unknown>;
+  human_observations: StageIHumanObservationInput[];
+}
+
+export interface StageIQualificationView {
+  schema_version: 'challenge.test-arena-qualification/1.0';
+  challenge_id: string;
+  entry_id: string;
+  submission_id: string;
+  qualification_id: string;
+  qualification_version: string;
+  result: 'QUALIFIED' | 'NOT_QUALIFIED' | 'DISPUTED';
+  execution_digest: string;
+}
+
+export interface QualifierComparisonView {
+  schema_version: 'challenge.qualifier-comparison/1.0';
+  challenge_id: string;
+  contract_version: string;
+  terms_digest: string;
+  status: string;
+  preferences: Record<string, unknown>;
+  final_qualifier_ids: string[];
+  selected_entry_id: string | null;
+  qualifiers: RevealArenaSubmissionView[];
+}
+
+export interface StageISelectionInput {
+  request_id: string;
+  decision_id: string;
+  selected_entry_id: string;
+}
+
+export interface StageISelectionView {
+  schema_version: 'challenge.selection/1.0';
+  challenge_id: string;
+  decision_id: string;
+  decision_version: string;
+  selected_entry_id: string;
+  decision_digest: string;
+}
+
+export interface ChallengeBaseReceiptView {
+  protocol_receipt_id: string;
+  schema_version: 'inkubator.challenge-receipt/1.0';
+  digest: string;
+  created_at: string;
+  challenge_id: string;
+  terms_digest: string;
+  contract_version: string;
+  mechanism_version: string;
+  settlement_policy_version: string;
+  ip_terms_version: string;
+  terminal_outcome: string;
+  ip_transfer_fact: string;
+  settlement_asset: string;
+  total_minor_units: number;
+  winner_entry_id: string | null;
+}
+
+export interface ChallengeReceiptCorrectionView {
+  protocol_receipt_id: string;
+  schema_version: 'inkubator.challenge-receipt-correction/1.0';
+  digest: string;
+  created_at: string;
+  supersedes_protocol_receipt_id: string;
+}
+
+export interface ChallengeReceiptTransportView {
+  schema_version: 'challenge.receipt-transport/1.0';
+  challenge_id: string;
+  receipts: Array<ChallengeBaseReceiptView | ChallengeReceiptCorrectionView>;
+}
+
 export type CompilerInputProvenance = 'SOURCE' | 'MODEL_PROPOSAL' | 'ORGANIZER_ACCEPTED';
 export interface CompilerProposalInput {
   schema_version: 'inkubator.compiler-proposal/1.0';
@@ -161,9 +331,121 @@ export class InkubatorProductApiClient extends InkubatorApiClient {
     return this.productRequest<GitHubReconcileView>('/v1/github/reconcile', {method: 'POST'});
   }
 
+  async createChallenge(input: StageIChallengeCreateInput): Promise<PublicChallengeView> {
+    return this.productRequest<PublicChallengeView>('/v1/challenges', {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify(input),
+    });
+  }
+
   async getChallenge(challengeId: string): Promise<PublicChallengeView> {
     return this.productRequest<PublicChallengeView>(
       `/v1/challenges/${encodeURIComponent(challengeId)}`,
+      {method: 'GET'},
+    );
+  }
+
+  async launchStageIMockChallenge(challengeId: string, requestId: string): Promise<PublicChallengeView> {
+    return this.productRequest<PublicChallengeView>(
+      `/v1/challenges/${encodeURIComponent(challengeId)}/stage-i-mock-launch`,
+      {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({request_id: requestId}),
+      },
+    );
+  }
+
+  async joinChallenge(
+    challengeId: string,
+    requestId: string,
+    entryId: string,
+    expectedTermsDigest: string,
+  ): Promise<StageIChallengeEntryView> {
+    return this.productRequest<StageIChallengeEntryView>(
+      `/v1/challenges/${encodeURIComponent(challengeId)}/entries`,
+      {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          request_id: requestId,
+          entry_id: entryId,
+          expected_terms_digest: expectedTermsDigest,
+        }),
+      },
+    );
+  }
+
+  async getMyBuild(challengeId: string): Promise<BuilderCapsuleView> {
+    return this.productRequest<BuilderCapsuleView>(
+      `/v1/challenges/${encodeURIComponent(challengeId)}/my-build`,
+      {method: 'GET'},
+    );
+  }
+
+  async mintSubmitCredential(
+    challengeId: string,
+    requestId: string,
+    expiresInSeconds = 3600,
+  ): Promise<StageISubmitCredentialView> {
+    return this.productRequest<StageISubmitCredentialView>(
+      `/v1/challenges/${encodeURIComponent(challengeId)}/submit-credential`,
+      {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({request_id: requestId, expires_in_seconds: expiresInSeconds}),
+      },
+    );
+  }
+
+  async getRevealArena(challengeId: string): Promise<RevealArenaView> {
+    return this.productRequest<RevealArenaView>(
+      `/v1/challenges/${encodeURIComponent(challengeId)}/reveal-arena`,
+      {method: 'GET'},
+    );
+  }
+
+  async getTestArenaModules(): Promise<TestArenaModuleCatalogView> {
+    return this.productRequest<TestArenaModuleCatalogView>('/v1/test-arena/modules', {method: 'GET'});
+  }
+
+  async qualifyEntry(
+    challengeId: string,
+    entryId: string,
+    input: StageIQualificationInput,
+  ): Promise<StageIQualificationView> {
+    return this.productRequest<StageIQualificationView>(
+      `/v1/challenges/${encodeURIComponent(challengeId)}/test-arena/entries/${encodeURIComponent(entryId)}/qualify`,
+      {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify(input),
+      },
+    );
+  }
+
+  async getQualifierComparison(challengeId: string): Promise<QualifierComparisonView> {
+    return this.productRequest<QualifierComparisonView>(
+      `/v1/challenges/${encodeURIComponent(challengeId)}/qualifier-comparison`,
+      {method: 'GET'},
+    );
+  }
+
+  async selectQualifier(challengeId: string, input: StageISelectionInput): Promise<StageISelectionView> {
+    return this.productRequest<StageISelectionView>(
+      `/v1/challenges/${encodeURIComponent(challengeId)}/selection`,
+      {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify(input),
+      },
+    );
+  }
+
+  async getReceipts(challengeId: string): Promise<ChallengeReceiptTransportView> {
+    return this.productRequest<ChallengeReceiptTransportView>(
+      `/v1/challenges/${encodeURIComponent(challengeId)}/receipts`,
       {method: 'GET'},
     );
   }
