@@ -135,6 +135,12 @@ jobs:
           set -euo pipefail
           node scripts/stage-i-remote-multibuilder-loop.mjs
 
+      - name: Run browser and degraded composition closure on exact candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/stage-i-browser-composition-closure.mjs
+
       - name: Revoke disposable sessions
         if: always()
         shell: bash
@@ -156,11 +162,13 @@ jobs:
           console.log('DISPOSABLE_SESSIONS_REVOKED');
           NODE
 
-      - name: Upload full-loop proof
+      - name: Upload Stage I closure proof
         if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: stage-i-remote-multibuilder-loop-${{ env.EXPECTED_PRODUCT_SHA }}
-          path: stage-i-remote-multibuilder-loop-proof.json
+          name: stage-i-closure-${{ env.EXPECTED_PRODUCT_SHA }}
+          path: |
+            stage-i-remote-multibuilder-loop-proof.json
+            stage-i-browser-composition-closure-proof.json
           if-no-files-found: error
           retention-days: 14
