@@ -84,9 +84,9 @@ function SessionStatus({client}: {client: Pick<InkubatorApiClient, 'getMe'>}) {
 
 function JourneyChrome({surface, challengeId, client, children}: {surface: ChallengeSurface; challengeId: string | null; client: Pick<InkubatorApiClient, 'getMe'>; children: ReactNode}) {
   return (
-    <div role={surface === 'DISCOVER' ? 'main' : undefined} className="ios-lab ios-shell ios-shell-v2 challenge-journey-shell" data-shell="terminal" data-shell-variant="v2" data-mode="command">
-      <a className="faceplate-skip" href="#journey-workspace">Skip to Inkubator</a>
+    <div className="ios-lab ios-shell ios-shell-v2 challenge-journey-shell" data-shell="terminal" data-shell-variant="v2" data-mode="command">
       <nav className="faceplate-topbar" aria-label="Product controls">
+        <a className="faceplate-skip" href="#journey-workspace">Skip to Inkubator</a>
         <a className="faceplate-brand" href={challengeHref('DISCOVER')}><strong>REKT<i>//</i></strong><span className="faceplate-brand-label">INKUBATOR</span></a>
         <span className="faceplate-purpose">TECHNICAL FACEPLATE / CHALLENGE PRODUCT</span>
         <SessionStatus client={client} />
@@ -107,9 +107,15 @@ function JourneyChrome({surface, challengeId, client, children}: {surface: Chall
       </header>
       <section className="ios-shell-chassis">
         <FaceplateRail surface={surface} challengeId={challengeId} />
-        <section id="journey-workspace" tabIndex={-1} className="ios-shell-workspace challenge-journey-workspace">
-          {children}
-        </section>
+        {surface === 'DISCOVER' ? (
+          <main id="journey-workspace" tabIndex={-1} className="ios-shell-workspace challenge-journey-workspace">
+            {children}
+          </main>
+        ) : (
+          <section id="journey-workspace" tabIndex={-1} className="ios-shell-workspace challenge-journey-workspace">
+            {children}
+          </section>
+        )}
       </section>
       <footer className="ios-lab-footer ios-shell-footer challenge-journey-footer">
         <span>STAGE I / OWNER TRIAL</span><span>NO REAL VALUE</span><span>TRUTH BEFORE THEATER</span>
