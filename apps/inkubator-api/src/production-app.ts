@@ -25,6 +25,7 @@ import {
   revokeAllPlayerSessions,
   revokeSession,
 } from './session.js';
+import {registerStageIAlphaRoutes} from './stage-i-alpha-api.js';
 
 export interface BuildFundedChallengeProductionAppOptions {
   db: InkubatorDatabase;
@@ -42,6 +43,7 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const CORS_METHODS = new Set(['GET', 'POST', 'DELETE']);
 const CORS_HEADERS = new Set(['content-type']);
 const INCIDENT_REVOCATION_PATHS = new Set(['/v1/session', '/v1/sessions']);
+const CHALLENGE_SUBMISSION_PATH = /^\/v1\/challenges\/[^/]+\/submissions$/;
 
 function error(reply: FastifyReply, statusCode: number, message: string) {
   return reply.code(statusCode).send({error: message});
@@ -80,6 +82,14 @@ function observeProductionRoute(
     if (normalized === 'HEAD') continue;
     observed.add(`${normalized} ${url}` as ProductionRouteSignature);
   }
+}
+
+function isBearerChallengeSubmission(request: FastifyRequest, pathname: string): boolean {
+  const authorization = headerValue(request.headers.authorization);
+  return request.method === 'POST'
+    && CHALLENGE_SUBMISSION_PATH.test(pathname)
+    && typeof authorization === 'string'
+    && /^Bearer\s+\S+$/i.test(authorization.trim());
 }
 
 function registerGitHubProductionRoutes(
@@ -183,6 +193,7 @@ export function buildFundedChallengeProductionApp(options: BuildFundedChallengeP
       return error(reply, 503, 'incident_write_freeze');
     }
     if (pathname === '/v1/github/webhook') return;
+    if (isBearerChallengeSubmission(request, pathname)) return;
     if (request.headers.origin !== options.appOrigin) return error(reply, 403, 'origin_not_allowed');
   });
 
@@ -215,6 +226,7 @@ export function buildFundedChallengeProductionApp(options: BuildFundedChallengeP
   });
 
   registerStageEChallengeProductRoutes(app, options.db);
+  registerStageIAlphaRoutes(app, options.db);
   registerStageGRevealArenaRoutes(app, options.db);
   registerStageG2BTestArenaRoutes(app, options.db);
   registerStageG3Routes(app, options.db);
