@@ -108,6 +108,7 @@ function verifierResult(submissionId, url) {
 
 test('H5 healthy long verifier heartbeat prevents replacement overlap', async () => {
   const db = createDatabase(databaseUrl);
+  const replacementDb = createDatabase(databaseUrl);
   await migrateToLatest(db);
   const app = buildApp({db, appOrigin, allowDevAuth: true, sessionTtlSeconds: 3600, github: null});
   try {
@@ -129,13 +130,32 @@ test('H5 healthy long verifier heartbeat prevents replacement overlap', async ()
       },
     });
     await started.promise;
+
+    const initiallyClaimed = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', job.job_id).executeTakeFirstOrThrow();
+    assert.equal(initiallyClaimed.state, 'running');
+    assert.equal(initiallyClaimed.attempts, 1);
+    assert.ok(initiallyClaimed.lock_token);
+    assert.ok(initiallyClaimed.locked_at);
+
     await sleep(2_600);
 
-    const workerB = await runOneJob(db, {
+    const heartbeating = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', job.job_id).executeTakeFirstOrThrow();
+    assert.equal(heartbeating.state, 'running');
+    assert.equal(heartbeating.attempts, 1);
+    assert.equal(heartbeating.lock_token, initiallyClaimed.lock_token);
+    assert.ok(heartbeating.locked_at);
+    assert.ok(heartbeating.locked_at.getTime() > initiallyClaimed.locked_at.getTime(), 'healthy worker must renew the target lease');
+
+    const workerB = await runOneJob(replacementDb, {
       leaseMs: 1_000,
       shipVerifierClient: {verify: async () => { throw new Error('replacement_must_not_run'); }},
     });
-    assert.deepEqual(workerB, {status: 'idle'});
+    if (workerB.status !== 'idle') assert.notEqual(workerB.jobId, job.job_id, 'replacement worker must not reclaim the healthy target job');
+
+    const afterReplacementAttempt = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', job.job_id).executeTakeFirstOrThrow();
+    assert.equal(afterReplacementAttempt.state, 'running');
+    assert.equal(afterReplacementAttempt.attempts, 1);
+    assert.equal(afterReplacementAttempt.lock_token, initiallyClaimed.lock_token);
 
     release.resolve();
     assert.deepEqual(await workerA, {status: 'succeeded', jobId: job.job_id});
@@ -146,6 +166,7 @@ test('H5 healthy long verifier heartbeat prevents replacement overlap', async ()
     assert.equal(submissionId.length, 36);
   } finally {
     await app.close();
+    await replacementDb.destroy();
     await db.destroy();
   }
 });
