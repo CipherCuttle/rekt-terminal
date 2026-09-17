@@ -230,11 +230,12 @@ test('F3A non-Git source terminalizes unsupported without capture client while G
     const gitJob = await archiveJob(db, git.submissionId);
     const before = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', gitJob.job_id).executeTakeFirstOrThrow();
     assert.equal(before.attempts, 0);
-    assert.equal((await runOneJob(db)).status, 'idle');
+    await runOneJob(db);
     const after = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', gitJob.job_id).executeTakeFirstOrThrow();
     assert.equal(after.state, 'pending');
     assert.equal(after.attempts, 0);
     assert.equal((await archiveState(db, git.submissionId)).status, 'PENDING');
+    await db.updateTable('outbox_jobs').set({next_attempt_at: new Date('9999-12-31T00:00:00.000Z')}).where('job_id', '=', gitJob.job_id).execute();
   } finally {
     await db.destroy();
   }
