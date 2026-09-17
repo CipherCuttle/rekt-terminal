@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rekt-inkubator:schema:build-contract:1.0",
+  "title": "REKT Inkubator Build Contract V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "challenge_id", "contract_version", "mechanism_version", "settlement_policy_version", "ip_terms_version",
+    "title", "brief", "outcome_contract", "production_envelope", "delivery_contract", "preferences", "reference_architecture",
+    "normative_constraints", "normative_references", "knowledge", "slot_limit", "activation_minimum", "entry_deadline", "build_start",
+    "submission_deadline", "appeal_window_ms", "review_deadline", "prize_minor_units", "settlement_asset"
+  ],
+  "$defs": {
+    "criterion": {
+      "type": "object", "additionalProperties": false, "required": ["id", "description", "mandatory"],
+      "properties": {"id": {"type": "string", "minLength": 1}, "description": {"type": "string", "minLength": 1}, "mandatory": {"type": "boolean"}}
+    },
+    "criteriaContainer": {"type": "object", "properties": {"criteria": {"type": "array", "items": {"$ref": "#/$defs/criterion"}}}, "additionalProperties": true}
+  },
+  "properties": {
+    "schema_version": {"const": "inkubator.build-contract/1.0"}, "challenge_id": {"type": "string", "minLength": 1},
+    "contract_version": {"type": "string", "minLength": 1}, "mechanism_version": {"type": "string", "minLength": 1},
+    "settlement_policy_version": {"type": "string", "minLength": 1}, "ip_terms_version": {"type": "string", "minLength": 1},
+    "title": {"type": "string", "minLength": 1}, "brief": {"type": "string", "minLength": 1},
+    "outcome_contract": {"$ref": "#/$defs/criteriaContainer"}, "production_envelope": {"$ref": "#/$defs/criteriaContainer"},
+    "delivery_contract": {"$ref": "#/$defs/criteriaContainer"}, "preferences": {"type": "object"}, "reference_architecture": {"type": "object"},
+    "normative_constraints": {"type": "array", "items": {"$ref": "#/$defs/criterion"}},
+    "normative_references": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "kind", "content_digest"], "properties": {"id": {"type": "string", "minLength": 1}, "kind": {"type": "string", "minLength": 1}, "content_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "source_url": {"type": "string", "format": "uri"}}}},
+    "informational_references": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "url"], "properties": {"id": {"type": "string", "minLength": 1}, "url": {"type": "string", "format": "uri"}}}},
+    "knowledge": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["kind", "key", "material"], "properties": {"kind": {"enum": ["KNOWN", "ASSUMED", "UNKNOWN"]}, "key": {"type": "string", "minLength": 1}, "material": {"type": "boolean"}, "value": {}}}},
+    "slot_limit": {"type": "integer", "minimum": 1}, "activation_minimum": {"type": "integer", "minimum": 1},
+    "entry_deadline": {"type": "integer", "minimum": 0}, "build_start": {"type": "integer", "minimum": 0},
+    "submission_deadline": {"type": "integer", "minimum": 0}, "appeal_window_ms": {"type": "integer", "minimum": 1},
+    "review_deadline": {"type": "integer", "minimum": 0}, "prize_minor_units": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "prize_display": {"type": "string", "minLength": 1}, "settlement_asset": {"type": "string", "minLength": 1},
+    "terms_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

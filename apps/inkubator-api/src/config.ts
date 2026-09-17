@@ -6,6 +6,8 @@ export interface RuntimeConfig {
   appOrigin: string;
   allowDevAuth: boolean;
   sessionTtlSeconds: number;
+  incidentWriteFreeze: boolean;
+  incidentDisableGitHub: boolean;
   host: string;
   port: number;
   github: GitHubRuntimeOptions | null;
@@ -41,6 +43,13 @@ function parseSessionTtl(value: string | undefined): number {
     throw new Error('INKUBATOR_SESSION_TTL_SECONDS must be between 300 and 2592000');
   }
   return ttl;
+}
+
+function parseStrictFlag(env: NodeJS.ProcessEnv, name: string): boolean {
+  const value = env[name]?.trim();
+  if (!value || value === '0') return false;
+  if (value === '1') return true;
+  throw new Error(`${name} must be 0 or 1`);
 }
 
 function parseGitHub(env: NodeJS.ProcessEnv): GitHubRuntimeOptions | null {
@@ -82,6 +91,8 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
     appOrigin: parseOrigin(requireValue(env, 'INKUBATOR_APP_ORIGIN')),
     allowDevAuth,
     sessionTtlSeconds: parseSessionTtl(env.INKUBATOR_SESSION_TTL_SECONDS),
+    incidentWriteFreeze: parseStrictFlag(env, 'INKUBATOR_INCIDENT_WRITE_FREEZE'),
+    incidentDisableGitHub: parseStrictFlag(env, 'INKUBATOR_INCIDENT_DISABLE_GITHUB'),
     host: env.HOST?.trim() || '127.0.0.1',
     port: parsePort(env.PORT),
     github,

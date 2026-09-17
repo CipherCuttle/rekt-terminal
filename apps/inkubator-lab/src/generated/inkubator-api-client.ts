@@ -622,7 +622,7 @@ export interface PlayerHistoryView {
   entries: PlayerHistoryEntryView[];
 }
 
-export type DevkitScope = "player:read" | "project:read" | "mission:read" | "claim:write" | "update:write" | "beacon:write" | "assist:write" | "ship:prepare";
+export type DevkitScope = "player:read" | "project:read" | "mission:read" | "claim:write" | "update:write" | "beacon:write" | "assist:write" | "ship:prepare" | "challenge:submit";
 
 export type DevkitCredentialClass = "CLI" | "MCP" | "AUTOMATION";
 

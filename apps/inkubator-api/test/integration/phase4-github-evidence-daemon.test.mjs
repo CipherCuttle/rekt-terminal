@@ -38,7 +38,7 @@ async function sendWebhook(app, eventName, payload, deliveryId = randomUUID()) {
 
 async function drainOneProjectJob(db, projectId, previousCount = 0) {
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const result = await runOneJob(db, {leaseMs: 10, retryBaseMs: 1});
+    const result = await runOneJob(db, {leaseMs: 1_000, retryBaseMs: 1});
     if (result.status === 'idle') break;
     const projectObservations = await db.selectFrom('history_events').select('history_event_id')
       .where('event_type', '=', 'project.github_repository_push.observed')
@@ -125,7 +125,7 @@ test('Phase 4 projects trusted push evidence into freshness-aware advisory Comma
       .where('job_type', '=', 'project.github_observation').orderBy('created_at', 'desc').executeTakeFirstOrThrow();
     await db.updateTable('outbox_jobs').set({state: 'running', attempts: Math.max(1, firstObservationJob.attempts), locked_at: new Date(0), lock_token: randomUUID(), completed_at: null})
       .where('job_id', '=', firstObservationJob.job_id).execute();
-    const stackRetry = await runOneJob(db, {leaseMs: 1, retryBaseMs: 1});
+    const stackRetry = await runOneJob(db, {leaseMs: 1_000, retryBaseMs: 1});
     assert.equal(stackRetry.status, 'succeeded');
     const stackEventsAfterRetry = await db.selectFrom('history_events').selectAll()
       .where('event_type', '=', 'project.github_repository_stack.observed').where('subject_id', '=', projectId).execute();
@@ -253,7 +253,7 @@ test('Phase 4 projects trusted push evidence into freshness-aware advisory Comma
 
     await db.updateTable('outbox_jobs').set({state: 'running', attempts: Math.max(1, firstObservationJob.attempts), locked_at: new Date(0), lock_token: randomUUID(), completed_at: null})
       .where('job_id', '=', firstObservationJob.job_id).execute();
-    const oldRetryAfterNewerEvidence = await runOneJob(db, {leaseMs: 1, retryBaseMs: 1});
+    const oldRetryAfterNewerEvidence = await runOneJob(db, {leaseMs: 1_000, retryBaseMs: 1});
     assert.equal(oldRetryAfterNewerEvidence.status, 'succeeded');
     const stackEventsAfterLateRetry = await db.selectFrom('history_events').selectAll()
       .where('event_type', '=', 'project.github_repository_stack.observed').where('subject_id', '=', projectId).execute();
@@ -374,7 +374,7 @@ test('Phase 4 projects trusted push evidence into freshness-aware advisory Comma
         observed_stacks: ['PYTHON'],
       },
     });
-    const legacyFirst = await runOneJob(db, {leaseMs: 10, retryBaseMs: 1});
+    const legacyFirst = await runOneJob(db, {leaseMs: 1_000, retryBaseMs: 1});
     assert.equal(legacyFirst.status, 'succeeded');
     const legacyStackDedupe = `evidence:project.github_repository_stack.observed:${projectId}:${legacyDeliveryId}`;
     const legacyReceipt = await db.selectFrom('history_events').select('payload').where('dedupe_key', '=', legacyStackDedupe).executeTakeFirstOrThrow();
@@ -383,7 +383,7 @@ test('Phase 4 projects trusted push evidence into freshness-aware advisory Comma
     await db.updateTable('outbox_jobs').set({
       state: 'running', attempts: Math.max(1, legacyJob.attempts), locked_at: new Date(0), lock_token: randomUUID(), completed_at: null,
     }).where('job_id', '=', legacyJob.job_id).execute();
-    const legacyRetry = await runOneJob(db, {leaseMs: 1, retryBaseMs: 1});
+    const legacyRetry = await runOneJob(db, {leaseMs: 1_000, retryBaseMs: 1});
     assert.equal(legacyRetry.status, 'succeeded');
     const legacyReceiptsAfterRetry = await db.selectFrom('history_events').select('history_event_id').where('dedupe_key', '=', legacyStackDedupe).execute();
     assert.equal(legacyReceiptsAfterRetry.length, 1);

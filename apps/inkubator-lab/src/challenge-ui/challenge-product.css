@@ -1,0 +1,232 @@
+.challenge-product {
+  min-height: 100vh;
+  background: #0d0d0f;
+  color: #f3eff8;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.01em;
+}
+
+.challenge-product *,
+.challenge-product *::before,
+.challenge-product *::after { box-sizing: border-box; }
+
+.challenge-skip {
+  position: fixed;
+  left: 1rem;
+  top: -5rem;
+  z-index: 100;
+  padding: 0.7rem 1rem;
+  background: #f3eff8;
+  color: #0d0d0f;
+}
+.challenge-skip:focus { top: 1rem; }
+
+.challenge-topbar {
+  min-height: 3.25rem;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid rgba(243, 239, 248, 0.18);
+  text-transform: uppercase;
+  font-size: 0.7rem;
+}
+
+.challenge-brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  color: inherit;
+  text-decoration: none;
+}
+.challenge-brand strong { font-size: 1.05rem; letter-spacing: 0.08em; }
+.challenge-brand i { font-style: normal; opacity: 0.45; }
+.challenge-brand span { opacity: 0.7; }
+.challenge-purpose { justify-self: center; opacity: 0.58; }
+.challenge-authority { opacity: 0.8; }
+
+.challenge-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2rem;
+  padding: 2rem 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(243, 239, 248, 0.12);
+}
+.challenge-heading small,
+.challenge-state small { font-size: 0.72rem; opacity: 0.58; letter-spacing: 0.12em; }
+.challenge-heading h1 {
+  margin: 0.35rem 0 0.5rem;
+  max-width: 14ch;
+  font-size: clamp(2.1rem, 6vw, 5.4rem);
+  line-height: 0.9;
+  letter-spacing: -0.055em;
+}
+.challenge-heading p { margin: 0; max-width: 55rem; opacity: 0.66; }
+
+.challenge-heading__readout {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(8rem, auto));
+  align-self: end;
+  border: 1px solid rgba(243, 239, 248, 0.13);
+}
+.challenge-heading__readout span {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  font-size: 0.62rem;
+  opacity: 0.62;
+  border-left: 1px solid rgba(243, 239, 248, 0.09);
+}
+.challenge-heading__readout span:first-child { border-left: 0; }
+.challenge-heading__readout b { font-size: 0.72rem; opacity: 1; }
+
+.challenge-chassis {
+  display: grid;
+  grid-template-columns: minmax(13.5rem, 18rem) minmax(0, 1fr);
+  min-height: calc(100vh - 13rem);
+}
+
+.challenge-nav {
+  padding: 0.8rem;
+  border-right: 1px solid rgba(243, 239, 248, 0.12);
+  background: rgba(255, 255, 255, 0.015);
+}
+.challenge-nav__label {
+  display: block;
+  margin: 0 0 0.6rem;
+  font-size: 0.62rem;
+  opacity: 0.5;
+  letter-spacing: 0.12em;
+}
+.challenge-nav button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 2.2rem 1fr;
+  gap: 0 0.55rem;
+  align-items: start;
+  padding: 0.8rem 0.7rem;
+  border: 0;
+  border-top: 1px solid rgba(243, 239, 248, 0.08);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.challenge-nav button:last-of-type { border-bottom: 1px solid rgba(243, 239, 248, 0.08); }
+.challenge-nav button:hover,
+.challenge-nav button[aria-current="page"] { background: rgba(170, 92, 255, 0.1); }
+.challenge-nav button[aria-current="page"] { box-shadow: inset 2px 0 #ad6bff; }
+.challenge-nav button > span { grid-row: 1 / span 2; font-size: 0.68rem; opacity: 0.66; }
+.challenge-nav button b { font-size: 0.75rem; letter-spacing: 0.045em; }
+.challenge-nav button small { margin-top: 0.18rem; font-size: 0.6rem; opacity: 0.66; }
+
+.challenge-nav__imprint { margin-top: 2.5rem; padding: 0.8rem 0.7rem; opacity: 0.55; }
+.challenge-nav__imprint > span { display: block; width: 2rem; height: 1px; background: currentColor; }
+.challenge-nav__imprint p { font-size: 0.68rem; line-height: 1.35; }
+
+.challenge-workspace { min-width: 0; padding: clamp(1rem, 3vw, 2.5rem); outline: none; }
+
+.challenge-state {
+  max-width: 62rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid rgba(243, 239, 248, 0.14);
+  background: rgba(255, 255, 255, 0.018);
+}
+.challenge-state__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.09em;
+  opacity: 0.72;
+}
+.challenge-state__status > span {
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+}
+.challenge-state[data-surface-state="normal"] .challenge-state__status > span { background: currentColor; }
+.challenge-state[data-surface-state="error"] { border-style: dashed; }
+.challenge-state[data-surface-state="unauthorized"] { border-style: double; }
+.challenge-state h2 { margin: 1rem 0 0.75rem; max-width: 24ch; font-size: clamp(1.6rem, 3vw, 2.7rem); letter-spacing: -0.035em; }
+.challenge-state__body { max-width: 52rem; line-height: 1.6; color: rgba(243, 239, 248, 0.74); }
+.challenge-state__foot { font-size: 0.72rem; letter-spacing: 0.08em; color: rgba(243, 239, 248, 0.72); opacity: 1; }
+.challenge-state code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.compiler-foundation { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(18rem, 0.88fr); gap: 1rem; }
+.compiler-intake {
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid rgba(243, 239, 248, 0.14);
+  background: rgba(173, 107, 255, 0.035);
+}
+.compiler-intake h2 { margin: 0.4rem 0 0.7rem; max-width: 16ch; font-size: clamp(1.7rem, 4vw, 3.5rem); line-height: 0.98; letter-spacing: -0.045em; }
+.compiler-intake p { max-width: 48rem; line-height: 1.55; opacity: 0.7; }
+.compiler-intake label { display: block; margin: 1.6rem 0 0.45rem; font-size: 0.68rem; letter-spacing: 0.1em; opacity: 0.6; }
+.compiler-intake textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 1rem;
+  border: 1px solid rgba(243, 239, 248, 0.2);
+  background: #09090b;
+  color: inherit;
+  font: inherit;
+  line-height: 1.5;
+}
+.compiler-intake textarea:focus { outline: 2px solid #ad6bff; outline-offset: 2px; }
+.compiler-intake__actions { display: flex; gap: 1rem; align-items: center; margin-top: 0.75rem; }
+.compiler-intake__actions button {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(243, 239, 248, 0.15);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.7rem;
+}
+.compiler-intake__actions button:disabled { opacity: 0.42; }
+.compiler-intake__actions span { font-size: 0.65rem; opacity: 0.52; }
+
+.authority-ledger { margin: 1.4rem 0 0; border-top: 1px solid rgba(243, 239, 248, 0.1); }
+.authority-ledger div { display: grid; grid-template-columns: 10rem 1fr; gap: 1rem; padding: 0.7rem 0; border-bottom: 1px solid rgba(243, 239, 248, 0.08); }
+.authority-ledger dt { font: 0.68rem ui-monospace, SFMono-Regular, Menlo, monospace; color: #f3eff8; }
+.authority-ledger dd { margin: 0; font-size: 0.76rem; }
+
+.challenge-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  border-top: 1px solid rgba(243, 239, 248, 0.12);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  opacity: 0.52;
+}
+
+@media (max-width: 900px) {
+  .challenge-purpose, .challenge-authority { display: none; }
+  .challenge-topbar { grid-template-columns: 1fr; }
+  .challenge-heading { grid-template-columns: 1fr; }
+  .challenge-heading__readout { grid-template-columns: 1fr; }
+  .challenge-heading__readout span { border-left: 0; border-top: 1px solid rgba(243, 239, 248, 0.09); }
+  .challenge-heading__readout span:first-child { border-top: 0; }
+  .challenge-chassis { grid-template-columns: 1fr; }
+  .challenge-nav { border-right: 0; border-bottom: 1px solid rgba(243, 239, 248, 0.12); overflow-x: auto; white-space: nowrap; }
+  .challenge-nav__label, .challenge-nav__imprint { display: none; }
+  .challenge-nav button { width: auto; min-width: 9.5rem; display: inline-grid; vertical-align: top; border: 1px solid rgba(243, 239, 248, 0.08); margin-right: 0.25rem; }
+  .challenge-nav button[aria-current="page"] { box-shadow: inset 0 -2px #ad6bff; }
+  .compiler-foundation { grid-template-columns: 1fr; }
+  .authority-ledger div { grid-template-columns: 1fr; gap: 0.25rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .challenge-product *,
+  .challenge-product *::before,
+  .challenge-product *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

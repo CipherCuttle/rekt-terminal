@@ -23,7 +23,13 @@ import {
 } from './github-login.js';
 import {reconcileGitHubAppInstallations} from './github-reconcile.js';
 import {getPlayer} from './players.js';
-import {readSessionToken, resolveSessionActor, serializeSessionCookie} from './session.js';
+import {
+  readSessionToken,
+  resolveFreshSessionActor,
+  resolveSessionActor,
+  serializeSessionCookie,
+  SESSION_STEP_UP_MAX_AGE_SECONDS,
+} from './session.js';
 
 export interface RegisterGitHubLoginRoutesOptions {
   db: InkubatorDatabase;
@@ -59,6 +65,16 @@ async function currentPlayerId(request: FastifyRequest, db: InkubatorDatabase): 
   const token = readSessionToken(request.headers.cookie);
   if (!token) return null;
   return (await resolveSessionActor(db, token))?.playerId ?? null;
+}
+
+async function freshPlayerId(request: FastifyRequest, db: InkubatorDatabase): Promise<{status: 'missing' | 'stale' | 'fresh'; playerId?: string}> {
+  const token = readSessionToken(request.headers.cookie);
+  if (!token) return {status: 'missing'};
+  const actor = await resolveSessionActor(db, token);
+  if (!actor) return {status: 'missing'};
+  const freshActor = await resolveFreshSessionActor(db, token, SESSION_STEP_UP_MAX_AGE_SECONDS);
+  if (!freshActor || freshActor.playerId !== actor.playerId) return {status: 'stale'};
+  return {status: 'fresh', playerId: actor.playerId};
 }
 
 function beginOAuth(
@@ -152,14 +168,13 @@ export function registerGitHubLoginRoutes(app: FastifyInstance, options: Registe
     }
   };
 
-  // Canonical GitHub App Setup URL. Keep the previous path as a temporary alias
-  // so provider configuration can migrate without maintaining two state machines.
   app.get('/v1/github/install/callback', completeInstallation);
   app.get('/v1/auth/github/install-complete', completeInstallation);
 
   app.post('/v1/github/reconcile', async (request, reply) => {
-    const playerId = await currentPlayerId(request, options.db);
-    if (!playerId) return reply.code(401).send({error: 'authentication_required'});
+    const session = await freshPlayerId(request, options.db);
+    if (session.status === 'missing') return reply.code(401).send({error: 'authentication_required'});
+    if (session.status === 'stale') return reply.code(403).send({error: 'reauthentication_required'});
     if (!options.githubAppAuth) return reply.code(503).send({error: 'github_server_auth_unavailable'});
     reply.header('cache-control', 'no-store');
     try {
@@ -167,7 +182,7 @@ export function registerGitHubLoginRoutes(app: FastifyInstance, options: Registe
         options.db,
         options.github,
         options.githubAppAuth,
-        playerId,
+        session.playerId!,
       );
       return reply.send({
         schema_version: 'github.reconcile.private.v1',
@@ -232,6 +247,8 @@ export function registerGitHubLoginRoutes(app: FastifyInstance, options: Registe
         return;
       }
 
+      // Installation completion performs provider OAuth again, so the stable
+      // GitHub numeric identity acts as the step-up credential for this flow.
       const playerId = await currentPlayerId(request, options.db);
       if (!playerId) throw new Error('github_reconciliation_session_missing');
       const player = await getPlayer(options.db, playerId);
