@@ -1,6 +1,7 @@
 import type {Kysely} from 'kysely';
 import {canonicalizeJson} from './canonical-json.js';
 import type {DatabaseSchema} from './database.js';
+import {verifyRestoredPrivacyRetention, type RestoredPrivacyRetentionReport} from './restore-privacy.js';
 import {
   assertIsolatedRestore,
   verifyBackupForRestore,
@@ -52,6 +53,8 @@ export interface RestoreDrillReceipt {
   manifest_signer_key_id: string;
   authority_report: RestoredAuthorityReport;
   authority_report_sha256: string;
+  privacy_report: RestoredPrivacyRetentionReport;
+  privacy_report_sha256: string;
   retention_report: BackupRetentionConsistencyReport;
   completed_at: string;
   receipt_sha256: string;
@@ -128,11 +131,13 @@ export async function runIsolatedBackupRestoreDrill(input: RunRestoreDrillInput)
       || restored.target_database_id !== input.isolation_policy.target_database_id
     ) throw new Error('restore_target_identity_mismatch');
 
-    // The restored database is not trusted merely because a provider reported a
-    // successful restore. Canonical Challenge authority is revalidated before a
-    // drill receipt can exist.
+    // A provider-level restore success is not authority. Canonical Challenge
+    // lineage and H2 private-material purge tombstones must both survive before
+    // any H6 trust receipt can exist.
     const authorityReport = await verifyRestoredChallengeAuthority(restored.db);
     const authorityReportSha256 = canonicalizeJson(authorityReport).sha256;
+    const privacyReport = await verifyRestoredPrivacyRetention(restored.db);
+    const privacyReportSha256 = canonicalizeJson(privacyReport).sha256;
 
     await restored.close();
     restored = null;
@@ -149,6 +154,8 @@ export async function runIsolatedBackupRestoreDrill(input: RunRestoreDrillInput)
       manifest_signer_key_id: manifest.signature.key_id,
       authority_report: authorityReport,
       authority_report_sha256: authorityReportSha256,
+      privacy_report: privacyReport,
+      privacy_report_sha256: privacyReportSha256,
       retention_report: retentionReport,
       completed_at: completedAt,
     };
