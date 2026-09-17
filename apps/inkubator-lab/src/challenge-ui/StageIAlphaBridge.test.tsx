@@ -6,6 +6,8 @@ import type {
   PublicChallengeView,
   QualifierComparisonView,
   RevealArenaView,
+  StageIChallengeCreateInput,
+  StageIQualificationInput,
   StageIQualificationView,
   StageISubmitCredentialView,
   TestArenaModuleCatalogView,
@@ -65,10 +67,10 @@ afterEach(() => {
 
 describe('Stage I alpha browser bridge', () => {
   it('creates only Challenge scheduling authority and labels the path TEST-only', async () => {
-    const createChallenge = vi.fn(async (input) => ({...draft, challenge_id: input.challenge_id, current_contract_version: null, current_terms_digest: null, has_frozen_contract: false}));
+    const createChallenge = vi.fn(async (input: StageIChallengeCreateInput) => ({...draft, challenge_id: input.challenge_id, current_contract_version: null, current_terms_digest: null, has_frozen_contract: false}));
     const api = baseApi({
       createChallenge,
-      launchStageIMockChallenge: vi.fn(async () => entryOpen),
+      launchStageIMockChallenge: vi.fn(async (_challengeId: string, _requestId: string) => entryOpen),
     });
 
     render(<StageIOrganizerBridge api={api} />);
@@ -90,10 +92,10 @@ describe('Stage I alpha browser bridge', () => {
   });
 
   it('mock-launches only an already frozen DRAFT through the test-only endpoint', async () => {
-    const launchStageIMockChallenge = vi.fn(async () => entryOpen);
+    const launchStageIMockChallenge = vi.fn(async (_challengeId: string, _requestId: string) => entryOpen);
     window.history.replaceState({}, '', `/?surface=compiler&challenge=${challengeId}`);
     render(<StageIOrganizerBridge challenge={draft} api={baseApi({
-      createChallenge: vi.fn(async () => draft),
+      createChallenge: vi.fn(async (_input: StageIChallengeCreateInput) => draft),
       launchStageIMockChallenge,
     })} />);
 
@@ -148,7 +150,7 @@ describe('Stage I alpha browser bridge', () => {
       challenge_id: challengeId,
       purpose: 'FINAL_SUBMISSION_ONLY',
     };
-    const mintSubmitCredential = vi.fn(async () => credential);
+    const mintSubmitCredential = vi.fn(async (_challengeId: string, _requestId: string, _expiresInSeconds?: number) => credential);
     const storageSpy = vi.spyOn(Storage.prototype, 'setItem');
     window.history.replaceState({}, '', `/?surface=my-build&challenge=${challengeId}`);
     render(<StageIMyBuildSurface api={baseApi({
@@ -214,7 +216,7 @@ describe('Stage I alpha browser bridge', () => {
       result: 'QUALIFIED',
       execution_digest: 'e'.repeat(64),
     };
-    const qualifyEntry = vi.fn(async () => qualification);
+    const qualifyEntry = vi.fn(async (_challengeId: string, _entryId: string, _input: StageIQualificationInput) => qualification);
     window.history.replaceState({}, '', `/?surface=review&challenge=${challengeId}`);
     render(<StageIReviewSurface api={baseApi({
       getRevealArena: vi.fn(async () => reveal),
@@ -222,7 +224,7 @@ describe('Stage I alpha browser bridge', () => {
       qualifyEntry,
       getQualifierComparison: vi.fn(async () => comparison),
       selectQualifier: vi.fn(async () => ({
-        schema_version: 'challenge.selection/1.0',
+        schema_version: 'challenge.selection/1.0' as const,
         challenge_id: challengeId,
         decision_id: '66666666-6666-4666-8666-666666666666',
         decision_version: 'stage-g3-selection-v1',
