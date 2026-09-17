@@ -1,10 +1,12 @@
 # REKT Inkubator — Stage H6 Backup / Restore Trust V1
 
-Status: IMPLEMENTATION / VERIFICATION ACTIVE
+Status: CLOSED / PASS
 
 Authority input: H5 frozen closure `b2c67646a65307d05b6aa0fa7392092fd21eb483`.
 
-This document binds the Stage-H6 repository evidence. It grants no merge, Stage-I, production-money, wallet, settlement-execution or participant-code authority.
+Exact H6 closure head: `e67931e6c4cc533ab1f91173f3b3d1fe367b7ac9`.
+
+This document binds the Stage-H6 repository evidence. It grants no final integration-to-main merge, Stage-I, production-money, wallet, settlement-execution or participant-code authority.
 
 ## 1. Backup scope
 
@@ -120,7 +122,7 @@ The repository gate therefore claims **restore correctness and fail-closed trust
 
 ## 8. Executable evidence
 
-Current H6 executable coverage includes:
+H6 executable coverage includes:
 
 - signed backup admission positive case;
 - artifact tamper rejection;
@@ -137,9 +139,9 @@ Current H6 executable coverage includes:
 - restored receipt tamper rejection;
 - restored H2 private-source tombstone resurrection rejection.
 
-## 9. Closure gate
+## 9. Closure evidence
 
-H6 may close only when:
+The H6 closure contract was:
 
 1. exact-head canonical CI/Auth/integration gates pass;
 2. the complete Stage-H surface receives ONE independent hostile review;
@@ -147,6 +149,20 @@ H6 may close only when:
 4. if Critical/High fixes are required, exact-head verification passes and ONE targeted re-review of those fixes is clean;
 5. owner makes the H6/Stage-H closure decision.
 
-No review loops.
+Evidence:
 
-Stage I remains separately authorized even after H6 closes.
+- completed Stage-H surface reviewed from pre-H base `04365d2d4a20948c15d76d02c566499c5ed5bd57` through reviewed product head `ed16eaec46939e20e30b6fbbcc4466ab8599e444`;
+- independent hostile review run `35232699651`, job `105240634669`;
+- requested/resolved model `nvidia/nemotron-3-ultra-550b-a55b:free`;
+- review context `596762` bytes with no truncation;
+- verdict `CLEAN_NO_CRITICAL_HIGH`;
+- artifact id `10501783369`, SHA-256 `114c57a92e8af3802dda63aaaae9c7c9c18622f02c2cb789bc1abcf5434510c4`;
+- post-review executable verification exposed one mechanical SQL boundary mismatch (`uuid = text`) in restored-privacy verification;
+- repair `e67931e6c4cc533ab1f91173f3b3d1fe367b7ac9` changes only the two UUID/text comparison boundaries and does not alter schema, retention, restore, authority or trust semantics;
+- exact repaired head CI run `35233495851` PASS;
+- exact repaired head Inkubator Auth Foundation run `35233495766` PASS, including migrations and full serial Postgres integration;
+- no Critical/High review finding existed, so the bounded policy did not authorize or require a second hostile-review loop.
+
+On 2026-09-17 the owner explicitly closed H6 and Stage H and authorized the separate integration step. This closure does **not** authorize Stage I or the final integration-to-main merge.
+
+No review loops.
