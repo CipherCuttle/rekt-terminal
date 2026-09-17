@@ -8,7 +8,7 @@ import './protocol-v0.css';
 import './signal-system/phase9-rehearsal.css';
 import './instrument-os/motion-runtime.css';
 
-const ChallengeProduct = lazy(() => import('./challenge-ui/ChallengeProduct'));
+const ChallengeJourney = lazy(() => import('./ChallengeJourney'));
 const AppV3 = lazy(() => import('./AppV3'));
 const SignalSystemLab = lazy(() => import('./signal-system/GoldenScreens'));
 const InstrumentLab = lazy(() => import('./instrument-os/InstrumentLab'));
@@ -17,7 +17,7 @@ const LiveInstrument = lazy(() => import('./LiveInstrument'));
 const params = new URLSearchParams(window.location.search);
 const lab = params.get('lab');
 const liveMode = parseInstrumentMode(params.get('mode'));
-const explicitLegacyInstrument = lab === 'live-legacy' || liveMode !== undefined;
+const explicitLegacyInstrument = lab === 'live-legacy' || (liveMode !== undefined && liveMode !== 'COMMAND');
 
 const instrumentQueryClient = new QueryClient({
   defaultOptions: {
@@ -41,7 +41,7 @@ createRoot(document.getElementById('root')!).render(
               ? <><div role="note" className="fixture-banner">LEGACY DEMO / FIXTURE DATA / NOT LIVE</div><AppV3 /></>
               : explicitLegacyInstrument
                 ? <QueryClientProvider client={instrumentQueryClient}><LiveInstrument initialMode={liveMode ?? 'COMMAND'} /></QueryClientProvider>
-                : <ChallengeProduct />}
+                : <QueryClientProvider client={instrumentQueryClient}><ChallengeJourney /></QueryClientProvider>}
     </Suspense>
   </StrictMode>
 );

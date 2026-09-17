@@ -32,7 +32,7 @@ export function parseChallengeSurface(value: string | null | undefined): Challen
 }
 
 export const SURFACE_LABELS: Record<ChallengeSurface, string> = {
-  DISCOVER: 'DISCOVER',
+  DISCOVER: 'DISCOVER / START',
   COMPILER: 'COMPILER / CREATE',
   CHALLENGE: 'CHALLENGE',
   MY_BUILD: 'MY BUILD',
