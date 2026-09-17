@@ -10,7 +10,7 @@ This receipt closes the bounded Stage-H trust-hardening sequence. It does not gr
 
 ## Closure chain
 
-- H0 authority lock: `19c04c4cb26477979c1190a5b9173c27822e3d6a`
+- H0 authority lock: commit `19c04c4cb264` (exact SHA remains in `INDEX.md` and PR #109)
 - H1 production route / privilege boundary: `525402d73f03174b29977e256f9aebfd3c14dbce`
 - H2 private data / retention: `12c0acf6539145cce10035f73fa285ba68992b49`
 - H3 auth / operator / incident: `ed91567f98221355ba08bd197a8be389007b892c` — closed with explicit independent-review waiver
