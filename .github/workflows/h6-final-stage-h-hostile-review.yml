@@ -3,9 +3,9 @@ name: H6 final Stage H independent hostile review
 # Disposable review transport. MUST NEVER MERGE.
 # Frozen product target: ed16eaec46939e20e30b6fbbcc4466ab8599e444
 on:
-  pull_request:
+  push:
     branches:
-      - agent/stage-h6-backup-restore-trust-v1
+      - review/h6-independent-openrouter-v1
 
 permissions:
   contents: read
