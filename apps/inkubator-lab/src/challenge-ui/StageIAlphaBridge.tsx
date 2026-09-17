@@ -79,7 +79,7 @@ function challengeLink(challengeId: string, surface: string): string {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-export function StageIOrganizerBridge({api}: {api: StageIProductApi}) {
+export function StageIOrganizerBridge({api, challenge: suppliedChallenge}: {api: StageIProductApi; challenge?: PublicChallengeView | null}) {
   const challengeId = currentChallengeId();
   const [schedule] = useState(initialSchedule);
   const [slots, setSlots] = useState('3');
@@ -89,23 +89,10 @@ export function StageIOrganizerBridge({api}: {api: StageIProductApi}) {
   const [reviewDeadline, setReviewDeadline] = useState(schedule.review);
   const [appealMinutes, setAppealMinutes] = useState('60');
   const [created, setCreated] = useState<PublicChallengeView | null>(null);
-  const [challenge, setChallenge] = useState<PublicChallengeView | null>(null);
+  const [launchedChallenge, setLaunchedChallenge] = useState<PublicChallengeView | null>(null);
   const [phase, setPhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
   const [message, setMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!challengeId) {
-      setChallenge(null);
-      return;
-    }
-    let cancelled = false;
-    void api.getChallenge(challengeId).then((view) => {
-      if (!cancelled) setChallenge(view);
-    }).catch(() => {
-      if (!cancelled) setChallenge(null);
-    });
-    return () => { cancelled = true; };
-  }, [api, challengeId]);
+  const challenge = launchedChallenge ?? suppliedChallenge ?? null;
 
   const create = async () => {
     if (!api.createChallenge) return;
@@ -152,7 +139,7 @@ export function StageIOrganizerBridge({api}: {api: StageIProductApi}) {
     setMessage(null);
     try {
       const view = await api.launchStageIMockChallenge(challengeId, crypto.randomUUID());
-      setChallenge(view);
+      setLaunchedChallenge(view);
       setPhase('IDLE');
     } catch (cause) {
       setMessage(errorMessage(cause));
@@ -309,7 +296,10 @@ export function StageIMyBuildSurface({api}: {api: StageIProductApi}) {
       artifact_digest: '<SHA256_ARTIFACT_DIGEST>',
       evidence_references: ['<EVIDENCE_REFERENCE>'],
     }, null, 2);
-    return `curl -X POST '${endpoint}' \\\n  -H 'Authorization: Bearer ${credential.token}' \\\n  -H 'Content-Type: application/json' \\\n  --data '${body}'`;
+    return `curl -X POST '${endpoint}' \\
+  -H 'Authorization: Bearer ${credential.token}' \\
+  -H 'Content-Type: application/json' \\
+  --data '${body}'`;
   }, [capsule, credential]);
 
   if (!challengeId) return <StageIPanel state="EMPTY" title="No Challenge selected."><p>Open My Build with a canonical <code>?challenge=&lt;id&gt;</code> context.</p></StageIPanel>;
