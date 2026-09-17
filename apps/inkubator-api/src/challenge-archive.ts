@@ -339,7 +339,9 @@ export async function handleChallengeSubmissionArchiveJob(
 
   let outcome: ChallengeSubmissionArchiveCaptureResult;
   if (!client) {
-    outcome = {outcome: 'TRANSIENT_PLATFORM_UNAVAILABLE', reason_code: 'CAPTURE_CLIENT_UNAVAILABLE'};
+    outcome = payload.source_kind === 'GIT_COMMIT'
+      ? {outcome: 'TRANSIENT_PLATFORM_UNAVAILABLE', reason_code: 'CAPTURE_CLIENT_UNAVAILABLE'}
+      : {outcome: 'UNSUPPORTED_SOURCE', reason_code: 'SOURCE_KIND_UNSUPPORTED'};
   } else {
     try {
       outcome = captureResult(await client.capture({

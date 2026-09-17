@@ -11,6 +11,7 @@ export const DEVKIT_RATE_LIMIT_PER_MINUTE = 60;
 export const DEVKIT_TOKEN_MAX_TTL_SECONDS = 30 * 24 * 60 * 60;
 const DEVKIT_TOKEN_MIN_TTL_SECONDS = 5 * 60;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CHALLENGE_TOKEN_PREFIX = 'rekt_dk_challenge_';
 const SCOPE_SET = new Set<string>(DEVKIT_SCOPES);
 const CLASS_SET = new Set<DevkitCredentialClass>(['CLI', 'MCP', 'AUTOMATION']);
 
@@ -20,6 +21,7 @@ export interface ResolvedDevkitCredential {
   credentialClass: DevkitCredentialClass;
   scopes: DevkitScope[];
   expiresAt: Date;
+  challengeId: string | null;
 }
 
 export interface IssueDevkitTokenInput {
@@ -28,6 +30,7 @@ export interface IssueDevkitTokenInput {
   label: string;
   scopes: string[];
   expiresInSeconds: number;
+  challengeId?: string;
 }
 
 function tokenHash(token: string): string {
@@ -50,6 +53,21 @@ function normalizeLabel(label: string): string {
   return normalized;
 }
 
+function normalizeChallengeId(challengeId: string | undefined): string | null {
+  if (challengeId === undefined) return null;
+  if (typeof challengeId !== 'string' || !UUID_PATTERN.test(challengeId)) throw new Error('invalid_devkit_challenge_id');
+  return challengeId.toLowerCase();
+}
+
+function challengeIdFromToken(token: string): string | null {
+  if (!token.startsWith(CHALLENGE_TOKEN_PREFIX)) return null;
+  const rest = token.slice(CHALLENGE_TOKEN_PREFIX.length);
+  const separator = rest.indexOf('_');
+  if (separator < 0) return null;
+  const candidate = rest.slice(0, separator);
+  return UUID_PATTERN.test(candidate) ? candidate.toLowerCase() : null;
+}
+
 export function readBearerToken(value: string | string[] | undefined): string | null {
   const header = Array.isArray(value) ? value[0] : value;
   if (!header) return null;
@@ -70,10 +88,13 @@ export async function issueDevkitToken(
   if (!CLASS_SET.has(input.credentialClass)) throw new Error('invalid_devkit_credential_class');
   const label = normalizeLabel(input.label);
   const scopes = normalizeScopes(input.scopes);
+  const challengeId = normalizeChallengeId(input.challengeId);
+  if (challengeId && (scopes.length !== 1 || scopes[0] !== 'challenge:submit')) throw new Error('invalid_devkit_challenge_scope');
   if (!Number.isSafeInteger(input.expiresInSeconds) || input.expiresInSeconds < DEVKIT_TOKEN_MIN_TTL_SECONDS || input.expiresInSeconds > DEVKIT_TOKEN_MAX_TTL_SECONDS) {
     throw new Error('invalid_devkit_token_ttl');
   }
-  const rawToken = `rekt_dk_${randomBytes(32).toString('base64url')}`;
+  const secret = randomBytes(32).toString('base64url');
+  const rawToken = challengeId ? `${CHALLENGE_TOKEN_PREFIX}${challengeId}_${secret}` : `rekt_dk_${secret}`;
   const tokenId = randomUUID();
   const now = await readDatabaseNow(db);
   const expiresAt = new Date(now.getTime() + input.expiresInSeconds * 1000);
@@ -146,7 +167,14 @@ export async function resolveDevkitCredential(db: Kysely<DatabaseSchema>, token:
     .where('expires_at', '>', sql<Date>`clock_timestamp()`)
     .executeTakeFirst();
   if (!row) return null;
-  return {tokenId: row.token_id, playerId: row.player_id, credentialClass: row.credential_class, scopes: normalizeScopes(row.scopes), expiresAt: row.expires_at};
+  return {
+    tokenId: row.token_id,
+    playerId: row.player_id,
+    credentialClass: row.credential_class,
+    scopes: normalizeScopes(row.scopes),
+    expiresAt: row.expires_at,
+    challengeId: challengeIdFromToken(token),
+  };
 }
 
 /**

@@ -50,10 +50,14 @@ test('production route manifest rejects legacy or missing routes', () => {
   );
 });
 
-test('privileged production inventory has organizer authority and no resolver/admin surface', () => {
+test('privileged production inventory has explicit Stage I authority and no resolver/admin surface', () => {
   assert.ok(PRODUCTION_PRIVILEGED_OPERATIONS.length > 0);
+  const specialAuthorities = new Map([
+    ['POST /v1/challenges', 'AUTHENTICATED_ORGANIZER'],
+    ['POST /v1/challenges/:challengeId/stage-i-mock-launch', 'CHALLENGE_ORGANIZER_TEST_ONLY'],
+  ]);
   for (const operation of PRODUCTION_PRIVILEGED_OPERATIONS) {
-    assert.equal(operation.authority, 'CHALLENGE_ORGANIZER');
+    assert.equal(operation.authority, specialAuthorities.get(operation.route) ?? 'CHALLENGE_ORGANIZER');
     assert.ok(FUNDED_CHALLENGE_CORE_ROUTES.includes(operation.route));
   }
   assert.ok(FORBIDDEN_PRODUCTION_ROUTE_PREFIXES.includes('/v1/admin'));

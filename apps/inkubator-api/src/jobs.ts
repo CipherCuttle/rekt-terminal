@@ -155,7 +155,16 @@ async function claimDueJob(
       select job_id
       from outbox_jobs
       where attempts < max_attempts
-        and (${allowChallengeSubmissionArchive} or job_type <> ${CHALLENGE_SUBMISSION_ARCHIVE_CAPTURE_JOB_TYPE})
+        and (
+          ${allowChallengeSubmissionArchive}
+          or job_type <> ${CHALLENGE_SUBMISSION_ARCHIVE_CAPTURE_JOB_TYPE}
+          or exists (
+            select 1
+            from challenge_submission_archives archive
+            where archive.submission_id::text = outbox_jobs.payload->>'submission_id'
+              and archive.source_kind <> 'GIT_COMMIT'
+          )
+        )
         and (
           (state = 'pending' and next_attempt_at <= ${databaseNow})
           or

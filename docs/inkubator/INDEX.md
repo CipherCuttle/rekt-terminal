@@ -39,15 +39,19 @@ Forward product strategy and staged roadmap are governed by:
 33. `STAGE_H4_VERIFIER_SUPPLY_CHAIN_V1.md` — closed H4 verifier/supply-chain isolation contract; closure used the owner-authorized self-review substitution recorded in PR #115.
 34. `STAGE_H6_BACKUP_RESTORE_TRUST_V1.md` — closed H6 backup/restore and final trust contract.
 35. `STAGE_H_CLOSURE_V1.md` — Stage-H closure, final hostile-review evidence and integration transition receipt.
-36. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+36. `STAGE_I_ALPHA_REHEARSAL_V1.md` — active Stage-I preparation authority; rehearsal only, no external-human Alpha authority.
+37. `STAGE_I_ALPHA_READINESS_MATRIX_V1.md` — current evidence/gap matrix for Alpha readiness.
+38. `ALPHA_CLAIMS_BRAND_POLICY_V1.md` — bounded REKT/Ink affiliation, qualification, AI, security/review and value-state communication authority.
+39. `ALPHA_OPERATOR_RUNBOOK_V1.md` — solo-operator failure/recovery authority for Stage-I rehearsal and future Closed Alpha.
+40. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
-Older `NORTH_STAR_MVP_V0.md`, `PRODUCT_CONTRACT_MVP_V0.md`, `IMPLEMENTATION_ROADMAP_MVP_V0.md`, `CHALLENGE_OS_NORTH_STAR_V1.md` and `CHALLENGE_CONTRACT_V1.md` remain historical/design ancestry only where they conflict with current authority.
+Older `NORTH_STAR_MVP_V0.md`, `PRODUCT_CONTRACT_MVP_V0.md`, `IMPLEMENTATION_ROADMAP_MVP_V0.md`, `CHALLENGE_OS_NORTH_STAR_V1.md`, `CHALLENGE_CONTRACT_V1.md`, and the older Phase-9 rehearsal documents remain historical/design or reusable evidence ancestry only where they conflict with current authority.
 
 Current forward sequence:
 
-`AUTHORITY LOCK → CHALLENGE/BUILD-CONTRACT PROTOCOL → POSTGRES BRIDGE → COMPILER/BLUEPRINTS/CHAT → REKT CHALLENGE UI → BUILDER CAPSULE/SUBMISSION → REVEAL/TEST ARENA/RECEIPTS → TRUST HARDENING → INTEGRATION → CLOSED ALPHA/TESTNET → PRODUCTION-VALUE GATES → FULL NORTH STAR`
+`AUTHORITY LOCK → CHALLENGE/BUILD-CONTRACT PROTOCOL → POSTGRES BRIDGE → COMPILER/BLUEPRINTS/CHAT → REKT CHALLENGE UI → BUILDER CAPSULE/SUBMISSION → REVEAL/TEST ARENA/RECEIPTS → TRUST HARDENING → INTEGRATION → STAGE-I PREP → CLOSED ALPHA/TESTNET → PRODUCTION-VALUE GATES → FULL NORTH STAR`
 
 Current implementation state:
 
@@ -62,10 +66,10 @@ Third-party substrate/adoption boundary       LOCKED
 Stage-B protocol                              CLOSED / AUTHORITY
 Stage-C Postgres bridge                       CLOSED / PASS
 Stage-D Compiler                              CLOSED / PASS / MERGED INTO PLANNING LINEAGE
-Stage-E Challenge UI                          CLOSED / PASS / STACKED HISTORICAL PR #97
-Stage F                                       CLOSED / PASS / STACKED HISTORICAL PRs #98/#100/#101/#102
-Stage G Reveal / Test Arena / Receipts        CLOSED / PASS / STACKED HISTORICAL PRs #103-#107
-Stage H trust hardening                       CLOSED / PASS
+Stage-E Challenge UI                          CLOSED / PASS / INTEGRATED TO MAIN VIA PR #121
+Stage F                                       CLOSED / PASS / INTEGRATED TO MAIN VIA PR #121
+Stage G Reveal / Test Arena / Receipts        CLOSED / PASS / INTEGRATED TO MAIN VIA PR #121
+Stage H trust hardening                       CLOSED / PASS / INTEGRATED TO MAIN VIA PR #121
 H0 authority lock                             CLOSED / PASS / PR #109
 H1 production route + privilege boundary      CLOSED / PASS / PR #110
 H2 private-data + retention/deletion          CLOSED / PASS / PR #111
@@ -74,11 +78,15 @@ H4 verifier + supply-chain isolation          CLOSED / PASS WITH OWNER SELF-REVI
 H5 failure/load + zero-inference              CLOSED / PASS WITH REVIEW WAIVER / PR #116
 H6 restore + final trust gate                 CLOSED / PASS / PR #118
 Stage-H final hostile review                  PASS / PR #119 CLOSED UNMERGED
-Integration branch                            ACTIVE / integration/inkubator-stage-h-to-main-v1
-Main-only Dev Spine reconciliation            CLOSED / PR #120 MERGED TO INTEGRATION BRANCH ONLY
-Stage I external-human Alpha                  NOT AUTHORIZED
+Stage E→H integration                         CLOSED / PASS / PR #121 MERGED
+Canonical main                                ab9d281086e3a2859274065d3ed9cb3ed5cf2f51
+Stage-I prep branch                           ACTIVE / agent/stage-i-alpha-rehearsal-v1
+Stage-I claims/brand policy                   ACTIVE AUTHORITY / ALPHA_CLAIMS_BRAND_POLICY_V1.md
+Stage-I operator runbook                      ACTIVE AUTHORITY / ALPHA_OPERATOR_RUNBOOK_V1.md
+Stage-I deployed rehearsal                    PENDING
+Stage-I external-human Alpha                  NOT AUTHORIZED
 Production money                              NOT AUTHORIZED
-Final integration-to-main merge               NOT AUTHORIZED
+Stage-I prep merge-to-main                    NOT AUTHORIZED
 ```
 
 ## Closure chain
@@ -96,31 +104,31 @@ Final integration-to-main merge               NOT AUTHORIZED
 - **H5:** `b2c67646a65307d05b6aa0fa7392092fd21eb483` — failure/load/concurrency/zero-inference closed with explicit review-transport waiver after exact-head gates passed. Do not claim independent H5 review.
 - **H6 / Stage H:** `e67931e6c4cc533ab1f91173f3b3d1fe367b7ac9` — backup/restore/final trust closed after full Stage-H independent hostile review plus repaired exact-head CI/Auth/Postgres verification.
 - **Stage-H independent review:** reviewed pre-H base `04365d2d4a20948c15d76d02c566499c5ed5bd57` through `ed16eaec46939e20e30b6fbbcc4466ab8599e444`; run `35232699651`; verdict `CLEAN_NO_CRITICAL_HIGH`; artifact id `10501783369`, SHA-256 `114c57a92e8af3802dda63aaaae9c7c9c18622f02c2cb789bc1abcf5434510c4`.
-- **Integration reconciliation:** dedicated integration branch created from H6 closure; current-main `c21d01cb5254d8ec653f6bd8b3f9a1084cdc65c2` reconciled through PR #120, producing integration merge commit `22226fe4f4584064c56665427daa62b839d3116a`.
+- **Integration reconciliation:** current-main `c21d01cb5254d8ec653f6bd8b3f9a1084cdc65c2` reconciled into the dedicated integration branch through PR #120 at `22226fe4f4584064c56665427daa62b839d3116a`.
+- **Stage E→H main integration:** PR #121 merged verified integration head `a4836d3be76dd3f2f47e7274cba4e62c5fa444bf` into `main`; canonical merge commit `ab9d281086e3a2859274065d3ed9cb3ed5cf2f51`.
 
-## Current integration authority
+## Current Stage-I prep authority
 
-Stage H is closed. The only authorized current engineering action is bounded integration and verification on:
+Stage H and E→H integration are closed. The only authorized current engineering action is bounded Stage-I preparation on:
 
-`integration/inkubator-stage-h-to-main-v1`
+`agent/stage-i-alpha-rehearsal-v1`
 
 Rules:
 
-- preserve the exact Stage-E→H product lineage and its frozen semantics;
-- retain the current-main Universal Dev Spine/tooling lineage;
-- do not merge historical stacked PRs individually;
-- do not merge planning-only PR #99, superseded PR #108, or disposable review PRs #112/#114/#117/#119;
-- repair integration-only conflicts or regressions with the smallest safe diff;
-- run combined canonical CI, Auth/Postgres and relevant Inkubator frontend/browser verification;
-- run one complete funded-Challenge rehearsal, including a zero-inference path, before final integration closure;
-- if integration requires a material runtime repair, perform ONE focused hostile review of that repair; no broad review loop;
-- do not merge the integration branch to `main` without a later explicit owner decision;
-- do not start Stage I merely because integration gates pass; Stage I remains a separate explicit progression decision.
+- preserve the merged Stage-E→H semantics on canonical `main`;
+- use the existing `apps/inkubator-lab` runtime as the Inkubator frontend root; do not create `apps/inkubator-web` and never reuse Terminal `apps/web`;
+- deploy only to the dedicated `rekt-inkubator-rehearsal` target during Stage-I prep; do not modify the separate `rekt-inkubator-rehearsal-api` or `rekt-inkubator-rehearsal-ui` services;
+- reuse still-valid Stage-H and historical bounded rehearsal evidence rather than rerunning it ceremonially;
+- create new evidence where Stage-I composition changes: exact deployment, provider rollback, current browser loop, multi-builder competition, degraded-mode behavior and Alpha-facing claims;
+- repair only concrete Alpha blockers with the smallest safe diff;
+- if a material runtime repair is required, perform ONE focused hostile review of that repair; no broad review loop;
+- exact-head CI/Auth/Postgres/Verification/Signal gates must pass before Stage-I prep closure;
+- do not invite external humans merely because rehearsal gates pass; Closed Alpha requires a separate explicit owner decision;
+- do not merge Stage-I prep to `main` without a later explicit owner decision;
+- production money remains Stage-J work and is not authorized.
 
 F1's independent hostile-review requirement was explicitly replaced by user authority on 2026-09-14 with the completed adversarial self-audit plus green exact-head CI/Auth gates. Do not claim an independent F1 review occurred.
 
 H3's independent hostile-review gate was separately and explicitly waived after exact-head implementation evidence passed and bounded reviewer transports failed. H4 used a separately owner-authorized self-review substitution. H5 used a separately explicit review-transport waiver. These are local governance exceptions and do not alter the default bounded-review policy.
 
-The existing `apps/inkubator-lab` runtime remains the Inkubator frontend root; do not create `apps/inkubator-web` and never reuse Terminal `apps/web`. Historical WORLD/COMMAND/PROJECT/PLAYER/SHIP surfaces remain parked compatibility substrate unless a bounded migration explicitly promotes them.
-
-Stage-H closure grants no production-money authority, settlement execution, wallet custody/signing/broadcast, arbitrary participant-code execution, hidden tests, LLM judging/scoring, public raw private-source retrieval, Stage-I external-human Alpha, or final merge-to-`main` authority.
+Stage-I prep grants no production-money authority, settlement execution, wallet custody/signing/broadcast, arbitrary participant-code execution, hidden tests, LLM judging/scoring, public raw private-source retrieval or external-human Alpha authority.

@@ -5,10 +5,16 @@ export const FUNDED_CHALLENGE_CORE_ROUTES = Object.freeze([
   'GET /v1/me',
   'DELETE /v1/session',
   'DELETE /v1/sessions',
+  'POST /v1/challenges',
   'GET /v1/challenges/:challengeId',
   'POST /v1/compiler/compile',
   'POST /v1/challenges/:challengeId/build-contract-preview',
   'POST /v1/challenges/:challengeId/build-contract',
+  'POST /v1/challenges/:challengeId/stage-i-mock-launch',
+  'POST /v1/challenges/:challengeId/entries',
+  'GET /v1/challenges/:challengeId/my-build',
+  'POST /v1/challenges/:challengeId/submit-credential',
+  'POST /v1/challenges/:challengeId/submissions',
   'GET /v1/challenges/:challengeId/reveal-arena',
   'GET /v1/test-arena/modules',
   'POST /v1/challenges/:challengeId/test-arena/entries/:entryId/qualify',
@@ -29,7 +35,9 @@ export const FUNDED_CHALLENGE_GITHUB_ROUTES = Object.freeze([
 ] as const satisfies readonly ProductionRouteSignature[]);
 
 export const PRODUCTION_PRIVILEGED_OPERATIONS = Object.freeze([
+  {route: 'POST /v1/challenges', authority: 'AUTHENTICATED_ORGANIZER'},
   {route: 'POST /v1/challenges/:challengeId/build-contract', authority: 'CHALLENGE_ORGANIZER'},
+  {route: 'POST /v1/challenges/:challengeId/stage-i-mock-launch', authority: 'CHALLENGE_ORGANIZER_TEST_ONLY'},
   {route: 'GET /v1/challenges/:challengeId/reveal-arena', authority: 'CHALLENGE_ORGANIZER'},
   {route: 'POST /v1/challenges/:challengeId/test-arena/entries/:entryId/qualify', authority: 'CHALLENGE_ORGANIZER'},
   {route: 'GET /v1/challenges/:challengeId/qualifier-comparison', authority: 'CHALLENGE_ORGANIZER'},

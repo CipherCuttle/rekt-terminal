@@ -32,7 +32,7 @@ function contractFor(challengeId, now) {
   });
 }
 
-async function acceptedFixture(db, sourceValue = 'private/source/reference') {
+async function acceptedFixture(db, sourceValue = 'private/source/reference', sourceKind = 'GIT_COMMIT') {
   const now = (await readDatabaseNow(db)).getTime();
   const organizer = await player(db, 'f3a-organizer');
   const builder = await player(db, 'f3a-builder');
@@ -46,7 +46,7 @@ async function acceptedFixture(db, sourceValue = 'private/source/reference') {
   await db.updateTable('challenge_entries').set({state: 'ACTIVE', build_start: new Date(contract.build_start), submission_deadline: new Date(contract.submission_deadline)}).where('entry_id', '=', entry.entry_id).execute();
   const requestId = randomUUID();
   const submissionId = randomUUID();
-  const manifest = {schema_version: 'inkubator.submission-manifest/1.0', challenge_id: challengeId, entry_id: entry.entry_id, terms_digest: contract.terms_digest, submission_version: 1, immutable_source_reference: {kind: 'GIT_COMMIT', value: sourceValue}, artifact_digest: 'a'.repeat(64), evidence_references: ['private-evidence-reference'], accepted_at: 0};
+  const manifest = {schema_version: 'inkubator.submission-manifest/1.0', challenge_id: challengeId, entry_id: entry.entry_id, terms_digest: contract.terms_digest, submission_version: 1, immutable_source_reference: {kind: sourceKind, value: sourceValue}, artifact_digest: 'a'.repeat(64), evidence_references: ['private-evidence-reference'], accepted_at: 0};
   const accepted = await acceptChallengeSubmission(db, {requestId, submissionId, challengeId, entryId: entry.entry_id, manifest});
   return {challengeId, entryId: entry.entry_id, submissionId, requestId, manifest, accepted};
 }
@@ -209,4 +209,34 @@ test('F3A final lease exhaustion terminalizes evidence availability without rewr
     const entry = await db.selectFrom('challenge_entries').select('state').where('entry_id', '=', fixture.entryId).executeTakeFirstOrThrow();
     assert.equal(entry.state, 'ACTIVE');
   } finally { await db.destroy(); }
+});
+
+
+test('F3A non-Git source terminalizes unsupported without capture client while Git stays deferred', async () => {
+  const db = createDatabase(databaseUrl);
+  await migrateToLatest(db);
+  try {
+    const content = await acceptedFixture(db, `sha256:${'c'.repeat(64)}`, 'CONTENT_ADDRESS');
+    const contentJob = await archiveJob(db, content.submissionId);
+    assert.equal((await runOneJob(db)).status, 'succeeded');
+    const contentState = await archiveState(db, content.submissionId);
+    assert.equal(contentState.status, 'UNSUPPORTED_SOURCE');
+    assert.equal(contentState.reason_code, 'SOURCE_KIND_UNSUPPORTED');
+    const completedContentJob = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', contentJob.job_id).executeTakeFirstOrThrow();
+    assert.equal(completedContentJob.state, 'succeeded');
+    assert.equal(completedContentJob.attempts, 1);
+
+    const git = await acceptedFixture(db, 'a'.repeat(40), 'GIT_COMMIT');
+    const gitJob = await archiveJob(db, git.submissionId);
+    const before = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', gitJob.job_id).executeTakeFirstOrThrow();
+    assert.equal(before.attempts, 0);
+    await runOneJob(db);
+    const after = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', gitJob.job_id).executeTakeFirstOrThrow();
+    assert.equal(after.state, 'pending');
+    assert.equal(after.attempts, 0);
+    assert.equal((await archiveState(db, git.submissionId)).status, 'PENDING');
+    await db.updateTable('outbox_jobs').set({next_attempt_at: new Date('9999-12-31T00:00:00.000Z')}).where('job_id', '=', gitJob.job_id).execute();
+  } finally {
+    await db.destroy();
+  }
 });
