@@ -181,9 +181,10 @@ function trustFixture(sourceDatabaseId, targetDatabaseId) {
   const artifact = Buffer.from(`provider-snapshot-evidence:${sourceDatabaseId}`, 'utf8');
   const {privateKey, publicKey} = generateKeyPairSync('ed25519');
   const now = new Date();
+  const createdAt = new Date(now.getTime() - 1_000).toISOString();
   const manifest = createSignedBackupManifest({
     backup_id: randomUUID(),
-    created_at: new Date(now.getTime() - 1_000).toISOString(),
+    created_at: createdAt,
     source: {environment: 'production', database_id: sourceDatabaseId},
     retention: {policy_version: 'inkubator.backup-retention/h6-ci-v1', expires_at: new Date(now.getTime() + 3_600_000).toISOString()},
     encryption: {at_rest: true, key_scope: 'BACKUP_ONLY', evidence_ref: 'ci://backup-encryption'},
@@ -217,6 +218,8 @@ function trustFixture(sourceDatabaseId, targetDatabaseId) {
     retention_evidence: {
       policy_version: 'inkubator.backup-retention/h6-ci-v1',
       policy_document_ref: 'docs/inkubator/INKUBATOR_PRIVATE_DATA_RETENTION_V1.md',
+      minimum_privacy_safe_backup_created_at: createdAt,
+      privacy_safe_restore_point_evidence_ref: `ci://privacy-safe-restore-point/${sourceDatabaseId}`,
       private_material_erasure_evidence_ref: 'apps/inkubator-api/test/integration/stage-h2-private-retention.test.mjs',
       backup_deletion_evidence_ref: 'ci://backup-retention/delete-proof',
     },
@@ -262,6 +265,7 @@ test('H6 isolated Postgres restore preserves Challenge-to-receipt authority and 
     assert.equal(drill.authority_report.receipt_count, 1);
     assert.equal(drill.authority_report.archive_count, 1);
     assert.deepEqual(drill.authority_report.violations, []);
+    assert.deepEqual(drill.privacy_report.violations, []);
     assert.equal(drill.retention_report.status, 'CONSISTENT');
     assert.equal(drill.target_database_id, targetName);
     assert.match(drill.receipt_sha256, /^[0-9a-f]{64}$/);
