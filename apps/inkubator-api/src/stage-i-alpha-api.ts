@@ -351,18 +351,20 @@ export function registerStageIAlphaRoutes(app: FastifyInstance, db: InkubatorDat
     const {challengeId} = request.params as {challengeId: string};
     try {
       const input = tokenInput(request.body);
-      const snapshot = await readChallengeSnapshot(db, challengeId);
+      const normalizedChallengeId = uuid(challengeId, 'challenge_id');
+      const snapshot = await readChallengeSnapshot(db, normalizedChallengeId);
       if (!snapshot) return error(reply, 404, 'challenge_not_found');
       buildBuilderCapsule(snapshot, actorPlayerId);
       const issued = await issueDevkitToken(db, actorPlayerId, {
         requestId: input.requestId,
         credentialClass: 'CLI',
-        label: `Stage I Challenge ${challengeId} submit`,
+        label: `Stage I Challenge ${normalizedChallengeId} submit`,
         scopes: ['challenge:submit'],
         expiresInSeconds: input.expiresInSeconds,
+        challengeId: normalizedChallengeId,
       });
       reply.header('cache-control', 'no-store');
-      return reply.code(201).send({...issued, challenge_id: challengeId.toLowerCase(), purpose: 'FINAL_SUBMISSION_ONLY'});
+      return reply.code(201).send({...issued, challenge_id: normalizedChallengeId, purpose: 'FINAL_SUBMISSION_ONLY'});
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'submit_credential_issue_failed';
       if (message === 'challenge_not_found') return error(reply, 404, message);
@@ -377,8 +379,10 @@ export function registerStageIAlphaRoutes(app: FastifyInstance, db: InkubatorDat
     const auth = await submitCredential(request, reply, db); if (!auth) return;
     const {challengeId} = request.params as {challengeId: string};
     try {
+      const normalizedChallengeId = uuid(challengeId, 'challenge_id');
+      if (auth.challengeId !== normalizedChallengeId) return error(reply, 403, 'challenge_submit_credential_challenge_mismatch');
       const input: SubmissionInput = submissionInput(request.body);
-      const snapshot = await readChallengeSnapshot(db, challengeId);
+      const snapshot = await readChallengeSnapshot(db, normalizedChallengeId);
       if (!snapshot) return error(reply, 404, 'challenge_not_found');
       const entry = snapshot.entries.find((candidate) => candidate.entry_id === input.entryId);
       if (!entry) return error(reply, 404, 'challenge_entry_not_found');
@@ -388,7 +392,7 @@ export function registerStageIAlphaRoutes(app: FastifyInstance, db: InkubatorDat
       if (input.expectedTermsDigest !== snapshot.challenge.current_terms_digest) return error(reply, 409, 'challenge_terms_digest_stale');
       const manifest = {
         schema_version: 'inkubator.submission-manifest/1.0' as const,
-        challenge_id: challengeId.toLowerCase(),
+        challenge_id: normalizedChallengeId,
         entry_id: input.entryId,
         terms_digest: snapshot.challenge.current_terms_digest,
         submission_version: input.submissionVersion,
@@ -401,7 +405,7 @@ export function registerStageIAlphaRoutes(app: FastifyInstance, db: InkubatorDat
       const row = await acceptChallengeSubmission(db, {
         requestId: input.requestId,
         submissionId: input.submissionId,
-        challengeId,
+        challengeId: normalizedChallengeId,
         entryId: input.entryId,
         manifest,
         ...(input.shipSubmissionId ? {shipSubmissionId: input.shipSubmissionId} : {}),
