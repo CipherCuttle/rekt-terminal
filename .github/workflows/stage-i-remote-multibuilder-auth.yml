@@ -1,0 +1,175 @@
+name: Stage I remote multibuilder auth rehearsal
+
+on:
+  push:
+    branches:
+      - rehearsal/stage-i-remote-multibuilder-v1
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  rehearsal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      TARGET_URL: https://rekt-inkubator-rehearsal.onrender.com
+      EXPECTED_PRODUCT_SHA: 1504c70089644cbee9f9630a4432cdb1826144f3
+      SESSION_FILE: ${{ runner.temp }}/stage-i-sessions.json
+    steps:
+      - name: Check out exact harness base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Acquire four disposable identities via GitHub OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const requestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+          const requestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+          if (!requestUrl || !requestToken) throw new Error('github_oidc_environment_missing');
+          const oidc = await fetch(`${requestUrl}&audience=${encodeURIComponent('rekt-stage-i-rehearsal')}`, {
+            headers: {authorization: `Bearer ${requestToken}`},
+          });
+          if (!oidc.ok) throw new Error(`github_oidc_request_failed_${oidc.status}`);
+          const oidcBody = await oidc.json();
+          if (typeof oidcBody.value !== 'string') throw new Error('github_oidc_token_missing');
+          const response = await fetch(`${process.env.TARGET_URL}/__stage-i-rehearsal/bootstrap`, {
+            method: 'POST',
+            headers: {authorization: `Bearer ${oidcBody.value}`},
+          });
+          const body = await response.json().catch(() => null);
+          if (response.status !== 201 || !body || !Array.isArray(body.identities) || body.identities.length !== 4) {
+            throw new Error(`bootstrap_failed_${response.status}_${JSON.stringify(body)}`);
+          }
+          fs.writeFileSync(process.env.SESSION_FILE, JSON.stringify(body));
+          console.log('BOOTSTRAP_ACQUIRED: 4 disposable identities; tokens retained only in runner temp');
+          NODE
+
+      - name: Wait for bootstrap shim removal and exact candidate restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const target = process.env.TARGET_URL;
+          const deadline = Date.now() + 8 * 60_000;
+          while (Date.now() < deadline) {
+            const response = await fetch(`${target}/__stage-i-rehearsal/bootstrap`, {redirect: 'manual'}).catch(() => null);
+            if (response) {
+              const contentType = response.headers.get('content-type') ?? '';
+              if (response.status === 200 && contentType.includes('text/html')) {
+                const health = await fetch(`${target}/health`);
+                if (health.ok) {
+                  const body = await health.json();
+                  if (body?.status === 'ok' && body?.service === 'inkubator-api') {
+                    console.log(`EXACT_CANDIDATE_RESTORED: ${process.env.EXPECTED_PRODUCT_SHA}`);
+                    process.exit(0);
+                  }
+                }
+              }
+            }
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+          throw new Error('exact_candidate_restore_timeout');
+          NODE
+
+      - name: Prove four authenticated browser identities on exact candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          import {chromium} from '@playwright/test';
+          const bootstrap = JSON.parse(fs.readFileSync(process.env.SESSION_FILE, 'utf8'));
+          const base = process.env.TARGET_URL;
+          const url = new URL(base);
+          const browser = await chromium.launch();
+          const evidence = [];
+          try {
+            for (let index = 0; index < bootstrap.identities.length; index += 1) {
+              const identity = bootstrap.identities[index];
+              const context = await browser.newContext();
+              try {
+                await context.addCookies([{
+                  name: '__Host-rekt_session',
+                  value: identity.session_token,
+                  domain: url.hostname,
+                  path: '/',
+                  httpOnly: true,
+                  secure: true,
+                  sameSite: 'Lax',
+                }]);
+                const page = await context.newPage();
+                const root = await page.goto(base, {waitUntil: 'domcontentloaded', timeout: 60_000});
+                assert.equal(root?.status(), 200);
+                const me = await page.evaluate(async () => {
+                  const response = await fetch('/v1/me', {credentials: 'include'});
+                  return {status: response.status, body: await response.json()};
+                });
+                assert.equal(me.status, 200);
+                assert.equal(me.body.player_id, identity.player_id);
+                evidence.push({index, player_id: identity.player_id, display_name: identity.display_name, status: 'AUTHENTICATED'});
+              } finally {
+                await context.close();
+              }
+            }
+          } finally {
+            await browser.close();
+          }
+          assert.equal(new Set(evidence.map((item) => item.player_id)).size, 4);
+          fs.writeFileSync('stage-i-multibuilder-auth-proof.json', JSON.stringify({
+            schema_version: 'stage-i.multibuilder-auth-proof/1.0',
+            expected_product_sha: process.env.EXPECTED_PRODUCT_SHA,
+            identity_count: evidence.length,
+            identities: evidence,
+          }, null, 2) + '\n');
+          console.log(JSON.stringify({identity_count: evidence.length, distinct_players: 4, verdict: 'PASS'}));
+          NODE
+
+      - name: Revoke disposable sessions
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f "$SESSION_FILE" ]; then exit 0; fi
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const bootstrap = JSON.parse(fs.readFileSync(process.env.SESSION_FILE, 'utf8'));
+          for (const identity of bootstrap.identities ?? []) {
+            await fetch(`${process.env.TARGET_URL}/v1/sessions`, {
+              method: 'DELETE',
+              headers: {
+                origin: process.env.TARGET_URL,
+                cookie: `__Host-rekt_session=${identity.session_token}`,
+              },
+            }).catch(() => null);
+          }
+          console.log('DISPOSABLE_SESSIONS_REVOKED');
+          NODE
+
+      - name: Upload auth proof
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: stage-i-multibuilder-auth-proof-${{ env.EXPECTED_PRODUCT_SHA }}
+          path: stage-i-multibuilder-auth-proof.json
+          if-no-files-found: error
+          retention-days: 14
