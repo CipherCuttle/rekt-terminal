@@ -1,6 +1,6 @@
 import {createDatabase} from './database.js';
 import {createGitHubR2ChallengeArchiveCaptureClient, loadGitHubR2ArchiveOptions} from './challenge-archive-github-r2.js';
-import {runOneJob} from './jobs.js';
+import {runOneJob, type JobWorkerEvent} from './jobs.js';
 import {reconcileShipAcceptances} from './ship-acceptance.js';
 import {createShipVerifierClient} from './ship-verifier-client.js';
 
@@ -22,6 +22,12 @@ function parsePositiveInt(name: string, fallback: number, min: number, max: numb
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function logWorkerEvent(event: JobWorkerEvent): void {
+  const line = JSON.stringify({component: 'inkubator-worker', ...event});
+  if (event.event === 'retry_exhausted') console.error(line);
+  else console.warn(line);
 }
 
 const db = createDatabase(requireValue('DATABASE_URL'));
@@ -51,6 +57,7 @@ try {
         retryBaseMs,
         ...(shipVerifierClient ? {shipVerifierClient} : {}),
         ...(challengeSubmissionArchiveClient ? {challengeSubmissionArchiveClient} : {}),
+        onEvent: logWorkerEvent,
       });
       await reconcileShipAcceptances(db);
       if (result.status === 'idle') await sleep(pollMs);

@@ -76,8 +76,8 @@ H0 authority lock                             CLOSED / PASS / PR #109 / UNMERGED
 H1 production route + privilege boundary      CLOSED / PASS / PR #110 / UNMERGED
 H2 private-data + retention/deletion          CLOSED / PASS / PR #111 / UNMERGED
 H3 auth/operator + incident controls          CLOSED / PASS WITH REVIEW WAIVER / PR #113 / UNMERGED
-H4 verifier + supply-chain isolation          IMPLEMENTATION ACTIVE
-H5 failure/load + zero-inference              NOT YET AUTHORIZED BY H4
+H4 verifier + supply-chain isolation          CLOSED / PASS WITH OWNER AUTHORIZED SELF-REVIEW / PR #115 / UNMERGED
+H5 failure/load + zero-inference              AUTHORIZED / IMPLEMENTATION ACTIVE
 H6 restore + final trust gate                 NOT YET AUTHORIZED BY H5
 Stage I external-human Alpha                  NOT AUTHORIZED
 Production money                              NOT AUTHORIZED
@@ -95,6 +95,7 @@ Merge authority                               NONE
 - **H1:** `525402d73f03174b29977e256f9aebfd3c14dbce` — canonical funded-Challenge production route inventory/entrypoint parity closed after one P1 repair and targeted rereview.
 - **H2:** `12c0acf6539145cce10035f73fa285ba68992b49` — private-data deletion/retention/provider-egress boundary closed after exact-head CI/Auth/Postgres and one independent external hostile review returning `CLEAN_NO_CRITICAL_HIGH`.
 - **H3:** `ed91567f98221355ba08bd197a8be389007b892c` — auth/session/operator/incident implementation and exact-head CI/Auth/Postgres were green; the independent-review gate was explicitly waived by the user after bounded reviewer-capacity attempts failed. Do not claim an admissible H3 hostile review occurred.
+- **H4:** `73c37922574b27c6052d6149ee02c45e42888afd` — verifier/supply-chain isolation closed with owner-authorized self-review; PR #115 remains unmerged.
 
 ## Current H4 authority
 
