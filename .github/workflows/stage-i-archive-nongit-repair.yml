@@ -1,0 +1,150 @@
+name: Stage I archive non-Git repair gate
+
+on:
+  push:
+    branches:
+      - agent/stage-i-archive-nongit-terminal-v1
+    paths:
+      - .github/workflows/stage-i-archive-nongit-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-verify:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: inkubator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d inkubator"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/inkubator
+    steps:
+      - name: Check out repair branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agent/stage-i-archive-nongit-terminal-v1
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Apply minimal archive repair and regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          jobs = Path('apps/inkubator-api/src/jobs.ts')
+          text = jobs.read_text()
+          old = """        and (${allowChallengeSubmissionArchive} or job_type <> ${CHALLENGE_SUBMISSION_ARCHIVE_CAPTURE_JOB_TYPE})"""
+          new = """        and (
+            ${allowChallengeSubmissionArchive}
+            or job_type <> ${CHALLENGE_SUBMISSION_ARCHIVE_CAPTURE_JOB_TYPE}
+            or exists (
+              select 1
+              from challenge_submission_archives archive
+              where archive.submission_id::text = outbox_jobs.payload->>'submission_id'
+                and archive.source_kind <> 'GIT_COMMIT'
+            )
+          )"""
+          if text.count(old) != 1:
+              raise SystemExit(f'jobs.ts claim guard match count={text.count(old)}')
+          jobs.write_text(text.replace(old, new))
+
+          archive = Path('apps/inkubator-api/src/challenge-archive.ts')
+          text = archive.read_text()
+          old = """  if (!client) {
+    outcome = {outcome: 'TRANSIENT_PLATFORM_UNAVAILABLE', reason_code: 'CAPTURE_CLIENT_UNAVAILABLE'};
+  } else {"""
+          new = """  if (!client) {
+    outcome = payload.source_kind === 'GIT_COMMIT'
+      ? {outcome: 'TRANSIENT_PLATFORM_UNAVAILABLE', reason_code: 'CAPTURE_CLIENT_UNAVAILABLE'}
+      : {outcome: 'UNSUPPORTED_SOURCE', reason_code: 'SOURCE_KIND_UNSUPPORTED'};
+  } else {"""
+          if text.count(old) != 1:
+              raise SystemExit(f'challenge-archive.ts no-client match count={text.count(old)}')
+          archive.write_text(text.replace(old, new))
+
+          test_file = Path('apps/inkubator-api/test/integration/stage-f3-archive-evidence.test.mjs')
+          text = test_file.read_text()
+          old = "async function acceptedFixture(db, sourceValue = 'private/source/reference') {"
+          new = "async function acceptedFixture(db, sourceValue = 'private/source/reference', sourceKind = 'GIT_COMMIT') {"
+          if text.count(old) != 1:
+              raise SystemExit(f'fixture signature match count={text.count(old)}')
+          text = text.replace(old, new)
+          old = "immutable_source_reference: {kind: 'GIT_COMMIT', value: sourceValue}"
+          new = "immutable_source_reference: {kind: sourceKind, value: sourceValue}"
+          if text.count(old) != 1:
+              raise SystemExit(f'fixture source-kind match count={text.count(old)}')
+          text = text.replace(old, new)
+          addition = r'''
+
+test('F3A non-Git source terminalizes unsupported without capture client while Git stays deferred', async () => {
+  const db = createDatabase(databaseUrl);
+  await migrateToLatest(db);
+  try {
+    const content = await acceptedFixture(db, `sha256:${'c'.repeat(64)}`, 'CONTENT_ADDRESS');
+    const contentJob = await archiveJob(db, content.submissionId);
+    assert.equal((await runOneJob(db)).status, 'succeeded');
+    const contentState = await archiveState(db, content.submissionId);
+    assert.equal(contentState.status, 'UNSUPPORTED_SOURCE');
+    assert.equal(contentState.reason_code, 'SOURCE_KIND_UNSUPPORTED');
+    const completedContentJob = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', contentJob.job_id).executeTakeFirstOrThrow();
+    assert.equal(completedContentJob.state, 'succeeded');
+    assert.equal(completedContentJob.attempts, 1);
+
+    const git = await acceptedFixture(db, 'a'.repeat(40), 'GIT_COMMIT');
+    const gitJob = await archiveJob(db, git.submissionId);
+    const before = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', gitJob.job_id).executeTakeFirstOrThrow();
+    assert.equal(before.attempts, 0);
+    assert.equal((await runOneJob(db)).status, 'idle');
+    const after = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', gitJob.job_id).executeTakeFirstOrThrow();
+    assert.equal(after.state, 'pending');
+    assert.equal(after.attempts, 0);
+    assert.equal((await archiveState(db, git.submissionId)).status, 'PENDING');
+  } finally {
+    await db.destroy();
+  }
+});
+'''
+          if "non-Git source terminalizes unsupported without capture client" in text:
+              raise SystemExit('regression already present')
+          test_file.write_text(text + addition)
+          PY
+
+      - name: Build API
+        run: npm run build -w @rekt-ink/inkubator-api
+
+      - name: Run focused archive integration regression
+        run: node --test --test-concurrency=1 apps/inkubator-api/test/integration/stage-f3-archive-evidence.test.mjs
+
+      - name: Commit verified repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git status --short
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/inkubator-api/src/jobs.ts apps/inkubator-api/src/challenge-archive.ts apps/inkubator-api/test/integration/stage-f3-archive-evidence.test.mjs
+          git commit -m 'fix(inkubator): terminalize unsupported archive sources without capture client'
+          git push origin HEAD:agent/stage-i-archive-nongit-terminal-v1
