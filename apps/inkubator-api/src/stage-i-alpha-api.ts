@@ -289,7 +289,7 @@ export function registerStageIAlphaRoutes(app: FastifyInstance, db: InkubatorDat
       if (message === 'challenge_not_found') return error(reply, 404, message);
       if (message === 'challenge_organizer_required') return error(reply, 403, message);
       if (message.startsWith('invalid_')) return error(reply, 400, message);
-      if (message.includes('idempotency_conflict') || message.includes('requires_') || message.includes('contract_') || message.includes('cannot open entries')) return error(reply, 409, message);
+      if (message === 'stage_i_mock_settlement_asset_required' || message.includes('idempotency_conflict') || message.includes('requires_') || message.includes('contract_') || message.includes('cannot open entries')) return error(reply, 409, message);
       throw cause;
     }
   });
