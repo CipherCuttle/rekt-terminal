@@ -110,7 +110,7 @@ test('LIVE COMMAND renders one Living Thread and ripples canonical deltas withou
   let current = commandView();
   await routeCommand(page, () => ({status: 200, body: current}));
 
-  await page.goto('/?mode=command');
+  await page.goto('/?lab=live-legacy&mode=command');
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
   await expect(page.getByRole('heading', {name: 'Ship one real working thing.'})).toBeVisible();
   await expect(page.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeVisible();
@@ -163,7 +163,7 @@ test('LIVE COMMAND proof projection stays readable on mobile and reduced motion'
   });
   await routeCommand(page, () => ({status: 200, body: shipReady}));
 
-  await page.goto('/?mode=command');
+  await page.goto('/?lab=live-legacy&mode=command');
   await expect(page.getByRole('heading', {name: 'OPEN SHIP REVIEW'})).toBeVisible();
   await expect(page.locator('.command-live')).toHaveAttribute('data-motion-policy', 'reduced');
   await expect(page.locator('.command-thread-gates [data-truth="proven"]')).toHaveCount(4);
@@ -174,7 +174,7 @@ test('LIVE COMMAND proof projection stays readable on mobile and reduced motion'
 test('LIVE COMMAND fails closed when the canonical command endpoint is unavailable', async ({page}) => {
   await routeCommand(page, () => ({status: 401, body: {error: 'session_required'}}));
 
-  await page.goto('/?mode=command');
+  await page.goto('/?lab=live-legacy&mode=command');
   await expect(page.getByRole('heading', {name: 'COMMAND LINK UNAVAILABLE'})).toBeVisible({timeout: 6000});
   await expect(page.getByText('session_required')).toBeVisible();
   await expect(page.getByText('No development fixture fallback is permitted.')).toBeVisible();
