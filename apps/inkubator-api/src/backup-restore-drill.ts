@@ -15,6 +15,8 @@ import {
 export interface BackupRetentionConsistencyEvidence {
   policy_version: string;
   policy_document_ref: string;
+  minimum_privacy_safe_backup_created_at: string;
+  privacy_safe_restore_point_evidence_ref: string;
   private_material_erasure_evidence_ref: string;
   backup_deletion_evidence_ref: string;
 }
@@ -24,6 +26,8 @@ export interface BackupRetentionConsistencyReport {
   policy_version: string;
   policy_document_ref: string;
   bounded_until: string;
+  minimum_privacy_safe_backup_created_at: string;
+  privacy_safe_restore_point_evidence_ref: string;
   private_material_erasure_evidence_ref: string;
   backup_deletion_evidence_ref: string;
   status: 'CONSISTENT';
@@ -77,6 +81,13 @@ function requireEvidenceRef(value: string, label: string): string {
   return value.trim();
 }
 
+function requireEvidenceDate(value: string, label: string): Date {
+  if (typeof value !== 'string' || value.length > 80) throw new Error(`backup_retention_${label}_invalid`);
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime()) || date.toISOString() !== value) throw new Error(`backup_retention_${label}_invalid`);
+  return date;
+}
+
 export function buildBackupRetentionConsistencyReport(
   manifest: SignedBackupManifest,
   evidence: BackupRetentionConsistencyEvidence,
@@ -89,11 +100,23 @@ export function buildBackupRetentionConsistencyReport(
   if (!Number.isFinite(createdAt.getTime()) || !Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= createdAt.getTime()) {
     throw new Error('backup_retention_window_invalid');
   }
+  const privacySafePoint = requireEvidenceDate(
+    evidence.minimum_privacy_safe_backup_created_at,
+    'minimum_privacy_safe_backup_created_at',
+  );
+  if (createdAt.getTime() < privacySafePoint.getTime()) {
+    throw new Error('backup_predates_privacy_safe_restore_point');
+  }
   return {
     schema_version: 'inkubator.backup-retention-consistency/1.0',
     policy_version: evidence.policy_version,
     policy_document_ref: requireEvidenceRef(evidence.policy_document_ref, 'policy_document_ref'),
     bounded_until: expiresAt.toISOString(),
+    minimum_privacy_safe_backup_created_at: privacySafePoint.toISOString(),
+    privacy_safe_restore_point_evidence_ref: requireEvidenceRef(
+      evidence.privacy_safe_restore_point_evidence_ref,
+      'privacy_safe_restore_point_evidence_ref',
+    ),
     private_material_erasure_evidence_ref: requireEvidenceRef(
       evidence.private_material_erasure_evidence_ref,
       'private_material_erasure_evidence_ref',
