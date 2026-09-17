@@ -86,12 +86,12 @@ function JourneyChrome({surface, challengeId, client, children}: {surface: Chall
   return (
     <div role={surface === 'DISCOVER' ? 'main' : undefined} className="ios-lab ios-shell ios-shell-v2 challenge-journey-shell" data-shell="terminal" data-shell-variant="v2" data-mode="command">
       <a className="faceplate-skip" href="#journey-workspace">Skip to Inkubator</a>
-      <div className="faceplate-topbar">
+      <nav className="faceplate-topbar" aria-label="Product controls">
         <a className="faceplate-brand" href={challengeHref('DISCOVER')}><strong>REKT<i>//</i></strong><span className="faceplate-brand-label">INKUBATOR</span></a>
         <span className="faceplate-purpose">TECHNICAL FACEPLATE / CHALLENGE PRODUCT</span>
         <SessionStatus client={client} />
         <span className="faceplate-registration" aria-hidden="true" />
-      </div>
+      </nav>
       <header className="ios-lab-header ios-shell-header challenge-journey-header">
         <span className="faceplate-head-reg" aria-hidden="true" />
         <div>
