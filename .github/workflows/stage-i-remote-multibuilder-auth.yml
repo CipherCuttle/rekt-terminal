@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 20
     env:
       TARGET_URL: https://rekt-inkubator-rehearsal.onrender.com
-      EXPECTED_PRODUCT_SHA: 1504c70089644cbee9f9630a4432cdb1826144f3
+      EXPECTED_PRODUCT_SHA: 6d4520d7f25756e51572ec2e8b3c8ad9ef019d04
       SESSION_FILE: /tmp/stage-i-sessions.json
     steps:
       - name: Check out rehearsal harness
@@ -35,6 +35,54 @@ jobs:
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+
+      - name: Patch async archive wait into rehearsal harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/stage-i-remote-multibuilder-loop.mjs')
+          text = path.read_text()
+          old = """  const qualifications = [];
+          for (const submission of submissions) {
+            const qualified = assertStatus(await browserJson(organizerPage, 'POST', `/v1/challenges/${challengeId}/test-arena/entries/${submission.entryId}/qualify`, {
+              request_id: randomUUID(),
+              qualification_id: randomUUID(),
+              acceptance_manifest_reference_id: acceptanceReferenceId,
+              acceptance_manifest: acceptanceManifest,
+              human_observations: [],
+            }), 200, `qualify ${submission.entryId}`);
+            assert.equal(qualified.result, 'QUALIFIED');
+            qualifications.push(qualified);
+          }
+          """
+          new = """  const qualifications = [];
+          for (const submission of submissions) {
+            const qualificationBody = {
+              request_id: randomUUID(),
+              qualification_id: randomUUID(),
+              acceptance_manifest_reference_id: acceptanceReferenceId,
+              acceptance_manifest: acceptanceManifest,
+              human_observations: [],
+            };
+            let qualifiedResponse = null;
+            const archiveDeadline = Date.now() + 45_000;
+            while (Date.now() < archiveDeadline) {
+              qualifiedResponse = await browserJson(organizerPage, 'POST', `/v1/challenges/${challengeId}/test-arena/entries/${submission.entryId}/qualify`, qualificationBody);
+              if (qualifiedResponse.status === 200) break;
+              if (qualifiedResponse.status !== 409 || qualifiedResponse.body?.error !== 'challenge_test_archive_pending') break;
+              await sleep(1000);
+            }
+            const qualified = assertStatus(qualifiedResponse, 200, `qualify ${submission.entryId}`);
+            assert.equal(qualified.result, 'QUALIFIED');
+            qualifications.push(qualified);
+          }
+          """
+          if old not in text:
+              raise SystemExit('qualification block not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
 
       - name: Acquire four disposable identities via GitHub OIDC
         shell: bash
