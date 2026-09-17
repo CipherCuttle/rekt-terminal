@@ -43,7 +43,8 @@ describe('Stage I owner journey composition', () => {
   it('gives organizer and builder explicit first actions without hidden surface knowledge', async () => {
     renderJourney(client());
 
-    expect(await screen.findByRole('link', {name: /CREATE A CHALLENGE/i})).toHaveAttribute('href', '/?surface=compiler');
+    const create = await screen.findByRole('link', {name: /CREATE A CHALLENGE/i});
+    expect(create.getAttribute('href')).toBe('/?surface=compiler');
     expect(screen.getByText(/I HAVE A CHALLENGE TO BUILD/i)).toBeTruthy();
     expect(screen.getByLabelText(/CHALLENGE LINK OR ID/i)).toBeTruthy();
     expect(screen.getByText(/ENTER A VALID CHALLENGE ID/i)).toBeTruthy();
