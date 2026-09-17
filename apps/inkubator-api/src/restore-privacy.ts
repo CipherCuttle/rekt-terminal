@@ -33,10 +33,10 @@ export async function verifyRestoredPrivacyRetention(
       (
         select count(*)::int
         from challenge_submission_archive_sources s
-        where s.submission_id = h.subject_id
+        where s.submission_id::text = h.subject_id
       ) as source_count
     from history_events h
-    left join challenge_submission_archives a on a.submission_id = h.subject_id
+    left join challenge_submission_archives a on a.submission_id::text = h.subject_id
     where h.event_type = 'challenge.submission_private_material.purged'
     order by h.subject_id
   `.execute(db)).rows;
