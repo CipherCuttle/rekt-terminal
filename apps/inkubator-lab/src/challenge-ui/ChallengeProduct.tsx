@@ -17,6 +17,14 @@ import {
   type ChallengeSurface,
   type SurfaceState,
 } from './state';
+import {
+  StageIHistorySurface,
+  StageIJoinBridge,
+  StageIMyBuildSurface,
+  StageIOrganizerBridge,
+  StageIReviewSurface,
+  type StageIProductApi,
+} from './StageIAlphaBridge';
 import './challenge-product.css';
 import './compiler-stage-e.css';
 
@@ -70,7 +78,7 @@ export function buildCompilerProposal(
   };
 }
 
-export interface ChallengeProductApi {
+export interface ChallengeProductApi extends StageIProductApi {
   compileChallenge(body: CompilerProposalInput): Promise<CompilerStateView>;
   getChallenge(challengeId: string): Promise<PublicChallengeView>;
   previewBuildContract(
@@ -396,6 +404,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
 
   return (
     <div className="compiler-foundation">
+      <StageIOrganizerBridge api={api} />
       <section className="compiler-intake" aria-labelledby="compiler-intake-title">
         <small>SOURCE / ORGANIZER DRAFT</small>
         <h2 id="compiler-intake-title">WHAT SHOULD EXIST WHEN THIS IS DONE?</h2>
@@ -548,18 +557,21 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
   }
 
   return (
-    <StatePanel state="NORMAL" title={`Challenge ${view.status}.`}>
-      <dl className="challenge-facts" aria-label="Canonical Challenge facts">
-        <div><dt>CHALLENGE</dt><dd><code>{view.challenge_id}</code></dd></div>
-        <div><dt>TERMS</dt><dd>{view.current_terms_digest ?? 'NOT FROZEN'}</dd></div>
-        <div><dt>CONTRACT</dt><dd>{view.current_contract_version ?? 'DRAFT'} / {view.has_frozen_contract ? 'FROZEN' : 'UNFROZEN'}</dd></div>
-        <div><dt>SLOTS</dt><dd>{view.entry_count} / {view.slot_limit} · activation minimum {view.activation_minimum}</dd></div>
-        <div><dt>BUILD START</dt><dd>{view.build_start}</dd></div>
-        <div><dt>SUBMISSION DEADLINE</dt><dd>{view.submission_deadline}</dd></div>
-        <div><dt>EVIDENCE COUNTS</dt><dd>{view.submission_count} submissions · {view.qualification_count} qualifications · {view.receipt_count} receipts</dd></div>
-      </dl>
-      <p className="challenge-state__foot">PUBLIC PROJECTION ONLY — PAYOUT IDENTITIES AND PRIVATE ENTRY DATA ARE NOT EXPOSED.</p>
-    </StatePanel>
+    <>
+      <StatePanel state="NORMAL" title={`Challenge ${view.status}.`}>
+        <dl className="challenge-facts" aria-label="Canonical Challenge facts">
+          <div><dt>CHALLENGE</dt><dd><code>{view.challenge_id}</code></dd></div>
+          <div><dt>TERMS</dt><dd>{view.current_terms_digest ?? 'NOT FROZEN'}</dd></div>
+          <div><dt>CONTRACT</dt><dd>{view.current_contract_version ?? 'DRAFT'} / {view.has_frozen_contract ? 'FROZEN' : 'UNFROZEN'}</dd></div>
+          <div><dt>SLOTS</dt><dd>{view.entry_count} / {view.slot_limit} · activation minimum {view.activation_minimum}</dd></div>
+          <div><dt>BUILD START</dt><dd>{view.build_start}</dd></div>
+          <div><dt>SUBMISSION DEADLINE</dt><dd>{view.submission_deadline}</dd></div>
+          <div><dt>EVIDENCE COUNTS</dt><dd>{view.submission_count} submissions · {view.qualification_count} qualifications · {view.receipt_count} receipts</dd></div>
+        </dl>
+        <p className="challenge-state__foot">PUBLIC PROJECTION ONLY — PAYOUT IDENTITIES AND PRIVATE ENTRY DATA ARE NOT EXPOSED.</p>
+      </StatePanel>
+      <StageIJoinBridge api={api} />
+    </>
   );
 }
 
@@ -599,9 +611,9 @@ function Surface({surface, api}: {surface: ChallengeSurface; api: ChallengeProdu
   if (surface === 'DISCOVER') return <DiscoverSurface />;
   if (surface === 'COMPILER') return <CompilerSurface api={api} />;
   if (surface === 'CHALLENGE') return <ChallengeSurface api={api} />;
-  if (surface === 'MY_BUILD') return <MyBuildSurface />;
-  if (surface === 'REVIEW') return <ReviewSurface />;
-  if (surface === 'HISTORY') return <HistorySurface />;
+  if (surface === 'MY_BUILD') return api.getMyBuild && api.mintSubmitCredential ? <StageIMyBuildSurface api={api} /> : <MyBuildSurface />;
+  if (surface === 'REVIEW') return api.getRevealArena && api.getTestArenaModules && api.qualifyEntry && api.getQualifierComparison && api.selectQualifier ? <StageIReviewSurface api={api} /> : <ReviewSurface />;
+  if (surface === 'HISTORY') return api.getReceipts ? <StageIHistorySurface api={api} /> : <HistorySurface />;
   return <OperatorSurface />;
 }
 
@@ -631,7 +643,7 @@ export default function ChallengeProduct({initialSurface = 'DISCOVER', api = DEF
       <a className="challenge-skip" href="#challenge-workspace">Skip to Challenge workspace</a>
       <header className="challenge-topbar">
         <a className="challenge-brand" href="?surface=discover"><strong>REKT<i>//</i></strong><span>INKUBATOR</span></a>
-        <span className="challenge-purpose">CHALLENGE OS / STAGE E</span>
+        <span className="challenge-purpose">CHALLENGE OS / STAGE I ALPHA</span>
         <span className="challenge-authority">TRUTH BEFORE THEATER</span>
       </header>
 
@@ -642,9 +654,9 @@ export default function ChallengeProduct({initialSurface = 'DISCOVER', api = DEF
           <p>IDEA → FAIR BUILD CONTRACT → COMPETITION → REAL SOFTWARE → DURABLE RESULT</p>
         </div>
         <div className="challenge-heading__readout" aria-label="Stage readout">
-          <span>PHASE<b>STAGE E</b></span>
+          <span>PHASE<b>STAGE I ALPHA</b></span>
           <span>AUTHORITY<b>CHALLENGE-FIRST</b></span>
-          <span>MONEY<b>NOT AUTHORIZED</b></span>
+          <span>MONEY<b>TEST ONLY / NO REAL VALUE</b></span>
         </div>
       </section>
 
@@ -675,9 +687,9 @@ export default function ChallengeProduct({initialSurface = 'DISCOVER', api = DEF
       </section>
 
       <footer className="challenge-footer">
-        <span>E-GATE-1 / IA LOCKED</span>
-        <span>E-GATE-2 / STATES LOCKED</span>
-        <span>E-GATE-3 / REAL DATA ONLY</span>
+        <span>STAGE I / ALPHA REHEARSAL</span>
+        <span>TEST VALUE ONLY</span>
+        <span>REAL DATA / FROZEN AUTHORITY</span>
       </footer>
     </main>
   );
