@@ -1,3 +1,4 @@
+# Disposable review-only harness; never merge.
 name: H5 independent external hostile review
 
 on:
