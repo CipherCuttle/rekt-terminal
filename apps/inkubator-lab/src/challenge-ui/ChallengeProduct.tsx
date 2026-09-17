@@ -404,7 +404,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
 
   return (
     <div className="compiler-foundation">
-      <StageIOrganizerBridge api={api} />
+      <StageIOrganizerBridge api={api} challenge={challengeView} />
       <section className="compiler-intake" aria-labelledby="compiler-intake-title">
         <small>SOURCE / ORGANIZER DRAFT</small>
         <h2 id="compiler-intake-title">WHAT SHOULD EXIST WHEN THIS IS DONE?</h2>
