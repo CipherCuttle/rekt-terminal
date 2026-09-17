@@ -18,10 +18,26 @@ const api = spawn(process.execPath, ['apps/inkubator-api/dist/server.js'], {
   },
 });
 
-api.once('exit', (code, signal) => {
-  console.error('inkubator api exited', {code, signal});
-  process.exit(code ?? 1);
+const worker = spawn(process.execPath, ['apps/inkubator-api/dist/worker.js'], {
+  stdio: 'inherit',
+  env: {
+    ...process.env,
+    NODE_ENV: 'production',
+  },
 });
+
+let shuttingDown = false;
+function childExit(name, code, signal) {
+  console.error(`${name} exited`, {code, signal});
+  if (shuttingDown) return;
+  shuttingDown = true;
+  if (!api.killed) api.kill('SIGTERM');
+  if (!worker.killed) worker.kill('SIGTERM');
+  process.exit(code ?? 1);
+}
+
+api.once('exit', (code, signal) => childExit('inkubator api', code, signal));
+worker.once('exit', (code, signal) => childExit('inkubator worker', code, signal));
 
 const types = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -114,11 +130,14 @@ server.listen(publicPort, host, () => {
 });
 
 function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`received ${signal}`);
   server.close(() => {
     if (!api.killed) api.kill('SIGTERM');
-    process.exit(0);
+    if (!worker.killed) worker.kill('SIGTERM');
   });
+  setTimeout(() => process.exit(0), 250).unref();
 }
 
 process.once('SIGTERM', () => shutdown('SIGTERM'));
