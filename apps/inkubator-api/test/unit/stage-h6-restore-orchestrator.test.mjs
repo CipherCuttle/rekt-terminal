@@ -45,6 +45,8 @@ function fixture() {
     retention_evidence: {
       policy_version: 'inkubator.backup-retention/test-v1',
       policy_document_ref: 'docs/inkubator/INKUBATOR_PRIVATE_DATA_RETENTION_V1.md',
+      minimum_privacy_safe_backup_created_at: '2026-09-17T11:00:00.000Z',
+      privacy_safe_restore_point_evidence_ref: 'provider://privacy-safe-restore-point/20260917T110000Z',
       private_material_erasure_evidence_ref: 'apps/inkubator-api/test/integration/stage-h2-private-retention.test.mjs',
       backup_deletion_evidence_ref: 'provider://backup-retention/delete-proof-1',
     },
@@ -93,6 +95,19 @@ test('H6 does not invoke provider restore before isolation and retention evidenc
       restore_artifact,
     }),
     /backup_retention_evidence_policy_mismatch/,
+  );
+  assert.equal(restoreCalls, 0);
+
+  await assert.rejects(
+    runIsolatedBackupRestoreDrill({
+      ...input,
+      retention_evidence: {
+        ...input.retention_evidence,
+        minimum_privacy_safe_backup_created_at: '2026-09-17T11:45:00.000Z',
+      },
+      restore_artifact,
+    }),
+    /backup_predates_privacy_safe_restore_point/,
   );
   assert.equal(restoreCalls, 0);
 });
