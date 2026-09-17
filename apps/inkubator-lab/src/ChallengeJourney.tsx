@@ -1,9 +1,9 @@
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useState, type ReactNode} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import {InkubatorApiError, type InkubatorApiClient} from './generated/inkubator-api-client';
 import {createInkubatorApiClient} from './inkubator-api';
 import ChallengeProduct, {type ChallengeProductApi} from './challenge-ui/ChallengeProduct';
-import {CHALLENGE_SURFACES, parseChallengeSurface, SURFACE_CUES, SURFACE_LABELS, type ChallengeSurface} from './challenge-ui/state';
+import {parseChallengeSurface, SURFACE_CUES, SURFACE_LABELS, type ChallengeSurface} from './challenge-ui/state';
 import './instrument-os/instrument-os.css';
 import './shell/terminal-shell.css';
 import './shell/terminal-shell-v2.css';
@@ -15,7 +15,6 @@ import './challenge-ui/challenge-journey.css';
 
 const defaultClient = createInkubatorApiClient();
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 const USER_SURFACES: ChallengeSurface[] = ['DISCOVER', 'COMPILER', 'CHALLENGE', 'MY_BUILD', 'REVIEW', 'HISTORY'];
 
 function challengeHref(surface: ChallengeSurface, challengeId?: string | null): string {
@@ -83,7 +82,7 @@ function SessionStatus({client}: {client: Pick<InkubatorApiClient, 'getMe'>}) {
   return <button type="button" className="challenge-journey-session challenge-journey-session--action" onClick={() => void query.refetch()}>IDENTITY OFFLINE / RETRY</button>;
 }
 
-function JourneyChrome({surface, challengeId, client, children}: {surface: ChallengeSurface; challengeId: string | null; client: Pick<InkubatorApiClient, 'getMe'>; children: React.ReactNode}) {
+function JourneyChrome({surface, challengeId, client, children}: {surface: ChallengeSurface; challengeId: string | null; client: Pick<InkubatorApiClient, 'getMe'>; children: ReactNode}) {
   return (
     <main className="ios-lab ios-shell ios-shell-v2 challenge-journey-shell" data-shell="terminal" data-shell-variant="v2" data-mode="command">
       <a className="faceplate-skip" href="#journey-workspace">Skip to Inkubator</a>
