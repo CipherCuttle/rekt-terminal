@@ -51,6 +51,10 @@
     "./testnet-vault-adapter": {
       "types": "./src/testnet-vault-adapter.d.ts",
       "import": "./src/testnet-vault-adapter.mjs"
+    },
+    "./production-candidate-vault-adapter": {
+      "types": "./src/production-candidate-vault-adapter.d.ts",
+      "import": "./src/production-candidate-vault-adapter.mjs"
     }
   },
   "publishConfig": {
