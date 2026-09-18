@@ -1,6 +1,6 @@
 # REKT INKUBATOR — STAGE J4 PRODUCTION-CANDIDATE VAULT V1
 
-**Status:** ACTIVE / PRE-AUDIT TRANCHE VERIFIED / REMAINING MATRIX NEXT  
+**Status:** ACTIVE / TECHNICAL AUDIT HANDOFF READY / EXTERNAL AUDIT NOT STARTED  
 **Date:** 2026-09-19  
 **Branch:** `agent/stage-j4-production-candidate-vault-v1`  
 **Base:** J3 closure head `da346243e6fbcf5e259bdd8de85c0e099a6e1adc`  
@@ -13,7 +13,9 @@
 **Targeted rereview:** `5253190481` — PASS / original High findings closed  
 **Implementation receipt:** `STAGE_J4_IMPLEMENTATION_RECEIPT_V1.md`  
 **Pre-audit matrix receipt:** `STAGE_J4_PREAUDIT_MATRIX_RECEIPT_V1.md`  
+**External audit handoff:** `STAGE_J4_EXTERNAL_AUDIT_HANDOFF_V1.md`  
 **Verified pre-audit implementation head:** `18998bfe485a420046596ebba8a132691f02c2ff`  
+**Exact external-auditor scope head:** `05e345181dfde2c720874b1fc2d1ee7dd39272a9`  
 **Production-money authority:** NONE  
 **Mainnet deployment authority:** NONE  
 **Production-signer authority:** NONE  
@@ -66,7 +68,9 @@ Adds the J3 production-candidate delta:
 - payout seal closes exactly at activation boundary;
 - qualifier freeze stores exactly one default settlement manifest digest;
 - normal qualifier freeze requires outcome + organizer authority;
-- recovery qualifier freeze after the resolution boundary requires the immutable resolver threshold only;
+- exceptional recovery qualifier freeze before the resolution boundary requires outcome + immutable resolver threshold;
+- at/after the resolution boundary and before terminal long-stop, resolver-threshold-only recovery is allowed only while no qualifier set exists;
+- ERC-1271 resolver verification uses a fixed gas ceiling and fails closed on malformed/reverting/gas-grief behavior;
 - recovery binds a nonzero recovery-evidence digest;
 - deterministic defaults after organizer deadline require no live signer;
 - terminal fallback after long-stop requires no live signer;
@@ -128,8 +132,9 @@ Boundary semantics in Solidity:
 - pre-build refund: allowed at `timestamp >= activation`;
 - organizer winner: allowed only while `timestamp < organizer`;
 - deterministic default: allowed at `timestamp >= organizer`;
-- normal qualifier freeze: allowed only while `timestamp < resolution`;
-- resolver recovery: allowed while `resolution <= timestamp < terminal`;
+- normal outcome+organizer qualifier freeze: allowed only while `timestamp < resolution`;
+- exceptional outcome+resolver recovery freeze: allowed only while `timestamp < resolution`;
+- resolver-only recovery: allowed while `resolution <= timestamp < terminal`, only if no qualifier set exists;
 - terminal refund: allowed at `timestamp >= terminal`.
 
 ## Chain / asset planning boundary
@@ -235,7 +240,7 @@ All three were repaired. Targeted rereview `5253190481` returned `PASS / ORIGINA
 
 Exact repair-head verification passed J4, Vault, J2 regression and generic CI. The durable receipt is `STAGE_J4_IMPLEMENTATION_RECEIPT_V1.md`.
 
-J4 is intentionally **not** marked stage-closed yet. The bounded pre-audit tranche at `18998bfe485a420046596ebba8a132691f02c2ff` closes substantial replay/signature/ERC-1271/token/conservation/forbidden-surface/reproducibility/read-only asset-identity coverage and repairs the missing pre-resolution outcome+resolver recovery path. Durable evidence is in `STAGE_J4_PREAUDIT_MATRIX_RECEIPT_V1.md`. Remaining J3 matrix classes—especially cross-language known-answer vectors, controlled native-USDC transfer behavior, release-differentiation, deployed-code attestation, signer operations and append-only correction/privacy evidence—stay explicit and must not be inferred PASS.
+J4 is intentionally **not** marked stage-closed yet. The external-auditor source scope is frozen at `05e345181dfde2c720874b1fc2d1ee7dd39272a9`; exact-head J4/Vault/J2/Inkubator/generic CI are green. `STAGE_J4_EXTERNAL_AUDIT_HANDOFF_V1.md` records the handoff package: frozen JS↔Solidity known-answer vectors, controlled native-USDC fork behavior, dual-RPC native-USDC proxy/admin identity, source-mutation release differentiation, independent clean-runner bytecode reproduction, bounded ERC-1271 gas-grief handling, canonical UTF-8 payout planning, signer-request idempotency, append-only reconciliation/corrections and on-chain privacy/secret-boundary checks. Technical source package status is `EXTERNAL_AUDIT_HANDOFF = READY`; the external audit itself has not started. Deployed `eth_getCode` attestation remains a post-audit/pre-funding deployment gate because mainnet deployment authority is NONE. Actual production signer ceremony and legal/accounting/privacy/eligibility decisions remain separate pre-launch gates.
 
 ## Bounded completion
 
