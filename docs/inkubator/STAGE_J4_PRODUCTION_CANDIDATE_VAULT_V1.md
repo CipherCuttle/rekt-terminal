@@ -1,6 +1,6 @@
 # REKT INKUBATOR — STAGE J4 PRODUCTION-CANDIDATE VAULT V1
 
-**Status:** ACTIVE / CORE IMPLEMENTED + VERIFIED / PRE-AUDIT MATRIX NEXT  
+**Status:** ACTIVE / PRE-AUDIT TRANCHE VERIFIED / REMAINING MATRIX NEXT  
 **Date:** 2026-09-19  
 **Branch:** `agent/stage-j4-production-candidate-vault-v1`  
 **Base:** J3 closure head `da346243e6fbcf5e259bdd8de85c0e099a6e1adc`  
@@ -12,6 +12,8 @@
 **Hostile review:** `5253171614` — 3 HIGH / repaired  
 **Targeted rereview:** `5253190481` — PASS / original High findings closed  
 **Implementation receipt:** `STAGE_J4_IMPLEMENTATION_RECEIPT_V1.md`  
+**Pre-audit matrix receipt:** `STAGE_J4_PREAUDIT_MATRIX_RECEIPT_V1.md`  
+**Verified pre-audit implementation head:** `18998bfe485a420046596ebba8a132691f02c2ff`  
 **Production-money authority:** NONE  
 **Mainnet deployment authority:** NONE  
 **Production-signer authority:** NONE  
@@ -233,7 +235,7 @@ All three were repaired. Targeted rereview `5253190481` returned `PASS / ORIGINA
 
 Exact repair-head verification passed J4, Vault, J2 regression and generic CI. The durable receipt is `STAGE_J4_IMPLEMENTATION_RECEIPT_V1.md`.
 
-J4 is intentionally **not** marked stage-closed yet: the remaining J3 pre-external-audit matrix classes stay explicit and must not be inferred from the focused core suite.
+J4 is intentionally **not** marked stage-closed yet. The bounded pre-audit tranche at `18998bfe485a420046596ebba8a132691f02c2ff` closes substantial replay/signature/ERC-1271/token/conservation/forbidden-surface/reproducibility/read-only asset-identity coverage and repairs the missing pre-resolution outcome+resolver recovery path. Durable evidence is in `STAGE_J4_PREAUDIT_MATRIX_RECEIPT_V1.md`. Remaining J3 matrix classes—especially cross-language known-answer vectors, controlled native-USDC transfer behavior, release-differentiation, deployed-code attestation, signer operations and append-only correction/privacy evidence—stay explicit and must not be inferred PASS.
 
 ## Bounded completion
 
