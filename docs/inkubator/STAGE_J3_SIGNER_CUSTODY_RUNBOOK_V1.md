@@ -83,21 +83,28 @@ Blind signing of opaque arbitrary calldata is prohibited.
 
 ## 4. Resolver threshold
 
-The resolver authority is one ERC-1271 contract-wallet address.
+The resolver authority is a **minimal immutable ERC-1271 threshold verifier**, not a mutable general-purpose wallet.
 
-First-candidate quorum:
+First-candidate law:
 
-`2-of-3`
+- exactly three immutable signer addresses;
+- immutable quorum `2-of-3`;
+- no owner/signatory mutation;
+- no threshold mutation;
+- no modules;
+- no delegatecall;
+- no upgrade/proxy;
+- no asset custody;
+- no arbitrary transaction execution;
+- ERC-1271 verification only.
 
-The three underlying signers must not all depend on one security boundary.
+The three signers must not all depend on one security boundary.
 
 Minimum topology:
 
 - signer R1 — operational recovery signer;
 - signer R2 — cold recovery signer held separately from R1;
 - signer R3 — independent recovery signer/security principal.
-
-At least two must be required to form a valid ERC-1271 signature.
 
 Examples of unacceptable “3 signers”:
 
@@ -106,7 +113,7 @@ Examples of unacceptable “3 signers”:
 - three cloud secrets under one cloud account;
 - three software wallets backed by one seed phrase.
 
-The exact wallet implementation/vendor is selected only after its ERC-1271 and threshold behavior is included in the external review scope.
+The verifier implementation itself is part of the production-candidate smart-contract audit scope. Active Challenges never change its signer set/quorum.
 
 ## 5. Organizer authority
 
@@ -192,9 +199,11 @@ The 2-of-3 topology tolerates loss of one resolver signer.
 If one signer is lost:
 
 1. mark that underlying key unavailable;
-2. verify the threshold wallet still requires two valid remaining principals;
-3. rotate the underlying threshold owner only through the wallet's audited governance if supported and if doing so does not change the vault's resolver contract address;
-4. record the governance transaction and updated signer inventory.
+2. verify the immutable verifier still requires two valid remaining principals;
+3. operate with the two remaining signers only when resolver authority is contract-valid;
+4. deploy a new reviewed resolver verifier for **new Challenges** if membership must change.
+
+The active resolver verifier is never reconfigured.
 
 If quorum is lost entirely, no privileged override is introduced. The immutable terminal long-stop remains the ultimate liveness path.
 
@@ -212,10 +221,12 @@ If quorum is lost entirely, no privileged override is introduced. The immutable 
 
 ### Suspected resolver compromise
 
-- freeze new Challenges referencing the resolver wallet;
-- inspect threshold-owner/governance state;
-- if quorum remains trustworthy, rotate compromised underlying signer through audited wallet governance;
-- if threshold integrity is uncertain, do not use resolver privileges on active Challenges;
+- freeze new Challenges referencing the affected immutable resolver verifier;
+- identify the compromised underlying signer;
+- if the two uncompromised signers remain trustworthy, they still form the fixed 2-of-3 quorum for contract-valid recovery only;
+- do not rotate/reconfigure the active verifier;
+- deploy a new reviewed immutable verifier for new Challenges;
+- if fewer than two trustworthy signers remain, do not use resolver privileges on active Challenges;
 - rely on normal/deterministic/terminal paths that do not require resolver authority.
 
 ### Suspected organizer compromise
@@ -279,6 +290,7 @@ Before production authority can be requested, produce:
 - signer recovery tabletop;
 - one lost-outcome-key liveness rehearsal;
 - one lost-resolver-signer quorum rehearsal;
+- one proof that resolver signer set/quorum/code are immutable for active Challenges;
 - secret inventory proving ordinary runtime does not contain signing keys.
 
 ## 14. Remaining external decisions
