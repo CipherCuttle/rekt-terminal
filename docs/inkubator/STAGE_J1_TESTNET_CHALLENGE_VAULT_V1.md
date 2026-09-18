@@ -134,12 +134,11 @@ Funding is one-shot and exact.
 The vault rejects:
 
 - second funding;
-- non-zero pre-funding token balance;
-- observed token balance delta different from the frozen prize.
+- observed funding-call token balance delta different from the frozen prize.
 
-Fee-on-transfer behavior is therefore rejected.
+It deliberately does **not** require a zero pre-funding balance, because any third party can transfer ERC-20 dust directly to a contract address. Such dust must not brick a Challenge. Fee-on-transfer behavior is rejected because the funding delta must still equal the exact prize.
 
-The contract has no admin sweep. Unsolicited extra token transfers are outside Challenge accounting.
+The contract has no admin sweep. Unsolicited extra token transfers remain outside Challenge accounting and may be stranded in J1.
 
 ## 5. Claimable settlement
 
@@ -217,10 +216,10 @@ J1 closes only if exact-head verification proves:
 
 1. format + compile;
 2. one-shot exact funding;
-3. fee-on-transfer funding rejection;
+3. fee-on-transfer funding rejection and pre-funding dust grief resistance;
 4. pairwise-independent authorities;
 5. dual-authorized payout-set seal;
-6. final qualifier set is a verified subset of payout set;
+6. final qualifier set is a verified subset of payout set and preserves the J0 canonical entry-order rank;
 7. qualifier set requires an independent co-authority;
 8. organizer winner must be a frozen final qualifier;
 9. normal winner requires outcome + organizer and expires at the frozen selection deadline;
