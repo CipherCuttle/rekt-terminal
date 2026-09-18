@@ -40,6 +40,16 @@ function currentSurface(): ChallengeSurface {
   return parseChallengeSurface(new URLSearchParams(window.location.search).get('surface')) ?? 'DISCOVER';
 }
 
+function relativeLocation(url: URL = new URL(window.location.href)): string {
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function githubLoginHref(returnTo: string): string {
+  const url = new URL('/v1/auth/github/start', window.location.origin);
+  url.searchParams.set('return_to', returnTo);
+  return `${url.pathname}${url.search}`;
+}
+
 function FaceplateRail({surface, challengeId}: {surface: ChallengeSurface; challengeId: string | null}) {
   const railRef = useRef<HTMLElement>(null);
 
@@ -110,7 +120,7 @@ function SessionStatus({client}: {client: Pick<InkubatorApiClient, 'getMe'>}) {
   if (query.isPending) return <span className="challenge-journey-session">IDENTITY / CHECKING</span>;
   if (!query.error) return <span className="challenge-journey-session" data-state="connected">GITHUB / CONNECTED</span>;
   const status = query.error instanceof InkubatorApiError ? query.error.status : 0;
-  if (status === 401) return <a className="challenge-journey-session challenge-journey-session--action" href="/v1/auth/github/start">CONNECT GITHUB →</a>;
+  if (status === 401) return <a className="challenge-journey-session challenge-journey-session--action" href={githubLoginHref(relativeLocation())}>CONNECT GITHUB →</a>;
   return <button type="button" className="challenge-journey-session challenge-journey-session--action" onClick={() => void query.refetch()}>IDENTITY OFFLINE / RETRY</button>;
 }
 
@@ -199,6 +209,13 @@ function publicCreatorXUrl(summary: {informational_references: Array<{id: string
 }
 
 function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe' | 'getMyConnectionContext'> & Pick<ChallengeProductApi, 'getChallenge'>}) {
+  const organizerSession = useQuery({
+    queryKey: ['inkubator', 'session', 'journey'],
+    queryFn: () => client.getMe(),
+    retry: false,
+    staleTime: 30_000,
+  });
+  const organizerNeedsGitHub = organizerSession.error instanceof InkubatorApiError && organizerSession.error.status === 401;
   const params = new URLSearchParams(window.location.search);
   const existingChallenge = params.get('challenge');
   const [target, setTarget] = useState(existingChallenge ?? '');
@@ -229,7 +246,9 @@ function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe' | 'getM
             <small>CHALLENGE BOARD</small>
             <h2 id="discover-dashboard-title">WHAT'S BUILDING?</h2>
           </div>
-          <a className="challenge-journey-primary" href={challengeHref('COMPILER')}>+ LAUNCH YOUR OWN →</a>
+          {organizerNeedsGitHub
+            ? <a className="challenge-journey-primary journey-next-action journey-next-action--link" href={githubLoginHref(challengeHref('COMPILER'))}>CONNECT GITHUB TO LAUNCH →</a>
+            : <a className="challenge-journey-primary" href={challengeHref('COMPILER')}>+ LAUNCH YOUR OWN →</a>}
         </div>
 
         {currentChallengeId ? (
@@ -287,7 +306,19 @@ function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe' | 'getM
           <h3>I WANT TO RUN A BUILD CHALLENGE.</h3>
           <p>Describe the software outcome, resolve the compiler questions, freeze the Build Contract, then open the competition with TEST value.</p>
           <ol><li>CREATE</li><li>COMPILE</li><li>LOCK</li><li>OPEN</li></ol>
-          <a className="challenge-journey-primary" href={challengeHref('COMPILER')}>CREATE A CHALLENGE →</a>
+          {organizerNeedsGitHub ? (
+            <>
+              <div className="challenge-auth-gate" role="status">
+                <b>GITHUB REQUIRED TO ORGANIZE</b>
+                <span>Your login becomes the creator identity on the Challenge. Public browsing does not require login.</span>
+              </div>
+              <a className="challenge-journey-primary journey-next-action journey-next-action--link" href={githubLoginHref(challengeHref('COMPILER'))}>CONNECT GITHUB & CONTINUE →</a>
+            </>
+          ) : organizerSession.isPending ? (
+            <span className="challenge-journey-primary challenge-journey-primary--disabled">CHECKING GITHUB…</span>
+          ) : (
+            <a className="challenge-journey-primary" href={challengeHref('COMPILER')}>CREATE A CHALLENGE →</a>
+          )}
         </article>
 
         <article className="challenge-journey-lane challenge-journey-lane--builder">
