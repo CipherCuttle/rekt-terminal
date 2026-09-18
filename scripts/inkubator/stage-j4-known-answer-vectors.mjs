@@ -1,5 +1,9 @@
 import {execFileSync} from 'node:child_process';
 
+function invariant(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
 function strip0x(value) {
   return value.startsWith('0x') ? value.slice(2) : value;
 }
@@ -169,5 +173,21 @@ const output = {
     organizer_winner_digest: organizerWinnerDigest,
   },
 };
+
+const FROZEN_EXPECTED = Object.freeze({
+  domain_separator: '0x204531b5999ca51070b22a39919156f03fbd230b8bbae0cc64e73217a5f336fc',
+  payout_leaf_a: '0x281a7222c0e843ba2a41febded46e963bf6cde4ba6697bcfa51c6537e7b8f643',
+  payout_leaf_b: '0x2253be8e577fb53a76895f2866840e7ff437a9302922fbe7fbbe6f3f031b2bc2',
+  payout_root: '0x0195b69843ca1d3cc2e4bfdb67b9a5d3c0719929a033f045db6d90095cf0312d',
+  payout_set_digest: '0xa1f6397f2ba892b494c657bc6a183ec44183a2ed8be3a62b9f8ecd5ae5202e19',
+  qualifier_set_digest: '0xfd1656fab8c2c886907ad90e2653f37eafd7da10244871054c8dea25ac7cf138',
+  recipient_item_hash: '0x179ddcabd1fff8ca39c9924d568488bb6d12077423dfc583f6d17c6757ec8203',
+  recipients_digest: '0xab2d83a02e24a7c6929b27bfb460790b593b9acba9325c4ce4eccc478434fa0d',
+  organizer_winner_digest: '0x8244a6f57602be276724496196eebca9bbcaaa216145be78d2d8991c09446fc8',
+});
+
+for (const [key, expected] of Object.entries(FROZEN_EXPECTED)) {
+  invariant(output.expected[key] === expected, `known-answer drift for ${key}: ${output.expected[key]} != ${expected}`);
+}
 
 process.stdout.write(JSON.stringify(output, null, 2) + '\n');
