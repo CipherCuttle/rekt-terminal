@@ -343,6 +343,10 @@ describe('Stage E Challenge product shell', () => {
     expect(persistButton.disabled).toBe(true);
 
     fireEvent.change(screen.getByLabelText('CHALLENGE TITLE'), {target: {value: 'Static launch Challenge'}});
+    fireEvent.change(screen.getByLabelText('CREATOR X PROFILE / OPTIONAL'), {target: {value: 'https://example.com/not-x'}});
+    expect(previewButton.disabled).toBe(true);
+    expect(screen.getByText(/X PROFILE MUST BE A DIRECT HTTPS PROFILE URL/i)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('CREATOR X PROFILE / OPTIONAL'), {target: {value: 'https://x.com/creator_handle'}});
     expect(previewButton.disabled).toBe(false);
     fireEvent.click(previewButton);
 
@@ -353,6 +357,7 @@ describe('Stage E Challenge product shell', () => {
       brief: 'Build a public static launch page',
       prize_minor_units: 100,
       settlement_asset: 'TEST',
+      informational_references: [{id: 'creator-x-profile', url: 'https://x.com/creator_handle'}],
     });
     expect(previewBuildContract).toHaveBeenCalledWith(draftChallenge.challenge_id, acceptedState, acceptedAuthority);
     expect(screen.getByText('PREVIEW ONLY · NOT LOCKED YET', {selector: 'strong'})).toBeTruthy();
@@ -365,7 +370,11 @@ describe('Stage E Challenge product shell', () => {
     expect(persistChallengeId).toBe(draftChallenge.challenge_id);
     expect(requestId).toMatch(/^[0-9a-f-]{36}$/i);
     expect(persistState).toEqual(acceptedState);
-    expect(persistAuthority).toEqual(expect.objectContaining({contract_version: '1.0.0', title: 'Static launch Challenge'}));
+    expect(persistAuthority).toEqual(expect.objectContaining({
+      contract_version: '1.0.0',
+      title: 'Static launch Challenge',
+      informational_references: [{id: 'creator-x-profile', url: 'https://x.com/creator_handle'}],
+    }));
     expect(expectedDigest).toBe(contractPreview.contract.terms_digest);
     await waitFor(() => expect(getChallenge).toHaveBeenCalledTimes(2));
     expect(screen.getByText('OPEN IT TO BUILDERS')).toBeTruthy();
