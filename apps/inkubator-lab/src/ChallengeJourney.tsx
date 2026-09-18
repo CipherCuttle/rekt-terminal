@@ -44,7 +44,7 @@ function FaceplateRail({surface, challengeId}: {surface: ChallengeSurface; chall
   const railRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (!window.matchMedia('(max-width: 760px)').matches) return;
+    if (typeof window.matchMedia !== 'function' || !window.matchMedia('(max-width: 760px)').matches) return;
     railRef.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({
       behavior: 'smooth',
       block: 'nearest',
