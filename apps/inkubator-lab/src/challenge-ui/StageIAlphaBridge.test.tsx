@@ -77,7 +77,7 @@ describe('Stage I alpha browser bridge', () => {
     render(<StageIOrganizerBridge api={api} onChallengeChanged={onChallengeChanged} />);
     expect(screen.getByText(/THIS REHEARSAL USES TEST VALUE ONLY/i)).toBeTruthy();
     expect(screen.getByText(/DRAFT ONLY · NOT OPEN TO BUILDERS · NO REAL VALUE/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', {name: 'CREATE DRAFT CHALLENGE'}));
+    fireEvent.click(screen.getByRole('button', {name: 'CREATE DRAFT & CONTINUE →'}));
 
     await waitFor(() => expect(createChallenge).toHaveBeenCalledTimes(1));
     const input = createChallenge.mock.calls[0]![0];
@@ -107,7 +107,7 @@ describe('Stage I alpha browser bridge', () => {
     const href = new URL(connect.getAttribute('href')!, window.location.origin);
     expect(href.pathname).toBe('/v1/auth/github/start');
     expect(href.searchParams.get('return_to')).toContain('surface=compiler');
-    expect(screen.queryByRole('button', {name: 'CREATE DRAFT CHALLENGE'})).toBeNull();
+    expect(screen.queryByRole('button', {name: 'CREATE DRAFT & CONTINUE →'})).toBeNull();
     expect(screen.queryByLabelText('BUILDER SLOTS')).toBeNull();
     expect(createChallenge).not.toHaveBeenCalled();
   });
@@ -121,7 +121,7 @@ describe('Stage I alpha browser bridge', () => {
     })} />);
 
     await waitFor(() => expect(screen.getByText('DRAFT', {selector: 'dd'})).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', {name: 'OPEN CHALLENGE / TEST ONLY'}));
+    fireEvent.click(screen.getByRole('button', {name: 'OPEN TO BUILDERS →'}));
     await waitFor(() => expect(launchStageIMockChallenge).toHaveBeenCalledTimes(1));
     expect(launchStageIMockChallenge.mock.calls[0]![0]).toBe(challengeId);
     expect(launchStageIMockChallenge.mock.calls[0]![1]).toMatch(/^[0-9a-f-]{36}$/i);
