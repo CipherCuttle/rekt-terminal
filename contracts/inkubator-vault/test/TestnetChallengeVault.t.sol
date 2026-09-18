@@ -128,6 +128,22 @@ contract TestnetChallengeVaultTest {
         feeVault.fund();
     }
 
+
+    function testUnsolicitedPrefundingDustDoesNotBrickExactFunding() public {
+        MockERC20 dustToken = new MockERC20();
+        TestnetChallengeVault dustVault = _deploy(dustToken, PRIZE);
+
+        dustToken.mint(address(dustVault), 1);
+        dustToken.mint(address(this), PRIZE);
+        dustToken.approve(address(dustVault), PRIZE);
+
+        dustVault.fund();
+
+        _assert(dustVault.funded(), "dust must not block funding");
+        _assertEq(dustToken.balanceOf(address(dustVault)), PRIZE + 1, "surplus remains outside prize accounting");
+        _assertEq(dustVault.remainingLiability(), PRIZE, "liability stays exact prize");
+    }
+
     function testConstructorRequiresPairwiseIndependentAuthorities() public {
         vm.expectRevert(TestnetChallengeVault.AuthoritiesMustBeIndependent.selector);
         new TestnetChallengeVault(token, CHALLENGE, TERMS, BINDING, PRIZE, organizer, outcome, outcome, resolver);
@@ -156,8 +172,8 @@ contract TestnetChallengeVaultTest {
 
         TestnetChallengeVault.PayoutMemberInput[] memory qualifiers =
             new TestnetChallengeVault.PayoutMemberInput[](2);
-        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, alice, payoutProofA);
-        qualifiers[1] = TestnetChallengeVault.PayoutMemberInput(entryB, bob, payoutProofB);
+        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, 0, alice, payoutProofA);
+        qualifiers[1] = TestnetChallengeVault.PayoutMemberInput(entryB, 1, bob, payoutProofB);
 
         bytes32 qualifierRoot = _twoLeafRoot(entryA, alice, entryB, bob);
         bytes32 digest = vault.qualifierSetAuthorizationDigest(
@@ -192,8 +208,8 @@ contract TestnetChallengeVaultTest {
 
         TestnetChallengeVault.PayoutMemberInput[] memory qualifiers =
             new TestnetChallengeVault.PayoutMemberInput[](2);
-        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, alice, payoutProofA);
-        qualifiers[1] = TestnetChallengeVault.PayoutMemberInput(entryB, bob, payoutProofB);
+        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, 0, alice, payoutProofA);
+        qualifiers[1] = TestnetChallengeVault.PayoutMemberInput(entryB, 1, bob, payoutProofB);
 
         bytes32 qualifierRoot = _twoLeafRoot(entryA, alice, entryB, bob);
         bytes32 digest = vault.qualifierSetAuthorizationDigest(
@@ -216,10 +232,10 @@ contract TestnetChallengeVaultTest {
         (bytes32 qualifierRoot, bytes32[] memory qualifierProofA,) = _sealQualifiersAB();
 
         TestnetChallengeVault.RecipientClaimInput memory winner =
-            TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE, qualifierProofA);
+            TestnetChallengeVault.RecipientClaimInput(entryA, 0, alice, PRIZE, qualifierProofA);
 
         bytes32 manifest = keccak256("manifest:organizer-winner");
-        bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, alice, PRIZE);
+        bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, 0, alice, PRIZE);
         bytes32 digest = vault.settlementAuthorizationDigest(
             manifest,
             qualifierRoot,
@@ -256,14 +272,14 @@ contract TestnetChallengeVaultTest {
         TestnetChallengeVault.PayoutMemberInput[] memory qualifiers =
             new TestnetChallengeVault.PayoutMemberInput[](1);
         bytes32[] memory payoutProofA = _proofA();
-        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, alice, payoutProofA);
+        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, 0, alice, payoutProofA);
         _sealQualifierSet(qualifiers, TestnetChallengeVault.QualifierSetCoAuthority.ORGANIZER);
 
         TestnetChallengeVault.RecipientClaimInput memory nonQualifier =
-            TestnetChallengeVault.RecipientClaimInput(entryC, carol, PRIZE, payoutProofC);
+            TestnetChallengeVault.RecipientClaimInput(entryC, 2, carol, PRIZE, payoutProofC);
 
         bytes32 manifest = keccak256("manifest:nonqualifier");
-        bytes32 recipientsDigest = vault.singleRecipientDigest(entryC, carol, PRIZE);
+        bytes32 recipientsDigest = vault.singleRecipientDigest(entryC, 2, carol, PRIZE);
         bytes32 digest = vault.settlementAuthorizationDigest(
             manifest,
             vault.qualifierSetRoot(),
@@ -286,14 +302,14 @@ contract TestnetChallengeVaultTest {
 
         TestnetChallengeVault.PayoutMemberInput[] memory qualifiers =
             new TestnetChallengeVault.PayoutMemberInput[](1);
-        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, alice, payoutProofA);
+        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, 0, alice, payoutProofA);
         _sealQualifierSet(qualifiers, TestnetChallengeVault.QualifierSetCoAuthority.ORGANIZER);
 
         TestnetChallengeVault.RecipientClaimInput memory soleQualifier =
-            TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE, new bytes32[](0));
+            TestnetChallengeVault.RecipientClaimInput(entryA, 0, alice, PRIZE, new bytes32[](0));
 
         bytes32 manifest = keccak256("manifest:single-default");
-        bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, alice, PRIZE);
+        bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, 0, alice, PRIZE);
         bytes32 digest = vault.settlementAuthorizationDigest(
             manifest,
             vault.qualifierSetRoot(),
@@ -316,11 +332,11 @@ contract TestnetChallengeVaultTest {
         (bytes32 qualifierRoot, bytes32[] memory qualifierProofA,) = _sealQualifiersAB();
 
         TestnetChallengeVault.RecipientClaimInput memory winner =
-            TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE, qualifierProofA);
+            TestnetChallengeVault.RecipientClaimInput(entryA, 0, alice, PRIZE, qualifierProofA);
 
         bytes32 manifestA = keccak256("manifest:A");
         bytes32 manifestB = keccak256("manifest:B");
-        bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, alice, PRIZE);
+        bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, 0, alice, PRIZE);
         bytes32 digestA = vault.settlementAuthorizationDigest(
             manifestA,
             qualifierRoot,
@@ -341,10 +357,10 @@ contract TestnetChallengeVaultTest {
         (bytes32 qualifierRoot, bytes32[] memory qualifierProofA,) = _sealQualifiersAB();
 
         TestnetChallengeVault.RecipientClaimInput memory winner =
-            TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE, qualifierProofA);
+            TestnetChallengeVault.RecipientClaimInput(entryA, 0, alice, PRIZE, qualifierProofA);
 
         bytes32 first = keccak256("manifest:first");
-        bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, alice, PRIZE);
+        bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, 0, alice, PRIZE);
         bytes32 firstDigest = vault.settlementAuthorizationDigest(
             first,
             qualifierRoot,
@@ -385,9 +401,9 @@ contract TestnetChallengeVaultTest {
 
         TestnetChallengeVault.RecipientClaimInput[] memory recipients =
             new TestnetChallengeVault.RecipientClaimInput[](3);
-        recipients[0] = TestnetChallengeVault.RecipientClaimInput(entryA, alice, base + 1, proofA);
-        recipients[1] = TestnetChallengeVault.RecipientClaimInput(entryB, bob, base, proofB);
-        recipients[2] = TestnetChallengeVault.RecipientClaimInput(entryC, carol, base, proofC);
+        recipients[0] = TestnetChallengeVault.RecipientClaimInput(entryA, 0, alice, base + 1, proofA);
+        recipients[1] = TestnetChallengeVault.RecipientClaimInput(entryB, 1, bob, base, proofB);
+        recipients[2] = TestnetChallengeVault.RecipientClaimInput(entryC, 2, carol, base, proofC);
 
         bytes32 manifest = keccak256("manifest:default");
         bytes32 recipientsDigest = _recipientDigest(recipients);
@@ -428,8 +444,8 @@ contract TestnetChallengeVaultTest {
 
         TestnetChallengeVault.RecipientClaimInput[] memory recipients =
             new TestnetChallengeVault.RecipientClaimInput[](2);
-        recipients[0] = TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE / 2, proofA);
-        recipients[1] = TestnetChallengeVault.RecipientClaimInput(entryB, bob, PRIZE / 2, proofB);
+        recipients[0] = TestnetChallengeVault.RecipientClaimInput(entryA, 0, alice, PRIZE / 2, proofA);
+        recipients[1] = TestnetChallengeVault.RecipientClaimInput(entryB, 1, bob, PRIZE / 2, proofB);
 
         bytes32 manifest = keccak256("manifest:subset");
         bytes32 digest = vault.settlementAuthorizationDigest(
@@ -450,9 +466,9 @@ contract TestnetChallengeVaultTest {
 
         TestnetChallengeVault.RecipientClaimInput[] memory recipients =
             new TestnetChallengeVault.RecipientClaimInput[](3);
-        recipients[0] = TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE - 2, proofA);
-        recipients[1] = TestnetChallengeVault.RecipientClaimInput(entryB, bob, 1, proofB);
-        recipients[2] = TestnetChallengeVault.RecipientClaimInput(entryC, carol, 1, proofC);
+        recipients[0] = TestnetChallengeVault.RecipientClaimInput(entryA, 0, alice, PRIZE - 2, proofA);
+        recipients[1] = TestnetChallengeVault.RecipientClaimInput(entryB, 1, bob, 1, proofB);
+        recipients[2] = TestnetChallengeVault.RecipientClaimInput(entryC, 2, carol, 1, proofC);
 
         bytes32 manifest = keccak256("manifest:skew");
         bytes32 digest = vault.settlementAuthorizationDigest(
@@ -476,9 +492,9 @@ contract TestnetChallengeVaultTest {
 
         TestnetChallengeVault.RecipientClaimInput[] memory recipients =
             new TestnetChallengeVault.RecipientClaimInput[](3);
-        recipients[0] = TestnetChallengeVault.RecipientClaimInput(entryA, alice, base, proofA);
-        recipients[1] = TestnetChallengeVault.RecipientClaimInput(entryB, bob, base + 1, proofB);
-        recipients[2] = TestnetChallengeVault.RecipientClaimInput(entryC, carol, base, proofC);
+        recipients[0] = TestnetChallengeVault.RecipientClaimInput(entryA, 0, alice, base, proofA);
+        recipients[1] = TestnetChallengeVault.RecipientClaimInput(entryB, 1, bob, base + 1, proofB);
+        recipients[2] = TestnetChallengeVault.RecipientClaimInput(entryC, 2, carol, base, proofC);
 
         bytes32 manifest = keccak256("manifest:wrong-remainder-recipient");
         bytes32 digest = vault.settlementAuthorizationDigest(
@@ -496,10 +512,10 @@ contract TestnetChallengeVaultTest {
     function testOrganizerWinnerExpiresAtFrozenSelectionDeadline() public {
         (bytes32 qualifierRoot, bytes32[] memory qualifierProofA,) = _sealQualifiersAB();
         TestnetChallengeVault.RecipientClaimInput memory winner =
-            TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE, qualifierProofA);
+            TestnetChallengeVault.RecipientClaimInput(entryA, 0, alice, PRIZE, qualifierProofA);
 
         bytes32 manifest = keccak256("manifest:late-organizer-winner");
-        bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, alice, PRIZE);
+        bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, 0, alice, PRIZE);
         bytes32 digest = vault.settlementAuthorizationDigest(
             manifest,
             qualifierRoot,
@@ -526,7 +542,7 @@ contract TestnetChallengeVaultTest {
         _sealQualifierSet(none, TestnetChallengeVault.QualifierSetCoAuthority.RESOLVER);
 
         bytes32 manifest = keccak256("manifest:no-qualifier");
-        bytes32 recipientsDigest = vault.singleRecipientDigest(bytes32(0), organizer, PRIZE);
+        bytes32 recipientsDigest = vault.singleRecipientDigest(bytes32(0), 0, organizer, PRIZE);
         bytes32 digest = vault.settlementAuthorizationDigest(
             manifest,
             bytes32(0),
@@ -546,7 +562,7 @@ contract TestnetChallengeVaultTest {
 
     function testResolutionCancellationRequiresOutcomeAndSeparateResolver() public {
         bytes32 manifest = keccak256("manifest:resolution-cancel");
-        bytes32 recipientsDigest = vault.singleRecipientDigest(bytes32(0), organizer, PRIZE);
+        bytes32 recipientsDigest = vault.singleRecipientDigest(bytes32(0), 0, organizer, PRIZE);
         bytes32 digest = vault.settlementAuthorizationDigest(
             manifest,
             bytes32(0),
@@ -576,7 +592,7 @@ contract TestnetChallengeVaultTest {
         TestnetChallengeVault freshVault = _deploy(freshToken, PRIZE);
 
         bytes32 manifest = keccak256("manifest:premature");
-        bytes32 recipientsDigest = freshVault.singleRecipientDigest(bytes32(0), organizer, PRIZE);
+        bytes32 recipientsDigest = freshVault.singleRecipientDigest(bytes32(0), 0, organizer, PRIZE);
         bytes32 digest = freshVault.settlementAuthorizationDigest(
             manifest,
             bytes32(0),
@@ -638,12 +654,12 @@ contract TestnetChallengeVaultTest {
 
         TestnetChallengeVault.PayoutMemberInput[] memory qualifiers =
             new TestnetChallengeVault.PayoutMemberInput[](2);
-        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, alice, payoutProofA);
-        qualifiers[1] = TestnetChallengeVault.PayoutMemberInput(entryB, bob, payoutProofB);
+        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, 0, alice, payoutProofA);
+        qualifiers[1] = TestnetChallengeVault.PayoutMemberInput(entryB, 1, bob, payoutProofB);
         _sealQualifierSet(qualifiers, TestnetChallengeVault.QualifierSetCoAuthority.ORGANIZER);
 
-        bytes32 leafA = vault.payoutLeaf(entryA, alice);
-        bytes32 leafB = vault.payoutLeaf(entryB, bob);
+        bytes32 leafA = vault.payoutLeaf(entryA, 0, alice);
+        bytes32 leafB = vault.payoutLeaf(entryB, 1, bob);
         qualifierRoot = vault.merklePair(leafA, leafB);
 
         proofA = new bytes32[](1);
@@ -667,9 +683,9 @@ contract TestnetChallengeVaultTest {
 
         TestnetChallengeVault.PayoutMemberInput[] memory qualifiers =
             new TestnetChallengeVault.PayoutMemberInput[](3);
-        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, alice, payoutProofA);
-        qualifiers[1] = TestnetChallengeVault.PayoutMemberInput(entryB, bob, payoutProofB);
-        qualifiers[2] = TestnetChallengeVault.PayoutMemberInput(entryC, carol, payoutProofC);
+        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, 0, alice, payoutProofA);
+        qualifiers[1] = TestnetChallengeVault.PayoutMemberInput(entryB, 1, bob, payoutProofB);
+        qualifiers[2] = TestnetChallengeVault.PayoutMemberInput(entryC, 2, carol, payoutProofC);
         _sealQualifierSet(qualifiers, TestnetChallengeVault.QualifierSetCoAuthority.ORGANIZER);
 
         (qualifierRoot, proofA, proofB, proofC) = _payoutTree();
@@ -680,9 +696,9 @@ contract TestnetChallengeVaultTest {
         view
         returns (bytes32 root, bytes32[] memory proofA, bytes32[] memory proofB, bytes32[] memory proofC)
     {
-        bytes32 leafA = vault.payoutLeaf(entryA, alice);
-        bytes32 leafB = vault.payoutLeaf(entryB, bob);
-        bytes32 leafC = vault.payoutLeaf(entryC, carol);
+        bytes32 leafA = vault.payoutLeaf(entryA, 0, alice);
+        bytes32 leafB = vault.payoutLeaf(entryB, 1, bob);
+        bytes32 leafC = vault.payoutLeaf(entryC, 2, carol);
 
         bytes32 branchAB = vault.merklePair(leafA, leafB);
         bytes32 branchCC = vault.merklePair(leafC, leafC);
@@ -711,8 +727,8 @@ contract TestnetChallengeVaultTest {
         returns (bytes32)
     {
         return vault.merklePair(
-            vault.payoutLeaf(firstEntry, firstPayout),
-            vault.payoutLeaf(secondEntry, secondPayout)
+            vault.payoutLeaf(firstEntry, 0, firstPayout),
+            vault.payoutLeaf(secondEntry, 1, secondPayout)
         );
     }
 
@@ -722,13 +738,16 @@ contract TestnetChallengeVaultTest {
         returns (bytes32)
     {
         if (qualifiers.length == 0) return bytes32(0);
-        bytes32 first = vault.payoutLeaf(qualifiers[0].entryDigest, qualifiers[0].payout);
+        bytes32 first =
+            vault.payoutLeaf(qualifiers[0].entryDigest, qualifiers[0].payoutOrder, qualifiers[0].payout);
         if (qualifiers.length == 1) return first;
 
-        bytes32 second = vault.payoutLeaf(qualifiers[1].entryDigest, qualifiers[1].payout);
+        bytes32 second =
+            vault.payoutLeaf(qualifiers[1].entryDigest, qualifiers[1].payoutOrder, qualifiers[1].payout);
         if (qualifiers.length == 2) return vault.merklePair(first, second);
 
-        bytes32 third = vault.payoutLeaf(qualifiers[2].entryDigest, qualifiers[2].payout);
+        bytes32 third =
+            vault.payoutLeaf(qualifiers[2].entryDigest, qualifiers[2].payoutOrder, qualifiers[2].payout);
         return vault.merklePair(vault.merklePair(first, second), vault.merklePair(third, third));
     }
 
@@ -744,6 +763,7 @@ contract TestnetChallengeVaultTest {
                     digest,
                     vault.recipientItemHash(
                         recipients[index].entryDigest,
+                        recipients[index].payoutOrder,
                         recipients[index].payout,
                         recipients[index].amount
                     )
