@@ -1,9 +1,17 @@
 # REKT INKUBATOR — STAGE J4 PRODUCTION-CANDIDATE VAULT V1
 
-**Status:** ACTIVE / IMPLEMENTED / VERIFY NEXT  
+**Status:** ACTIVE / CORE IMPLEMENTED + VERIFIED / PRE-AUDIT MATRIX NEXT  
 **Date:** 2026-09-19  
 **Branch:** `agent/stage-j4-production-candidate-vault-v1`  
 **Base:** J3 closure head `da346243e6fbcf5e259bdd8de85c0e099a6e1adc`  
+**Verified implementation head:** `f5875e3be51c21bf55fcf83583f9af5ca9b22403`  
+**J4 verification:** `35401916531` — PASS  
+**Vault verification:** `35401916544` — PASS  
+**J2 regression:** `35401916669` — PASS  
+**Generic CI:** `35401916601` — PASS  
+**Hostile review:** `5253171614` — 3 HIGH / repaired  
+**Targeted rereview:** `5253190481` — PASS / original High findings closed  
+**Implementation receipt:** `STAGE_J4_IMPLEMENTATION_RECEIPT_V1.md`  
 **Production-money authority:** NONE  
 **Mainnet deployment authority:** NONE  
 **Production-signer authority:** NONE  
@@ -45,7 +53,8 @@ Preserves proven J1 primitives:
 - no arbitrary external call;
 - no upgrade path;
 - no fee/yield/swap/bridge;
-- exact conservation accounting.
+- exact conservation accounting;
+- exact vault-debit + recipient-credit verification on claims, so short/fee delivery cannot be counted as paid.
 
 Adds the J3 production-candidate delta:
 
@@ -137,17 +146,16 @@ Wrong-chain/wrong-token rejection is enforced by the candidate deployment/releas
 
 ## Finality / reconciliation
 
-J4 application reconciliation requires exactly two distinct provider observations.
+J4 application reconciliation requires exactly the frozen provider pair `gelato` + `quicknode` and an explicit expected settlement transaction hash.
 
-`FINALIZED` is returned only if both observations agree on:
+`FINALIZED` is returned only if:
 
-- successful transaction;
-- transaction hash;
-- receipt block number;
-- receipt block hash;
-- canonical block hash;
-
-and both finalized heads are at or above the receipt block.
+- both observations are for Ink chain ID `57073`;
+- both observations report the exact expected settlement transaction hash;
+- both report transaction success;
+- both agree on receipt block number and receipt block hash;
+- each provider's canonical block hash equals the receipt block hash;
+- both finalized heads are at or above the receipt block.
 
 Anything else remains:
 
@@ -201,13 +209,31 @@ The initial J4 suite covers at minimum:
 - recovery closure at terminal boundary;
 - terminal refund timing;
 - blocked-recipient claim isolation;
+- short/fee claim delivery rejects without consuming liability;
+- false-return and malformed-return claim behavior fails closed;
 - two-provider finalized-evidence agreement;
+- finality bound to exact expected settlement tx + Ink chain ID + frozen provider pair;
+- wrong tx / wrong chain / unknown or duplicate provider rejects to reconciling;
 - provider disagreement / lag / reorg evidence remains reconciling;
 - exact native-USDC planning tuple;
 - deadline ceiling vectors;
 - candidate release receipt toolchain locks.
 
 The full J3 matrix remains the acceptance ceiling. Missing matrix rows are not silently treated as PASS.
+
+## Bounded hostile review evidence
+
+Hostile review `5253171614` returned `3 HIGH / FIX REQUIRED`:
+
+1. finality was not bound to the expected settlement tx / frozen chain / provider set;
+2. a short successful token transfer could be counted as a full claim;
+3. the public-USDC gitleaks exception was unanchored at line scope.
+
+All three were repaired. Targeted rereview `5253190481` returned `PASS / ORIGINAL_HIGH_FINDINGS_CLOSED` on repair head `f5875e3be51c21bf55fcf83583f9af5ca9b22403`.
+
+Exact repair-head verification passed J4, Vault, J2 regression and generic CI. The durable receipt is `STAGE_J4_IMPLEMENTATION_RECEIPT_V1.md`.
+
+J4 is intentionally **not** marked stage-closed yet: the remaining J3 pre-external-audit matrix classes stay explicit and must not be inferred from the focused core suite.
 
 ## Bounded completion
 
