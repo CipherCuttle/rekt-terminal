@@ -321,9 +321,49 @@ contract ProductionCandidatePreAuditMatrixTest {
     }
 
     function testErc1271ValidSignatureForWrongResolverSetFailsClosed() public {
+        uint256 wrong1Pk = 0x1111;
+        uint256 wrong2Pk = 0x2222;
         ImmutableResolver1271 wrongResolver =
-            new ImmutableResolver1271(vm.addr(0x1111), vm.addr(0x2222), vm.addr(0x3333));
-        _assertHostileResolverRejects(address(wrongResolver));
+            new ImmutableResolver1271(vm.addr(wrong1Pk), vm.addr(wrong2Pk), vm.addr(0x3333));
+
+        MatrixToken token = new MatrixToken();
+        ProductionCandidateChallengeVault vault = _deployAndFund(token, address(resolver), 100);
+        _sealSinglePayout(vault);
+
+        ProductionCandidateChallengeVault.PayoutMemberInput[] memory qualifiers = _singleQualifier();
+        bytes32 root = vault.payoutLeaf(ENTRY_A, 0, ALICE);
+        bytes32 digest = vault.qualifierSetAuthorizationDigest(
+            root,
+            1,
+            DEFAULT_MANIFEST,
+            RECOVERY_EVIDENCE,
+            ProductionCandidateChallengeVault.QualifierSetMode.RECOVERY
+        );
+        bytes memory wrongAuthoritySignature =
+            _resolverSignature(digest, wrong1Pk, wrong2Pk);
+
+        require(
+            wrongResolver.isValidSignature(digest, wrongAuthoritySignature) == wrongResolver.MAGICVALUE(),
+            "control signature must be valid for wrong resolver"
+        );
+
+        vm.warp(resolutionDeadline);
+        vm.expectRevert(ProductionCandidateChallengeVault.WrongAuthority.selector);
+        vault.sealQualifierSetRecovery(
+            qualifiers,
+            DEFAULT_MANIFEST,
+            RECOVERY_EVIDENCE,
+            wrongAuthoritySignature
+        );
+    }
+
+    function testResolverQuorumSurvivesLossOfAnyOneSigner() public {
+        bytes32 digest = keccak256("j4-resolver-one-signer-loss");
+        bytes memory signers23 = _resolverSignature(digest, RESOLVER_2_PK, RESOLVER_3_PK);
+        require(
+            resolver.isValidSignature(digest, signers23) == resolver.MAGICVALUE(),
+            "remaining two immutable signers must retain quorum"
+        );
     }
 
     function testNoReturnTokenExactDeliveryMatchesSupportedWrapperPolicy() public {
