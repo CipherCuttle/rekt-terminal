@@ -39,7 +39,7 @@ jobs:
           set -euo pipefail
           mkdir -p j2-faucet-playwright
           set +e
-          npx playwright test stage-j2-faucet.spec.mjs --project=chromium --workers=1 --retries=0
+          npx playwright test stage-j2-faucet.spec.mjs --workers=1 --retries=0
           status=$?
           set -e
           cp -r j2-faucet-playwright "$GITHUB_WORKSPACE/"
