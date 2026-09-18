@@ -24,6 +24,17 @@ test('ceil millisecond deadlines never authorize early', () => {
   assert.equal(stageJ4DeadlineSeconds(2_000), 2);
 });
 
+test('deadline conversion is monotonic and never floors sub-second remainder', () => {
+  let previous = -1;
+  for (let ms = 0; ms <= 10_000; ms += 137) {
+    const seconds = stageJ4DeadlineSeconds(ms);
+    assert.ok(seconds >= previous);
+    assert.ok(seconds * 1000 >= ms);
+    if (ms > 0) assert.ok((seconds - 1) * 1000 < ms || ms % 1000 === 0);
+    previous = seconds;
+  }
+});
+
 test('deployment plan freezes exact Ink/native-USDC tuple and recovery offsets', () => {
   const plan = buildStageJ4DeploymentPlan({
     source_commit: 'a'.repeat(40),
@@ -100,6 +111,14 @@ test('finality requires two distinct agreeing providers at finalized canonical h
   ]);
   assert.equal(result.state, 'FINALIZED');
   assert.equal(result.block_number, 100);
+});
+
+test('finality reconciliation is idempotent for identical evidence', () => {
+  const input = [
+    finalityObservation('gelato'),
+    finalityObservation('quicknode'),
+  ];
+  assert.deepEqual(evaluate(input), evaluate(input));
 });
 
 test('provider disagreement, lag, missing evidence and reorg stay reconciling', () => {
