@@ -111,6 +111,63 @@ function StatePanel({state, title, children}: {state: SurfaceState; title: strin
   );
 }
 
+type JourneyGuideProps = {
+  role: 'ORGANIZER' | 'BUILDER';
+  step: number;
+  total: number;
+  title: string;
+  body: string;
+  detail?: string;
+};
+
+function JourneyGuide({role, step, total, title, body, detail}: JourneyGuideProps) {
+  return (
+    <aside className="journey-guide" data-journey-role={role.toLowerCase()} data-journey-step={step} aria-label={`${role} journey guidance`}>
+      <div className="journey-guide__meta"><span>{role} JOURNEY</span><b>STEP {step} OF {total}</b></div>
+      <h2>{title}</h2>
+      <p>{body}</p>
+      {detail ? <small>{detail}</small> : null}
+    </aside>
+  );
+}
+
+type OrganizerGuidanceInput = {
+  sourceIntent: string;
+  clarificationComplete: boolean;
+  compilerState: CompilerStateView | null;
+  accepted: boolean;
+  challenge: PublicChallengeView | null;
+};
+
+export function deriveOrganizerGuidance(input: OrganizerGuidanceInput): Omit<JourneyGuideProps, 'role' | 'total'> {
+  const {sourceIntent, clarificationComplete, compilerState, accepted, challenge} = input;
+
+  if (challenge?.has_frozen_contract) {
+    return challenge.status === 'ENTRY_OPEN'
+      ? {step: 5, title: 'YOUR CHALLENGE IS OPEN', body: 'Builders can now join under the locked rules. You can leave this screen and share the Challenge link.', detail: 'The server remains authoritative for lifecycle state and deadlines.'}
+      : {step: 5, title: 'OPEN IT TO BUILDERS', body: 'The rules are locked. Opening the Challenge is the only remaining organizer action in this setup flow.', detail: 'Opening does not change the locked Build Contract.'};
+  }
+  if (!sourceIntent.trim()) {
+    return {step: 1, title: 'DESCRIBE WHAT YOU WANT BUILT', body: 'Start in normal language. Describe the finished software or outcome you want builders to deliver.', detail: 'You do not need to know Inkubator protocol terms.'};
+  }
+  if (!clarificationComplete) {
+    return {step: 2, title: 'CLARIFY A FEW DETAILS', body: 'Answer one detail at a time. Yes, No, and Not sure are all valid answers.', detail: 'Unknown stays unknown; the UI will not invent requirements for you.'};
+  }
+  if (!compilerState) {
+    return {step: 3, title: 'CHECK YOUR CHALLENGE RULES', body: 'You have supplied enough input to ask the deterministic compiler what is ready and what still needs clarification.', detail: 'No Challenge is created or opened by this check.'};
+  }
+  if (compilerState.status !== 'READY') {
+    return {step: 2, title: 'A FEW DETAILS STILL NEED CLARITY', body: 'Review the compiler questions, adjust the answers above, then check the Challenge again.', detail: `${compilerState.questions.length} compiler question${compilerState.questions.length === 1 ? '' : 's'} remain.`};
+  }
+  if (!accepted) {
+    return {step: 3, title: 'REVIEW THE RULES', body: 'The compiler is ready. Confirm that these are the rules you actually want before creating the draft Challenge.', detail: 'Technical compiler output is available below if you want to inspect it.'};
+  }
+  if (!challenge) {
+    return {step: 3, title: 'SET UP THE CHALLENGE', body: 'The rules are accepted. Choose builder capacity and deadlines; this creates a draft only.', detail: 'Nothing is visible to builders until you lock the rules and open it.'};
+  }
+  return {step: 4, title: 'LOCK THE RULES', body: 'Review the final Challenge details, preview exactly what will be frozen, then lock those rules.', detail: 'Locking is permanent for this Challenge. The server recomputes and verifies the canonical contract.'};
+}
+
 function DiscoverSurface() {
   return (
     <StatePanel state="UNAVAILABLE_OR_STALE" title="Challenge discovery transport is not exposed yet.">
@@ -205,18 +262,20 @@ function CompilerReadout({compilerState}: {compilerState: CompilerStateView}) {
 }
 
 function CompilerSurface({api}: {api: ChallengeProductApi}) {
-  const challengeId = new URLSearchParams(window.location.search).get('challenge');
+  const [challengeId, setChallengeId] = useState(() => new URLSearchParams(window.location.search).get('challenge'));
   const [sourceIntent, setSourceIntent] = useState('');
   const [answers, setAnswers] = useState<CompilerRequirementAnswers>(() => emptyRequirementAnswers());
+  const [requirementIndex, setRequirementIndex] = useState(0);
+  const [clarificationComplete, setClarificationComplete] = useState(false);
   const [compilerState, setCompilerState] = useState<CompilerStateView | null>(null);
   const [compilePhase, setCompilePhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
   const [accepted, setAccepted] = useState(false);
   const [challengeView, setChallengeView] = useState<PublicChallengeView | null>(null);
   const [challengePhase, setChallengePhase] = useState<'IDLE' | 'LOADING' | 'NOT_FOUND' | 'ERROR'>('IDLE');
-  const [contractVersion, setContractVersion] = useState('');
+  const [contractVersion, setContractVersion] = useState('1.0.0');
   const [contractTitle, setContractTitle] = useState('');
-  const [prizeMinorUnits, setPrizeMinorUnits] = useState('');
-  const [settlementAsset, setSettlementAsset] = useState('');
+  const [prizeMinorUnits, setPrizeMinorUnits] = useState('100');
+  const [settlementAsset, setSettlementAsset] = useState('TEST');
   const [preview, setPreview] = useState<BuildContractPreviewView | null>(null);
   const [previewAuthority, setPreviewAuthority] = useState<BuildContractPreviewAuthorityInput | null>(null);
   const [previewPhase, setPreviewPhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
@@ -224,6 +283,12 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const [persistPhase, setPersistPhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
   const [canonicalContract, setCanonicalContract] = useState<CanonicalBuildContractView | null>(null);
   const compilerRequestRevision = useRef(0);
+
+  useEffect(() => {
+    const onPopState = () => setChallengeId(new URLSearchParams(window.location.search).get('challenge'));
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   useEffect(() => {
     if (!challengeId) {
@@ -244,6 +309,16 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     });
     return () => { cancelled = true; };
   }, [api, challengeId]);
+
+  const syncChallengeContext = (view: PublicChallengeView) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('surface', 'compiler');
+    url.searchParams.set('challenge', view.challenge_id);
+    window.history.replaceState({challengeSurface: 'COMPILER'}, '', url);
+    setChallengeId(view.challenge_id);
+    setChallengeView(view);
+    setChallengePhase('IDLE');
+  };
 
   const invalidate = () => {
     compilerRequestRevision.current += 1;
@@ -401,15 +476,18 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     && !canonicalContract
     && persistPhase !== 'LOADING',
   );
+  const currentRequirement = REQUIREMENTS[requirementIndex];
+  const guidance = deriveOrganizerGuidance({sourceIntent, clarificationComplete, compilerState, accepted, challenge: challengeView});
+  const compilerReadyAndAccepted = compilerState?.status === 'READY' && accepted;
 
   return (
     <div className="compiler-foundation">
-      <StageIOrganizerBridge api={api} challenge={challengeView} />
+      <JourneyGuide role="ORGANIZER" total={5} {...guidance} />
       <section className="compiler-intake" aria-labelledby="compiler-intake-title">
-        <small>SOURCE / ORGANIZER DRAFT</small>
-        <h2 id="compiler-intake-title">WHAT SHOULD EXIST WHEN THIS IS DONE?</h2>
-        <p>Free text remains SOURCE intent. Structured requirements below are explicit organizer statements; this UI does not pretend to parse them from prose.</p>
-        <label htmlFor="compiler-source-intent">SOURCE INTENT</label>
+        <small>STEP 1 / DESCRIBE</small>
+        <h2 id="compiler-intake-title">WHAT DO YOU WANT BUILT?</h2>
+        <p>Describe the finished thing in your own words. Inkubator keeps your words as source intent instead of pretending it understood details you never supplied.</p>
+        <label htmlFor="compiler-source-intent">YOUR IDEA</label>
         <textarea
           id="compiler-source-intent"
           value={sourceIntent}
@@ -418,54 +496,90 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
           rows={6}
         />
 
-        <fieldset className="compiler-requirements">
-          <legend>SOURCE REQUIREMENTS / YES · NO · UNKNOWN</legend>
-          {REQUIREMENTS.map(([key, label, help]) => (
-            <div className="compiler-requirement" key={key}>
-              <div><b>{label}</b><small>{help}</small></div>
-              <div className="compiler-requirement__choices" aria-label={label}>
+        {sourceIntent.trim() ? (
+          <fieldset className="compiler-requirements compiler-requirements--guided">
+            <legend>STEP 2 / CLARIFY · DETAIL {requirementIndex + 1} OF {REQUIREMENTS.length}</legend>
+            <div className="compiler-requirement" key={currentRequirement[0]}>
+              <div><b>{currentRequirement[1]}</b><small>{currentRequirement[2]}</small></div>
+              <div className="compiler-requirement__choices" aria-label={currentRequirement[1]}>
                 {(['YES', 'NO', 'UNKNOWN'] as const).map((answer) => (
                   <button
                     type="button"
                     key={answer}
-                    aria-pressed={answers[key] === answer}
-                    onClick={() => updateAnswer(key, answer)}
-                  >{answer}</button>
+                    aria-pressed={answers[currentRequirement[0]] === answer}
+                    onClick={() => updateAnswer(currentRequirement[0], answer)}
+                  >{answer === 'UNKNOWN' ? 'NOT SURE' : answer}</button>
                 ))}
               </div>
             </div>
-          ))}
-        </fieldset>
+            <div className="journey-question-nav">
+              <button type="button" disabled={requirementIndex === 0} onClick={() => setRequirementIndex((current) => Math.max(0, current - 1))}>← BACK</button>
+              <span>{clarificationComplete ? 'DETAILS REVIEWED' : 'NOT SURE IS A VALID ANSWER'}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (requirementIndex === REQUIREMENTS.length - 1) {
+                    setClarificationComplete(true);
+                  } else {
+                    setRequirementIndex((current) => Math.min(REQUIREMENTS.length - 1, current + 1));
+                  }
+                }}
+              >{requirementIndex === REQUIREMENTS.length - 1 ? 'DONE WITH DETAILS ✓' : 'NEXT DETAIL →'}</button>
+            </div>
+          </fieldset>
+        ) : null}
 
-        <div className="compiler-intake__actions">
-          <button type="button" disabled={!sourceIntent.trim() || compilePhase === 'LOADING'} onClick={() => void compile('SOURCE')}>
-            {compilePhase === 'LOADING' ? 'COMPILING…' : 'COMPILE DETERMINISTIC STATE'}
-          </button>
-          <button type="button" disabled={!compilerState || compilePhase === 'LOADING'} onClick={() => void compile('ORGANIZER_ACCEPTED')}>
-            ACCEPT CURRENT INPUTS
-          </button>
-          <span>{compilerState ? `${compilerState.compiler_version} / ${compilerState.status} / ${accepted ? 'ORGANIZER_ACCEPTED' : 'SOURCE'}` : sourceIntent.trim() ? 'SOURCE DRAFT / UNCOMPILED' : 'NO SOURCE INTENT YET'}</span>
-        </div>
+        {clarificationComplete ? (
+          <div className="compiler-intake__actions">
+            {!compilerState ? (
+              <button type="button" disabled={compilePhase === 'LOADING'} onClick={() => void compile('SOURCE')}>
+                {compilePhase === 'LOADING' ? 'CHECKING…' : 'CHECK MY CHALLENGE'}
+              </button>
+            ) : !accepted ? (
+              <button type="button" disabled={compilePhase === 'LOADING' || compilerState.status !== 'READY'} onClick={() => void compile('ORGANIZER_ACCEPTED')}>
+                {compilePhase === 'LOADING' ? 'CONFIRMING…' : 'USE THESE RULES'}
+              </button>
+            ) : null}
+            <span>{compilerState ? `${compilerState.compiler_version} / ${compilerState.status} / ${accepted ? 'RULES ACCEPTED' : 'REVIEW REQUIRED'}` : 'READY TO CHECK · NOTHING CREATED YET'}</span>
+          </div>
+        ) : null}
       </section>
 
       <StatePanel state={state} title={title}>
-        {compilerState ? <CompilerReadout compilerState={compilerState} /> : (
+        {compilerState ? (
           <>
-            <p>{compilePhase === 'ERROR' ? 'The last trustworthy state is the organizer input shown at left. Retry after the transport is healthy.' : 'Unknown requirements stay UNKNOWN. The compiler will expose missing decisions, blueprint applicability, deterministic facts, risk, quality and acceptance modules without model authority.'}</p>
-            <dl className="authority-ledger" aria-label="Compiler authority legend">
-              <div><dt>SOURCE</dt><dd>what the organizer actually supplied</dd></div>
-              <div><dt>MODEL_PROPOSAL</dt><dd>untrusted interpretation only</dd></div>
-              <div><dt>ORGANIZER_ACCEPTED</dt><dd>explicit human acceptance</dd></div>
-              <div><dt>DETERMINISTIC_RULE</dt><dd>machine-derived consequence</dd></div>
-            </dl>
+            <div className="journey-review-summary">
+              <strong>{compilerState.status === 'READY' ? 'THE RULES ARE READY TO REVIEW.' : 'THE COMPILER STILL NEEDS CLARITY.'}</strong>
+              <p>{compilerState.status === 'READY' ? 'Check that this matches what you meant, then use these rules to continue.' : `${compilerState.questions.length} question${compilerState.questions.length === 1 ? '' : 's'} remain. Adjust the details above and check again.`}</p>
+            </div>
+            <details className="journey-technical-details">
+              <summary>Technical compiler details</summary>
+              <CompilerReadout compilerState={compilerState} />
+            </details>
+          </>
+        ) : (
+          <>
+            <p>{compilePhase === 'ERROR' ? 'The last trustworthy state is the organizer input shown above. Retry after the transport is healthy.' : clarificationComplete ? 'Your answers are still only organizer input. Check the Challenge when you are ready; nothing is created or locked by that check.' : 'Not sure stays unknown. Inkubator does not silently fill in requirements you did not provide.'}</p>
+            <details className="journey-technical-details">
+              <summary>How Inkubator treats authority</summary>
+              <dl className="authority-ledger" aria-label="Compiler authority legend">
+                <div><dt>SOURCE</dt><dd>what the organizer actually supplied</dd></div>
+                <div><dt>MODEL_PROPOSAL</dt><dd>untrusted interpretation only</dd></div>
+                <div><dt>ORGANIZER_ACCEPTED</dt><dd>explicit human acceptance</dd></div>
+                <div><dt>DETERMINISTIC_RULE</dt><dd>machine-derived consequence</dd></div>
+              </dl>
+            </details>
           </>
         )}
       </StatePanel>
 
+      {compilerReadyAndAccepted && !challengeId ? <StageIOrganizerBridge api={api} challenge={challengeView} onChallengeChanged={syncChallengeContext} /> : null}
+
+      {compilerReadyAndAccepted && challengeId && !challengeView?.has_frozen_contract ? (
       <section className="compiler-contract" aria-labelledby="compiler-contract-title">
-        <small>BUILD CONTRACT / STAGE-B FREEZE</small>
-        <h2 id="compiler-contract-title">NEGOTIATED BUILD CONTRACT</h2>
-        <p>The preview uses the real Stage-B Build Contract candidate + digest-freeze semantics. Canonical persistence requires an authenticated organizer and recomputes the exact accepted contract server-side before Stage C stores it.</p>
+        <small>STEP 4 / LOCK</small>
+        <h2 id="compiler-contract-title">REVIEW AND LOCK THE RULES</h2>
+        <p>Preview the exact rules first. When you lock them, Inkubator recomputes the same accepted contract server-side and freezes that canonical version for this Challenge.</p>
 
         {!challengeId ? <p className="compiler-contract__notice">SELECT A DRAFT CHALLENGE — add a canonical <code>?challenge=&lt;id&gt;</code> context before freezing a preview.</p> : null}
         {challengePhase === 'LOADING' ? <p className="compiler-contract__notice">READING CHALLENGE AUTHORITY…</p> : null}
@@ -481,29 +595,29 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         ) : null}
 
         <div className="compiler-contract__fields">
-          <label htmlFor="contract-version">CONTRACT VERSION<input id="contract-version" value={contractVersion} onChange={(event) => { setContractVersion(event.target.value); invalidatePreview(); }} placeholder="1.0.0" /></label>
-          <label htmlFor="contract-title">TITLE<input id="contract-title" value={contractTitle} onChange={(event) => { setContractTitle(event.target.value); invalidatePreview(); }} placeholder="Challenge title" /></label>
-          <label htmlFor="contract-prize">PRIZE / MINOR UNITS<input id="contract-prize" inputMode="numeric" value={prizeMinorUnits} onChange={(event) => { setPrizeMinorUnits(event.target.value); invalidatePreview(); }} placeholder="100" /></label>
-          <label htmlFor="contract-asset">SETTLEMENT ASSET<input id="contract-asset" value={settlementAsset} onChange={(event) => { setSettlementAsset(event.target.value); invalidatePreview(); }} placeholder="TEST" /></label>
+          <label htmlFor="contract-version">RULESET VERSION<input id="contract-version" value={contractVersion} onChange={(event) => { setContractVersion(event.target.value); invalidatePreview(); }} placeholder="1.0.0" /></label>
+          <label htmlFor="contract-title">CHALLENGE TITLE<input id="contract-title" value={contractTitle} onChange={(event) => { setContractTitle(event.target.value); invalidatePreview(); }} placeholder="Give builders a clear title" /></label>
+          <label htmlFor="contract-prize">TEST PRIZE / UNITS<input id="contract-prize" inputMode="numeric" value={prizeMinorUnits} onChange={(event) => { setPrizeMinorUnits(event.target.value); invalidatePreview(); }} placeholder="100" /></label>
+          <label htmlFor="contract-asset">TEST ASSET<input id="contract-asset" value={settlementAsset} onChange={(event) => { setSettlementAsset(event.target.value); invalidatePreview(); }} placeholder="TEST" /></label>
         </div>
 
         <div className="compiler-contract__actions">
           <button type="button" disabled={!previewReady} onClick={() => void previewContract()}>
-            {previewPhase === 'LOADING' ? 'FREEZING PREVIEW…' : 'FREEZE NONCANONICAL PREVIEW'}
+            {previewPhase === 'LOADING' ? 'BUILDING PREVIEW…' : 'PREVIEW LOCKED RULES'}
           </button>
           <button type="button" disabled={!persistReady} onClick={() => void persistContract()}>
-            {persistPhase === 'LOADING' ? 'PERSISTING CANONICAL CONTRACT…' : 'PERSIST CANONICAL CONTRACT'}
+            {persistPhase === 'LOADING' ? 'LOCKING RULES…' : 'LOCK THESE RULES'}
           </button>
-          <span>{canonicalContract ? 'CANONICAL / PERSISTED' : preview ? 'AUTHENTICATED ORGANIZER REQUIRED TO PERSIST' : !accepted ? 'ORGANIZER ACCEPTANCE REQUIRED' : compilerState?.status !== 'READY' ? 'COMPILER MUST BE READY' : !challengeReadyForPreview ? 'UNFROZEN DRAFT CHALLENGE REQUIRED' : 'PREVIEW FIRST / NO PERSISTENCE YET'}</span>
+          <span>{canonicalContract ? 'RULES LOCKED' : preview ? 'PREVIEW READY · LOCKING IS PERMANENT' : !challengeReadyForPreview ? 'DRAFT CHALLENGE REQUIRED' : 'PREVIEW BEFORE LOCKING'}</span>
         </div>
 
         {previewPhase === 'ERROR' ? <p className="compiler-contract__notice">PREVIEW REJECTED — authority, readiness or Build Contract validation failed. Nothing was persisted.</p> : null}
         {persistPhase === 'ERROR' ? <p className="compiler-contract__notice">CANONICAL PERSISTENCE REJECTED — authentication, organizer authority, preview lineage or idempotency validation failed.</p> : null}
         {preview ? (
           <div className="compiler-contract__result" data-build-contract-preview="noncanonical">
-            <strong>NONCANONICAL PREVIEW / DIGEST-FROZEN</strong>
+            <strong>PREVIEW ONLY · NOT LOCKED YET</strong>
             <span>TERMS DIGEST <code>{preview.contract.terms_digest}</code></span>
-            <pre>{JSON.stringify(preview.contract, null, 2)}</pre>
+            <details className="journey-technical-details"><summary>Exact contract JSON</summary><pre>{JSON.stringify(preview.contract, null, 2)}</pre></details>
           </div>
         ) : null}
         {canonicalContract ? (
@@ -514,6 +628,9 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
           </div>
         ) : null}
       </section>
+      ) : null}
+
+      {challengeView?.has_frozen_contract ? <StageIOrganizerBridge api={api} challenge={challengeView} onChallengeChanged={syncChallengeContext} /> : null}
     </div>
   );
 }
@@ -522,6 +639,7 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
   const challengeId = new URLSearchParams(window.location.search).get('challenge');
   const [view, setView] = useState<PublicChallengeView | null>(null);
   const [phase, setPhase] = useState<'IDLE' | 'LOADING' | 'NOT_FOUND' | 'ERROR'>('IDLE');
+  const [joined, setJoined] = useState(false);
 
   useEffect(() => {
     if (!challengeId) {
@@ -558,6 +676,14 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
 
   return (
     <>
+      <JourneyGuide
+        role="BUILDER"
+        step={joined ? 2 : 1}
+        total={2}
+        title={joined ? "YOU'RE IN" : view.status === 'ENTRY_OPEN' ? 'READ IT, THEN JOIN' : 'READ THE CHALLENGE'}
+        body={joined ? 'Your entry is bound to these locked rules. Continue to My Build for the builder capsule and submission path.' : view.status === 'ENTRY_OPEN' ? 'Read the locked rules and deadlines below. Join only if this is the Challenge you want to build.' : 'These are the canonical Challenge facts. Entry is not open yet, so there is nothing you need to submit or guess.'}
+        detail={joined ? 'The next surface is My Build.' : 'Joining is bound to the current frozen terms digest.'}
+      />
       <StatePanel state="NORMAL" title={`Challenge ${view.status}.`}>
         <dl className="challenge-facts" aria-label="Canonical Challenge facts">
           <div><dt>CHALLENGE</dt><dd><code>{view.challenge_id}</code></dd></div>
@@ -570,7 +696,7 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
         </dl>
         <p className="challenge-state__foot">PUBLIC PROJECTION ONLY — PAYOUT IDENTITIES AND PRIVATE ENTRY DATA ARE NOT EXPOSED.</p>
       </StatePanel>
-      <StageIJoinBridge api={api} />
+      <StageIJoinBridge api={api} onJoined={() => setJoined(true)} />
     </>
   );
 }
