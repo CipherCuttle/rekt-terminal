@@ -148,7 +148,22 @@ Candidate terminal fallback:
 
 This is the only currently unresolved *policy* decision in this mechanism. It guarantees liveness but creates a builder-fairness residual risk if valid work exists and all qualification/recovery authority disappears.
 
-The mechanism/timing is frozen; final acceptance of the refund fallback requires product/legal hostile review before production contract freeze.
+The mechanism is frozen. For the first capped candidate, use these **provisional audit inputs**:
+
+- `activation_deadline = build_start`;
+- `resolution_deadline = organizer_selection_deadline + 72 hours`;
+- `terminal_long_stop = organizer_selection_deadline + 30 days`.
+
+These durations are not production authority and may be changed once before external audit freeze. Any change after builders join would require a new Challenge/version.
+
+Recovery authority law:
+
+- before `resolution_deadline`, normal recovery qualifier freeze requires outcome + resolver;
+- at/after `resolution_deadline`, if and only if no qualifier set exists, the 2-of-3 resolver threshold may freeze one recovery qualifier set from the already-frozen payout roster, binding a durable recovery-evidence digest;
+- an existing qualifier set is never replaceable by this path;
+- at/after `terminal_long_stop`, if no qualifier set exists and no settlement is authorized, anyone may trigger full refund to the immutable refund recipient.
+
+The terminal refund tradeoff still requires product/legal hostile review before production contract freeze.
 
 ## D8. Resolver authority
 
@@ -164,7 +179,7 @@ Contract interface:
 Operational launch direction:
 
 - threshold smart wallet;
-- target quorum: 2-of-3;
+- quorum: **2-of-3** for the first capped candidate;
 - at least two distinct security principals must be required to form a quorum;
 - no ordinary web/API credential can form a resolver quorum;
 - resolver address is independent from organizer and outcome authorities.
@@ -184,14 +199,15 @@ All authority addresses support the same abstract signature-verifier interface:
 
 For the first production candidate:
 
-- organizer authority is the frozen organizer wallet;
-- outcome authority is an isolated Inkubator signing principal/contract account, not an ordinary web/API secret;
+- organizer authority is the frozen organizer wallet (EOA or ERC-1271 wallet);
+- outcome authority is an isolated Inkubator **EOA signing key** kept outside the ordinary web/API runtime; it has no unilateral fund-moving path;
+- resolver is the 2-of-3 ERC-1271 threshold wallet;
 - qualifier-set freeze requires outcome + organizer in the normal path, or outcome + resolver in recovery;
 - exceptional architecture review must decide whether resolver-threshold-only qualification recovery is allowed after `resolution_deadline`.
 
 No active Challenge changes an immutable authority address through a database update.
 
-Key rotation is achieved behind a contract-wallet authority where possible or by new Challenge versions; not by silently rewriting vault state.
+If the outcome EOA is lost, the timed resolver recovery path is the liveness mechanism; the vault does not silently replace the outcome address. Contract-wallet authorities may rotate underlying owners only under their own audited threshold governance and that configuration is monitored as economic authority.
 
 ## D10. Deployment law
 
@@ -209,7 +225,9 @@ Preferred production candidate:
 Audit freeze records:
 
 - exact source commit;
+- Foundry version;
 - Solidity version;
+- EVM target;
 - optimizer/settings;
 - creation bytecode hash;
 - runtime bytecode hash;
@@ -217,6 +235,17 @@ Audit freeze records:
 - supported chain/token tuple;
 - deployment tool/factory identity;
 - explorer verification procedure.
+
+Current proven toolchain candidate inherited from J1/J2:
+
+- Foundry `v1.8.3`;
+- Solidity `0.8.37`;
+- EVM `prague`;
+- optimizer enabled, `200` runs;
+- Solidity bytecode metadata hash disabled (`bytecode_hash = "none"`);
+- FFI disabled.
+
+Preferred first candidate uses direct deployment from a pinned script rather than adding a privileged factory. The deployer has gas-only deployment capability and is not a vault settlement authority.
 
 If a factory is used, factory privilege cannot alter already-deployed Challenge vault code or settlement state.
 
@@ -243,17 +272,36 @@ No platform fee, skim or fee recipient is added to the first audited vault.
 
 A fee requires a new explicit economic/contract version and review.
 
+## Native USDC issuer-control acceptance
+
+Circle's EVM USDC design is externally administered: it is upgradeable, pausable and blacklistable.
+
+The Inkubator production candidate **accepts this as an external asset dependency**, not as a property we control.
+
+Consequences:
+
+- the vault never claims censorship resistance;
+- a Circle pause can halt funding/claims;
+- blacklisting can make an individual recipient unable to receive/transfer USDC;
+- Circle may upgrade token implementation behind the canonical proxy;
+- Inkubator must monitor token pause/blacklist/proxy-implementation changes;
+- a blocked recipient's claim remains owed and cannot be redirected by an Inkubator administrator;
+- launch terms/legal review must address issuer-control edge cases.
+
+Authority references checked 2026-09-18:
+
+- https://github.com/circlefin/stablecoin-evm
+- https://github.com/circlefin/stablecoin-evm/blob/master/doc/tokendesign.md
+
 ## Remaining J3 decisions
 
 Before J3 can close:
 
-1. accept/reject the terminal no-qualification refund fallback;
-2. decide whether resolver-threshold-only qualifier recovery is permitted after `resolution_deadline`;
-3. freeze minimum/launch values for activation/resolution/long-stop timing;
-4. freeze production signer custody/rotation runbook;
-5. inspect native USDC proxy/admin/blacklist behavior and record acceptance;
-6. freeze reproducible build/deployment hash procedure;
-7. build the external audit package/test matrix;
-8. bounded hostile review of the complete architecture.
+1. product/legal hostile review must accept or replace the terminal no-qualification refund fallback;
+2. freeze the production signer custody/runbook details for the outcome key and resolver 2-of-3 wallet;
+3. freeze reproducible build/deployment hash procedure and verification commands;
+4. build the production-candidate property/adversarial test plan;
+5. build the external audit package;
+6. bounded hostile review of the complete J3 architecture.
 
 External legal/accounting/privacy gates remain outside J3 technical closure and still block production money.
