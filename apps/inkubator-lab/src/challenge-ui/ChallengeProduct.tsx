@@ -65,6 +65,7 @@ export function buildCompilerProposal(
   answers: CompilerRequirementAnswers,
   provenance: CompilerInputProvenance = 'SOURCE',
   followUpAnswers: CompilerFollowUpAnswers = {},
+  successCriteria: string[] = [],
 ): CompilerProposalInput {
   return {
     schema_version: 'inkubator.compiler-proposal/1.0',
@@ -79,7 +80,11 @@ export function buildCompilerProposal(
       if (!trimmed) return [];
       return [{kind: 'KNOWN' as const, key, material: true, value: trimmed, provenance}];
     }),
-    outcome_criteria: [],
+    outcome_criteria: successCriteria.flatMap((description, index) => {
+      const trimmed = description.trim();
+      if (!trimmed) return [];
+      return [{id: `OUTCOME_${String(index + 1).padStart(2, '0')}`, description: trimmed, mandatory: true, provenance}];
+    }),
     delivery_criteria: [],
     preferences: {},
   };
@@ -143,11 +148,12 @@ type OrganizerGuidanceInput = {
   clarificationComplete: boolean;
   compilerState: CompilerStateView | null;
   accepted: boolean;
+  successCriteriaCount: number;
   challenge: PublicChallengeView | null;
 };
 
 export function deriveOrganizerGuidance(input: OrganizerGuidanceInput): Omit<JourneyGuideProps, 'role' | 'total'> {
-  const {sourceIntent, clarificationComplete, compilerState, accepted, challenge} = input;
+  const {sourceIntent, clarificationComplete, compilerState, accepted, successCriteriaCount, challenge} = input;
 
   if (challenge?.has_frozen_contract) {
     if (challenge.status === 'ENTRY_OPEN') {
@@ -164,8 +170,11 @@ export function deriveOrganizerGuidance(input: OrganizerGuidanceInput): Omit<Jou
   if (!clarificationComplete) {
     return {step: 2, title: 'CLARIFY A FEW DETAILS', body: 'Answer one detail at a time. Yes, No, and Not sure are all valid answers.', detail: 'Unknown stays unknown; the UI will not invent requirements for you.'};
   }
+  if (!compilerState && successCriteriaCount === 0) {
+    return {step: 3, title: 'DEFINE WHAT COUNTS AS DONE', body: 'Write at least one observable result a builder must achieve. This becomes part of the locked Challenge criteria.', detail: 'Good criteria describe something you can actually check, not “make it good”.'};
+  }
   if (!compilerState) {
-    return {step: 3, title: 'CHECK YOUR CHALLENGE RULES', body: 'You have supplied enough input to ask the deterministic compiler what is ready and what still needs clarification.', detail: 'No Challenge is created or opened by this check.'};
+    return {step: 3, title: 'CHECK YOUR CHALLENGE RULES', body: 'You have supplied the idea, technical details and success criteria. Check what is ready and what still needs clarification.', detail: 'No Challenge is created or opened by this check.'};
   }
   if (compilerState.status === 'UNSUPPORTED') {
     return {step: 2, title: 'ONE OF YOUR CHOICES NEEDS CHANGING', body: 'This version of Inkubator cannot safely support the current setup. The blocking choice is shown below with a direct way back to it.', detail: 'Nothing is locked or created while this is unresolved.'};
@@ -284,6 +293,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const [clarificationComplete, setClarificationComplete] = useState(false);
   const [followUpAnswers, setFollowUpAnswers] = useState<CompilerFollowUpAnswers>({});
   const [followUpIndex, setFollowUpIndex] = useState(0);
+  const [successCriteria, setSuccessCriteria] = useState<string[]>(['']);
   const [compilerState, setCompilerState] = useState<CompilerStateView | null>(null);
   const [compilePhase, setCompilePhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
   const [accepted, setAccepted] = useState(false);
@@ -384,7 +394,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     setPersistRequestId(null);
     setCanonicalContract(null);
     try {
-      const next = await api.compileChallenge(buildCompilerProposal(sourceIntent, answers, provenance, followUpAnswers));
+      const next = await api.compileChallenge(buildCompilerProposal(sourceIntent, answers, provenance, followUpAnswers, successCriteria));
       if (compilerRequestRevision.current !== requestRevision) return;
       setCompilerState(next);
       setAccepted(provenance === 'ORGANIZER_ACCEPTED');
@@ -503,6 +513,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     && persistPhase !== 'LOADING',
   );
   const currentRequirement = REQUIREMENTS[requirementIndex] ?? REQUIREMENTS[0];
+  const successCriteriaCount = successCriteria.filter((criterion) => criterion.trim()).length;
   const unresolvedQuestionIds = new Set(
     compilerState?.unresolved_decisions
       .filter((decision) => decision.id.startsWith('QUESTION:'))
@@ -516,7 +527,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const unsupportedFindings = compilerState?.status === 'UNSUPPORTED' ? compilerState.findings.filter((finding) => finding.severity === 'HIGH' || finding.severity === 'CRITICAL') : [];
   const otherUnresolvedDecisions = compilerState?.unresolved_decisions.filter((decision) => !decision.id.startsWith('QUESTION:') && !decision.id.startsWith('MISSING_REQUIREMENT:')) ?? [];
   const allBlockingFollowUpsAnswered = blockingFollowUps.every((question) => Boolean(followUpAnswers[question.id]?.trim()));
-  const guidance = deriveOrganizerGuidance({sourceIntent, clarificationComplete, compilerState, accepted, challenge: challengeView});
+  const guidance = deriveOrganizerGuidance({sourceIntent, clarificationComplete, compilerState, accepted, successCriteriaCount, challenge: challengeView});
   const compilerReadyAndAccepted = compilerState?.status === 'READY' && accepted;
 
   return (
@@ -569,9 +580,37 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         ) : null}
 
         {clarificationComplete ? (
+          <section className="challenge-criteria-builder" aria-labelledby="challenge-criteria-builder-title">
+            <small>STEP 3 / SUCCESS CRITERIA</small>
+            <h3 id="challenge-criteria-builder-title">WHAT COUNTS AS DONE?</h3>
+            <p>Write observable results a builder must achieve. These become <b>MUST PASS</b> criteria in the locked Challenge.</p>
+            <div className="challenge-criteria-builder__list">
+              {successCriteria.map((criterion, index) => (
+                <label key={index}>
+                  <span>REQUIRED RESULT {index + 1}</span>
+                  <textarea
+                    value={criterion}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setSuccessCriteria((current) => current.map((item, itemIndex) => itemIndex === index ? value : item));
+                      invalidate();
+                    }}
+                    placeholder={index === 0 ? 'Example: The dashboard always shows the current launch state after reload.' : 'Describe another result that must be true…'}
+                    rows={3}
+                  />
+                  {successCriteria.length > 1 ? <button type="button" onClick={() => { setSuccessCriteria((current) => current.filter((_, itemIndex) => itemIndex !== index)); invalidate(); }}>REMOVE</button> : null}
+                </label>
+              ))}
+            </div>
+            <button type="button" className="challenge-criteria-builder__add" onClick={() => setSuccessCriteria((current) => [...current, ''])}>+ ADD ANOTHER REQUIRED RESULT</button>
+            <small>{successCriteriaCount ? `${successCriteriaCount} MUST PASS CRITERION${successCriteriaCount === 1 ? '' : 'S'} DEFINED` : 'ADD AT LEAST ONE TESTABLE RESULT TO CONTINUE'}</small>
+          </section>
+        ) : null}
+
+        {clarificationComplete ? (
           <div className="compiler-intake__actions">
             {!compilerState ? (
-              <button type="button" disabled={compilePhase === 'LOADING'} onClick={() => void compile('SOURCE')}>
+              <button type="button" disabled={compilePhase === 'LOADING' || successCriteriaCount === 0} onClick={() => void compile('SOURCE')}>
                 {compilePhase === 'LOADING' ? 'CHECKING…' : 'CHECK MY CHALLENGE'}
               </button>
             ) : !accepted ? (
@@ -587,6 +626,18 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
       <StatePanel state={state} title={title}>
         {compilerState ? (
           <>
+            {compilerState.status === 'READY' ? (
+              <section className="challenge-pass-contract challenge-pass-contract--organizer" aria-labelledby="organizer-pass-contract-title">
+                <small>YOUR PROPOSED PASS CONTRACT</small>
+                <h3 id="organizer-pass-contract-title">WHAT COUNTS AS DONE?</h3>
+                <p><b>{compilerState.outcome_contract_candidate.criteria.filter((criterion) => criterion.mandatory).length} required outcome{compilerState.outcome_contract_candidate.criteria.filter((criterion) => criterion.mandatory).length === 1 ? '' : 's'}</b>. Review these before you use and lock the rules.</p>
+                <ul className="challenge-pass-contract__criteria">
+                  {compilerState.outcome_contract_candidate.criteria.map((criterion) => <li key={criterion.id}><span>{criterion.description}</span><strong>{criterion.mandatory ? 'MUST PASS' : 'OPTIONAL'}</strong></li>)}
+                  {compilerState.production_envelope.criteria.map((criterion) => <li key={criterion.id}><span>{criterion.description}</span><strong>{criterion.mandatory ? 'MUST PASS' : 'OPTIONAL'}</strong></li>)}
+                </ul>
+              </section>
+            ) : null}
+
             <div className="journey-review-summary">
               <strong>{compilerState.status === 'READY' ? 'THE RULES ARE READY TO REVIEW.' : compilerState.status === 'UNSUPPORTED' ? 'THIS SETUP CANNOT MOVE FORWARD YET.' : 'THE COMPILER NEEDS A FEW MORE DECISIONS.'}</strong>
               <p>{compilerState.status === 'READY' ? 'Check that this matches what you meant, then use these rules to continue.' : compilerState.status === 'UNSUPPORTED' ? 'One of the choices below is outside the safe rehearsal boundary. Change that choice to continue.' : 'Nothing is broken. Finish the specific unresolved items below, then check again.'}</p>
