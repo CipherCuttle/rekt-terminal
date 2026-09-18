@@ -15,7 +15,7 @@ test('Stage I default root exposes one white Challenge front door without revivi
 
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
   await expect(page.getByRole('heading', {name: 'WHAT ARE YOU HERE TO DO?', exact: true})).toBeVisible();
-  await expect(page.getByRole('heading', {name: 'ONE FRONT DOOR.', exact: true})).toBeVisible();
+  await expect(page.getByRole('heading', {name: /LAUNCH A CHALLENGE.*PROVE WHAT GETS BUILT/i})).toBeVisible();
   const nav = page.getByRole('navigation', {name: 'Inkubator journey'});
   await expect(nav.getByText('DISCOVER / START', {exact: true})).toBeVisible();
   await expect(nav.getByText('COMPILER / CREATE', {exact: true})).toBeVisible();
@@ -24,6 +24,9 @@ test('Stage I default root exposes one white Challenge front door without revivi
   await expect(nav.getByText('REVIEW / TEST ARENA', {exact: true})).toBeVisible();
   await expect(nav.getByText('RECEIPT / HISTORY', {exact: true})).toBeVisible();
   await expect(page.getByRole('link', {name: /CREATE A CHALLENGE/i})).toBeVisible();
+  await expect(page.getByRole('heading', {name: "WHAT'S BUILDING?"})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Realtime Launch Radar'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Wallet Safety Check'})).toBeVisible();
   await expect(page.getByLabel(/CHALLENGE LINK OR ID/i)).toBeVisible();
   await expect(page.getByText(/^WORLD$/i)).toHaveCount(0);
   await expect(page.getByText(/^COMMAND$/i)).toHaveCount(0);
@@ -31,6 +34,20 @@ test('Stage I default root exposes one white Challenge front door without revivi
 
   const accessibility = await new AxeBuilder({page}).analyze();
   expect(accessibility.violations).toEqual([]);
+});
+
+test('Discover demo challenge can seed a readable Compiler draft', async ({page}) => {
+  await page.setViewportSize({width: 1440, height: 900});
+  await page.goto('/');
+
+  const demo = page.getByRole('article').filter({has: page.getByRole('heading', {name: 'Realtime Launch Radar'})});
+  await expect(demo.getByText(/EXAMPLE ONLY · NOT A LIVE CHALLENGE/i)).toBeVisible();
+  await demo.getByRole('link', {name: 'START FROM THIS IDEA →'}).click();
+
+  await expect(page).toHaveURL(/surface=compiler/);
+  await expect(page.getByLabel('YOUR IDEA')).toHaveValue(/realtime public launch dashboard/i);
+  const ideaFontSize = await page.getByLabel('YOUR IDEA').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+  expect(ideaFontSize).toBeGreaterThanOrEqual(15);
 });
 
 test('Stage I Compiler/Create guides a first-time organizer one decision at a time on mobile', async ({page}) => {
