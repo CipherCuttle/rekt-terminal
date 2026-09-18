@@ -67,6 +67,8 @@ export const STAGE_J4_TOOLCHAIN = Object.freeze({
   ffi: false,
 });
 
+export const STAGE_J4_FINALITY_PROVIDERS = Object.freeze(['gelato', 'quicknode']);
+
 export function stageJ4DeadlineSeconds(deadlineMs) {
   assertSafeNonNegative(deadlineMs, 'deadline ms');
   const seconds = Math.ceil(deadlineMs / 1000);
@@ -148,6 +150,9 @@ export function buildStageJ4DeploymentPlan({
 function normalizeObservation(observation, index) {
   invariant(observation && typeof observation === 'object' && !Array.isArray(observation), `observation[${index}] must be an object`);
   invariant(typeof observation.provider_id === 'string' && observation.provider_id.length > 0, `observation[${index}].provider_id required`);
+  invariant(STAGE_J4_FINALITY_PROVIDERS.includes(observation.provider_id), `observation[${index}].provider_id is not an approved J4 provider`);
+  const chainId = assertSafeNonNegative(observation.chain_id, `observation[${index}].chain_id`);
+  invariant(chainId === STAGE_J4_NETWORK.chain_id, `observation[${index}] wrong chain id`);
   const txHash = assertDigest(observation.tx_hash, `observation[${index}].tx_hash`);
   const blockHash = assertDigest(observation.block_hash, `observation[${index}].block_hash`);
   const canonicalBlockHash = assertDigest(observation.canonical_block_hash, `observation[${index}].canonical_block_hash`);
@@ -156,6 +161,7 @@ function normalizeObservation(observation, index) {
   invariant(observation.tx_success === true, `observation[${index}] transaction must be successful`);
   return {
     provider_id: observation.provider_id,
+    chain_id: chainId,
     tx_hash: txHash,
     tx_success: true,
     block_number: blockNumber,
@@ -165,7 +171,19 @@ function normalizeObservation(observation, index) {
   };
 }
 
-export function evaluateStageJ4Finality(observations) {
+export function evaluateStageJ4Finality(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return deepFreeze({state: 'RECONCILING', reason: 'FINALITY_REQUEST_REQUIRED'});
+  }
+
+  let expectedTxHash;
+  try {
+    expectedTxHash = assertDigest(input.expected_tx_hash, 'expected tx hash');
+  } catch (error) {
+    return deepFreeze({state: 'RECONCILING', reason: error.message});
+  }
+
+  const observations = input.observations;
   if (!Array.isArray(observations) || observations.length !== 2) {
     return deepFreeze({state: 'RECONCILING', reason: 'TWO_PROVIDER_EVIDENCE_REQUIRED'});
   }
@@ -177,8 +195,14 @@ export function evaluateStageJ4Finality(observations) {
     return deepFreeze({state: 'RECONCILING', reason: error.message});
   }
 
-  if (normalized[0].provider_id === normalized[1].provider_id) {
-    return deepFreeze({state: 'RECONCILING', reason: 'PROVIDERS_MUST_BE_DISTINCT'});
+  const actualProviders = normalized.map((item) => item.provider_id).sort();
+  const expectedProviders = [...STAGE_J4_FINALITY_PROVIDERS].sort();
+  if (actualProviders.join('|') !== expectedProviders.join('|')) {
+    return deepFreeze({state: 'RECONCILING', reason: 'APPROVED_PROVIDER_SET_REQUIRED'});
+  }
+
+  if (normalized.some((item) => item.tx_hash !== expectedTxHash)) {
+    return deepFreeze({state: 'RECONCILING', reason: 'UNEXPECTED_SETTLEMENT_TRANSACTION'});
   }
 
   for (const key of ['tx_hash', 'block_number', 'block_hash']) {
@@ -197,10 +221,11 @@ export function evaluateStageJ4Finality(observations) {
 
   return deepFreeze({
     state: 'FINALIZED',
-    tx_hash: normalized[0].tx_hash,
+    chain_id: STAGE_J4_NETWORK.chain_id,
+    tx_hash: expectedTxHash,
     block_number: normalized[0].block_number,
     block_hash: normalized[0].block_hash,
-    providers: normalized.map((item) => item.provider_id).sort(),
+    providers: actualProviders,
   });
 }
 
