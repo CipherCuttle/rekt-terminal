@@ -278,7 +278,7 @@ function CompilerReadout({compilerState}: {compilerState: CompilerStateView}) {
 
 function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const [challengeId, setChallengeId] = useState(() => new URLSearchParams(window.location.search).get('challenge'));
-  const [sourceIntent, setSourceIntent] = useState('');
+  const [sourceIntent, setSourceIntent] = useState(() => new URLSearchParams(window.location.search).get('idea') ?? '');
   const [answers, setAnswers] = useState<CompilerRequirementAnswers>(() => emptyRequirementAnswers());
   const [requirementIndex, setRequirementIndex] = useState(0);
   const [clarificationComplete, setClarificationComplete] = useState(false);
@@ -787,6 +787,14 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
   }
 
   const summary = view.contract_summary;
+  const allCriteria = summary ? [
+    ...summary.outcome_criteria,
+    ...summary.production_criteria,
+    ...summary.delivery_criteria,
+    ...summary.normative_constraints,
+  ] : [];
+  const requiredCriteriaCount = allCriteria.filter((criterion) => criterion.mandatory).length;
+  const optionalCriteriaCount = allCriteria.length - requiredCriteriaCount;
   const readableContract = Boolean(
     view.has_frozen_contract
     && summary
@@ -817,28 +825,34 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
             <div><dt>SUBMIT BY</dt><dd>{view.submission_deadline}</dd></div>
           </dl>
 
+          <section className="challenge-pass-contract" aria-labelledby="challenge-pass-contract-title">
+            <small>THE PASS CONTRACT</small>
+            <h3 id="challenge-pass-contract-title">WHAT COUNTS AS DONE?</h3>
+            <p><b>{requiredCriteriaCount} required</b>{optionalCriteriaCount ? ` + ${optionalCriteriaCount} optional` : ''}. Every <strong>MUST PASS</strong> item below is part of the locked Challenge. Builders and reviewers are looking at the same criteria.</p>
+          </section>
+
           {summary.outcome_criteria.length ? (
             <section className="challenge-rule-summary__group">
-              <h3>WHAT NEEDS TO WORK</h3>
-              <ul>{summary.outcome_criteria.map((criterion) => <li key={`outcome:${criterion.id}`}><b>{criterion.description}</b><small>{criterion.mandatory ? 'REQUIRED' : 'OPTIONAL'}</small></li>)}</ul>
+              <h3>01 / OUTCOME — WHAT MUST WORK</h3>
+              <ul>{summary.outcome_criteria.map((criterion) => <li key={`outcome:${criterion.id}`}><b>{criterion.description}</b><small data-required={criterion.mandatory ? 'true' : 'false'}>{criterion.mandatory ? 'MUST PASS' : 'OPTIONAL'}</small></li>)}</ul>
             </section>
           ) : null}
           {summary.production_criteria.length ? (
             <section className="challenge-rule-summary__group">
-              <h3>HOW IT NEEDS TO HOLD UP</h3>
-              <ul>{summary.production_criteria.map((criterion) => <li key={`production:${criterion.id}`}><b>{criterion.description}</b><small>{criterion.mandatory ? 'REQUIRED' : 'OPTIONAL'}</small></li>)}</ul>
+              <h3>02 / PRODUCTION — HOW IT MUST HOLD UP</h3>
+              <ul>{summary.production_criteria.map((criterion) => <li key={`production:${criterion.id}`}><b>{criterion.description}</b><small data-required={criterion.mandatory ? 'true' : 'false'}>{criterion.mandatory ? 'MUST PASS' : 'OPTIONAL'}</small></li>)}</ul>
             </section>
           ) : null}
           {summary.delivery_criteria.length ? (
             <section className="challenge-rule-summary__group">
-              <h3>WHAT YOU NEED TO DELIVER</h3>
-              <ul>{summary.delivery_criteria.map((criterion) => <li key={`delivery:${criterion.id}`}><b>{criterion.description}</b><small>{criterion.mandatory ? 'REQUIRED' : 'OPTIONAL'}</small></li>)}</ul>
+              <h3>03 / DELIVERY — WHAT YOU MUST HAND IN</h3>
+              <ul>{summary.delivery_criteria.map((criterion) => <li key={`delivery:${criterion.id}`}><b>{criterion.description}</b><small data-required={criterion.mandatory ? 'true' : 'false'}>{criterion.mandatory ? 'MUST PASS' : 'OPTIONAL'}</small></li>)}</ul>
             </section>
           ) : null}
           {summary.normative_constraints.length ? (
             <section className="challenge-rule-summary__group">
-              <h3>OTHER LOCKED RULES</h3>
-              <ul>{summary.normative_constraints.map((criterion) => <li key={`constraint:${criterion.id}`}><b>{criterion.description}</b><small>{criterion.mandatory ? 'REQUIRED' : 'OPTIONAL'}</small></li>)}</ul>
+              <h3>04 / OTHER LOCKED RULES</h3>
+              <ul>{summary.normative_constraints.map((criterion) => <li key={`constraint:${criterion.id}`}><b>{criterion.description}</b><small data-required={criterion.mandatory ? 'true' : 'false'}>{criterion.mandatory ? 'MUST PASS' : 'OPTIONAL'}</small></li>)}</ul>
             </section>
           ) : null}
 
