@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  STAGE_J4_FINALITY_PROVIDERS,
   STAGE_J4_NATIVE_USDC,
   buildStageJ4DeploymentPlan,
   buildStageJ4ReleaseCandidateReceipt,
@@ -74,6 +75,7 @@ test('deployment plan rejects bridged/wrong token identity', () => {
 function finalityObservation(provider, overrides = {}) {
   return {
     provider_id: provider,
+    chain_id: 57073,
     tx_hash: DIGEST_A,
     tx_success: true,
     block_number: 100,
@@ -84,8 +86,15 @@ function finalityObservation(provider, overrides = {}) {
   };
 }
 
+function evaluate(observations, expectedTxHash = DIGEST_A) {
+  return evaluateStageJ4Finality({
+    expected_tx_hash: expectedTxHash,
+    observations,
+  });
+}
+
 test('finality requires two distinct agreeing providers at finalized canonical heads', () => {
-  const result = evaluateStageJ4Finality([
+  const result = evaluate([
     finalityObservation('gelato'),
     finalityObservation('quicknode'),
   ]);
@@ -94,21 +103,45 @@ test('finality requires two distinct agreeing providers at finalized canonical h
 });
 
 test('provider disagreement, lag, missing evidence and reorg stay reconciling', () => {
-  assert.equal(evaluateStageJ4Finality([finalityObservation('gelato')]).state, 'RECONCILING');
+  assert.equal(evaluate([finalityObservation('gelato')]).state, 'RECONCILING');
 
-  assert.equal(evaluateStageJ4Finality([
+  assert.equal(evaluate([
     finalityObservation('gelato'),
     finalityObservation('quicknode', {block_hash: DIGEST_C, canonical_block_hash: DIGEST_C}),
   ]).state, 'RECONCILING');
 
-  assert.equal(evaluateStageJ4Finality([
+  assert.equal(evaluate([
     finalityObservation('gelato'),
     finalityObservation('quicknode', {finalized_head_number: 99}),
   ]).state, 'RECONCILING');
 
-  assert.equal(evaluateStageJ4Finality([
+  assert.equal(evaluate([
     finalityObservation('gelato'),
     finalityObservation('quicknode', {canonical_block_hash: DIGEST_C}),
+  ]).state, 'RECONCILING');
+});
+
+test('finality is bound to the expected Ink settlement tx and frozen provider set', () => {
+  assert.deepEqual([...STAGE_J4_FINALITY_PROVIDERS].sort(), ['gelato', 'quicknode']);
+
+  assert.equal(evaluate([
+    finalityObservation('gelato'),
+    finalityObservation('quicknode'),
+  ], DIGEST_C).state, 'RECONCILING');
+
+  assert.equal(evaluate([
+    finalityObservation('gelato', {chain_id: 1}),
+    finalityObservation('quicknode'),
+  ]).state, 'RECONCILING');
+
+  assert.equal(evaluate([
+    finalityObservation('gelato'),
+    finalityObservation('unknown-provider'),
+  ]).state, 'RECONCILING');
+
+  assert.equal(evaluate([
+    finalityObservation('gelato'),
+    finalityObservation('gelato'),
   ]).state, 'RECONCILING');
 });
 
