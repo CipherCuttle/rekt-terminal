@@ -53,6 +53,8 @@ contract TestnetChallengeVault {
     error InvalidSignature();
     error WrongAuthority();
     error SettlementAlreadyAuthorized();
+    error OrganizerSelectionExpired();
+    error DefaultNotEligible();
     error InvalidManifest();
     error InvalidPayoutProof();
     error InvalidQualifierProof();
@@ -99,6 +101,7 @@ contract TestnetChallengeVault {
     bytes32 public immutable termsDigest;
     bytes32 public immutable bindingDigest;
     uint256 public immutable prizeAmount;
+    uint256 public immutable organizerSelectionDeadline;
     address public immutable refundRecipient;
     address public immutable outcomeAuthority;
     address public immutable organizerSelectionAuthority;
@@ -130,6 +133,7 @@ contract TestnetChallengeVault {
         bytes32 termsDigest_,
         bytes32 bindingDigest_,
         uint256 prizeAmount_,
+        uint256 organizerSelectionDeadline_,
         address refundRecipient_,
         address outcomeAuthority_,
         address organizerSelectionAuthority_,
@@ -143,6 +147,7 @@ contract TestnetChallengeVault {
             revert ZeroDigest();
         }
         if (prizeAmount_ == 0) revert InvalidPrizeAmount();
+        if (organizerSelectionDeadline_ <= block.timestamp) revert DefaultNotEligible();
         if (
             outcomeAuthority_ == organizerSelectionAuthority_ || outcomeAuthority_ == resolverAuthority_
                 || organizerSelectionAuthority_ == resolverAuthority_
@@ -153,6 +158,7 @@ contract TestnetChallengeVault {
         termsDigest = termsDigest_;
         bindingDigest = bindingDigest_;
         prizeAmount = prizeAmount_;
+        organizerSelectionDeadline = organizerSelectionDeadline_;
         refundRecipient = refundRecipient_;
         outcomeAuthority = outcomeAuthority_;
         organizerSelectionAuthority = organizerSelectionAuthority_;
@@ -257,6 +263,7 @@ contract TestnetChallengeVault {
     ) external {
         _requireSettlementReady();
         _requireQualifierResolution(1);
+        if (block.timestamp >= organizerSelectionDeadline) revert OrganizerSelectionExpired();
         if (manifestDigest == bytes32(0)) revert InvalidManifest();
         if (recipient.amount != prizeAmount || recipient.payout == address(0)) revert InvalidSettlementAmount();
         _requireQualifierProof(recipient);
@@ -283,6 +290,7 @@ contract TestnetChallengeVault {
     ) external {
         _requireSettlementReady();
         if (!qualificationResolved || qualifierCount != 1) revert InvalidQualifierSet();
+        if (block.timestamp < organizerSelectionDeadline) revert DefaultNotEligible();
         if (manifestDigest == bytes32(0)) revert InvalidManifest();
         if (recipient.amount != prizeAmount || recipient.payout == address(0)) revert InvalidSettlementAmount();
         _requireQualifierProof(recipient);
@@ -307,6 +315,7 @@ contract TestnetChallengeVault {
     ) external {
         _requireSettlementReady();
         if (!qualificationResolved || qualifierCount < 2) revert InvalidQualifierSet();
+        if (block.timestamp < organizerSelectionDeadline) revert DefaultNotEligible();
         if (manifestDigest == bytes32(0)) revert InvalidManifest();
 
         uint256 length = recipients.length;
@@ -314,7 +323,6 @@ contract TestnetChallengeVault {
 
         uint256 base = prizeAmount / length;
         uint256 remainder = prizeAmount % length;
-        uint256 ceilCount;
         uint256 total;
         bytes32 previousEntry;
         bytes32 recipientsDigest = keccak256("");
@@ -331,18 +339,15 @@ contract TestnetChallengeVault {
 
             _requireQualifierProof(recipient);
 
-            if (recipient.amount == base + 1) {
-                ++ceilCount;
-            } else if (recipient.amount != base) {
-                revert InvalidSettlementAmount();
-            }
+            uint256 expectedAmount = base + (index < remainder ? 1 : 0);
+            if (recipient.amount != expectedAmount) revert InvalidSettlementAmount();
 
             total += recipient.amount;
             recipientsDigest =
                 keccak256(abi.encode(recipientsDigest, recipientItemHash(recipient.entryDigest, recipient.payout, recipient.amount)));
         }
 
-        if (total != prizeAmount || ceilCount != remainder) revert InvalidSettlementAmount();
+        if (total != prizeAmount) revert InvalidSettlementAmount();
 
         bytes32 digest = settlementAuthorizationDigest(
             manifestDigest,
