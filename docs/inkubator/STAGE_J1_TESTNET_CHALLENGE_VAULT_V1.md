@@ -3,9 +3,10 @@
 **Status:** ACTIVE / TESTNET-CONTRACT SLICE  
 **Date:** 2026-09-18  
 **Branch:** `agent/stage-j1-testnet-vault-v1`  
-**Base:** Stage-J0 exact head `fa0d6d71e9bdf906d077f82dabb4c00563f951bc`  
+**Base:** hardened Stage-J0 settlement-provenance authority  
 **Production-money authority:** NONE  
 **Mainnet deployment authority:** NONE  
+**Public-testnet deployment authority:** NONE  
 **Merge authority:** NONE
 
 ## 1. Objective
@@ -14,223 +15,247 @@ Implement the smallest executable `TESTNET_CHALLENGE_VAULT` behind the Stage-J0 
 
 J1 proves contract mechanics only:
 
-`TEST FUND → FREEZE PAYOUT SET → AUTHORIZE OUTCOME → CREATE CLAIMS → CLAIM → FINALIZE`
+`TEST FUND → FREEZE PAYOUT SET → FREEZE FINAL QUALIFIER SET → AUTHORIZE OUTCOME → CREATE CLAIMS → CLAIM → FINALIZE`
 
-It does not deploy to a public testnet in this slice. It does not add any production asset, private key, signing service, transaction broadcaster, platform fee, or production settlement route.
+It does not deploy anywhere in this slice.
 
-## 2. Contract boundary
+## 2. Why J1 adds a final-qualifier commitment
 
-The vault is one bounded Challenge instance with immutable:
+The first contract sketch proved only that a payout belonged to an entrant. That was insufficient.
 
-- settlement token;
-- Challenge digest;
-- frozen terms digest;
-- J0 adapter-binding digest;
-- exact prize amount;
-- frozen refund recipient;
-- Inkubator outcome authority;
-- organizer-selection authority;
-- resolver authority.
+The funded-Challenge mechanism says:
 
-The contract has deliberately **no**:
+- Test Arena determines final qualifiers;
+- organizer selection may choose only among final qualifiers;
+- organizer timeout default distributes only among final qualifiers.
 
-- owner;
-- upgrade/proxy mechanism;
-- admin sweep;
-- arbitrary withdrawal;
-- arbitrary recipient setter;
-- yield/staking/swap/bridge path;
-- oracle;
-- platform-fee path;
-- generic external call.
+Therefore J1 freezes two different sets:
 
-A later production version must be separately designed and audited. J1 is not production code by declaration or implication.
+1. **payout set** — every builder payout identity admitted before settlement;
+2. **final qualifier set** — the exact subset produced by qualification after appeals/resolution.
 
-## 3. Funding law
+The final qualifier set must itself be a subset of the frozen payout set.
 
-Funding is one-shot and exact.
+This closes two red-team failures:
 
-The vault rejects:
+- organizer cannot select a seated non-qualifier;
+- one compromised outcome signer cannot silently omit/include arbitrary entrants in ghost/default distribution after the qualifier set has been independently co-attested.
 
-- a second funding attempt;
-- a non-zero pre-funding token balance;
-- a transfer whose observed balance delta is not the exact frozen prize.
+## 3. Authority split
 
-The last rule deliberately rejects fee-on-transfer behavior for the test vault.
-
-Direct unsolicited token transfers after funding are not part of Challenge accounting and have no admin sweep path in J1.
-
-## 4. Frozen payout set
-
-Before winner/default settlement, J1 seals a bounded payout set of at most three builder recipients.
-
-The payout set is a domain-separated Merkle root over:
-
-`entryDigest + payoutAddress`
-
-Sealing requires signatures from both:
+Immutable J1 test roles:
 
 - `INKUBATOR_OUTCOME`;
-- `ORGANIZER_SELECTION`.
+- `ORGANIZER_SELECTION`;
+- `RESOLVER`.
 
-Those authority addresses are immutable and must be different.
+All three addresses must be pairwise distinct.
 
-This models the future product invariant that payout identities are frozen before settlement and that no single normal winner authority can silently change the recipient set.
+### Payout-set seal
 
-## 5. Authorization model
+Requires outcome + organizer.
 
-J1 uses EIP-712-style domain-separated authorization digests bound to:
+### Final-qualifier-set seal
 
-- chain ID;
-- vault address;
-- Challenge digest;
-- terms digest;
-- adapter-binding digest;
-- manifest digest;
-- payout-set root;
-- settlement kind;
-- exact recipient digest.
+Requires outcome plus either:
 
-Testnet signer roles are EOA-only in J1. Contract-wallet/EIP-1271 support is explicitly deferred to a later production-readiness slice.
+- organizer in the normal path; or
+- resolver in the fallback path when organizer participation is unavailable.
 
-### Winner payout
+The qualifier set is content-bound to the already-frozen payout set.
+
+### Normal winner
 
 Requires:
 
-- recipient membership proof against the frozen payout root;
-- exact full-prize amount;
-- `INKUBATOR_OUTCOME` signature;
-- `ORGANIZER_SELECTION` signature.
+- membership proof in the final qualifier set;
+- outcome signature;
+- organizer-selection signature.
 
-### Default distribution
+### One-qualifier organizer-timeout default
+
+Stage J0 now explicitly distinguishes winner provenance.
+
+If the frozen default policy has exactly one qualifier, the economic intent is still `WINNER_PAYOUT`, but its authorization mode is `FROZEN_DEFAULT`, not `ORGANIZER_SELECTION`.
+
+J1 therefore permits the sole frozen qualifier to receive the prize with:
+
+- final-qualifier membership proof;
+- outcome signature;
+- on-chain one-qualifier default rule;
+
+and **no organizer settlement signature**.
+
+This prevents a disappeared organizer from locking a valid sole qualifier's prize.
+
+### Multi-qualifier default
 
 Requires:
 
-- 2–3 recipient membership proofs;
-- unique ascending entry digests;
-- deterministic equal-split economics, with at most one minor-unit difference;
+- every frozen final qualifier, not a subset;
+- membership proofs for all recipients;
+- unique canonical entry ordering;
+- unique payout addresses;
+- deterministic equal split;
 - exact prize conservation;
-- `INKUBATOR_OUTCOME` signature.
+- outcome signature.
 
-The equal-split rule itself is the on-chain `FROZEN_POLICY`; it cannot be replaced by a signed skewed split.
+The split policy is enforced by contract code.
 
 ### No-qualifier refund
 
 Requires:
 
-- sealed payout set;
-- frozen refund recipient;
-- exact full prize;
-- `INKUBATOR_OUTCOME` signature.
+- a separately co-attested zero-qualifier result;
+- outcome signature;
+- exact full-prize refund to the immutable refund recipient.
 
 ### Resolver cancellation
 
-Requires:
+J0 models `FROZEN_POLICY + RESOLVER_THRESHOLD`.
 
-- funded vault;
-- frozen refund recipient;
-- exact full prize;
-- separate resolver signature.
+J1 does not pretend one test EOA is a production threshold. Therefore its testnet cancellation path is deliberately stricter and requires:
 
-J1 models one resolver EOA only. Production threshold/multisig authority is not implied.
+- resolver signature; and
+- independent outcome co-sign;
 
-## 6. Claimable settlement
+while still forcing the full amount to the immutable refund recipient.
 
-Authorization never pushes tokens to builders.
+A production threshold/multisig model remains a later gate.
 
-Instead it creates frozen `claimable[recipient]` balances. Anyone may call:
+## 4. Funding law
+
+Funding is one-shot and exact.
+
+The vault rejects:
+
+- second funding;
+- non-zero pre-funding token balance;
+- observed token balance delta different from the frozen prize.
+
+Fee-on-transfer behavior is therefore rejected.
+
+The contract has no admin sweep. Unsolicited extra token transfers are outside Challenge accounting.
+
+## 5. Claimable settlement
+
+Authorization creates `claimable[recipient]`; it never pushes prize tokens.
+
+Anyone may call:
 
 `claimFor(recipient)`
 
-but the caller cannot redirect the transfer.
+but cannot redirect the payout.
 
-This isolates recipients: a token-level failure for one recipient does not prevent another recipient from claiming.
+A failed token transfer reverts only that claim and restores its claimable state. Other recipients remain independently claimable.
 
-The settlement becomes finalized only when:
+Finalization is true only when:
 
-`totalClaimed == frozenPrizeAmount`
+`totalClaimed == prizeAmount`
 
-Therefore:
+So:
 
-- authorized != paid;
-- one successful claim != fully settled;
-- blocked recipient => settlement remains pending/reconciling;
-- full claims => finalized monetary fact candidate.
+`AUTHORIZED != PAID != FINALIZED`
 
-## 7. Replay / redirection resistance
+## 6. Cryptographic binding
 
-J1 rejects:
+J1 uses EIP-712-style domain-separated digests bound to:
 
-- settlement before funding;
-- winner/default settlement before payout-set sealing;
-- recipient not present in the frozen payout set;
-- wrong authority signature;
-- one actor substituted for the other winner authority;
-- signature replay against a different manifest digest;
-- a second settlement manifest after one has been authorized;
-- skewed default-distribution economics;
-- duplicate/non-canonical default entry ordering;
-- token transfer failure being silently recorded as a successful claim.
+- chain ID;
+- vault address;
+- Challenge digest;
+- terms digest;
+- J0 adapter-binding digest;
+- payout-set root or qualifier-set root;
+- settlement manifest digest;
+- settlement provenance/kind;
+- exact recipients.
+
+EOA signatures are test-only J1 substrate. EIP-1271 / contract-wallet policy is deferred.
+
+ECDSA recovery rejects high-`s` malleable signatures.
+
+## 7. Contract surface deliberately absent
+
+J1 has no:
+
+- owner;
+- upgrade/proxy;
+- admin sweep;
+- arbitrary withdrawal;
+- arbitrary recipient setter;
+- yield;
+- staking;
+- swap;
+- bridge;
+- oracle;
+- fee collection;
+- generic external call;
+- production deploy script;
+- private key;
+- transaction broadcaster.
 
 ## 8. Toolchain
 
-J1 uses an isolated Foundry project because the repository previously had no Solidity toolchain.
+J1 is isolated under `contracts/inkubator-vault`.
 
-CI is pinned to:
+Pinned verification:
 
 - Foundry `v1.8.3`;
 - Solidity `0.8.37`;
 - Prague EVM target.
 
-There are no Solidity library dependencies in J1.
+There are no Solidity library dependencies.
 
 ## 9. Acceptance gates
 
-J1 closes only if exact-head CI proves:
+J1 closes only if exact-head verification proves:
 
-1. contract formats and compiles;
-2. exact funding and single-fund semantics;
+1. format + compile;
+2. one-shot exact funding;
 3. fee-on-transfer funding rejection;
-4. distinct winner authorities;
+4. pairwise-independent authorities;
 5. dual-authorized payout-set seal;
-6. Merkle-bound winner recipient;
-7. dual-authorized winner settlement;
-8. manifest replay resistance;
-9. exactly one settlement authorization;
-10. on-chain equal-split policy;
-11. full-prize conservation;
-12. pull/claimable settlement;
-13. blocked-recipient isolation;
-14. no-qualifier refund;
-15. separate resolver cancellation;
-16. settlement cannot start before funding;
-17. no owner/upgrade/sweep/arbitrary-withdraw path exists;
-18. no deployment or production-money code is introduced.
+6. final qualifier set is a verified subset of payout set;
+7. qualifier set requires an independent co-authority;
+8. organizer winner must be a frozen final qualifier;
+9. normal winner requires outcome + organizer;
+10. one-qualifier frozen default does not require vanished organizer selection;
+11. manifest signatures cannot replay to another manifest;
+12. only one settlement may be authorized;
+13. multi-qualifier default must include the entire frozen qualifier set;
+14. default economics are equal-split and conserve full prize;
+15. blocked-recipient failure does not freeze unrelated claims;
+16. zero-qualifier refund requires frozen zero-qualifier outcome;
+17. resolver cancellation cannot be driven by the test resolver key alone;
+18. settlement cannot begin before funding;
+19. full settlement finality requires all prize claims;
+20. no owner/upgrade/sweep/arbitrary-withdraw path;
+21. no deployment or production-money code.
 
 ## 10. Explicit non-authority
 
 J1 does not authorize:
 
-- deployment to Ink mainnet;
-- deployment to any public testnet;
-- real USDC/USDT0 or other production-value asset;
+- Ink mainnet;
+- any public testnet deployment;
+- real USDC/USDT0;
 - wallet/private-key custody;
-- server-side signing;
+- server signing;
 - transaction broadcast;
-- production EIP-1271 policy;
+- platform fee;
 - production resolver threshold;
-- emergency/long-stop production escape;
-- organizer/platform fee;
+- production emergency escape;
 - accounting/tax/compliance implementation;
 - external audit claims;
 - merge.
 
 ## 11. Next slice after J1 closure
 
-Only after exact-head tests and one bounded hostile review:
+Only after exact-head contract tests and one bounded hostile review:
 
 **J2 — PUBLIC TESTNET ADAPTER REHEARSAL**
 
-J2 would connect the J0 protocol adapter to one deployed testnet vault and execute the bounded 250-unit synthetic/test-token scenario end-to-end.
+J2 may deploy one J1-derived test vault to an approved public testnet and execute the synthetic 250-unit loop end-to-end.
 
-That still would not authorize production money. Production remains blocked on the independent security/audit/legal/settlement gates already frozen by Survivor V1.1 and Stage J0.
+Production money remains separately blocked by smart-contract threat modeling, external security review/audit, Swedish/EU legal/payment/CASP analysis, accounting/tax treatment, final asset/chain choice, production signer/threshold policy, emergency exit, and capped-launch authority.
