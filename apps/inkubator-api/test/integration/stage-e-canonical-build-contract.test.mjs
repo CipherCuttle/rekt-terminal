@@ -186,6 +186,8 @@ test('Stage E canonical Build Contract persistence is authenticated, organizer-b
     const publicRead = await app.inject({method: 'GET', url: `/v1/challenges/${challengeId}`});
     assert.equal(publicRead.statusCode, 200);
     assert.equal(publicRead.json().status, 'DRAFT');
+    assert.equal(publicRead.json().organizer.display_name.startsWith('Contract Organizer '), true);
+    assert.equal(publicRead.json().organizer.github_login, null);
     assert.equal(publicRead.json().has_frozen_contract, true);
     assert.equal(publicRead.json().current_terms_digest, preview.contract.terms_digest);
     assert.equal(publicRead.json().contract_summary, null);
