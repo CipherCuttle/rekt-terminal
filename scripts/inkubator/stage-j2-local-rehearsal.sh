@@ -55,7 +55,7 @@ cast rpc anvil_setBalance "$DEPLOYER_ADDRESS" 0x3635C9ADC5DEA00000 --rpc-url "$R
 rm -rf "$ROOT/contracts/inkubator-vault/broadcast"
 
 pushd "$ROOT/contracts/inkubator-vault" >/dev/null
-forge script script/StageJ2TokenDeploy.s.sol:StageJ2TokenDeploy --rpc-url "$RPC_URL" --broadcast --slow -vv
+forge script script/StageJ2TokenDeploy.s.sol:StageJ2TokenDeploy --rpc-url "$RPC_URL" --broadcast --slow
 TOKEN_BROADCAST="broadcast/StageJ2TokenDeploy.s.sol/$CHAIN_ID/run-latest.json"
 export J2_TOKEN_ADDRESS="$(jq -r '[.transactions[] | select(.transactionType == "CREATE" and .contractName == "StageJ2RehearsalToken")][0].contractAddress // empty' "$TOKEN_BROADCAST")"
 test "$J2_TOKEN_ADDRESS" != ""
@@ -80,7 +80,7 @@ deploy_scenario() {
   local output_var="$3"
 
   pushd "$ROOT/contracts/inkubator-vault" >/dev/null
-  forge script "script/$script_name.s.sol:$contract_name" --rpc-url "$RPC_URL" --broadcast --slow -vv
+  forge script "script/$script_name.s.sol:$contract_name" --rpc-url "$RPC_URL" --broadcast --slow
   local broadcast="broadcast/$script_name.s.sol/$CHAIN_ID/run-latest.json"
   local vault
   vault="$(jq -r '[.transactions[] | select(.transactionType == "CREATE" and .contractName == "TestnetChallengeVault")][0].contractAddress // empty' "$broadcast")"
@@ -143,7 +143,7 @@ cast rpc evm_setNextBlockTimestamp "$J2_SELECTION_DEADLINE_SECONDS" --rpc-url "$
 cast rpc evm_mine --rpc-url "$RPC_URL" >/dev/null
 
 pushd "$ROOT/contracts/inkubator-vault" >/dev/null
-forge script script/StageJ2DefaultSettle.s.sol:StageJ2DefaultSettle --rpc-url "$RPC_URL" --broadcast --slow -vv
+forge script script/StageJ2DefaultSettle.s.sol:StageJ2DefaultSettle --rpc-url "$RPC_URL" --broadcast --slow
 popd >/dev/null
 
 for vault in "$J2_WINNER_VAULT" "$J2_DEFAULT_VAULT" "$J2_REFUND_VAULT"; do
