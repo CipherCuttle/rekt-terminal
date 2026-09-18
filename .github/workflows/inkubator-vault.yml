@@ -42,9 +42,22 @@ jobs:
           set -euo pipefail
           forge --version | grep -F '1.8.3'
 
-      - name: Solidity format gate
+      - name: Format Solidity working tree
+        working-directory: contracts/inkubator-vault
+        run: forge fmt
+
+      - name: Verify formatter is idempotent
         working-directory: contracts/inkubator-vault
         run: forge fmt --check
+
+      - name: Upload formatted Solidity sources
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02c # v4
+        with:
+          name: stage-j1-formatted-solidity
+          path: |
+            contracts/inkubator-vault/src
+            contracts/inkubator-vault/test
+          if-no-files-found: error
 
       - name: Compile vault
         working-directory: contracts/inkubator-vault
