@@ -48,7 +48,14 @@ Forward product strategy and staged roadmap are governed by:
 42. `STAGE_J2_INK_SEPOLIA_PUBLIC_TESTNET_REHEARSAL_V1.md` — closed/pass public-testnet synthetic-value rehearsal authority; no production-money or mainnet authority.
 43. `STAGE_J2_CLOSURE_V1.md` — durable Stage-J2 closure receipt, public contract addresses, conservation evidence and hostile-review verdict.
 44. `STAGE_J3_PRODUCTION_VALUE_READINESS_V1.md` — active production-value threat-model/readiness authority; no mainnet or production-money authority.
-45. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+45. `STAGE_J3_PRODUCTION_VALUE_THREAT_MATRIX_V1.md` — production-value adversarial threat/control/evidence matrix.
+46. `STAGE_J3_PRODUCTION_VALUE_DECISIONS_V1.md` — chain/asset/finality/liveness/authority/deployment decisions.
+47. `STAGE_J3_SIGNER_CUSTODY_RUNBOOK_V1.md` — production-candidate authority custody/recovery operating contract.
+48. `STAGE_J3_REPRODUCIBLE_DEPLOYMENT_IDENTITY_V1.md` — reproducible bytecode/release/deployment identity procedure.
+49. `STAGE_J3_PRODUCTION_CANDIDATE_TEST_MATRIX_V1.md` — future production-candidate adversarial/property acceptance contract.
+50. `STAGE_J3_EXTERNAL_REVIEW_PACKAGE_V1.md` — bounded external smart-contract review package structure.
+51. `STAGE_J3_TERMINAL_FALLBACK_DECISION_V1.md` — technically frozen terminal no-qualification fallback; external legal/terms gate remains open.
+52. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -93,7 +100,7 @@ Stage-I external-human Alpha                  NOT AUTHORIZED
 Stage J0 settlement adapter                   ACTIVE / TEST-ONLY PROTOCOL SLICE
 Stage J1 testnet Challenge Vault              CLOSED / PASS / PR #126 DRAFT UNMERGED
 Stage J2 Ink Sepolia rehearsal                CLOSED / PASS / PR #127 DRAFT UNMERGED
-Stage J3 production-value readiness           ACTIVE / THREAT MODEL + SAFETY CONTRACT
+Stage J3 production-value readiness           ACTIVE / ARCHITECTURE COMPLETE / HOSTILE REVIEW NEXT
 Production money                              NOT AUTHORIZED
 Stage-I prep merge-to-main                    NOT AUTHORIZED
 Stage-J0 merge-to-main                        NOT AUTHORIZED
@@ -172,4 +179,4 @@ Stage J3 starts from the closed Stage-J2 evidence line on `agent/stage-j3-produc
 
 J3 may freeze the production-value trust model, deterministic default/liveness law, threshold-resolver/EIP-1271 policy, long-stop and pre-build refund semantics, exact chain/asset/deployment identity requirements, finality/reconciliation policy, key lifecycle and the external audit package.
 
-J3 may not deploy to mainnet, move production-value assets, create production signer secrets, introduce custody/fees, claim legal compliance or claim an external audit has passed. `STAGE_J3_PRODUCTION_VALUE_READINESS_V1.md` is the active slice authority.
+J3 architecture is specified across the J3 threat matrix, decisions, signer custody, reproducible deployment, test matrix, external review package and terminal fallback decision. The next bounded action is one hostile architecture review. J3 may not deploy to mainnet, move production-value assets, create production signer secrets, introduce custody/fees, claim legal compliance or claim an external audit has passed. `STAGE_J3_PRODUCTION_VALUE_READINESS_V1.md` is the active slice authority.
