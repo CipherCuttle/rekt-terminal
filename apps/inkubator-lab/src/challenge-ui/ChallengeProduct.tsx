@@ -600,7 +600,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
                     setRequirementIndex((current) => Math.min(REQUIREMENTS.length - 1, current + 1));
                   }
                 }}
-              className="journey-next-action"
+              className={!clarificationComplete ? 'journey-next-action' : undefined}
               >{requirementIndex === REQUIREMENTS.length - 1 ? 'DONE WITH DETAILS ✓' : 'NEXT DETAIL →'}</button>
             </div>
           </fieldset>
