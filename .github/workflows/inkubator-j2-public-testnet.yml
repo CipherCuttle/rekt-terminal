@@ -142,7 +142,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          forge script script/StageJ2TokenDeploy.s.sol:StageJ2TokenDeploy             --rpc-url "$INK_SEPOLIA_RPC_URL"             --broadcast             --slow             -vvv
+          ../../scripts/inkubator/stage-j2-forge-broadcast.sh script/StageJ2TokenDeploy.s.sol:StageJ2TokenDeploy -vvv
 
           broadcast="broadcast/StageJ2TokenDeploy.s.sol/$INK_SEPOLIA_CHAIN_ID/run-latest.json"
           J2_TOKEN_ADDRESS="$(jq -r '[.transactions[] | select(.transactionType == "CREATE" and .contractName == "StageJ2RehearsalToken")][0].contractAddress // empty' "$broadcast")"
@@ -162,7 +162,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          forge script script/StageJ2WinnerDeploy.s.sol:StageJ2WinnerDeploy --rpc-url "$INK_SEPOLIA_RPC_URL" --broadcast --slow
+          ../../scripts/inkubator/stage-j2-forge-broadcast.sh script/StageJ2WinnerDeploy.s.sol:StageJ2WinnerDeploy
           broadcast="broadcast/StageJ2WinnerDeploy.s.sol/$INK_SEPOLIA_CHAIN_ID/run-latest.json"
           J2_WINNER_VAULT="$(jq -r '[.transactions[] | select(.transactionType == "CREATE" and .contractName == "TestnetChallengeVault")][0].contractAddress // empty' "$broadcast")"
           test "$J2_WINNER_VAULT" != ""
@@ -173,7 +173,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          forge script script/StageJ2DefaultSetup.s.sol:StageJ2DefaultSetup --rpc-url "$INK_SEPOLIA_RPC_URL" --broadcast --slow
+          ../../scripts/inkubator/stage-j2-forge-broadcast.sh script/StageJ2DefaultSetup.s.sol:StageJ2DefaultSetup
           broadcast="broadcast/StageJ2DefaultSetup.s.sol/$INK_SEPOLIA_CHAIN_ID/run-latest.json"
           J2_DEFAULT_VAULT="$(jq -r '[.transactions[] | select(.transactionType == "CREATE" and .contractName == "TestnetChallengeVault")][0].contractAddress // empty' "$broadcast")"
           test "$J2_DEFAULT_VAULT" != ""
@@ -184,7 +184,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          forge script script/StageJ2RefundDeploy.s.sol:StageJ2RefundDeploy --rpc-url "$INK_SEPOLIA_RPC_URL" --broadcast --slow
+          ../../scripts/inkubator/stage-j2-forge-broadcast.sh script/StageJ2RefundDeploy.s.sol:StageJ2RefundDeploy
           broadcast="broadcast/StageJ2RefundDeploy.s.sol/$INK_SEPOLIA_CHAIN_ID/run-latest.json"
           J2_REFUND_VAULT="$(jq -r '[.transactions[] | select(.transactionType == "CREATE" and .contractName == "TestnetChallengeVault")][0].contractAddress // empty' "$broadcast")"
           test "$J2_REFUND_VAULT" != ""
@@ -251,7 +251,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          forge script script/StageJ2DefaultSettle.s.sol:StageJ2DefaultSettle             --rpc-url "$INK_SEPOLIA_RPC_URL"             --broadcast             --slow             -vvv
+          ../../scripts/inkubator/stage-j2-forge-broadcast.sh script/StageJ2DefaultSettle.s.sol:StageJ2DefaultSettle -vvv
 
       - name: Verify public finality and prize conservation
         shell: bash
