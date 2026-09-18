@@ -181,7 +181,7 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
             <label htmlFor="stage-i-appeal">REVIEW APPEAL WINDOW / MINUTES<input id="stage-i-appeal" inputMode="numeric" value={appealMinutes} onChange={(event) => setAppealMinutes(event.target.value)} /></label>
           </div>
           <div className="compiler-contract__actions">
-            <button type="button" disabled={phase === 'LOADING'} onClick={() => void create()}>{phase === 'LOADING' ? 'CREATING DRAFT…' : 'CREATE DRAFT CHALLENGE'}</button>
+            <button type="button" className={phase === 'LOADING' ? undefined : 'journey-next-action'} disabled={phase === 'LOADING'} onClick={() => void create()}>{phase === 'LOADING' ? 'CREATING DRAFT…' : 'CREATE DRAFT CHALLENGE'}</button>
             <span>DRAFT ONLY · NOT OPEN TO BUILDERS · NO REAL VALUE</span>
           </div>
         </>
@@ -197,6 +197,7 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
             {challenge?.status === 'DRAFT' ? (
               <button
                 type="button"
+                className={phase !== 'LOADING' && challenge.has_frozen_contract ? 'journey-next-action' : undefined}
                 disabled={phase === 'LOADING' || !challenge.has_frozen_contract}
                 onClick={() => void launch()}
               >{phase === 'LOADING' ? 'OPENING…' : 'OPEN CHALLENGE / TEST ONLY'}</button>
@@ -256,12 +257,12 @@ export function StageIJoinBridge({api, onJoined}: {api: StageIProductApi; onJoin
       <h2 id="stage-i-join-title">READY TO JOIN?</h2>
       <p>Joining means you are building against the exact locked rules shown above. If those terms do not match, the server refuses the entry.</p>
       <div className="compiler-contract__actions">
-        <button type="button" disabled={phase === 'LOADING' || !challenge?.current_terms_digest || challenge.status !== 'ENTRY_OPEN' || Boolean(joined)} onClick={() => void join()}>
+        <button type="button" className={phase !== 'LOADING' && challenge?.current_terms_digest && challenge.status === 'ENTRY_OPEN' && !joined ? 'journey-next-action' : undefined} disabled={phase === 'LOADING' || !challenge?.current_terms_digest || challenge.status !== 'ENTRY_OPEN' || Boolean(joined)} onClick={() => void join()}>
           {phase === 'LOADING' ? 'JOINING…' : 'JOIN THIS CHALLENGE'}
         </button>
         <span>{joined ? `ENTRY ${joined.entry_id}` : challenge?.status === 'ENTRY_OPEN' ? 'CURRENT TERMS REQUIRED' : 'ENTRY IS NOT OPEN'}</span>
       </div>
-      {joined ? <p className="compiler-contract__notice">YOU'RE IN · {joined.state} · <a href={challengeLink(challengeId, 'my-build')}>CONTINUE TO MY BUILD →</a></p> : null}
+      {joined ? <p className="compiler-contract__notice">YOU'RE IN · {joined.state} · <a className="journey-next-action journey-next-action--link" href={challengeLink(challengeId, 'my-build')}>CONTINUE TO MY BUILD →</a></p> : null}
       {message ? <p className="compiler-contract__notice">{message}</p> : null}
     </section>
   );
