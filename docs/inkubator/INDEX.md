@@ -1,6 +1,6 @@
 # REKT INKUBATOR — AUTHORITY POINTER
 
-**Updated:** 2026-09-18
+**Updated:** 2026-09-19
 
 Forward product strategy and staged roadmap are governed by:
 
@@ -47,7 +47,16 @@ Forward product strategy and staged roadmap are governed by:
 41. `STAGE_J1_TESTNET_CHALLENGE_VAULT_V1.md` — closed/pass no-deploy testnet-vault contract authority.
 42. `STAGE_J2_INK_SEPOLIA_PUBLIC_TESTNET_REHEARSAL_V1.md` — closed/pass public-testnet synthetic-value rehearsal authority; no production-money or mainnet authority.
 43. `STAGE_J2_CLOSURE_V1.md` — durable Stage-J2 closure receipt, public contract addresses, conservation evidence and hostile-review verdict.
-44. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+44. `STAGE_J3_PRODUCTION_VALUE_READINESS_V1.md` — closed/pass production-value architecture authority; no mainnet or production-money authority.
+45. `STAGE_J3_PRODUCTION_VALUE_THREAT_MATRIX_V1.md` — production-value adversarial threat/control/evidence matrix.
+46. `STAGE_J3_PRODUCTION_VALUE_DECISIONS_V1.md` — chain/asset/finality/liveness/authority/deployment decisions.
+47. `STAGE_J3_SIGNER_CUSTODY_RUNBOOK_V1.md` — production-candidate authority custody/recovery operating contract.
+48. `STAGE_J3_REPRODUCIBLE_DEPLOYMENT_IDENTITY_V1.md` — reproducible bytecode/release/deployment identity procedure.
+49. `STAGE_J3_PRODUCTION_CANDIDATE_TEST_MATRIX_V1.md` — future production-candidate adversarial/property acceptance contract.
+50. `STAGE_J3_EXTERNAL_REVIEW_PACKAGE_V1.md` — bounded external smart-contract review package structure.
+51. `STAGE_J3_TERMINAL_FALLBACK_DECISION_V1.md` — technically frozen terminal no-qualification fallback; external legal/terms gate remains open.
+52. `STAGE_J3_CLOSURE_V1.md` — durable J3 technical architecture closure receipt; production money/mainnet/external audit/legal gates remain unauthorized/open.
+53. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -92,6 +101,7 @@ Stage-I external-human Alpha                  NOT AUTHORIZED
 Stage J0 settlement adapter                   ACTIVE / TEST-ONLY PROTOCOL SLICE
 Stage J1 testnet Challenge Vault              CLOSED / PASS / PR #126 DRAFT UNMERGED
 Stage J2 Ink Sepolia rehearsal                CLOSED / PASS / PR #127 DRAFT UNMERGED
+Stage J3 production-value readiness           CLOSED / PASS / PR #128 DRAFT UNMERGED
 Production money                              NOT AUTHORIZED
 Stage-I prep merge-to-main                    NOT AUTHORIZED
 Stage-J0 merge-to-main                        NOT AUTHORIZED
@@ -117,6 +127,7 @@ Stage-J2 merge-to-main                        NOT AUTHORIZED
 - **Integration reconciliation:** current-main `c21d01cb5254d8ec653f6bd8b3f9a1084cdc65c2` reconciled into the dedicated integration branch through PR #120 at `22226fe4f4584064c56665427daa62b839d3116a`.
 - **Stage E→H main integration:** PR #121 merged verified integration head `a4836d3be76dd3f2f47e7274cba4e62c5fa444bf` into `main`; canonical merge commit `ab9d281086e3a2859274065d3ed9cb3ed5cf2f51`.
 - **Stage J2:** `66c45586ffadec5d85455c895cd320455c5413ee` — public Ink Sepolia synthetic settlement rehearsal PASS; run `35396664547`; hostile review `5252888951` PASS with no Critical/High findings; closure receipt `STAGE_J2_CLOSURE_V1.md`.
+- **Stage J3:** architecture head `bd4422cc77e8b7c0d8d4ea6bdf54a7e5715a5821` — exact-head CI `35400084955` PASS; hostile review `5253037975` found 3 High and all were repaired; targeted rereview `5253071138` PASS / original High findings closed; durable closure receipt `STAGE_J3_CLOSURE_V1.md`; PR #128 remains draft/open/unmerged.
 
 ## Current Stage-I prep authority
 
@@ -162,3 +173,12 @@ Owner authorization on 2026-09-18 starts the bounded Ink Sepolia public-testnet 
 J2 may deploy only disposable synthetic-value rehearsal contracts to Ink Sepolia chain `763373`, use faucet-only test ETH, generate runner-ephemeral test signers, execute the bounded 250-unit winner/default/refund scenarios, and preserve public-chain evidence.
 
 J2 is CLOSED / PASS at reviewed implementation head `66c45586ffadec5d85455c895cd320455c5413ee`; durable closure evidence is recorded in `STAGE_J2_CLOSURE_V1.md`. J2 did not authorize Ink mainnet, production-value assets, reusable private keys, owner wallets, production signer infrastructure, fees, custody, merge authority or production settlement authority.
+
+
+## Current Stage-J3 authority
+
+Stage J3 starts from the closed Stage-J2 evidence line on `agent/stage-j3-production-value-readiness-v1`.
+
+J3 may freeze the production-value trust model, deterministic default/liveness law, threshold-resolver/EIP-1271 policy, long-stop and pre-build refund semantics, exact chain/asset/deployment identity requirements, finality/reconciliation policy, key lifecycle and the external audit package.
+
+J3 architecture is CLOSED / PASS. The bounded hostile architecture review `5253037975` found three High issues; all three were repaired, targeted rereview `5253071138` passed, and exact-head CI `35400084955` passed on architecture head `bd4422cc77e8b7c0d8d4ea6bdf54a7e5715a5821`. Durable closure evidence is recorded in `STAGE_J3_CLOSURE_V1.md`. J3 may not deploy to mainnet, move production-value assets, create production signer secrets, introduce custody/fees, claim legal compliance or claim an external audit has passed. Production money, external audit, legal/accounting/privacy and merge authority remain blocked/open. `STAGE_J3_PRODUCTION_VALUE_READINESS_V1.md` remains the frozen technical authority for J4 implementation.
