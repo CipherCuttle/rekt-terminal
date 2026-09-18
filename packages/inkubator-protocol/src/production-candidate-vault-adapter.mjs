@@ -80,6 +80,22 @@ export function buildStageJ4PayoutRoster(entries) {
   return buildStageJ2PayoutRoster(entries);
 }
 
+export function buildStageJ4PayoutActivationPlan({refund_recipient, entries}) {
+  const refundRecipient = assertAddress(refund_recipient, 'refund recipient');
+  const payoutRoster = buildStageJ4PayoutRoster(entries);
+  invariant(
+    !payoutRoster.some((entry) => entry.payout_address === refundRecipient),
+    'refund recipient must not equal any entrant payout address',
+  );
+  const payload = {
+    schema_version: 'inkubator.j4-payout-activation-plan/1.0',
+    chain_id: STAGE_J4_NETWORK.chain_id,
+    refund_recipient: refundRecipient,
+    payout_roster: payoutRoster,
+  };
+  return deepFreeze({...payload, activation_plan_digest: digestRecord(payload)});
+}
+
 export function stageJ4DeadlineSeconds(deadlineMs) {
   assertSafeNonNegative(deadlineMs, 'deadline ms');
   const seconds = Math.ceil(deadlineMs / 1000);
