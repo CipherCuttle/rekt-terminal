@@ -47,7 +47,11 @@
       "import": "./src/compiler-provider.mjs"
     },
     "./compiler-provider-egress": "./src/compiler-provider-egress.mjs",
-    "./schema/*": "./schema/*"
+    "./schema/*": "./schema/*",
+    "./testnet-vault-adapter": {
+      "types": "./src/testnet-vault-adapter.d.ts",
+      "import": "./src/testnet-vault-adapter.mjs"
+    }
   },
   "publishConfig": {
     "access": "public"

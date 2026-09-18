@@ -44,8 +44,9 @@ Forward product strategy and staged roadmap are governed by:
 38. `ALPHA_CLAIMS_BRAND_POLICY_V1.md` — bounded REKT/Ink affiliation, qualification, AI, security/review and value-state communication authority.
 39. `ALPHA_OPERATOR_RUNBOOK_V1.md` — solo-operator failure/recovery authority for Stage-I rehearsal and future Closed Alpha.
 40. `STAGE_J0_SETTLEMENT_ADAPTER_V1.md` — active test-only settlement-adapter/manifest authority; no production-money authority.
-41. `STAGE_J1_TESTNET_CHALLENGE_VAULT_V1.md` — active no-deploy testnet-vault contract authority; no production-money or public-testnet deployment authority.
-42. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+41. `STAGE_J1_TESTNET_CHALLENGE_VAULT_V1.md` — closed/pass no-deploy testnet-vault contract authority.
+42. `STAGE_J2_INK_SEPOLIA_PUBLIC_TESTNET_REHEARSAL_V1.md` — active public-testnet synthetic-value rehearsal authority; no production-money or mainnet authority.
+43. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -88,11 +89,13 @@ Stage-I operator runbook                      ACTIVE AUTHORITY / ALPHA_OPERATOR_
 Stage-I deployed rehearsal                    PENDING
 Stage-I external-human Alpha                  NOT AUTHORIZED
 Stage J0 settlement adapter                   ACTIVE / TEST-ONLY PROTOCOL SLICE
-Stage J1 testnet Challenge Vault              ACTIVE / NO-DEPLOY CONTRACT SLICE
+Stage J1 testnet Challenge Vault              CLOSED / PASS / PR #126 DRAFT UNMERGED
+Stage J2 Ink Sepolia rehearsal                ACTIVE / SYNTHETIC PUBLIC-TESTNET SLICE
 Production money                              NOT AUTHORIZED
 Stage-I prep merge-to-main                    NOT AUTHORIZED
 Stage-J0 merge-to-main                        NOT AUTHORIZED
 Stage-J1 merge-to-main                        NOT AUTHORIZED
+Stage-J2 merge-to-main                        NOT AUTHORIZED
 ```
 
 ## Closure chain
@@ -148,3 +151,12 @@ Owner authorization on 2026-09-18 starts a bounded, test-only settlement-protoco
 ## Current Stage-J1 authority
 
 Owner authorization on 2026-09-18 starts the bounded no-deploy testnet-vault slice on `agent/stage-j1-testnet-vault-v1`, stacked on hardened J0. J1 may implement and test an isolated Solidity vault against the J0 adapter semantics. It may not deploy to a public testnet or mainnet, move production value, add private keys/signing/broadcast, collect fees, or merge. `STAGE_J1_TESTNET_CHALLENGE_VAULT_V1.md` is the slice authority.
+
+
+## Current Stage-J2 authority
+
+Owner authorization on 2026-09-18 starts the bounded Ink Sepolia public-testnet rehearsal on `agent/stage-j2-ink-sepolia-rehearsal-v1`, stacked on Stage J1 exact head `6b73f63bd77da5fc4d2407428538088c0995f18e`.
+
+J2 may deploy only disposable synthetic-value rehearsal contracts to Ink Sepolia chain `763373`, use faucet-only test ETH, generate runner-ephemeral test signers, execute the bounded 250-unit winner/default/refund scenarios, and preserve public-chain evidence.
+
+J2 may not use Ink mainnet, production-value assets, reusable private keys, owner wallets, production signer infrastructure, fees, custody, merge authority or production settlement authority. `STAGE_J2_INK_SEPOLIA_PUBLIC_TESTNET_REHEARSAL_V1.md` is the slice authority.

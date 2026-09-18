@@ -1,0 +1,358 @@
+name: Inkubator J2 Ink Sepolia Rehearsal
+
+on:
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Draft PR receiving the faucet/deployment receipts
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  INK_SEPOLIA_RPC_URL: https://rpc-gel-sepolia.inkonchain.com
+  INK_SEPOLIA_CHAIN_ID: '763373'
+  INK_SEPOLIA_EXPLORER_URL: https://explorer-sepolia.inkonchain.com
+  J2_PRIZE_AMOUNT: '250000000'
+  J2_BUILDER_A: '0x1111111111111111111111111111111111111111'
+  J2_BUILDER_B: '0x2222222222222222222222222222222222222222'
+  J2_BUILDER_C: '0x3333333333333333333333333333333333333333'
+
+jobs:
+  public-testnet-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out exact authorized J2 source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up canonical Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked Node dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Install pinned Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
+        with:
+          version: v1.8.3
+          cache: false
+
+      - name: Verify Ink Sepolia and pinned toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          forge --version | grep -F '1.8.3'
+          chain_id="$(cast chain-id --rpc-url "$INK_SEPOLIA_RPC_URL")"
+          test "$chain_id" = "$INK_SEPOLIA_CHAIN_ID"
+
+      - name: Generate ephemeral J2-only signers
+        id: signers
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+        run: |
+          set -euo pipefail
+
+          new_key() {
+            while true; do
+              candidate="0x$(openssl rand -hex 32)"
+              if cast wallet address --private-key "$candidate" >/dev/null 2>&1; then
+                printf '%s' "$candidate"
+                return
+              fi
+            done
+          }
+
+          DEPLOYER_PRIVATE_KEY="$(new_key)"
+          J2_OUTCOME_PRIVATE_KEY="$(new_key)"
+          J2_ORGANIZER_PRIVATE_KEY="$(new_key)"
+          J2_RESOLVER_PRIVATE_KEY="$(new_key)"
+
+          for secret in             "$DEPLOYER_PRIVATE_KEY"             "$J2_OUTCOME_PRIVATE_KEY"             "$J2_ORGANIZER_PRIVATE_KEY"             "$J2_RESOLVER_PRIVATE_KEY"; do
+            echo "::add-mask::$secret"
+          done
+
+          DEPLOYER_ADDRESS="$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")"
+          J2_OUTCOME_AUTHORITY="$(cast wallet address --private-key "$J2_OUTCOME_PRIVATE_KEY")"
+          J2_ORGANIZER_AUTHORITY="$(cast wallet address --private-key "$J2_ORGANIZER_PRIVATE_KEY")"
+          J2_RESOLVER_AUTHORITY="$(cast wallet address --private-key "$J2_RESOLVER_PRIVATE_KEY")"
+
+          {
+            echo "DEPLOYER_PRIVATE_KEY=$DEPLOYER_PRIVATE_KEY"
+            echo "DEPLOYER_ADDRESS=$DEPLOYER_ADDRESS"
+            echo "J2_OUTCOME_PRIVATE_KEY=$J2_OUTCOME_PRIVATE_KEY"
+            echo "J2_ORGANIZER_PRIVATE_KEY=$J2_ORGANIZER_PRIVATE_KEY"
+            echo "J2_RESOLVER_PRIVATE_KEY=$J2_RESOLVER_PRIVATE_KEY"
+            echo "J2_OUTCOME_AUTHORITY=$J2_OUTCOME_AUTHORITY"
+            echo "J2_ORGANIZER_AUTHORITY=$J2_ORGANIZER_AUTHORITY"
+            echo "J2_RESOLVER_AUTHORITY=$J2_RESOLVER_AUTHORITY"
+            echo "J2_REFUND_RECIPIENT=$DEPLOYER_ADDRESS"
+          } >> "$GITHUB_ENV"
+
+          body=$(cat <<EOF
+          J2_FAUCET_REQUEST
+
+          Ephemeral Ink Sepolia deployer for this single Stage-J2 rehearsal:
+
+          `$DEPLOYER_ADDRESS`
+
+          Network: Ink Sepolia / chain `$INK_SEPOLIA_CHAIN_ID`
+          Required value: faucet test ETH only.
+          Private key is runner-ephemeral, masked, and is not persisted to the repository.
+          EOF
+          )
+          gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
+
+      - name: Wait for faucet-only test ETH
+        shell: bash
+        run: |
+          set -euo pipefail
+          funded=0
+          for attempt in $(seq 1 120); do
+            balance="$(cast balance "$DEPLOYER_ADDRESS" --rpc-url "$INK_SEPOLIA_RPC_URL" 2>/dev/null || true)"
+            if [[ "$balance" =~ ^[0-9]+$ ]] && [ "$balance" -gt 0 ]; then
+              funded=1
+              echo "Ink Sepolia faucet funding observed for $DEPLOYER_ADDRESS"
+              break
+            fi
+            sleep 5
+          done
+          test "$funded" = "1"
+
+      - name: Deploy fixed-supply synthetic test token
+        working-directory: contracts/inkubator-vault
+        shell: bash
+        run: |
+          set -euo pipefail
+          forge script script/StageJ2TokenDeploy.s.sol:StageJ2TokenDeploy             --rpc-url "$INK_SEPOLIA_RPC_URL"             --broadcast             --slow             -vvv
+
+          broadcast="broadcast/StageJ2TokenDeploy.s.sol/$INK_SEPOLIA_CHAIN_ID/run-latest.json"
+          J2_TOKEN_ADDRESS="$(jq -r '[.transactions[] | select(.transactionType == "CREATE" and .contractName == "StageJ2RehearsalToken")][0].contractAddress // empty' "$broadcast")"
+          test "$J2_TOKEN_ADDRESS" != ""
+          echo "J2_TOKEN_ADDRESS=$J2_TOKEN_ADDRESS" >> "$GITHUB_ENV"
+
+      - name: Freeze J0 to J2 public-testnet fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          export J2_CHALLENGE_ID="CH-J2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          export J2_FIXTURE_OUT="j2-artifacts/fixture.json"
+          node scripts/inkubator/stage-j2-fixture.mjs > j2-artifacts/fixture-summary.json
+
+      - name: Deploy and finalize organizer-winner vault
+        working-directory: contracts/inkubator-vault
+        shell: bash
+        run: |
+          set -euo pipefail
+          forge script script/StageJ2WinnerDeploy.s.sol:StageJ2WinnerDeploy --rpc-url "$INK_SEPOLIA_RPC_URL" --broadcast --slow -vvv
+          broadcast="broadcast/StageJ2WinnerDeploy.s.sol/$INK_SEPOLIA_CHAIN_ID/run-latest.json"
+          J2_WINNER_VAULT="$(jq -r '[.transactions[] | select(.transactionType == "CREATE" and .contractName == "TestnetChallengeVault")][0].contractAddress // empty' "$broadcast")"
+          test "$J2_WINNER_VAULT" != ""
+          echo "J2_WINNER_VAULT=$J2_WINNER_VAULT" >> "$GITHUB_ENV"
+
+      - name: Deploy and freeze default-distribution vault
+        working-directory: contracts/inkubator-vault
+        shell: bash
+        run: |
+          set -euo pipefail
+          forge script script/StageJ2DefaultSetup.s.sol:StageJ2DefaultSetup --rpc-url "$INK_SEPOLIA_RPC_URL" --broadcast --slow -vvv
+          broadcast="broadcast/StageJ2DefaultSetup.s.sol/$INK_SEPOLIA_CHAIN_ID/run-latest.json"
+          J2_DEFAULT_VAULT="$(jq -r '[.transactions[] | select(.transactionType == "CREATE" and .contractName == "TestnetChallengeVault")][0].contractAddress // empty' "$broadcast")"
+          test "$J2_DEFAULT_VAULT" != ""
+          echo "J2_DEFAULT_VAULT=$J2_DEFAULT_VAULT" >> "$GITHUB_ENV"
+
+      - name: Deploy and finalize zero-qualifier refund vault
+        working-directory: contracts/inkubator-vault
+        shell: bash
+        run: |
+          set -euo pipefail
+          forge script script/StageJ2RefundDeploy.s.sol:StageJ2RefundDeploy --rpc-url "$INK_SEPOLIA_RPC_URL" --broadcast --slow -vvv
+          broadcast="broadcast/StageJ2RefundDeploy.s.sol/$INK_SEPOLIA_CHAIN_ID/run-latest.json"
+          J2_REFUND_VAULT="$(jq -r '[.transactions[] | select(.transactionType == "CREATE" and .contractName == "TestnetChallengeVault")][0].contractAddress // empty' "$broadcast")"
+          test "$J2_REFUND_VAULT" != ""
+          echo "J2_REFUND_VAULT=$J2_REFUND_VAULT" >> "$GITHUB_ENV"
+
+      - name: Verify all deployed vault immutables against J0/J2 plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p j2-artifacts/snapshots
+
+          snapshot() {
+            local vault="$1"
+            local output="$2"
+            local chain_id token challenge terms binding prize deadline refund outcome organizer resolver
+
+            chain_id="$(cast chain-id --rpc-url "$INK_SEPOLIA_RPC_URL")"
+            token="$(cast call "$vault" 'token()(address)' --rpc-url "$INK_SEPOLIA_RPC_URL")"
+            challenge="$(cast call "$vault" 'challengeDigest()(bytes32)' --rpc-url "$INK_SEPOLIA_RPC_URL")"
+            terms="$(cast call "$vault" 'termsDigest()(bytes32)' --rpc-url "$INK_SEPOLIA_RPC_URL")"
+            binding="$(cast call "$vault" 'bindingDigest()(bytes32)' --rpc-url "$INK_SEPOLIA_RPC_URL")"
+            prize="$(cast call "$vault" 'prizeAmount()(uint256)' --rpc-url "$INK_SEPOLIA_RPC_URL" | awk '{print $1}')"
+            deadline="$(cast call "$vault" 'organizerSelectionDeadline()(uint256)' --rpc-url "$INK_SEPOLIA_RPC_URL" | awk '{print $1}')"
+            refund="$(cast call "$vault" 'refundRecipient()(address)' --rpc-url "$INK_SEPOLIA_RPC_URL")"
+            outcome="$(cast call "$vault" 'outcomeAuthority()(address)' --rpc-url "$INK_SEPOLIA_RPC_URL")"
+            organizer="$(cast call "$vault" 'organizerSelectionAuthority()(address)' --rpc-url "$INK_SEPOLIA_RPC_URL")"
+            resolver="$(cast call "$vault" 'resolverAuthority()(address)' --rpc-url "$INK_SEPOLIA_RPC_URL")"
+
+            jq -n               --arg plan_digest "$J2_PLAN_DIGEST"               --arg vault_address "$vault"               --argjson chain_id "$chain_id"               --arg token_address "$token"               --arg challenge_digest "$challenge"               --arg terms_digest "$terms"               --arg binding_digest "$binding"               --argjson prize_minor_units "$prize"               --argjson organizer_selection_deadline_seconds "$deadline"               --arg refund_recipient "$refund"               --arg outcome_authority "$outcome"               --arg organizer_selection_authority "$organizer"               --arg resolver_authority "$resolver"               '{
+                schema_version:"inkubator.testnet-vault-snapshot/1.0",
+                plan_digest:$plan_digest,
+                vault_address:$vault_address,
+                chain_id:$chain_id,
+                token_address:$token_address,
+                challenge_digest:$challenge_digest,
+                terms_digest:$terms_digest,
+                binding_digest:$binding_digest,
+                prize_minor_units:$prize_minor_units,
+                organizer_selection_deadline_seconds:$organizer_selection_deadline_seconds,
+                refund_recipient:$refund_recipient,
+                outcome_authority:$outcome_authority,
+                organizer_selection_authority:$organizer_selection_authority,
+                resolver_authority:$resolver_authority
+              }' > "$output"
+
+            node scripts/inkubator/stage-j2-verify-snapshot.mjs j2-artifacts/fixture.json "$output"
+          }
+
+          snapshot "$J2_WINNER_VAULT" j2-artifacts/snapshots/winner.json
+          snapshot "$J2_DEFAULT_VAULT" j2-artifacts/snapshots/default.json
+          snapshot "$J2_REFUND_VAULT" j2-artifacts/snapshots/refund.json
+
+      - name: Record public deployment checkpoint
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+        run: |
+          set -euo pipefail
+          body=$(cat <<EOF
+          J2_PUBLIC_DEPLOYMENT_PREPARED
+
+          Chain: Ink Sepolia (`$INK_SEPOLIA_CHAIN_ID`)
+          Plan digest: `$J2_PLAN_DIGEST`
+          Synthetic token: $INK_SEPOLIA_EXPLORER_URL/address/$J2_TOKEN_ADDRESS
+          Winner vault: $INK_SEPOLIA_EXPLORER_URL/address/$J2_WINNER_VAULT
+          Default vault: $INK_SEPOLIA_EXPLORER_URL/address/$J2_DEFAULT_VAULT
+          Zero-qualifier refund vault: $INK_SEPOLIA_EXPLORER_URL/address/$J2_REFUND_VAULT
+
+          Winner and zero-qualifier refund paths are finalized. Default vault is intentionally waiting for the frozen organizer-selection deadline.
+          EOF
+          )
+          gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
+
+      - name: Wait until the frozen organizer-selection deadline
+        shell: bash
+        run: |
+          set -euo pipefail
+          now="$(date +%s)"
+          if [ "$now" -lt "$J2_SELECTION_DEADLINE_SECONDS" ]; then
+            sleep "$((J2_SELECTION_DEADLINE_SECONDS - now + 2))"
+          fi
+
+      - name: Execute deterministic frozen-default distribution
+        working-directory: contracts/inkubator-vault
+        shell: bash
+        run: |
+          set -euo pipefail
+          forge script script/StageJ2DefaultSettle.s.sol:StageJ2DefaultSettle             --rpc-url "$INK_SEPOLIA_RPC_URL"             --broadcast             --slow             -vvv
+
+      - name: Verify public finality and prize conservation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for vault in "$J2_WINNER_VAULT" "$J2_DEFAULT_VAULT" "$J2_REFUND_VAULT"; do
+            test "$(cast call "$vault" 'isFinalized()(bool)' --rpc-url "$INK_SEPOLIA_RPC_URL")" = "true"
+            vault_balance="$(cast call "$J2_TOKEN_ADDRESS" 'balanceOf(address)(uint256)' "$vault" --rpc-url "$INK_SEPOLIA_RPC_URL" | awk '{print $1}')"
+            test "$vault_balance" = "0"
+          done
+
+          base=$((J2_PRIZE_AMOUNT / 3))
+          remainder=$((J2_PRIZE_AMOUNT % 3))
+          expected_a=$((J2_PRIZE_AMOUNT + base + (remainder > 0 ? 1 : 0)))
+          expected_b=$((base + (remainder > 1 ? 1 : 0)))
+          expected_c=$((base + (remainder > 2 ? 1 : 0)))
+          expected_refund=$J2_PRIZE_AMOUNT
+
+          balance_a="$(cast call "$J2_TOKEN_ADDRESS" 'balanceOf(address)(uint256)' "$J2_BUILDER_A" --rpc-url "$INK_SEPOLIA_RPC_URL" | awk '{print $1}')"
+          balance_b="$(cast call "$J2_TOKEN_ADDRESS" 'balanceOf(address)(uint256)' "$J2_BUILDER_B" --rpc-url "$INK_SEPOLIA_RPC_URL" | awk '{print $1}')"
+          balance_c="$(cast call "$J2_TOKEN_ADDRESS" 'balanceOf(address)(uint256)' "$J2_BUILDER_C" --rpc-url "$INK_SEPOLIA_RPC_URL" | awk '{print $1}')"
+          balance_refund="$(cast call "$J2_TOKEN_ADDRESS" 'balanceOf(address)(uint256)' "$J2_REFUND_RECIPIENT" --rpc-url "$INK_SEPOLIA_RPC_URL" | awk '{print $1}')"
+
+          test "$balance_a" = "$expected_a"
+          test "$balance_b" = "$expected_b"
+          test "$balance_c" = "$expected_c"
+          test "$balance_refund" = "$expected_refund"
+
+          jq -n             --arg head_sha "$GITHUB_SHA"             --arg plan_digest "$J2_PLAN_DIGEST"             --arg network_id "ink-sepolia:763373"             --arg token_address "$J2_TOKEN_ADDRESS"             --arg winner_vault "$J2_WINNER_VAULT"             --arg default_vault "$J2_DEFAULT_VAULT"             --arg refund_vault "$J2_REFUND_VAULT"             --arg deployer_address "$DEPLOYER_ADDRESS"             --argjson builder_a_balance "$balance_a"             --argjson builder_b_balance "$balance_b"             --argjson builder_c_balance "$balance_c"             --argjson refund_balance "$balance_refund"             '{
+              schema_version:"inkubator.stage-j2-public-rehearsal-receipt/1.0",
+              value_mode:"TEST_ONLY",
+              head_sha:$head_sha,
+              plan_digest:$plan_digest,
+              network_id:$network_id,
+              token_address:$token_address,
+              vaults:{
+                organizer_winner:$winner_vault,
+                frozen_default_distribution:$default_vault,
+                zero_qualifier_refund:$refund_vault
+              },
+              ephemeral_deployer:$deployer_address,
+              final_balances:{
+                builder_a:$builder_a_balance,
+                builder_b:$builder_b_balance,
+                builder_c:$builder_c_balance,
+                refund_recipient:$refund_balance
+              },
+              all_vaults_finalized:true,
+              production_value_moved:false
+            }' > j2-artifacts/public-rehearsal-receipt.json
+
+      - name: Upload immutable J2 rehearsal evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: inkubator-stage-j2-public-rehearsal
+          path: j2-artifacts
+          if-no-files-found: error
+
+      - name: Record J2 public-testnet PASS
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+        run: |
+          set -euo pipefail
+          body=$(cat <<EOF
+          J2_PUBLIC_TESTNET_REHEARSAL_PASS
+
+          Exact head: `$GITHUB_SHA`
+          Network: Ink Sepolia / chain `$INK_SEPOLIA_CHAIN_ID`
+          Plan digest: `$J2_PLAN_DIGEST`
+
+          Synthetic token: $INK_SEPOLIA_EXPLORER_URL/address/$J2_TOKEN_ADDRESS
+          Organizer-winner vault: $INK_SEPOLIA_EXPLORER_URL/address/$J2_WINNER_VAULT
+          Frozen-default vault: $INK_SEPOLIA_EXPLORER_URL/address/$J2_DEFAULT_VAULT
+          Zero-qualifier-refund vault: $INK_SEPOLIA_EXPLORER_URL/address/$J2_REFUND_VAULT
+
+          Verified on public testnet:
+          - exact J0/J2 immutable snapshot match;
+          - 250-unit organizer winner path finalized;
+          - 250-unit three-qualifier deterministic default finalized only after frozen review deadline;
+          - 250-unit zero-qualifier refund finalized;
+          - all vault liabilities fully claimed;
+          - exact synthetic prize conservation.
+
+          No production asset, mainnet transaction, reusable wallet key, platform fee, merge, or production settlement authority was used.
+          EOF
+          )
+          gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
