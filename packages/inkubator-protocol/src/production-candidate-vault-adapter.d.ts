@@ -14,6 +14,12 @@ export declare const STAGE_J4_NATIVE_USDC: Readonly<{
 
 export declare const STAGE_J4_FINALITY_PROVIDERS: readonly ['gelato', 'quicknode'];
 
+export declare const STAGE_J4_EXCLUDED_USDC_E: Readonly<{
+  symbol: 'USDC.e';
+  address: '0xf1815bd50389c46847f0bda824ec8da914045d14';
+  status: 'EXCLUDED_FROM_FIRST_CANDIDATE';
+}>;
+
 export declare const STAGE_J4_TOOLCHAIN: Readonly<{
   foundry: '1.8.3';
   solc: '0.8.37';
