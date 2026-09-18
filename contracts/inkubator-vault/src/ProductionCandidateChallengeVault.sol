@@ -128,6 +128,7 @@ contract ProductionCandidateChallengeVault {
     bytes32 private constant VERSION_HASH = keccak256("1");
     uint256 private constant SECP256K1N_HALF =
         0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
+    uint256 private constant RESOLVER_STATICCALL_GAS = 150_000;
 
     IERC20ProductionCandidate public immutable token;
     bytes32 public immutable challengeDigest;
@@ -693,7 +694,7 @@ contract ProductionCandidateChallengeVault {
     }
 
     function _requireResolverSignature(bytes32 digest, bytes calldata signature) internal view {
-        (bool ok, bytes memory result) = resolverAuthority.staticcall(
+        (bool ok, bytes memory result) = resolverAuthority.staticcall{gas: RESOLVER_STATICCALL_GAS}(
             abi.encodeWithSelector(IERC1271Resolver.isValidSignature.selector, digest, signature)
         );
         if (!ok || result.length < 32 || abi.decode(result, (bytes4)) != ERC1271_MAGICVALUE) revert WrongAuthority();
