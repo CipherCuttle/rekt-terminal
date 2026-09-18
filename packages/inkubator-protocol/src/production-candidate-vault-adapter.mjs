@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {buildStageJ2PayoutRoster} from './testnet-vault-adapter.mjs';
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
@@ -74,6 +75,10 @@ export const STAGE_J4_TOOLCHAIN = Object.freeze({
 });
 
 export const STAGE_J4_FINALITY_PROVIDERS = Object.freeze(['gelato', 'quicknode']);
+
+export function buildStageJ4PayoutRoster(entries) {
+  return buildStageJ2PayoutRoster(entries);
+}
 
 export function stageJ4DeadlineSeconds(deadlineMs) {
   assertSafeNonNegative(deadlineMs, 'deadline ms');
