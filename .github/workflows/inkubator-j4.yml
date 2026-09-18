@@ -69,7 +69,7 @@ jobs:
         if: github.event_name == 'push'
         env:
           SOURCE_COMMIT: ${{ github.sha }}
-          RESOLVER_SIGNER_SET_DIGEST: 0x7777777777777777777777777777777777777777777777777777777777777777
+          RESOLVER_SIGNER_SET_DIGEST: "0x7777777777777777777777777777777777777777777777777777777777777777"
         run: |
           node scripts/inkubator/stage-j4-release-candidate.mjs > /tmp/j4-release-candidate.json
           grep -F '"release_authority": "CANDIDATE_ONLY_NO_MAINNET_NO_MONEY"' /tmp/j4-release-candidate.json
