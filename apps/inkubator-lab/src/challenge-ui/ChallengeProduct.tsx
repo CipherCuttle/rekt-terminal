@@ -682,29 +682,82 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
     return <StatePanel state="ERROR" title="Challenge transport failed."><p>The UI will not substitute mutable Mission or Project state.</p></StatePanel>;
   }
 
+  const summary = view.contract_summary;
+  const readableContract = Boolean(
+    view.has_frozen_contract
+    && summary
+    && view.current_terms_digest
+    && summary.terms_digest === view.current_terms_digest,
+  );
+
   return (
     <>
       <JourneyGuide
         role="BUILDER"
         step={joined ? 2 : 1}
         total={2}
-        title={joined ? "YOU'RE IN" : view.status === 'ENTRY_OPEN' ? 'READ IT, THEN JOIN' : 'READ THE CHALLENGE'}
-        body={joined ? 'Your entry is bound to these locked rules. Continue to My Build for the builder capsule and submission path.' : view.status === 'ENTRY_OPEN' ? 'Read the locked rules and deadlines below. Join only if this is the Challenge you want to build.' : 'These are the canonical Challenge facts. Entry is not open yet, so there is nothing you need to submit or guess.'}
-        detail={joined ? 'The next surface is My Build.' : 'Joining is bound to the current frozen terms digest.'}
+        title={joined ? "YOU'RE IN" : !readableContract ? 'RULES NOT AVAILABLE YET' : view.status === 'ENTRY_OPEN' ? 'READ IT, THEN JOIN' : 'READ THE CHALLENGE'}
+        body={joined ? 'Your entry is bound to these locked rules. Continue to My Build for the builder capsule and submission path.' : !readableContract ? 'The canonical locked rule summary is unavailable. Inkubator will not offer a Join action until you can inspect the rules you would be accepting.' : view.status === 'ENTRY_OPEN' ? 'Read the locked rules and deadlines below. Join only if this is the Challenge you want to build.' : 'Read the locked rules below. Entry is not open yet, so there is nothing you need to submit or guess.'}
+        detail={joined ? 'The next surface is My Build.' : readableContract ? 'Joining is bound to the exact terms digest shown here.' : 'Fail closed: no readable locked rules, no Join button.'}
       />
-      <StatePanel state="NORMAL" title={`Challenge ${view.status}.`}>
-        <dl className="challenge-facts" aria-label="Canonical Challenge facts">
-          <div><dt>CHALLENGE</dt><dd><code>{view.challenge_id}</code></dd></div>
-          <div><dt>TERMS</dt><dd>{view.current_terms_digest ?? 'NOT FROZEN'}</dd></div>
-          <div><dt>CONTRACT</dt><dd>{view.current_contract_version ?? 'DRAFT'} / {view.has_frozen_contract ? 'FROZEN' : 'UNFROZEN'}</dd></div>
-          <div><dt>SLOTS</dt><dd>{view.entry_count} / {view.slot_limit} · activation minimum {view.activation_minimum}</dd></div>
-          <div><dt>BUILD START</dt><dd>{view.build_start}</dd></div>
-          <div><dt>SUBMISSION DEADLINE</dt><dd>{view.submission_deadline}</dd></div>
-          <div><dt>EVIDENCE COUNTS</dt><dd>{view.submission_count} submissions · {view.qualification_count} qualifications · {view.receipt_count} receipts</dd></div>
-        </dl>
-        <p className="challenge-state__foot">PUBLIC PROJECTION ONLY — PAYOUT IDENTITIES AND PRIVATE ENTRY DATA ARE NOT EXPOSED.</p>
-      </StatePanel>
-      <StageIJoinBridge api={api} onJoined={() => setJoined(true)} />
+
+      {readableContract && summary ? (
+        <section className="challenge-rule-summary" aria-labelledby="challenge-rule-summary-title">
+          <small>LOCKED CHALLENGE RULES · VERSION {summary.contract_version}</small>
+          <h2 id="challenge-rule-summary-title">{summary.title}</h2>
+          <p className="challenge-rule-summary__brief">{summary.brief}</p>
+          <dl className="challenge-rule-summary__highlights">
+            <div><dt>TEST REWARD</dt><dd>{summary.prize_display ?? `${summary.prize_minor_units} ${summary.settlement_asset}`}</dd></div>
+            <div><dt>BUILDERS</dt><dd>{view.entry_count} / {view.slot_limit} joined</dd></div>
+            <div><dt>ENTRY CLOSES</dt><dd>{view.entry_deadline}</dd></div>
+            <div><dt>SUBMIT BY</dt><dd>{view.submission_deadline}</dd></div>
+          </dl>
+
+          {summary.outcome_criteria.length ? (
+            <section className="challenge-rule-summary__group">
+              <h3>WHAT NEEDS TO WORK</h3>
+              <ul>{summary.outcome_criteria.map((criterion) => <li key={`outcome:${criterion.id}`}><b>{criterion.description}</b><small>{criterion.mandatory ? 'REQUIRED' : 'OPTIONAL'}</small></li>)}</ul>
+            </section>
+          ) : null}
+          {summary.production_criteria.length ? (
+            <section className="challenge-rule-summary__group">
+              <h3>HOW IT NEEDS TO HOLD UP</h3>
+              <ul>{summary.production_criteria.map((criterion) => <li key={`production:${criterion.id}`}><b>{criterion.description}</b><small>{criterion.mandatory ? 'REQUIRED' : 'OPTIONAL'}</small></li>)}</ul>
+            </section>
+          ) : null}
+          {summary.delivery_criteria.length ? (
+            <section className="challenge-rule-summary__group">
+              <h3>WHAT YOU NEED TO DELIVER</h3>
+              <ul>{summary.delivery_criteria.map((criterion) => <li key={`delivery:${criterion.id}`}><b>{criterion.description}</b><small>{criterion.mandatory ? 'REQUIRED' : 'OPTIONAL'}</small></li>)}</ul>
+            </section>
+          ) : null}
+          {summary.normative_constraints.length ? (
+            <section className="challenge-rule-summary__group">
+              <h3>OTHER LOCKED RULES</h3>
+              <ul>{summary.normative_constraints.map((criterion) => <li key={`constraint:${criterion.id}`}><b>{criterion.description}</b><small>{criterion.mandatory ? 'REQUIRED' : 'OPTIONAL'}</small></li>)}</ul>
+            </section>
+          ) : null}
+
+          <details className="journey-technical-details">
+            <summary>Technical terms and references</summary>
+            <dl className="challenge-facts" aria-label="Canonical Challenge facts">
+              <div><dt>CHALLENGE</dt><dd><code>{view.challenge_id}</code></dd></div>
+              <div><dt>TERMS DIGEST</dt><dd><code>{summary.terms_digest}</code></dd></div>
+              <div><dt>CONTRACT</dt><dd>{summary.contract_version} / FROZEN</dd></div>
+              <div><dt>STATE</dt><dd>{view.status}</dd></div>
+            </dl>
+            {summary.normative_references.length ? <ul>{summary.normative_references.map((reference) => <li key={reference.id}><code>{reference.id}</code> · {reference.kind} · <code>{reference.content_digest}</code></li>)}</ul> : null}
+            {summary.informational_references.length ? <ul>{summary.informational_references.map((reference) => <li key={reference.id}><a href={reference.url} target="_blank" rel="noreferrer">{reference.id}</a></li>)}</ul> : null}
+          </details>
+          <p className="challenge-state__foot">PUBLIC LOCKED-RULE PROJECTION ONLY — PAYOUT IDENTITIES, PRIVATE ENTRY DATA AND ARCHIVE INTERNALS ARE NOT EXPOSED.</p>
+        </section>
+      ) : (
+        <StatePanel state="UNAVAILABLE_OR_STALE" title="Locked Challenge rules are unavailable.">
+          <p>Inkubator will not ask you to join against a digest you cannot inspect. Retry when the canonical frozen rule projection is available.</p>
+        </StatePanel>
+      )}
+
+      {readableContract ? <StageIJoinBridge api={api} onJoined={() => setJoined(true)} /> : null}
     </>
   );
 }
