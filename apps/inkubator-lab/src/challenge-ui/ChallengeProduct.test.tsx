@@ -271,7 +271,7 @@ describe('Stage E Challenge product shell', () => {
       provenance: 'SOURCE',
     }]);
     expect(screen.getByText('REVIEW THE RULES')).toBeTruthy();
-    expect(screen.getByRole('button', {name: 'USE THESE RULES'})).toBeEnabled();
+    expect((screen.getByRole('button', {name: 'USE THESE RULES'}) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('routes an unsupported compiler choice directly back to the blocking requirement', async () => {
@@ -301,7 +301,7 @@ describe('Stage E Challenge product shell', () => {
     fireEvent.click(change);
     expect(screen.getByText('PRIVATE-KEY CUSTODY')).toBeTruthy();
     expect(screen.getByText(/Would the product itself hold or sign with private keys/i)).toBeTruthy();
-    expect(screen.getByRole('button', {name: 'CHECK MY CHALLENGE'})).toBeEnabled();
+    expect((screen.getByRole('button', {name: 'CHECK MY CHALLENGE'}) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('binds canonical persistence to the exact accepted preview digest and refreshes Challenge truth', async () => {
