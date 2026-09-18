@@ -178,6 +178,26 @@ test('public Challenge projection exposes readable frozen rules without leaking 
   assert.equal('knowledge' in view.contract_summary, false);
 });
 
+test('public Challenge projection fails closed when the contract-version pointer disagrees', () => {
+  const acceptedState = compileOrganizerDraft(proposal({}, 'ORGANIZER_ACCEPTED'));
+  const snapshot = draftSnapshot();
+  const preview = buildFrozenBuildContractPreview(acceptedState, previewAuthority(), snapshot);
+
+  snapshot.challenge.status = 'ENTRY_OPEN';
+  snapshot.challenge.current_contract_version = 'wrong-version';
+  snapshot.challenge.current_terms_digest = preview.contract.terms_digest;
+  snapshot.contract = {
+    challenge_id: snapshot.challenge.challenge_id,
+    contract_version: preview.contract.contract_version,
+    schema_version: preview.contract.schema_version,
+    terms_digest: preview.contract.terms_digest,
+    contract_json: preview.contract,
+    frozen_at: new Date('2026-09-14T00:00:00.000Z'),
+  };
+
+  assert.throws(() => toPublicChallengeView(snapshot), /challenge_contract_pointer_invalid/);
+});
+
 test('public Challenge projection fails closed when the frozen contract pointer disagrees with canonical terms', () => {
   const acceptedState = compileOrganizerDraft(proposal({}, 'ORGANIZER_ACCEPTED'));
   const snapshot = draftSnapshot();
