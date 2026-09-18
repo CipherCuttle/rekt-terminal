@@ -6,6 +6,13 @@ import ChallengeJourney, {type ChallengeJourneyClient} from './ChallengeJourney'
 function client(overrides: Partial<ChallengeJourneyClient> = {}): ChallengeJourneyClient {
   return {
     getMe: vi.fn(async () => ({schema_version: 'player.me.v1'} as never)),
+    getMyConnectionContext: vi.fn(async () => ({
+      schema_version: 'player.connection_context.private.v1',
+      player: {player_id: 'player-1', display_name: 'Connected Builder'},
+      github: {user_id: '123', login: 'connected-builder'},
+      states: {signed_in: 'SIGNED_IN', app_access: 'GRANTED', repository_authorized: 'AUTHORIZED', project_linked: 'NOT_LINKED', observing: 'NOT_OBSERVING'},
+      source: {repository_id: null, repository_full_name: null, visibility: 'NONE', availability: 'NONE', last_observed_at: null},
+    } as never)),
     compileChallenge: vi.fn(async () => { throw new Error('not_used'); }),
     getChallenge: vi.fn(async () => { throw new Error('challenge_not_found'); }),
     previewBuildContract: vi.fn(async () => { throw new Error('not_used'); }),
@@ -38,6 +45,14 @@ describe('Stage I owner journey composition', () => {
     expect(screen.queryByText('PROJECT')).toBeNull();
     expect(screen.queryByText('PLAYER')).toBeNull();
     expect(screen.queryByText('SHIP')).toBeNull();
+  });
+
+  it('keeps connected GitHub identity visible across the journey shell', async () => {
+    renderJourney(client());
+    const dock = await screen.findByRole('link', {name: 'GitHub connected as connected-builder'});
+    expect(dock.getAttribute('href')).toBe('https://github.com/connected-builder');
+    const avatar = dock.querySelector('img');
+    expect(avatar?.getAttribute('src')).toContain('github.com/connected-builder.png?size=96');
   });
 
   it('gives organizer and builder explicit first actions without hidden surface knowledge', async () => {
@@ -73,6 +88,7 @@ describe('Stage I owner journey composition', () => {
       current_contract_version: '1.0.0',
       current_terms_digest: 'terms-digest',
       has_frozen_contract: true,
+      organizer: {display_name: 'Creator Person', github_login: 'creator-gh'},
       contract_summary: {
         contract_version: '1.0.0',
         terms_digest: 'terms-digest',
@@ -83,7 +99,7 @@ describe('Stage I owner journey composition', () => {
         delivery_criteria: [],
         normative_constraints: [],
         normative_references: [],
-        informational_references: [],
+        informational_references: [{id: 'creator-x-profile', url: 'https://x.com/creator_handle'}],
         prize_minor_units: 100,
         settlement_asset: 'TEST',
       },
@@ -107,6 +123,9 @@ describe('Stage I owner journey composition', () => {
     expect(await screen.findByText('YOUR CURRENT CHALLENGE')).toBeTruthy();
     expect(await screen.findByRole('heading', {name: 'My Launch Tracker'})).toBeTruthy();
     expect(await screen.findByText('Track the launch publicly with clear state.')).toBeTruthy();
+    expect(screen.getByText(/Creator Person/i)).toBeTruthy();
+    expect(screen.getByRole('link', {name: /GITHUB \/ @creator-gh/i}).getAttribute('href')).toBe('https://github.com/creator-gh');
+    expect(screen.getByRole('link', {name: /X PROFILE/i}).getAttribute('href')).toBe('https://x.com/creator_handle');
     expect(screen.getByRole('link', {name: 'OPEN YOUR CHALLENGE →'}).getAttribute('href')).toContain(challengeId);
   });
 
