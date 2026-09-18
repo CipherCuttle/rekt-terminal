@@ -30,6 +30,7 @@ export declare const STAGE_J4_TOOLCHAIN: Readonly<{
   ffi: false;
 }>;
 
+export declare function buildStageJ4PayoutRoster(entries: readonly Record<string, unknown>[]): readonly Readonly<Record<string, unknown>>[];
 export declare function stageJ4DeadlineSeconds(deadlineMs: number): number;
 export declare function buildStageJ4DeploymentPlan(input: Record<string, unknown>): Readonly<Record<string, unknown>>;
 export declare function evaluateStageJ4Finality(observations: unknown): Readonly<Record<string, unknown>>;
