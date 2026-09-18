@@ -66,6 +66,10 @@ jobs:
         working-directory: contracts/inkubator-vault
         run: forge test --match-contract ProductionCandidatePreAuditMatrixTest -vvv
 
+      - name: Run J4 cross-language known-answer Solidity suite
+        working-directory: contracts/inkubator-vault
+        run: forge test --match-contract ProductionCandidateKnownAnswerTest -vvv
+
       - name: Run J4 adapter/finality/release tests
         run: node --test packages/inkubator-protocol/test/stage-j4-production-candidate.test.mjs
 
@@ -165,10 +169,11 @@ jobs:
           rm -rf out cache
           forge build
 
-      - name: Build intentionally altered optimizer variant
+      - name: Build intentionally altered source variant
         run: |
           cp -R contracts/inkubator-vault /tmp/j4-variant
-          sed -i 's/optimizer_runs = 200/optimizer_runs = 201/' /tmp/j4-variant/foundry.toml
+          sed -i 's/uint16 public constant MAX_RECIPIENTS = 3;/uint16 public constant MAX_RECIPIENTS = 4;/' /tmp/j4-variant/src/ProductionCandidateChallengeVault.sol
+          grep -F 'uint16 public constant MAX_RECIPIENTS = 4;' /tmp/j4-variant/src/ProductionCandidateChallengeVault.sol
           rm -rf /tmp/j4-variant/out /tmp/j4-variant/cache
           forge build --root /tmp/j4-variant
 
