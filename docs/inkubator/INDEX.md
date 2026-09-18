@@ -1,6 +1,6 @@
 # REKT INKUBATOR — AUTHORITY POINTER
 
-**Updated:** 2026-09-17
+**Updated:** 2026-09-18
 
 Forward product strategy and staged roadmap are governed by:
 
@@ -43,7 +43,8 @@ Forward product strategy and staged roadmap are governed by:
 37. `STAGE_I_ALPHA_READINESS_MATRIX_V1.md` — current evidence/gap matrix for Alpha readiness.
 38. `ALPHA_CLAIMS_BRAND_POLICY_V1.md` — bounded REKT/Ink affiliation, qualification, AI, security/review and value-state communication authority.
 39. `ALPHA_OPERATOR_RUNBOOK_V1.md` — solo-operator failure/recovery authority for Stage-I rehearsal and future Closed Alpha.
-40. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+40. `STAGE_J0_SETTLEMENT_ADAPTER_V1.md` — active test-only settlement-adapter/manifest authority; no production-money authority.
+41. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -51,7 +52,7 @@ Older `NORTH_STAR_MVP_V0.md`, `PRODUCT_CONTRACT_MVP_V0.md`, `IMPLEMENTATION_ROAD
 
 Current forward sequence:
 
-`AUTHORITY LOCK → CHALLENGE/BUILD-CONTRACT PROTOCOL → POSTGRES BRIDGE → COMPILER/BLUEPRINTS/CHAT → REKT CHALLENGE UI → BUILDER CAPSULE/SUBMISSION → REVEAL/TEST ARENA/RECEIPTS → TRUST HARDENING → INTEGRATION → STAGE-I PREP → CLOSED ALPHA/TESTNET → PRODUCTION-VALUE GATES → FULL NORTH STAR`
+`AUTHORITY LOCK → CHALLENGE/BUILD-CONTRACT PROTOCOL → POSTGRES BRIDGE → COMPILER/BLUEPRINTS/CHAT → REKT CHALLENGE UI → BUILDER CAPSULE/SUBMISSION → REVEAL/TEST ARENA/RECEIPTS → TRUST HARDENING → INTEGRATION → STAGE-I PREP → CLOSED ALPHA/TESTNET → J0 SETTLEMENT PROTOCOL → PRODUCTION-VALUE GATES → FULL NORTH STAR`
 
 Current implementation state:
 
@@ -85,8 +86,10 @@ Stage-I claims/brand policy                   ACTIVE AUTHORITY / ALPHA_CLAIMS_BR
 Stage-I operator runbook                      ACTIVE AUTHORITY / ALPHA_OPERATOR_RUNBOOK_V1.md
 Stage-I deployed rehearsal                    PENDING
 Stage-I external-human Alpha                  NOT AUTHORIZED
+Stage J0 settlement adapter                   ACTIVE / TEST-ONLY PROTOCOL SLICE
 Production money                              NOT AUTHORIZED
 Stage-I prep merge-to-main                    NOT AUTHORIZED
+Stage-J0 merge-to-main                        NOT AUTHORIZED
 ```
 
 ## Closure chain
@@ -109,11 +112,13 @@ Stage-I prep merge-to-main                    NOT AUTHORIZED
 
 ## Current Stage-I prep authority
 
-Stage H and E→H integration are closed. The only authorized current engineering action is bounded Stage-I preparation on:
+Stage H and E→H integration are closed. The Stage-I rehearsal lane remains active on:
 
 `agent/stage-i-alpha-rehearsal-v1`
 
-Rules:
+A separately owner-authorized Stage-J0 test-only protocol lane is active on `agent/stage-j0-settlement-adapter-v1`; it does not supersede Stage-I authority and grants no production-money authority.
+
+Stage-I rules:
 
 - preserve the merged Stage-E→H semantics on canonical `main`;
 - use the existing `apps/inkubator-lab` runtime as the Inkubator frontend root; do not create `apps/inkubator-web` and never reuse Terminal `apps/web`;
@@ -132,3 +137,7 @@ F1's independent hostile-review requirement was explicitly replaced by user auth
 H3's independent hostile-review gate was separately and explicitly waived after exact-head implementation evidence passed and bounded reviewer transports failed. H4 used a separately owner-authorized self-review substitution. H5 used a separately explicit review-transport waiver. These are local governance exceptions and do not alter the default bounded-review policy.
 
 Stage-I prep grants no production-money authority, settlement execution, wallet custody/signing/broadcast, arbitrary participant-code execution, hidden tests, LLM judging/scoring, public raw private-source retrieval or external-human Alpha authority.
+
+## Current Stage-J0 authority
+
+Owner authorization on 2026-09-18 starts a bounded, test-only settlement-protocol slice on `agent/stage-j0-settlement-adapter-v1`. J0 may freeze adapter binding, settlement-manifest, authorization-fact, claimable execution-envelope and fail-closed rail-state semantics. It may not add a mainnet adapter, production asset movement, wallet custody/signing/broadcast, production settlement provider credentials, Solidity deployment, fees, or merge/deploy authority. `STAGE_J0_SETTLEMENT_ADAPTER_V1.md` is the slice authority.
