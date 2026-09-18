@@ -183,6 +183,10 @@ function compilerHrefFromIdea(idea: string): string {
   return `${url.pathname}${url.search}`;
 }
 
+function publicCreatorXUrl(summary: {informational_references: Array<{id: string; url: string}>} | null | undefined): string | null {
+  return summary?.informational_references.find((reference) => reference.id === 'creator-x-profile')?.url ?? null;
+}
+
 function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe' | 'getMyConnectionContext'> & Pick<ChallengeProductApi, 'getChallenge'>}) {
   const params = new URLSearchParams(window.location.search);
   const existingChallenge = params.get('challenge');
@@ -225,7 +229,17 @@ function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe' | 'getM
                 <div className="challenge-current__status"><b>{currentChallenge.data.status}</b><span>{currentChallenge.data.entry_count} / {currentChallenge.data.slot_limit} builders</span></div>
                 <h3>{currentChallenge.data.contract_summary?.title ?? 'YOUR CHALLENGE'}</h3>
                 <p>{currentChallenge.data.contract_summary?.brief ?? 'The Challenge exists, but public locked rules are not available yet.'}</p>
-                <a className="challenge-journey-primary" href={challengeHref(currentChallenge.data.status === 'DRAFT' ? 'COMPILER' : 'CHALLENGE', currentChallenge.data.challenge_id)}>
+                <div className="challenge-current__creator">
+                  <span>CREATOR <b>{currentChallenge.data.organizer?.display_name ?? 'INKUBATOR ORGANIZER'}</b></span>
+                  {currentChallenge.data.organizer?.github_login ? <a href={`https://github.com/${currentChallenge.data.organizer.github_login}`} target="_blank" rel="noreferrer">GITHUB / @{currentChallenge.data.organizer.github_login} ↗</a> : null}
+                  {publicCreatorXUrl(currentChallenge.data.contract_summary) ? <a href={publicCreatorXUrl(currentChallenge.data.contract_summary)!} target="_blank" rel="noreferrer">X PROFILE ↗</a> : null}
+                </div>
+                <dl className="challenge-current__facts">
+                  <div><dt>REWARD</dt><dd>{currentChallenge.data.contract_summary ? (currentChallenge.data.contract_summary.prize_display ?? `${currentChallenge.data.contract_summary.prize_minor_units} ${currentChallenge.data.contract_summary.settlement_asset}`) : 'LOCK RULES FIRST'}</dd></div>
+                  <div><dt>ENTRY CLOSES</dt><dd>{currentChallenge.data.entry_deadline}</dd></div>
+                  <div><dt>SUBMIT BY</dt><dd>{currentChallenge.data.submission_deadline}</dd></div>
+                </dl>
+                <a className="challenge-journey-primary journey-next-action journey-next-action--link" href={challengeHref(currentChallenge.data.status === 'DRAFT' ? 'COMPILER' : 'CHALLENGE', currentChallenge.data.challenge_id)}>
                   {currentChallenge.data.status === 'DRAFT' ? 'CONTINUE SETUP →' : 'OPEN YOUR CHALLENGE →'}
                 </a>
               </>
@@ -249,6 +263,12 @@ function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe' | 'getM
           ))}
         </div>
       </section>
+
+      <div className="challenge-role-choice" aria-label="Choose your role">
+        <strong>WHAT ARE YOU DOING RIGHT NOW?</strong>
+        <span><b>RUNNING THE CHALLENGE?</b> Use Organizer.</span>
+        <span><b>BUILDING FOR SOMEONE ELSE?</b> Use Builder.</span>
+      </div>
 
       <div className="challenge-journey-lanes">
         <article className="challenge-journey-lane challenge-journey-lane--organizer">
