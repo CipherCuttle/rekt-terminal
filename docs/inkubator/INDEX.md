@@ -44,7 +44,8 @@ Forward product strategy and staged roadmap are governed by:
 38. `ALPHA_CLAIMS_BRAND_POLICY_V1.md` — bounded REKT/Ink affiliation, qualification, AI, security/review and value-state communication authority.
 39. `ALPHA_OPERATOR_RUNBOOK_V1.md` — solo-operator failure/recovery authority for Stage-I rehearsal and future Closed Alpha.
 40. `STAGE_J0_SETTLEMENT_ADAPTER_V1.md` — active test-only settlement-adapter/manifest authority; no production-money authority.
-41. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+41. `STAGE_J1_TESTNET_CHALLENGE_VAULT_V1.md` — active no-deploy testnet-vault contract authority; no production-money or public-testnet deployment authority.
+42. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -87,9 +88,11 @@ Stage-I operator runbook                      ACTIVE AUTHORITY / ALPHA_OPERATOR_
 Stage-I deployed rehearsal                    PENDING
 Stage-I external-human Alpha                  NOT AUTHORIZED
 Stage J0 settlement adapter                   ACTIVE / TEST-ONLY PROTOCOL SLICE
+Stage J1 testnet Challenge Vault              ACTIVE / NO-DEPLOY CONTRACT SLICE
 Production money                              NOT AUTHORIZED
 Stage-I prep merge-to-main                    NOT AUTHORIZED
 Stage-J0 merge-to-main                        NOT AUTHORIZED
+Stage-J1 merge-to-main                        NOT AUTHORIZED
 ```
 
 ## Closure chain
@@ -141,3 +144,7 @@ Stage-I prep grants no production-money authority, settlement execution, wallet 
 ## Current Stage-J0 authority
 
 Owner authorization on 2026-09-18 starts a bounded, test-only settlement-protocol slice on `agent/stage-j0-settlement-adapter-v1`. J0 may freeze adapter binding, settlement-manifest, authorization-fact, claimable execution-envelope and fail-closed rail-state semantics. It may not add a mainnet adapter, production asset movement, wallet custody/signing/broadcast, production settlement provider credentials, Solidity deployment, fees, or merge/deploy authority. `STAGE_J0_SETTLEMENT_ADAPTER_V1.md` is the slice authority.
+
+## Current Stage-J1 authority
+
+Owner authorization on 2026-09-18 starts the bounded no-deploy testnet-vault slice on `agent/stage-j1-testnet-vault-v1`, stacked on hardened J0. J1 may implement and test an isolated Solidity vault against the J0 adapter semantics. It may not deploy to a public testnet or mainnet, move production value, add private keys/signing/broadcast, collect fees, or merge. `STAGE_J1_TESTNET_CHALLENGE_VAULT_V1.md` is the slice authority.
