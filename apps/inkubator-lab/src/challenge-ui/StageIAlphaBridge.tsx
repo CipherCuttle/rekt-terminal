@@ -228,7 +228,7 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
               <a className="journey-next-action journey-next-action--link challenge-auth-login" href={githubLoginHref()}>CONNECT GITHUB TO CREATE →</a>
             ) : (
               <button type="button" className={phase === 'LOADING' || authState === 'CHECKING' ? undefined : 'journey-next-action'} disabled={phase === 'LOADING' || authState === 'CHECKING'} onClick={() => void create()}>
-                {phase === 'LOADING' ? 'CREATING DRAFT…' : authState === 'CHECKING' ? 'CHECKING GITHUB…' : 'CREATE DRAFT CHALLENGE'}
+                {phase === 'LOADING' ? 'CREATING DRAFT…' : authState === 'CHECKING' ? 'CHECKING GITHUB…' : 'CREATE DRAFT & CONTINUE →'}
               </button>
             )}
             <span>DRAFT ONLY · NOT OPEN TO BUILDERS · NO REAL VALUE</span>
@@ -249,7 +249,7 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
                 className={phase !== 'LOADING' && challenge.has_frozen_contract ? 'journey-next-action' : undefined}
                 disabled={phase === 'LOADING' || !challenge.has_frozen_contract}
                 onClick={() => void launch()}
-              >{phase === 'LOADING' ? 'OPENING…' : 'OPEN CHALLENGE / TEST ONLY'}</button>
+              >{phase === 'LOADING' ? 'OPENING…' : 'OPEN TO BUILDERS →'}</button>
             ) : null}
             <span>{challenge?.status === 'ENTRY_OPEN' ? 'OPEN · BUILDERS CAN JOIN' : challenge?.status === 'DRAFT' ? !challenge.has_frozen_contract ? 'LOCK THE RULES FIRST' : 'READY TO OPEN · SERVER VALIDATES THE TRANSITION' : challenge ? `CURRENT STATE · ${challenge.status}` : 'READING CANONICAL STATE'}</span>
           </div>
