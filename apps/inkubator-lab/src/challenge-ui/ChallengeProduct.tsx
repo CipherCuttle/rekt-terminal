@@ -51,6 +51,27 @@ const REQUIREMENTS = [
   ['vague_consulting_scope', 'SUBJECTIVE SCOPE', 'Is success currently subjective effort rather than an observable software outcome?'],
 ] as const;
 
+function normalizeCreatorXProfileUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    const hostname = url.hostname.toLowerCase();
+    if (url.protocol !== 'https:' || !['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'].includes(hostname)) return null;
+    if (!/^\/[A-Za-z0-9_]{1,15}\/?$/.test(url.pathname)) return null;
+    url.hostname = 'x.com';
+    url.search = '';
+    url.hash = '';
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return null;
+  }
+}
+
+function creatorXProfileUrl(summary: PublicBuildContractSummary | null | undefined): string | null {
+  return summary?.informational_references.find((reference) => reference.id === 'creator-x-profile')?.url ?? null;
+}
+
 type RequirementAnswer = 'UNKNOWN' | 'YES' | 'NO';
 export type CompilerRequirementAnswers = Record<(typeof REQUIREMENTS)[number][0], RequirementAnswer>;
 
@@ -303,6 +324,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const [contractTitle, setContractTitle] = useState('');
   const [prizeMinorUnits, setPrizeMinorUnits] = useState('100');
   const [settlementAsset, setSettlementAsset] = useState('TEST');
+  const [creatorXUrl, setCreatorXUrl] = useState('');
   const [preview, setPreview] = useState<BuildContractPreviewView | null>(null);
   const [previewAuthority, setPreviewAuthority] = useState<BuildContractPreviewAuthorityInput | null>(null);
   const [previewPhase, setPreviewPhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
@@ -416,7 +438,9 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
       preferences: {},
       normative_constraints: [],
       normative_references: [],
-      informational_references: [],
+      informational_references: normalizeCreatorXProfileUrl(creatorXUrl)
+        ? [{id: 'creator-x-profile', url: normalizeCreatorXProfileUrl(creatorXUrl)!}]
+        : [],
       prize_minor_units: prize,
       settlement_asset: settlementAsset.trim(),
     };
@@ -501,6 +525,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     && contractVersion.trim()
     && contractTitle.trim()
     && settlementAsset.trim()
+    && (!creatorXUrl.trim() || Boolean(normalizeCreatorXProfileUrl(creatorXUrl)))
     && Number.isSafeInteger(prize)
     && prize > 0
     && previewPhase !== 'LOADING',
@@ -574,6 +599,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
                     setRequirementIndex((current) => Math.min(REQUIREMENTS.length - 1, current + 1));
                   }
                 }}
+              className="journey-next-action"
               >{requirementIndex === REQUIREMENTS.length - 1 ? 'DONE WITH DETAILS ✓' : 'NEXT DETAIL →'}</button>
             </div>
           </fieldset>
@@ -610,11 +636,11 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         {clarificationComplete ? (
           <div className="compiler-intake__actions">
             {!compilerState ? (
-              <button type="button" disabled={compilePhase === 'LOADING' || successCriteriaCount === 0} onClick={() => void compile('SOURCE')}>
+              <button type="button" className={compilePhase !== 'LOADING' && successCriteriaCount > 0 ? 'journey-next-action' : undefined} disabled={compilePhase === 'LOADING' || successCriteriaCount === 0} onClick={() => void compile('SOURCE')}>
                 {compilePhase === 'LOADING' ? 'CHECKING…' : 'CHECK MY CHALLENGE'}
               </button>
             ) : !accepted ? (
-              <button type="button" disabled={compilePhase === 'LOADING' || compilerState.status !== 'READY'} onClick={() => void compile('ORGANIZER_ACCEPTED')}>
+              <button type="button" className={compilePhase !== 'LOADING' && compilerState.status === 'READY' ? 'journey-next-action' : undefined} disabled={compilePhase === 'LOADING' || compilerState.status !== 'READY'} onClick={() => void compile('ORGANIZER_ACCEPTED')}>
                 {compilePhase === 'LOADING' ? 'CONFIRMING…' : 'USE THESE RULES'}
               </button>
             ) : null}
@@ -708,9 +734,9 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
                   <button type="button" disabled={followUpIndex === 0} onClick={() => setFollowUpIndex((index) => Math.max(0, index - 1))}>← BACK</button>
                   <span>{allBlockingFollowUpsAnswered ? 'ALL FOLLOW-UPS ANSWERED' : 'ANSWER EACH BLOCKING FOLLOW-UP'}</span>
                   {followUpIndex < blockingFollowUps.length - 1 ? (
-                    <button type="button" disabled={!followUpAnswers[currentFollowUp.id]?.trim()} onClick={() => setFollowUpIndex((index) => Math.min(blockingFollowUps.length - 1, index + 1))}>NEXT FOLLOW-UP →</button>
+                    <button type="button" className={followUpAnswers[currentFollowUp.id]?.trim() ? 'journey-next-action' : undefined} disabled={!followUpAnswers[currentFollowUp.id]?.trim()} onClick={() => setFollowUpIndex((index) => Math.min(blockingFollowUps.length - 1, index + 1))}>NEXT FOLLOW-UP →</button>
                   ) : (
-                    <button type="button" disabled={!allBlockingFollowUpsAnswered || compilePhase === 'LOADING'} onClick={() => void compile('SOURCE')}>{compilePhase === 'LOADING' ? 'CHECKING…' : 'CHECK AGAIN →'}</button>
+                    <button type="button" className={allBlockingFollowUpsAnswered && compilePhase !== 'LOADING' ? 'journey-next-action' : undefined} disabled={!allBlockingFollowUpsAnswered || compilePhase === 'LOADING'} onClick={() => void compile('SOURCE')}>{compilePhase === 'LOADING' ? 'CHECKING…' : 'CHECK AGAIN →'}</button>
                   )}
                 </div>
               </fieldset>
@@ -762,13 +788,15 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
           <label htmlFor="contract-title">CHALLENGE TITLE<input id="contract-title" value={contractTitle} onChange={(event) => { setContractTitle(event.target.value); invalidatePreview(); }} placeholder="Give builders a clear title" /></label>
           <label htmlFor="contract-prize">TEST PRIZE / UNITS<input id="contract-prize" inputMode="numeric" value={prizeMinorUnits} onChange={(event) => { setPrizeMinorUnits(event.target.value); invalidatePreview(); }} placeholder="100" /></label>
           <label htmlFor="contract-asset">TEST ASSET<input id="contract-asset" value={settlementAsset} onChange={(event) => { setSettlementAsset(event.target.value); invalidatePreview(); }} placeholder="TEST" /></label>
+          <label htmlFor="contract-creator-x">CREATOR X PROFILE / OPTIONAL<input id="contract-creator-x" value={creatorXUrl} onChange={(event) => { setCreatorXUrl(event.target.value); invalidatePreview(); }} placeholder="https://x.com/yourhandle" /></label>
         </div>
+        {creatorXUrl.trim() && !normalizeCreatorXProfileUrl(creatorXUrl) ? <p className="compiler-contract__notice">X PROFILE MUST BE A DIRECT HTTPS PROFILE URL ON x.com.</p> : null}
 
         <div className="compiler-contract__actions">
-          <button type="button" disabled={!previewReady} onClick={() => void previewContract()}>
+          <button type="button" className={previewReady && !preview ? 'journey-next-action' : undefined} disabled={!previewReady} onClick={() => void previewContract()}>
             {previewPhase === 'LOADING' ? 'BUILDING PREVIEW…' : 'PREVIEW LOCKED RULES'}
           </button>
-          <button type="button" disabled={!persistReady} onClick={() => void persistContract()}>
+          <button type="button" className={persistReady ? 'journey-next-action' : undefined} disabled={!persistReady} onClick={() => void persistContract()}>
             {persistPhase === 'LOADING' ? 'LOCKING RULES…' : 'LOCK THESE RULES'}
           </button>
           <span>{canonicalContract ? 'RULES LOCKED' : preview ? 'PREVIEW READY · LOCKING IS PERMANENT' : !challengeReadyForPreview ? 'DRAFT CHALLENGE REQUIRED' : 'PREVIEW BEFORE LOCKING'}</span>
@@ -869,6 +897,11 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
           <small>LOCKED CHALLENGE RULES · VERSION {summary.contract_version}</small>
           <h2 id="challenge-rule-summary-title">{summary.title}</h2>
           <p className="challenge-rule-summary__brief">{summary.brief}</p>
+          <div className="challenge-creator-strip">
+            <span>CREATED BY <b>{view.organizer?.display_name ?? 'INKUBATOR ORGANIZER'}</b></span>
+            {view.organizer?.github_login ? <a href={`https://github.com/${view.organizer.github_login}`} target="_blank" rel="noreferrer">GITHUB / @{view.organizer.github_login} ↗</a> : null}
+            {creatorXProfileUrl(summary) ? <a href={creatorXProfileUrl(summary)!} target="_blank" rel="noreferrer">X / CREATOR PROFILE ↗</a> : null}
+          </div>
           <dl className="challenge-rule-summary__highlights">
             <div><dt>TEST REWARD</dt><dd>{summary.prize_display ?? `${summary.prize_minor_units} ${summary.settlement_asset}`}</dd></div>
             <div><dt>BUILDERS</dt><dd>{view.entry_count} / {view.slot_limit} joined</dd></div>
