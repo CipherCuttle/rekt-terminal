@@ -235,6 +235,42 @@ export function evaluateStageJ4Finality(input) {
   });
 }
 
+export function buildStageJ4SigningRequest(input) {
+  invariant(input && typeof input === 'object' && !Array.isArray(input), 'signing request required');
+  invariant(typeof input.request_id === 'string' && /^[a-z0-9._:-]{1,96}$/.test(input.request_id), 'request id must be stable lowercase text');
+  invariant(input.authority_role === 'OUTCOME' || input.authority_role === 'RESOLVER', 'authority role must be OUTCOME or RESOLVER');
+  invariant(
+    ['PAYOUT_SET', 'QUALIFIER_SET', 'SETTLEMENT'].includes(input.action),
+    'unsupported signing action',
+  );
+  invariant(input.display_fields && typeof input.display_fields === 'object' && !Array.isArray(input.display_fields), 'display fields required');
+
+  const payload = {
+    schema_version: 'inkubator.j4-signing-request/1.0',
+    request_id: input.request_id,
+    authority_role: input.authority_role,
+    action: input.action,
+    chain_id: STAGE_J4_NETWORK.chain_id,
+    vault_address: assertAddress(input.vault_address, 'vault address'),
+    typed_data_digest: assertDigest(input.typed_data_digest, 'typed data digest'),
+    display_fields: input.display_fields,
+    display_fields_digest: digestRecord(input.display_fields),
+  };
+
+  return deepFreeze({...payload, request_digest: digestRecord(payload)});
+}
+
+export function registerStageJ4SigningRequest(history, request) {
+  invariant(Array.isArray(history), 'signing request history must be an array');
+  const normalized = buildStageJ4SigningRequest(request);
+  const existing = history.find((item) => item?.request_id === normalized.request_id);
+  if (existing) {
+    invariant(canonicalize(existing) === canonicalize(normalized), 'signing request id conflict');
+    return deepFreeze([...history]);
+  }
+  return deepFreeze([...history, normalized]);
+}
+
 export function appendStageJ4ReconciliationReceipt(history, input) {
   invariant(Array.isArray(history), 'reconciliation history must be an array');
   invariant(input && typeof input === 'object' && !Array.isArray(input), 'reconciliation receipt required');
