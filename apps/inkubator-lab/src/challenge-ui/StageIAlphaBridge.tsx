@@ -89,6 +89,16 @@ function githubLoginHref(): string {
   return `${login.pathname}${login.search}`;
 }
 
+function organizerNextSurface(status: string): {surface: string; label: string; title: string} {
+  if (['SUBMISSIONS_LOCKED', 'QUALIFICATION', 'APPEAL_WINDOW', 'FINAL_QUALIFIERS', 'SELECTION', 'DEFAULT_RESOLUTION'].includes(status)) {
+    return {surface: 'review', label: 'OPEN TEST / PICK FLOW →', title: 'THE BUILD PHASE ENDS IN REVIEW + SELECTION'};
+  }
+  if (['SETTLEMENT_PENDING', 'SETTLED', 'RECEIPT_FILED'].includes(status)) {
+    return {surface: 'history', label: 'OPEN RESULT / RECEIPT →', title: 'THE COMPETITION IS IN RESULT / SETTLEMENT'};
+  }
+  return {surface: 'challenge', label: 'OPEN CHALLENGE STATUS →', title: 'YOU OPENED IT. NOW RUN THE COMPETITION.'};
+}
+
 export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChallengeChanged}: {api: StageIProductApi; challenge?: PublicChallengeView | null; onChallengeChanged?: (challenge: PublicChallengeView) => void}) {
   const challengeId = currentChallengeId();
   const [schedule] = useState(initialSchedule);
@@ -103,6 +113,9 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
   const [message, setMessage] = useState<string | null>(null);
   const [authState, setAuthState] = useState<'CHECKING' | 'CONNECTED' | 'REQUIRED' | 'UNKNOWN'>(() => api.getMe ? 'CHECKING' : 'UNKNOWN');
   const challenge = launchedChallenge ?? suppliedChallenge ?? null;
+  const afterLaunch = challenge ? organizerNextSurface(challenge.status) : null;
+  const publicChallengeHref = challengeId ? challengeLink(challengeId, 'challenge') : null;
+  const publicChallengeUrl = publicChallengeHref ? new URL(publicChallengeHref, window.location.origin).toString() : null;
   const organizerTitle = !challengeId
     ? 'SET UP THE CHALLENGE'
     : challenge?.status === 'DRAFT'
@@ -253,6 +266,26 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
             ) : null}
             <span>{challenge?.status === 'ENTRY_OPEN' ? 'OPEN · BUILDERS CAN JOIN' : challenge?.status === 'DRAFT' ? !challenge.has_frozen_contract ? 'LOCK THE RULES FIRST' : 'READY TO OPEN · SERVER VALIDATES THE TRANSITION' : challenge ? `CURRENT STATE · ${challenge.status}` : 'READING CANONICAL STATE'}</span>
           </div>
+
+          {challenge && challenge.status !== 'DRAFT' && afterLaunch ? (
+            <section className="challenge-after-launch" aria-labelledby="challenge-after-launch-title">
+              <small>WHAT HAPPENS NEXT</small>
+              <h3 id="challenge-after-launch-title">{afterLaunch.title}</h3>
+              {challenge.status === 'ENTRY_OPEN' ? (
+                <>
+                  <p>Share this public Challenge with builders. They read the same locked rules, join, build, submit, then the competition moves through Test → Pick → Result.</p>
+                  {publicChallengeUrl ? <code className="challenge-after-launch__url">{publicChallengeUrl}</code> : null}
+                </>
+              ) : (
+                <p>The setup phase is over. Follow the canonical Challenge state instead of returning to the Compiler.</p>
+              )}
+              <ol className="challenge-after-launch__flow">
+                <li>BUILDERS JOIN</li><li>BUILD + SUBMIT</li><li>TEST</li><li>PICK QUALIFIER</li><li>TEST SETTLEMENT</li><li>RECEIPT</li>
+              </ol>
+              <a className="journey-next-action journey-next-action--link challenge-after-launch__action" href={challengeLink(challenge.challenge_id, afterLaunch.surface)}>{afterLaunch.label}</a>
+              <p className="challenge-state__foot">PAYMENT IN STAGE I: TEST / SYNTHETIC ONLY. NO REAL FUNDS ARE ESCROWED OR PAID.</p>
+            </section>
+          ) : null}
         </>
       )}
       {message ? <p className="compiler-contract__notice">{message}</p> : null}
