@@ -324,7 +324,7 @@ describe('Stage E closure matrix', () => {
     expect(screen.getByRole('button', {name: 'CHECK MY CHALLENGE'})).toBeTruthy();
 
     resolveAccepted?.(acceptedState);
-    await waitFor(() => expect(screen.queryByRole('button', {name: 'PREVIEW LOCKED RULES'})).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('button', {name: 'REVIEW FINAL RULES →'})).toBeNull());
     expect(screen.queryByRole('button', {name: 'USE THESE RULES'})).toBeNull();
     expect(screen.getByRole('button', {name: 'CHECK MY CHALLENGE'})).toBeTruthy();
   });
@@ -351,9 +351,9 @@ describe('Stage E closure matrix', () => {
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(2));
 
     fireEvent.change(screen.getByLabelText('CHALLENGE TITLE'), {target: {value: 'Challenge'}});
-    fireEvent.click(screen.getByRole('button', {name: 'PREVIEW LOCKED RULES'}));
+    fireEvent.click(screen.getByRole('button', {name: 'REVIEW FINAL RULES →'}));
     await waitFor(() => expect(previewBuildContract).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', {name: 'LOCK THESE RULES'}));
+    fireEvent.click(screen.getByRole('button', {name: 'LOCK RULES & CONTINUE →'}));
 
     await waitFor(() => expect(persistBuildContract).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(getChallenge).toHaveBeenCalledTimes(2));
