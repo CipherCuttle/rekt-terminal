@@ -128,7 +128,8 @@ test('winner settlement requires independent outcome and organizer-selection aut
   const c = contract();
   const b = binding(c);
   const intent = winnerIntent(c);
-  const manifest = buildStageJ0SettlementManifest({contract: c, settlementIntent: intent, binding: b});
+  const manifest = buildStageJ0SettlementManifest({contract: c, settlementIntent: intent, binding: b, authorization_mode: 'ORGANIZER_SELECTION'});
+  assert.equal(manifest.authorization_mode, 'ORGANIZER_SELECTION');
   assert.deepEqual(manifest.required_authorities, ['INKUBATOR_OUTCOME', 'ORGANIZER_SELECTION']);
   const facts = [
     auth(manifest, 'INKUBATOR_OUTCOME', 'outcome-authority'),
@@ -142,10 +143,40 @@ test('winner settlement requires independent outcome and organizer-selection aut
   ]), /must be independent/);
 });
 
+test('single-qualifier default winner uses frozen-default authority without organizer selection', () => {
+  const c = contract();
+  const b = binding(c);
+  const resolution = computeDefaultResolution(['E1'], c.prize_minor_units);
+  const intent = buildSettlementIntent({
+    contract: c,
+    resolution,
+    recipientByEntryId: {E1: 'wallet:alice'},
+  });
+  const manifest = buildStageJ0SettlementManifest({
+    contract: c,
+    settlementIntent: intent,
+    binding: b,
+    authorization_mode: 'FROZEN_DEFAULT',
+  });
+  assert.equal(intent.type, 'WINNER_PAYOUT');
+  assert.equal(manifest.authorization_mode, 'FROZEN_DEFAULT');
+  assert.deepEqual(manifest.required_authorities, ['FROZEN_POLICY', 'INKUBATOR_OUTCOME']);
+});
+
+test('winner payout provenance is explicit and cannot be omitted', () => {
+  const c = contract();
+  const b = binding(c);
+  const intent = winnerIntent(c);
+  assert.throws(
+    () => buildStageJ0SettlementManifest({contract: c, settlementIntent: intent, binding: b}),
+    /requires explicit ORGANIZER_SELECTION or FROZEN_DEFAULT/,
+  );
+});
+
 test('authorization facts cannot be replayed against a different settlement manifest', () => {
   const c = contract();
   const b = binding(c);
-  const winner = buildStageJ0SettlementManifest({contract: c, settlementIntent: winnerIntent(c), binding: b});
+  const winner = buildStageJ0SettlementManifest({contract: c, settlementIntent: winnerIntent(c), binding: b, authorization_mode: 'ORGANIZER_SELECTION'});
   const fallbackIntent = buildSettlementIntent({
     contract: c,
     resolution: computeDefaultResolution(['E1', 'E2'], c.prize_minor_units),
@@ -178,7 +209,7 @@ test('execution envelope has no caller-controlled recipient surface', () => {
   const c = contract();
   const b = binding(c);
   const intent = winnerIntent(c);
-  const manifest = buildStageJ0SettlementManifest({contract: c, settlementIntent: intent, binding: b});
+  const manifest = buildStageJ0SettlementManifest({contract: c, settlementIntent: intent, binding: b, authorization_mode: 'ORGANIZER_SELECTION'});
   const authorizationFacts = [
     auth(manifest, 'INKUBATOR_OUTCOME', 'outcome-authority'),
     auth(manifest, 'ORGANIZER_SELECTION', 'organizer'),
@@ -196,7 +227,7 @@ test('manifest digest closes recipient and authority-set mutation', () => {
   const c = contract();
   const b = binding(c);
   const intent = winnerIntent(c);
-  const manifest = buildStageJ0SettlementManifest({contract: c, settlementIntent: intent, binding: b});
+  const manifest = buildStageJ0SettlementManifest({contract: c, settlementIntent: intent, binding: b, authorization_mode: 'ORGANIZER_SELECTION'});
   assert.equal(assertStageJ0SettlementManifestMatchesIntent(c, intent, b, manifest), manifest);
   const redirected = structuredClone(manifest);
   redirected.recipients[0].recipient_id = 'wallet:attacker';
