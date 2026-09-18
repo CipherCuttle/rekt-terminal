@@ -146,10 +146,10 @@ contract TestnetChallengeVaultTest {
 
     function testConstructorRequiresPairwiseIndependentAuthorities() public {
         vm.expectRevert(TestnetChallengeVault.AuthoritiesMustBeIndependent.selector);
-        new TestnetChallengeVault(token, CHALLENGE, TERMS, BINDING, PRIZE, organizer, outcome, outcome, resolver);
+        new TestnetChallengeVault(token, CHALLENGE, TERMS, BINDING, PRIZE, selectionDeadline, organizer, outcome, outcome, resolver);
 
         vm.expectRevert(TestnetChallengeVault.AuthoritiesMustBeIndependent.selector);
-        new TestnetChallengeVault(token, CHALLENGE, TERMS, BINDING, PRIZE, organizer, outcome, organizer, outcome);
+        new TestnetChallengeVault(token, CHALLENGE, TERMS, BINDING, PRIZE, selectionDeadline, organizer, outcome, organizer, outcome);
     }
 
     function testPayoutSetRequiresOutcomeAndOrganizerAndCannotReseal() public {
