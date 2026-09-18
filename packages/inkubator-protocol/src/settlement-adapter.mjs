@@ -61,7 +61,7 @@ function stableUnique(values, label) {
 
 export const SETTLEMENT_ADAPTER_BINDING_SCHEMA_VERSION = 'inkubator.settlement-adapter-binding/1.0';
 export const SETTLEMENT_FUNDING_FACT_SCHEMA_VERSION = 'inkubator.settlement-funding-fact/1.0';
-export const SETTLEMENT_MANIFEST_SCHEMA_VERSION = 'inkubator.settlement-manifest/1.0';
+export const SETTLEMENT_MANIFEST_SCHEMA_VERSION = 'inkubator.settlement-manifest/1.1';
 export const SETTLEMENT_AUTHORIZATION_SCHEMA_VERSION = 'inkubator.settlement-authorization/1.0';
 export const SETTLEMENT_EXECUTION_ENVELOPE_SCHEMA_VERSION = 'inkubator.settlement-execution-envelope/1.0';
 
@@ -71,6 +71,12 @@ export const SETTLEMENT_AUTHORITIES = Object.freeze([
   'ORGANIZER_SELECTION',
   'FROZEN_POLICY',
   'RESOLVER_THRESHOLD',
+]);
+export const SETTLEMENT_AUTHORIZATION_MODES = Object.freeze([
+  'ORGANIZER_SELECTION',
+  'FROZEN_DEFAULT',
+  'FROZEN_REFUND',
+  'RESOLVER_CANCEL',
 ]);
 export const SETTLEMENT_ADAPTER_STATES = Object.freeze([
   'UNBOUND',
@@ -116,6 +122,7 @@ const MANIFEST_KEYS = new Set([
   'binding_digest',
   'intent_digest',
   'intent_type',
+  'authorization_mode',
   'asset',
   'total_minor_units',
   'recipients',
@@ -176,14 +183,49 @@ function canonicalRecipients(recipients) {
   return normalized;
 }
 
-function requiredAuthoritiesForIntent(intent) {
-  if (intent.type === 'WINNER_PAYOUT') return ['INKUBATOR_OUTCOME', 'ORGANIZER_SELECTION'];
-  if (intent.type === 'DEFAULT_DISTRIBUTION' || intent.type === 'REFUND_NO_QUALIFIER') {
+function authorizationModeForIntent(intent, requestedMode = null) {
+  if (intent.type === 'WINNER_PAYOUT') {
+    invariant(
+      requestedMode === 'ORGANIZER_SELECTION' || requestedMode === 'FROZEN_DEFAULT',
+      'winner payout requires explicit ORGANIZER_SELECTION or FROZEN_DEFAULT authorization mode',
+    );
+    return requestedMode;
+  }
+
+  const expected =
+    intent.type === 'DEFAULT_DISTRIBUTION' || intent.type === 'REFUND_NO_QUALIFIER'
+      ? 'FROZEN_DEFAULT'
+      : intent.type === 'REFUND_PRE_BUILD'
+        ? 'FROZEN_REFUND'
+        : intent.type === 'CANCELLED_BY_RESOLUTION'
+          ? 'RESOLVER_CANCEL'
+          : null;
+  invariant(expected !== null, `unsupported settlement intent type ${intent.type}`);
+  invariant(requestedMode === null || requestedMode === expected, `settlement authorization mode must be ${expected}`);
+  return expected;
+}
+
+function requiredAuthoritiesForIntent(intent, authorizationMode) {
+  if (authorizationMode === 'ORGANIZER_SELECTION') {
+    invariant(intent.type === 'WINNER_PAYOUT', 'ORGANIZER_SELECTION requires winner payout');
+    return ['INKUBATOR_OUTCOME', 'ORGANIZER_SELECTION'];
+  }
+  if (authorizationMode === 'FROZEN_DEFAULT') {
+    invariant(
+      ['WINNER_PAYOUT', 'DEFAULT_DISTRIBUTION', 'REFUND_NO_QUALIFIER'].includes(intent.type),
+      'FROZEN_DEFAULT requires a deterministic default intent',
+    );
     return ['FROZEN_POLICY', 'INKUBATOR_OUTCOME'];
   }
-  if (intent.type === 'REFUND_PRE_BUILD') return ['FROZEN_POLICY'];
-  if (intent.type === 'CANCELLED_BY_RESOLUTION') return ['FROZEN_POLICY', 'RESOLVER_THRESHOLD'];
-  throw new Error(`unsupported settlement intent type ${intent.type}`);
+  if (authorizationMode === 'FROZEN_REFUND') {
+    invariant(intent.type === 'REFUND_PRE_BUILD', 'FROZEN_REFUND requires pre-build refund');
+    return ['FROZEN_POLICY'];
+  }
+  if (authorizationMode === 'RESOLVER_CANCEL') {
+    invariant(intent.type === 'CANCELLED_BY_RESOLUTION', 'RESOLVER_CANCEL requires resolution cancellation');
+    return ['FROZEN_POLICY', 'RESOLVER_THRESHOLD'];
+  }
+  throw new Error(`unsupported settlement authorization mode ${authorizationMode}`);
 }
 
 export function bindStageJ0SettlementAdapter({contract, adapter_kind, adapter_ref, network_id = null}) {
@@ -258,10 +300,11 @@ export function assertStageJ0FundingFactMatchesBinding(contract, binding, fact) 
   return fact;
 }
 
-export function buildStageJ0SettlementManifest({contract, settlementIntent, binding}) {
+export function buildStageJ0SettlementManifest({contract, settlementIntent, binding, authorization_mode = null}) {
   assertStageJ0SettlementAdapterBindingMatchesContract(contract, binding);
   assertSettlementIntentMatchesContract(contract, settlementIntent);
   const recipients = canonicalRecipients(settlementIntent.recipients);
+  const authorizationMode = authorizationModeForIntent(settlementIntent, authorization_mode);
   const payload = {
     schema_version: SETTLEMENT_MANIFEST_SCHEMA_VERSION,
     value_mode: 'TEST_ONLY',
@@ -272,11 +315,12 @@ export function buildStageJ0SettlementManifest({contract, settlementIntent, bind
     binding_digest: binding.binding_digest,
     intent_digest: digestRecord(settlementIntent),
     intent_type: settlementIntent.type,
+    authorization_mode: authorizationMode,
     asset: settlementIntent.asset,
     total_minor_units: settlementIntent.total_minor_units,
     recipients,
     winner_entry_id: settlementIntent.winner_entry_id,
-    required_authorities: requiredAuthoritiesForIntent(settlementIntent),
+    required_authorities: requiredAuthoritiesForIntent(settlementIntent, authorizationMode),
     delivery_mode: 'CLAIMABLE',
   };
   return deepFreeze({...payload, manifest_digest: digestRecord(payload)});
@@ -288,12 +332,13 @@ export function assertStageJ0SettlementManifest(manifest) {
   invariant(manifest.schema_version === SETTLEMENT_MANIFEST_SCHEMA_VERSION, 'settlement manifest schema mismatch');
   invariant(manifest.value_mode === 'TEST_ONLY', 'Stage J0 settlement manifest must be TEST_ONLY');
   invariant(STAGE_J0_ADAPTER_KINDS.includes(manifest.adapter_kind), `Stage J0 adapter kind not authorized: ${manifest.adapter_kind}`);
-  for (const key of ['challenge_id', 'terms_digest', 'settlement_policy_version', 'binding_digest', 'intent_digest', 'intent_type', 'asset', 'manifest_digest']) {
+  for (const key of ['challenge_id', 'terms_digest', 'settlement_policy_version', 'binding_digest', 'intent_digest', 'intent_type', 'authorization_mode', 'asset', 'manifest_digest']) {
     assertString(manifest[key], `settlement manifest.${key}`);
   }
   assertHexDigest(manifest.terms_digest, 'settlement manifest.terms_digest');
   assertHexDigest(manifest.binding_digest, 'settlement manifest.binding_digest');
   assertHexDigest(manifest.intent_digest, 'settlement manifest.intent_digest');
+  invariant(SETTLEMENT_AUTHORIZATION_MODES.includes(manifest.authorization_mode), `unknown settlement authorization mode ${manifest.authorization_mode}`);
   assertHexDigest(manifest.manifest_digest, 'settlement manifest.manifest_digest');
   assertSafeInt(manifest.total_minor_units, 'settlement manifest.total_minor_units', {min: 0});
   const recipients = canonicalRecipients(manifest.recipients);
@@ -318,11 +363,13 @@ export function assertStageJ0SettlementManifestMatchesIntent(contract, settlemen
   invariant(manifest.binding_digest === binding.binding_digest, 'settlement manifest binding mismatch');
   invariant(manifest.intent_digest === digestRecord(settlementIntent), 'settlement manifest intent digest mismatch');
   invariant(manifest.intent_type === settlementIntent.type, 'settlement manifest intent type mismatch');
+  const expectedAuthorizationMode = authorizationModeForIntent(settlementIntent, manifest.authorization_mode);
+  invariant(manifest.authorization_mode === expectedAuthorizationMode, 'settlement manifest authorization mode mismatch');
   invariant(manifest.asset === settlementIntent.asset, 'settlement manifest asset mismatch');
   invariant(manifest.total_minor_units === settlementIntent.total_minor_units, 'settlement manifest amount mismatch');
   invariant(digestRecord(canonicalRecipients(manifest.recipients)) === digestRecord(canonicalRecipients(settlementIntent.recipients)), 'settlement manifest recipients mismatch');
   invariant(manifest.winner_entry_id === settlementIntent.winner_entry_id, 'settlement manifest winner mismatch');
-  invariant(digestRecord(manifest.required_authorities) === digestRecord(requiredAuthoritiesForIntent(settlementIntent)), 'settlement manifest authority set mismatch');
+  invariant(digestRecord(manifest.required_authorities) === digestRecord(requiredAuthoritiesForIntent(settlementIntent, expectedAuthorizationMode)), 'settlement manifest authority set mismatch');
   return manifest;
 }
 
