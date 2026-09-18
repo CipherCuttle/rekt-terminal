@@ -26,6 +26,7 @@ This matrix is the acceptance contract for the future production-candidate vault
 | J3-A03 | UNIT | zero prize rejects |
 | J3-A04 | UNIT | authority addresses must satisfy frozen independence law |
 | J3-A05 | UNIT | deadlines must satisfy strict ordering: activation ≤ normal selection < resolution < terminal long-stop |
+| J3-A09 | KNOWN-ANSWER | every Build Contract not-before deadline uses `ceil(ms/1000)`; exact-second/+1ms/+999ms vectors never shorten the off-chain deadline |
 | J3-A06 | RELEASE | deployed runtime hash equals approved release hash |
 | J3-A07 | RELEASE | every constructor immutable readback matches deployment plan |
 | J3-A08 | RELEASE | wrong chain or wrong token tuple blocks funding workflow |
@@ -39,7 +40,7 @@ This matrix is the acceptance contract for the future production-candidate vault
 | J3-B03 | UNIT | fee-on-transfer / short delta rejects |
 | J3-B04 | UNIT | unsolicited token dust before funding does not satisfy/change exact funding delta |
 | J3-B05 | UNIT | unactivated refund impossible before activation deadline |
-| J3-B06 | UNIT | at activation deadline with payout set unsealed, full refund becomes permissionless |
+| J3-B06 | UNIT | at safely ceiling-converted activation deadline with payout set unsealed, full refund becomes permissionless using only immutable pre-build-refund manifest digest |
 | J3-B07 | UNIT | once payout set sealed, pre-build refund is permanently unavailable |
 | J3-B08 | PROPERTY | no sequence permits funding liability to exceed exact prize |
 
@@ -67,7 +68,9 @@ This matrix is the acceptance contract for the future production-candidate vault
 | J3-D06 | UNIT | existing qualifier set can never be replaced by recovery path |
 | J3-D07 | UNIT | duplicate qualifier entry/address rejects |
 | J3-D08 | UNIT | qualifier payout order strictly increasing/canonical |
-| J3-D09 | KNOWN-ANSWER | JS and Solidity qualifier-set authorization digest match |
+| J3-D09 | KNOWN-ANSWER | JS and Solidity qualifier-set authorization digest match, including exact frozen default-manifest digest |
+| J3-D11 | UNIT | changing only default-manifest digest invalidates normal/recovery qualifier authorization |
+| J3-D12 | UNIT | final qualifier state exposes exactly one stored nonzero default-manifest digest and it cannot change |
 | J3-D10 | PROPERTY | no legal sequence produces two distinct final qualifier roots |
 
 ## E. Organizer winner
@@ -87,7 +90,8 @@ This matrix is the acceptance contract for the future production-candidate vault
 | ID | Class | Gate |
 |---|---|---|
 | J3-F01 | UNIT | default rejects at deadline-1 |
-| J3-F02 | UNIT | default succeeds at deadline with no fresh organizer/outcome/resolver signature |
+| J3-F02 | UNIT | default succeeds at deadline with no fresh organizer/outcome/resolver signature and uses the stored qualifier-bound default manifest |
+| J3-F10 | UNIT | permissionless default API has no caller-selected manifest parameter / alternate manifest cannot affect settlement receipt identity |
 | J3-F03 | UNIT | one qualifier receives 100% |
 | J3-F04 | UNIT | two qualifiers split exactly with canonical first remainder |
 | J3-F05 | UNIT | three qualifiers split exactly with canonical remainder |
@@ -104,7 +108,8 @@ This matrix is the acceptance contract for the future production-candidate vault
 | J3-G02 | UNIT | resolver threshold cannot name recipient outside frozen payout roster/refund recipient |
 | J3-G03 | UNIT | resolver threshold cannot replace existing qualifier set |
 | J3-G04 | UNIT | terminal fallback rejects before terminal long-stop |
-| J3-G05 | UNIT | terminal fallback succeeds permissionlessly at/after terminal long-stop only if no qualifier set and no settlement |
+| J3-G05 | UNIT | terminal fallback succeeds permissionlessly at/after terminal long-stop only if no qualifier set and no settlement, using immutable terminal-refund manifest digest |
+| J3-G11 | UNIT | pre-build and terminal refund paths cannot accept/substitute a caller-selected manifest digest |
 | J3-G06 | UNIT | terminal fallback always sends exact prize to immutable fallback/refund policy |
 | J3-G07 | PROPERTY | no timestamp/state sequence permits arbitrary recipient under recovery/long-stop |
 | J3-G08 | OPERATIONS | outcome key lost + organizer unavailable + resolver available → recovery path terminates |
@@ -117,7 +122,10 @@ This matrix is the acceptance contract for the future production-candidate vault
 |---|---|---|
 | J3-H01 | UNIT | strict low-s ECDSA accepts valid signer |
 | J3-H02 | UNIT | high-s, bad-v, malformed length, zero recovery reject |
-| J3-H03 | UNIT | ERC-1271 exact magic `0x1626ba7e` accepts |
+| J3-H03 | UNIT | immutable resolver ERC-1271 verifier returns exact magic `0x1626ba7e` for two distinct valid immutable signers |
+| J3-H11 | UNIT | resolver verifier rejects duplicate signer proofs |
+| J3-H12 | RELEASE | resolver verifier exposes no signer/threshold/module/upgrade/delegatecall/asset-execution mutation surface |
+| J3-H13 | PROPERTY | resolver signer set and quorum remain identical for lifetime of deployed verifier |
 | J3-H04 | UNIT | ERC-1271 wrong magic rejects |
 | J3-H05 | UNIT | ERC-1271 revert rejects |
 | J3-H06 | UNIT | ERC-1271 empty/short/malformed return rejects |
@@ -206,7 +214,7 @@ These are application/adapter tests around the vault, not Solidity-only tests.
 | J3-N02 | OPERATIONS | known-answer outcome EOA typed-data signing verifies |
 | J3-N03 | OPERATIONS | known-answer 2-of-3 resolver ERC-1271 signature verifies |
 | J3-N04 | OPERATIONS | one resolver signer lost → quorum still works |
-| J3-N05 | OPERATIONS | one resolver signer compromised/rotated under wallet governance without changing vault resolver address |
+| J3-N05 | OPERATIONS | one resolver signer compromised → no active-verifier rotation; two uncompromised immutable signers still form quorum; new verifier used only for new Challenges |
 | J3-N06 | OPERATIONS | outcome key loss follows timed recovery; no DB authority rewrite |
 | J3-N07 | OPERATIONS | signer request human-readable fields match signed digest |
 | J3-N08 | OPERATIONS | duplicate signing request is idempotent / cannot change semantic payload under same request ID |
@@ -249,6 +257,10 @@ I9  authorized recipients are subset of frozen payout roster plus only explicitl
 I10 no state transition changes immutable payout/authority/deadline identities
 I11 deterministic default at/after deadline requires no live signer once qualifier set is final
 I12 terminal long-stop is reachable without privileged signers under its exact preconditions
+I13 final qualifier state fixes exactly one default-manifest digest
+I14 permissionless paths cannot alter settlement/refund manifest identity
+I15 resolver signer set/quorum/code are immutable for active Challenges
+I16 EVM not-before deadlines never precede the frozen off-chain millisecond deadline
 ```
 
 ## Coverage law
