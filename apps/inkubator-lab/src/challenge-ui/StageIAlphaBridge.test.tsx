@@ -73,10 +73,11 @@ describe('Stage I alpha browser bridge', () => {
       launchStageIMockChallenge: vi.fn(async (_challengeId: string, _requestId: string) => entryOpen),
     });
 
-    render(<StageIOrganizerBridge api={api} />);
-    expect(screen.getByText(/TEST-ONLY REHEARSAL/i)).toBeTruthy();
-    expect(screen.getByText(/does not escrow, fund, sign, broadcast, or settle real value/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', {name: 'CREATE TEST CHALLENGE'}));
+    const onChallengeChanged = vi.fn();
+    render(<StageIOrganizerBridge api={api} onChallengeChanged={onChallengeChanged} />);
+    expect(screen.getByText(/THIS REHEARSAL USES TEST VALUE ONLY/i)).toBeTruthy();
+    expect(screen.getByText(/DRAFT ONLY · NOT OPEN TO BUILDERS · NO REAL VALUE/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', {name: 'CREATE DRAFT CHALLENGE'}));
 
     await waitFor(() => expect(createChallenge).toHaveBeenCalledTimes(1));
     const input = createChallenge.mock.calls[0]![0];
@@ -88,7 +89,8 @@ describe('Stage I alpha browser bridge', () => {
     expect(input.submission_deadline_ms).toBeLessThan(input.review_deadline_ms);
     expect(Object.keys(input)).not.toContain('settlement_asset');
     expect(Object.keys(input)).not.toContain('funding');
-    expect(screen.getByText('DRAFT CREATED')).toBeTruthy();
+    expect(onChallengeChanged).toHaveBeenCalledTimes(1);
+    expect(onChallengeChanged.mock.calls[0]![0].challenge_id).toBe(input.challenge_id);
   });
 
   it('mock-launches only an already frozen DRAFT through the test-only endpoint', async () => {
@@ -100,11 +102,11 @@ describe('Stage I alpha browser bridge', () => {
     })} />);
 
     await waitFor(() => expect(screen.getByText('DRAFT', {selector: 'dd'})).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', {name: 'MOCK LAUNCH / TEST ONLY'}));
+    fireEvent.click(screen.getByRole('button', {name: 'OPEN CHALLENGE / TEST ONLY'}));
     await waitFor(() => expect(launchStageIMockChallenge).toHaveBeenCalledTimes(1));
     expect(launchStageIMockChallenge.mock.calls[0]![0]).toBe(challengeId);
     expect(launchStageIMockChallenge.mock.calls[0]![1]).toMatch(/^[0-9a-f-]{36}$/i);
-    expect(screen.getByText(/ENTRY OPEN \/ WORKER OWNS NEXT DEADLINE/i)).toBeTruthy();
+    expect(screen.getByText(/OPEN · BUILDERS CAN JOIN/i)).toBeTruthy();
   });
 
   it('joins against the current frozen terms digest instead of browser-derived terms', async () => {
@@ -118,8 +120,8 @@ describe('Stage I alpha browser bridge', () => {
     window.history.replaceState({}, '', `/?surface=challenge&challenge=${challengeId}`);
     render(<StageIJoinBridge api={baseApi({getChallenge: vi.fn(async () => entryOpen), joinChallenge})} />);
 
-    await waitFor(() => expect((screen.getByRole('button', {name: 'JOIN CHALLENGE'}) as HTMLButtonElement).disabled).toBe(false));
-    fireEvent.click(screen.getByRole('button', {name: 'JOIN CHALLENGE'}));
+    await waitFor(() => expect((screen.getByRole('button', {name: 'JOIN THIS CHALLENGE'}) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole('button', {name: 'JOIN THIS CHALLENGE'}));
     await waitFor(() => expect(joinChallenge).toHaveBeenCalledTimes(1));
     const [joinedChallengeId, requestId, generatedEntryId, expectedTermsDigest] = joinChallenge.mock.calls[0]!;
     expect(joinedChallengeId).toBe(challengeId);
