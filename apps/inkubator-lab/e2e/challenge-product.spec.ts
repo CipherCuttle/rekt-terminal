@@ -9,13 +9,26 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
 }
 
+async function mockLoggedOutGitHub(page: Page) {
+  await page.route('**/v1/me', async (route) => {
+    await route.fulfill({status: 401, contentType: 'application/json', body: JSON.stringify({error: 'authentication_required'})});
+  });
+  await page.route('**/v1/me/connection', async (route) => {
+    await route.fulfill({status: 401, contentType: 'application/json', body: JSON.stringify({error: 'authentication_required'})});
+  });
+}
+
 test('Stage I default root exposes one white Challenge front door without reviving legacy navigation', async ({page}) => {
+  await mockLoggedOutGitHub(page);
   await page.setViewportSize({width: 1440, height: 900});
   await page.goto('/');
 
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
   await expect(page.getByRole('heading', {name: 'WHAT ARE YOU HERE TO DO?', exact: true})).toBeVisible();
-  await expect(page.getByRole('heading', {name: 'ONE FRONT DOOR.', exact: true})).toBeVisible();
+  await expect(page.getByRole('heading', {name: /DESCRIBE IT ONCE.*LET BUILDERS PROVE IT/i})).toBeVisible();
+  await expect(page.getByText('WHY INKUBATOR EXISTS', {exact: true})).toBeVisible();
+  await expect(page.getByRole('heading', {name: /STOP GUESSING WHAT.*DONE.*MEANS/i})).toBeVisible();
+  await expect(page.getByText(/YOU STILL MAKE THE FINAL CHOICE/i)).toBeVisible();
   const nav = page.getByRole('navigation', {name: 'Inkubator journey'});
   await expect(nav.getByText('DISCOVER / START', {exact: true})).toBeVisible();
   await expect(nav.getByText('COMPILER / CREATE', {exact: true})).toBeVisible();
@@ -23,7 +36,14 @@ test('Stage I default root exposes one white Challenge front door without revivi
   await expect(nav.getByText('MY BUILD', {exact: true})).toBeVisible();
   await expect(nav.getByText('REVIEW / TEST ARENA', {exact: true})).toBeVisible();
   await expect(nav.getByText('RECEIPT / HISTORY', {exact: true})).toBeVisible();
-  await expect(page.getByRole('link', {name: /CREATE A CHALLENGE/i})).toBeVisible();
+  const organizerLogin = page.getByRole('link', {name: 'CONNECT GITHUB & CONTINUE →'});
+  await expect(organizerLogin).toBeVisible();
+  const organizerLoginHref = await organizerLogin.getAttribute('href');
+  expect(organizerLoginHref).toContain('/v1/auth/github/start');
+  expect(decodeURIComponent(organizerLoginHref ?? '')).toContain('return_to=/?surface=compiler');
+  await expect(page.getByRole('heading', {name: "WHAT'S BUILDING?"})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Realtime Launch Radar'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Wallet Safety Check'})).toBeVisible();
   await expect(page.getByLabel(/CHALLENGE LINK OR ID/i)).toBeVisible();
   await expect(page.getByText(/^WORLD$/i)).toHaveCount(0);
   await expect(page.getByText(/^COMMAND$/i)).toHaveCount(0);
@@ -33,23 +53,82 @@ test('Stage I default root exposes one white Challenge front door without revivi
   expect(accessibility.violations).toEqual([]);
 });
 
-test('Stage I Compiler/Create is usable on mobile and keeps uncompiled source truthful', async ({page}) => {
+test('Discover demo challenge can seed a readable Compiler draft', async ({page}) => {
+  await page.setViewportSize({width: 1440, height: 900});
+  await page.goto('/');
+
+  const demo = page.getByRole('article').filter({has: page.getByRole('heading', {name: 'Realtime Launch Radar'})});
+  await expect(demo.getByText(/EXAMPLE ONLY · NOT A LIVE CHALLENGE/i)).toBeVisible();
+  await demo.getByRole('link', {name: 'START FROM THIS IDEA →'}).click();
+
+  await expect(page).toHaveURL(/surface=compiler/);
+  await expect(page.getByLabel('YOUR IDEA')).toHaveValue(/realtime public launch dashboard/i);
+  const ideaFontSize = await page.getByLabel('YOUR IDEA').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+  expect(ideaFontSize).toBeGreaterThanOrEqual(15);
+});
+
+test('Stage I Discover becomes a phone-first step flow instead of a squeezed desktop faceplate', async ({page}) => {
+  await mockLoggedOutGitHub(page);
+  await page.setViewportSize({width: 390, height: 844});
+  await page.goto('/');
+
+  const rail = page.getByRole('navigation', {name: 'Inkubator journey'});
+  const railStyle = await rail.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {display: style.display, overflowX: style.overflowX, width: element.getBoundingClientRect().width};
+  });
+  expect(railStyle.display).toBe('flex');
+  expect(['auto', 'scroll']).toContain(railStyle.overflowX);
+  expect(railStyle.width).toBeLessThanOrEqual(390);
+
+  const title = page.getByRole('heading', {name: 'WHAT ARE YOU HERE TO DO?', exact: true});
+  const titleSize = await title.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+  expect(titleSize).toBeLessThanOrEqual(40);
+
+  const launch = page.getByRole('link', {name: /CONNECT GITHUB TO LAUNCH/i});
+  const launchBox = await launch.boundingBox();
+  expect(launchBox).not.toBeNull();
+  expect(launchBox!.width).toBeGreaterThan(300);
+
+  await expect(page.getByText('WHAT ARE YOU DOING RIGHT NOW?', {exact: true})).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  const accessibility = await new AxeBuilder({page}).analyze();
+  expect(accessibility.violations).toEqual([]);
+});
+
+test('Stage I Compiler/Create guides a first-time organizer one decision at a time on mobile', async ({page}) => {
   await page.setViewportSize({width: 390, height: 844});
   await page.goto('/?surface=compiler');
 
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
   await expect(page.locator('main.challenge-product')).toHaveAttribute('data-challenge-surface', 'compiler');
   await expect(page.getByRole('heading', {name: 'COMPILER / CREATE'})).toBeVisible();
-  const sourceIntent = page.getByLabel('SOURCE INTENT');
+
+  const guide = page.locator('[data-journey-role="organizer"]');
+  await expect(guide).toHaveAttribute('data-journey-step', '1');
+  await expect(guide.getByText('DESCRIBE WHAT YOU WANT BUILT', {exact: true})).toBeVisible();
+
+  const sourceIntent = page.getByLabel('YOUR IDEA');
   await sourceIntent.fill('Build a realtime public launch dashboard');
-  await expect(page.getByText('SOURCE DRAFT / UNCOMPILED')).toBeVisible();
-  await expect(page.getByText(/Unknown requirements stay UNKNOWN/i)).toBeVisible();
-  await expect(page.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i})).toBeEnabled();
-  await expect(page.getByText('REALTIME', {exact: true})).toBeVisible();
-  await expect(page.getByRole('heading', {name: 'NEGOTIATED BUILD CONTRACT'})).toBeVisible();
-  await expect(page.getByText(/SELECT A DRAFT CHALLENGE/i)).toBeVisible();
-  await expect(page.getByRole('button', {name: /FREEZE NONCANONICAL PREVIEW/i})).toBeDisabled();
-  await expect(page.getByRole('button', {name: /PERSIST CANONICAL CONTRACT/i})).toBeDisabled();
+  await expect(guide).toHaveAttribute('data-journey-step', '2');
+  await expect(page.getByText('DETAIL 1 OF 11', {exact: false})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'NOT SURE'})).toBeVisible();
+  await expect(page.getByText('REALTIME', {exact: true})).toHaveCount(0);
+
+  for (let index = 0; index < 10; index += 1) {
+    await page.getByRole('button', {name: 'NEXT DETAIL →'}).click();
+  }
+  await expect(page.getByText('DETAIL 11 OF 11', {exact: false})).toBeVisible();
+  await page.getByRole('button', {name: 'DONE WITH DETAILS ✓'}).click();
+
+  await expect(guide).toHaveAttribute('data-journey-step', '3');
+  await expect(guide.getByText('DEFINE WHAT COUNTS AS DONE', {exact: true})).toBeVisible();
+  const criterion = page.getByPlaceholder(/The dashboard always shows the current launch state after reload/i);
+  await criterion.fill('The dashboard clearly shows the current launch state after reload.');
+  await expect(guide.getByText('CHECK YOUR CHALLENGE RULES', {exact: true})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'CHECK MY CHALLENGE'})).toBeEnabled();
+  await expect(page.getByRole('heading', {name: 'REVIEW AND LOCK THE RULES'})).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 
   const accessibility = await new AxeBuilder({page}).analyze();

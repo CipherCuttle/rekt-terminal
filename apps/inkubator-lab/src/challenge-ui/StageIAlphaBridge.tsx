@@ -17,6 +17,7 @@ import type {
 import type {SurfaceState} from './state';
 
 export interface StageIProductApi {
+  getMe?(): Promise<unknown>;
   createChallenge?(input: StageIChallengeCreateInput): Promise<PublicChallengeView>;
   launchStageIMockChallenge?(challengeId: string, requestId: string): Promise<PublicChallengeView>;
   joinChallenge?(challengeId: string, requestId: string, entryId: string, expectedTermsDigest: string): Promise<StageIChallengeEntryView>;
@@ -79,7 +80,26 @@ function challengeLink(challengeId: string, surface: string): string {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-export function StageIOrganizerBridge({api, challenge: suppliedChallenge}: {api: StageIProductApi; challenge?: PublicChallengeView | null}) {
+function githubLoginHref(): string {
+  const returnTo = new URL(window.location.href);
+  returnTo.searchParams.set('surface', 'compiler');
+  returnTo.searchParams.delete('auth');
+  const login = new URL('/v1/auth/github/start', window.location.origin);
+  login.searchParams.set('return_to', `${returnTo.pathname}${returnTo.search}${returnTo.hash}`);
+  return `${login.pathname}${login.search}`;
+}
+
+function organizerNextSurface(status: string): {surface: string; label: string; title: string} {
+  if (['SUBMISSIONS_LOCKED', 'QUALIFICATION', 'APPEAL_WINDOW', 'FINAL_QUALIFIERS', 'SELECTION', 'DEFAULT_RESOLUTION'].includes(status)) {
+    return {surface: 'review', label: 'OPEN TEST / PICK FLOW →', title: 'THE BUILD PHASE ENDS IN REVIEW + SELECTION'};
+  }
+  if (['SETTLEMENT_PENDING', 'SETTLED', 'RECEIPT_FILED'].includes(status)) {
+    return {surface: 'history', label: 'OPEN RESULT / RECEIPT →', title: 'THE COMPETITION IS IN RESULT / SETTLEMENT'};
+  }
+  return {surface: 'challenge', label: 'OPEN CHALLENGE STATUS →', title: 'YOU OPENED IT. NOW RUN THE COMPETITION.'};
+}
+
+export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChallengeChanged}: {api: StageIProductApi; challenge?: PublicChallengeView | null; onChallengeChanged?: (challenge: PublicChallengeView) => void}) {
   const challengeId = currentChallengeId();
   const [schedule] = useState(initialSchedule);
   const [slots, setSlots] = useState('3');
@@ -88,14 +108,48 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge}: {api:
   const [submissionDeadline, setSubmissionDeadline] = useState(schedule.submission);
   const [reviewDeadline, setReviewDeadline] = useState(schedule.review);
   const [appealMinutes, setAppealMinutes] = useState('60');
-  const [created, setCreated] = useState<PublicChallengeView | null>(null);
   const [launchedChallenge, setLaunchedChallenge] = useState<PublicChallengeView | null>(null);
   const [phase, setPhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
   const [message, setMessage] = useState<string | null>(null);
+  const [authState, setAuthState] = useState<'CHECKING' | 'CONNECTED' | 'REQUIRED' | 'UNKNOWN'>(() => api.getMe ? 'CHECKING' : 'UNKNOWN');
   const challenge = launchedChallenge ?? suppliedChallenge ?? null;
+  const afterLaunch = challenge ? organizerNextSurface(challenge.status) : null;
+  const publicChallengeHref = challengeId ? challengeLink(challengeId, 'challenge') : null;
+  const publicChallengeUrl = publicChallengeHref ? new URL(publicChallengeHref, window.location.origin).toString() : null;
+  const organizerTitle = !challengeId
+    ? 'SET UP THE CHALLENGE'
+    : challenge?.status === 'DRAFT'
+      ? 'OPEN TO BUILDERS'
+      : challenge?.status === 'ENTRY_OPEN'
+        ? 'CHALLENGE IS OPEN'
+        : 'CHALLENGE IN PROGRESS';
+  const organizerDescription = !challengeId
+    ? 'Choose how many builders can join and when each part of the Challenge closes.'
+    : challenge?.status === 'DRAFT'
+      ? 'Your rules stay locked. Opening the Challenge lets builders join under those exact terms.'
+      : challenge?.status === 'ENTRY_OPEN'
+        ? 'Builders can join now under the locked rules.'
+        : `Setup is complete. Canonical state: ${challenge?.status ?? 'READING'}.`;
+
+  useEffect(() => {
+    if (!api.getMe) {
+      setAuthState('UNKNOWN');
+      return;
+    }
+    let cancelled = false;
+    setAuthState('CHECKING');
+    void api.getMe().then(() => {
+      if (!cancelled) setAuthState('CONNECTED');
+    }).catch((cause) => {
+      if (cancelled) return;
+      const nextMessage = cause instanceof Error ? cause.message : '';
+      setAuthState(nextMessage === 'authentication_required' ? 'REQUIRED' : 'UNKNOWN');
+    });
+    return () => { cancelled = true; };
+  }, [api]);
 
   const create = async () => {
-    if (!api.createChallenge) return;
+    if (!api.createChallenge || authState === 'REQUIRED' || authState === 'CHECKING') return;
     const slotLimit = Number(slots);
     const activation = Number(activationMinimum);
     const entryMs = new Date(entryDeadline).getTime();
@@ -125,10 +179,12 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge}: {api:
         appeal_window_ms: appealMs,
         review_deadline_ms: reviewMs,
       });
-      setCreated(view);
+      onChallengeChanged?.(view);
       setPhase('IDLE');
     } catch (cause) {
-      setMessage(errorMessage(cause));
+      const nextMessage = errorMessage(cause);
+      if (nextMessage === 'authentication_required') setAuthState('REQUIRED');
+      setMessage(nextMessage);
       setPhase('ERROR');
     }
   };
@@ -140,6 +196,7 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge}: {api:
     try {
       const view = await api.launchStageIMockChallenge(challengeId, crypto.randomUUID());
       setLaunchedChallenge(view);
+      onChallengeChanged?.(view);
       setPhase('IDLE');
     } catch (cause) {
       setMessage(errorMessage(cause));
@@ -151,32 +208,44 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge}: {api:
 
   return (
     <section className="compiler-contract" aria-labelledby="stage-i-organizer-title">
-      <small>STAGE I ALPHA / ORGANIZER TRANSPORT</small>
-      <h2 id="stage-i-organizer-title">CREATE → FREEZE → MOCK LAUNCH</h2>
-      <p><b>TEST-ONLY REHEARSAL.</b> Mock launch accepts settlement asset <code>TEST</code> only and records <code>real_value_moved: false</code>. It does not escrow, fund, sign, broadcast, or settle real value.</p>
+      <small>{challengeId ? 'STEP 5 / OPEN' : 'STEP 3 / SET UP'}</small>
+      <h2 id="stage-i-organizer-title">{organizerTitle}</h2>
+      <p>{organizerDescription} <b>THIS REHEARSAL USES TEST VALUE ONLY.</b></p>
 
       {!challengeId ? (
         <>
-          <p>Create the DRAFT Challenge first. Then open it in this compiler surface and use the existing deterministic compiler + canonical Build Contract freeze below.</p>
-          <div className="compiler-contract__fields">
-            <label htmlFor="stage-i-slots">SLOTS<input id="stage-i-slots" inputMode="numeric" value={slots} onChange={(event) => setSlots(event.target.value)} /></label>
-            <label htmlFor="stage-i-activation">ACTIVATION MINIMUM<input id="stage-i-activation" inputMode="numeric" value={activationMinimum} onChange={(event) => setActivationMinimum(event.target.value)} /></label>
+          <p>These settings create the draft container for the rules you just reviewed. Nothing opens to builders yet.</p>
+          {authState === 'REQUIRED' ? (
+            <div className="challenge-auth-gate" role="status">
+              <b>CONNECT GITHUB BEFORE CREATING THE DRAFT</b>
+              <span>Your GitHub identity becomes the Challenge creator. Public browsing stays available without login.</span>
+            </div>
+          ) : authState === 'CHECKING' ? (
+            <div className="challenge-auth-gate" role="status">
+              <b>CHECKING GITHUB SESSION…</b>
+              <span>Creation stays disabled until organizer identity is known.</span>
+            </div>
+          ) : null}
+          {authState !== 'REQUIRED' && authState !== 'CHECKING' ? (
+            <div className="compiler-contract__fields">
+              <label htmlFor="stage-i-slots">BUILDER SLOTS<input id="stage-i-slots" inputMode="numeric" value={slots} onChange={(event) => setSlots(event.target.value)} /></label>
+            <label htmlFor="stage-i-activation">MINIMUM BUILDERS TO START<input id="stage-i-activation" inputMode="numeric" value={activationMinimum} onChange={(event) => setActivationMinimum(event.target.value)} /></label>
             <label htmlFor="stage-i-entry">ENTRY DEADLINE<input id="stage-i-entry" type="datetime-local" value={entryDeadline} onChange={(event) => setEntryDeadline(event.target.value)} /></label>
             <label htmlFor="stage-i-submission">SUBMISSION DEADLINE<input id="stage-i-submission" type="datetime-local" value={submissionDeadline} onChange={(event) => setSubmissionDeadline(event.target.value)} /></label>
             <label htmlFor="stage-i-review">REVIEW DEADLINE<input id="stage-i-review" type="datetime-local" value={reviewDeadline} onChange={(event) => setReviewDeadline(event.target.value)} /></label>
-            <label htmlFor="stage-i-appeal">APPEAL WINDOW / MINUTES<input id="stage-i-appeal" inputMode="numeric" value={appealMinutes} onChange={(event) => setAppealMinutes(event.target.value)} /></label>
-          </div>
-          <div className="compiler-contract__actions">
-            <button type="button" disabled={phase === 'LOADING'} onClick={() => void create()}>{phase === 'LOADING' ? 'CREATING…' : 'CREATE TEST CHALLENGE'}</button>
-            <span>NO REAL FUNDING ADAPTER / NO VALUE MOVEMENT</span>
-          </div>
-          {created ? (
-            <div className="compiler-contract__result">
-              <strong>DRAFT CREATED</strong>
-              <span><code>{created.challenge_id}</code></span>
-              <a href={challengeLink(created.challenge_id, 'compiler')}>OPEN DRAFT IN COMPILER →</a>
+              <label htmlFor="stage-i-appeal">REVIEW APPEAL WINDOW / MINUTES<input id="stage-i-appeal" inputMode="numeric" value={appealMinutes} onChange={(event) => setAppealMinutes(event.target.value)} /></label>
             </div>
           ) : null}
+          <div className="compiler-contract__actions">
+            {authState === 'REQUIRED' ? (
+              <a className="journey-next-action journey-next-action--link challenge-auth-login" href={githubLoginHref()}>CONNECT GITHUB TO CREATE →</a>
+            ) : (
+              <button type="button" className={phase === 'LOADING' || authState === 'CHECKING' ? undefined : 'journey-next-action'} disabled={phase === 'LOADING' || authState === 'CHECKING'} onClick={() => void create()}>
+                {phase === 'LOADING' ? 'CREATING DRAFT…' : authState === 'CHECKING' ? 'CHECKING GITHUB…' : 'CREATE DRAFT & CONTINUE →'}
+              </button>
+            )}
+            <span>DRAFT ONLY · NOT OPEN TO BUILDERS · NO REAL VALUE</span>
+          </div>
         </>
       ) : (
         <>
@@ -187,13 +256,36 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge}: {api:
             <div><dt>VALUE</dt><dd>TEST ONLY / REAL VALUE FALSE</dd></div>
           </dl>
           <div className="compiler-contract__actions">
-            <button
-              type="button"
-              disabled={phase === 'LOADING' || challenge?.status !== 'DRAFT' || !challenge.has_frozen_contract}
-              onClick={() => void launch()}
-            >{phase === 'LOADING' ? 'LAUNCHING…' : 'MOCK LAUNCH / TEST ONLY'}</button>
-            <span>{challenge?.status === 'ENTRY_OPEN' ? 'ENTRY OPEN / WORKER OWNS NEXT DEADLINE' : !challenge?.has_frozen_contract ? 'FREEZE CANONICAL CONTRACT FIRST' : 'PROTOCOL TRANSITIONS VALIDATED SERVER-SIDE'}</span>
+            {challenge?.status === 'DRAFT' ? (
+              <button
+                type="button"
+                className={phase !== 'LOADING' && challenge.has_frozen_contract ? 'journey-next-action' : undefined}
+                disabled={phase === 'LOADING' || !challenge.has_frozen_contract}
+                onClick={() => void launch()}
+              >{phase === 'LOADING' ? 'OPENING…' : 'OPEN TO BUILDERS →'}</button>
+            ) : null}
+            <span>{challenge?.status === 'ENTRY_OPEN' ? 'OPEN · BUILDERS CAN JOIN' : challenge?.status === 'DRAFT' ? !challenge.has_frozen_contract ? 'LOCK THE RULES FIRST' : 'READY TO OPEN · SERVER VALIDATES THE TRANSITION' : challenge ? `CURRENT STATE · ${challenge.status}` : 'READING CANONICAL STATE'}</span>
           </div>
+
+          {challenge && challenge.status !== 'DRAFT' && afterLaunch ? (
+            <section className="challenge-after-launch" aria-labelledby="challenge-after-launch-title">
+              <small>WHAT HAPPENS NEXT</small>
+              <h3 id="challenge-after-launch-title">{afterLaunch.title}</h3>
+              {challenge.status === 'ENTRY_OPEN' ? (
+                <>
+                  <p>Share this public Challenge with builders. They read the same locked rules, join, build, submit, then the competition moves through Test → Pick → Result.</p>
+                  {publicChallengeUrl ? <code className="challenge-after-launch__url">{publicChallengeUrl}</code> : null}
+                </>
+              ) : (
+                <p>The setup phase is over. Follow the canonical Challenge state instead of returning to the Compiler.</p>
+              )}
+              <ol className="challenge-after-launch__flow">
+                <li>BUILDERS JOIN</li><li>BUILD + SUBMIT</li><li>TEST</li><li>PICK QUALIFIER</li><li>TEST SETTLEMENT</li><li>RECEIPT</li>
+              </ol>
+              <a className="journey-next-action journey-next-action--link challenge-after-launch__action" href={challengeLink(challenge.challenge_id, afterLaunch.surface)}>{afterLaunch.label}</a>
+              <p className="challenge-state__foot">PAYMENT IN STAGE I: TEST / SYNTHETIC ONLY. NO REAL FUNDS ARE ESCROWED OR PAID.</p>
+            </section>
+          ) : null}
         </>
       )}
       {message ? <p className="compiler-contract__notice">{message}</p> : null}
@@ -201,7 +293,7 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge}: {api:
   );
 }
 
-export function StageIJoinBridge({api}: {api: StageIProductApi}) {
+export function StageIJoinBridge({api, onJoined}: {api: StageIProductApi; onJoined?: (entry: StageIChallengeEntryView) => void}) {
   const challengeId = currentChallengeId();
   const [challenge, setChallenge] = useState<PublicChallengeView | null>(null);
   const [joined, setJoined] = useState<StageIChallengeEntryView | null>(null);
@@ -233,6 +325,7 @@ export function StageIJoinBridge({api}: {api: StageIProductApi}) {
         challenge.current_terms_digest,
       );
       setJoined(view);
+      onJoined?.(view);
       setPhase('IDLE');
     } catch (cause) {
       setMessage(errorMessage(cause));
@@ -242,16 +335,16 @@ export function StageIJoinBridge({api}: {api: StageIProductApi}) {
 
   return (
     <section className="compiler-contract" aria-labelledby="stage-i-join-title">
-      <small>STAGE I ALPHA / BUILDER ENTRY</small>
-      <h2 id="stage-i-join-title">JOIN FROZEN CHALLENGE</h2>
-      <p>Entry is bound to the Challenge's current frozen terms digest. No browser-side fallback or stale digest substitution is allowed.</p>
+      <small>BUILDER / JOIN</small>
+      <h2 id="stage-i-join-title">READY TO JOIN?</h2>
+      <p>Joining means you are building against the exact locked rules shown above. If those terms do not match, the server refuses the entry.</p>
       <div className="compiler-contract__actions">
-        <button type="button" disabled={phase === 'LOADING' || !challenge?.current_terms_digest || challenge.status !== 'ENTRY_OPEN' || Boolean(joined)} onClick={() => void join()}>
-          {phase === 'LOADING' ? 'JOINING…' : 'JOIN CHALLENGE'}
+        <button type="button" className={phase !== 'LOADING' && challenge?.current_terms_digest && challenge.status === 'ENTRY_OPEN' && !joined ? 'journey-next-action' : undefined} disabled={phase === 'LOADING' || !challenge?.current_terms_digest || challenge.status !== 'ENTRY_OPEN' || Boolean(joined)} onClick={() => void join()}>
+          {phase === 'LOADING' ? 'JOINING…' : 'JOIN THIS CHALLENGE'}
         </button>
         <span>{joined ? `ENTRY ${joined.entry_id}` : challenge?.status === 'ENTRY_OPEN' ? 'CURRENT TERMS REQUIRED' : 'ENTRY IS NOT OPEN'}</span>
       </div>
-      {joined ? <p className="compiler-contract__notice">JOINED / {joined.state} / TERMS <code>{joined.terms_digest}</code> · <a href={challengeLink(challengeId, 'my-build')}>OPEN MY BUILD →</a></p> : null}
+      {joined ? <p className="compiler-contract__notice">YOU'RE IN · {joined.state} · <a className="journey-next-action journey-next-action--link" href={challengeLink(challengeId, 'my-build')}>CONTINUE TO MY BUILD →</a></p> : null}
       {message ? <p className="compiler-contract__notice">{message}</p> : null}
     </section>
   );

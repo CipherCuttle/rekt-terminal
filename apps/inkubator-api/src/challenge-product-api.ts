@@ -2,6 +2,7 @@ import {createRequire} from 'node:module';
 import type {FastifyInstance, FastifyReply, FastifyRequest} from 'fastify';
 import {
   BUILD_CONTRACT_SCHEMA_VERSION,
+  assertFrozenBuildContract,
   freezeBuildContract,
   type BuildContract,
 } from '@rekt-ink/protocol/challenge';
@@ -35,6 +36,27 @@ const ACTIVE_BLUEPRINTS = Object.freeze(
   BLUEPRINT_PATHS.map((path) => assertCompilerBlueprint(require(path)) as CompilerBlueprint),
 );
 
+export interface PublicBuildContractSummary {
+  contract_version: string;
+  terms_digest: string;
+  title: string;
+  brief: string;
+  outcome_criteria: Array<{id: string; description: string; mandatory: boolean}>;
+  production_criteria: Array<{id: string; description: string; mandatory: boolean}>;
+  delivery_criteria: Array<{id: string; description: string; mandatory: boolean}>;
+  normative_constraints: Array<{id: string; description: string; mandatory: boolean}>;
+  normative_references: Array<{id: string; kind: string; content_digest: string; source_url?: string}>;
+  informational_references: Array<{id: string; url: string}>;
+  prize_minor_units: number;
+  prize_display?: string;
+  settlement_asset: string;
+}
+
+export interface PublicChallengeOrganizerView {
+  display_name: string;
+  github_login: string | null;
+}
+
 export interface PublicChallengeView {
   schema_version: 'challenge.public.v1';
   challenge_id: string;
@@ -45,6 +67,8 @@ export interface PublicChallengeView {
   current_contract_version: string | null;
   current_terms_digest: string | null;
   has_frozen_contract: boolean;
+  contract_summary: PublicBuildContractSummary | null;
+  organizer: PublicChallengeOrganizerView | null;
   slot_limit: number;
   activation_minimum: number;
   entry_deadline: string;
@@ -94,7 +118,44 @@ function safeDate(value: Date): string {
   return value.toISOString();
 }
 
-export function toPublicChallengeView(snapshot: ChallengeSnapshot): PublicChallengeView {
+function toPublicBuildContractSummary(snapshot: ChallengeSnapshot): PublicBuildContractSummary | null {
+  if (!snapshot.contract || snapshot.challenge.status === 'DRAFT') return null;
+  const contract = assertFrozenBuildContract(snapshot.contract.contract_json);
+  const termsDigest = typeof contract.terms_digest === 'string' ? contract.terms_digest : null;
+  if (
+    !termsDigest
+    || contract.challenge_id !== snapshot.challenge.challenge_id
+    || snapshot.contract.challenge_id !== snapshot.challenge.challenge_id
+    || !snapshot.challenge.current_contract_version
+    || contract.contract_version !== snapshot.challenge.current_contract_version
+    || snapshot.contract.contract_version !== snapshot.challenge.current_contract_version
+    || !snapshot.challenge.current_terms_digest
+    || termsDigest !== snapshot.challenge.current_terms_digest
+    || snapshot.contract.terms_digest !== snapshot.challenge.current_terms_digest
+  ) {
+    throw new Error('challenge_contract_pointer_invalid');
+  }
+  return {
+    contract_version: contract.contract_version,
+    terms_digest: termsDigest,
+    title: contract.title,
+    brief: contract.brief,
+    outcome_criteria: contract.outcome_contract.criteria ?? [],
+    production_criteria: contract.production_envelope.criteria ?? [],
+    delivery_criteria: contract.delivery_contract.criteria ?? [],
+    normative_constraints: contract.normative_constraints,
+    normative_references: contract.normative_references,
+    informational_references: contract.informational_references ?? [],
+    prize_minor_units: contract.prize_minor_units,
+    ...(contract.prize_display ? {prize_display: contract.prize_display} : {}),
+    settlement_asset: contract.settlement_asset,
+  };
+}
+
+export function toPublicChallengeView(
+  snapshot: ChallengeSnapshot,
+  organizer: PublicChallengeOrganizerView | null = null,
+): PublicChallengeView {
   const {challenge} = snapshot;
   return {
     schema_version: 'challenge.public.v1',
@@ -106,6 +167,8 @@ export function toPublicChallengeView(snapshot: ChallengeSnapshot): PublicChalle
     current_contract_version: challenge.current_contract_version,
     current_terms_digest: challenge.current_terms_digest,
     has_frozen_contract: snapshot.contract !== null,
+    contract_summary: toPublicBuildContractSummary(snapshot),
+    organizer,
     slot_limit: challenge.slot_limit,
     activation_minimum: challenge.activation_minimum,
     entry_deadline: safeDate(challenge.entry_deadline),
@@ -223,8 +286,16 @@ export function registerStageEChallengeProductRoutes(app: FastifyInstance, db: I
     try {
       const snapshot = await readChallengeSnapshot(db, challengeId);
       if (!snapshot) return apiError(reply, 404, 'challenge_not_found');
+      const organizerRow = await db
+        .selectFrom('players')
+        .select(['display_name', 'github_login'])
+        .where('player_id', '=', snapshot.challenge.organizer_player_id)
+        .executeTakeFirst();
       reply.header('cache-control', 'no-store');
-      return toPublicChallengeView(snapshot);
+      return toPublicChallengeView(snapshot, organizerRow ? {
+        display_name: organizerRow.display_name,
+        github_login: organizerRow.github_login,
+      } : null);
     } catch (cause) {
       if (cause instanceof Error && cause.message === 'invalid_challenge_id') {
         return apiError(reply, 400, 'invalid_challenge_id');

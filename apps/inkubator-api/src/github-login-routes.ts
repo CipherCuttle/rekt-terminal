@@ -42,6 +42,7 @@ export interface RegisterGitHubLoginRoutesOptions {
 const FLOW_TTL_SECONDS = 10 * 60;
 const GITHUB_FLOW_COOKIE = '__Host-rekt_github_oauth_flow';
 const GITHUB_PENDING_INSTALLATION_COOKIE = '__Host-rekt_github_pending_installation';
+const GITHUB_RETURN_TO_COOKIE = '__Host-rekt_github_return_to';
 type GitHubOAuthFlow = 'login' | 'install';
 
 function serializeTransientCookie(name: string, value: string): string {
@@ -59,6 +60,43 @@ function readCookie(cookieHeader: string | undefined, name: string): string | nu
     if (rawName === name) return rest.join('=') || null;
   }
   return null;
+}
+
+export function normalizeGitHubLoginReturnTo(value: string | null | undefined, appOrigin: string): string | null {
+  if (!value) return null;
+  try {
+    const target = new URL(value, appOrigin);
+    const origin = new URL(appOrigin);
+    if (target.origin !== origin.origin || target.pathname !== '/') return null;
+    return `${target.pathname}${target.search}${target.hash}`;
+  } catch {
+    return null;
+  }
+}
+
+function serializeReturnToCookie(returnTo: string): string {
+  return serializeTransientCookie(GITHUB_RETURN_TO_COOKIE, encodeURIComponent(returnTo));
+}
+
+function readReturnToCookie(cookieHeader: string | undefined, appOrigin: string): string | null {
+  const encoded = readCookie(cookieHeader, GITHUB_RETURN_TO_COOKIE);
+  if (!encoded) return null;
+  try {
+    return normalizeGitHubLoginReturnTo(decodeURIComponent(encoded), appOrigin);
+  } catch {
+    return null;
+  }
+}
+
+export function buildGitHubLoginResultUrl(
+  appOrigin: string,
+  auth: 'github' | 'github_failed',
+  returnTo: string | null,
+): URL {
+  const url = returnTo ? new URL(returnTo, appOrigin) : new URL('/', appOrigin);
+  if (!returnTo) url.searchParams.set('mode', 'command');
+  url.searchParams.set('auth', auth);
+  return url;
 }
 
 async function currentPlayerId(request: FastifyRequest, db: InkubatorDatabase): Promise<string | null> {
@@ -101,6 +139,7 @@ function callbackCookies(extra: string[] = []): string[] {
     clearGitHubOauthCookie(GITHUB_OAUTH_VERIFIER_COOKIE),
     clearTransientCookie(GITHUB_FLOW_COOKIE),
     clearTransientCookie(GITHUB_PENDING_INSTALLATION_COOKIE),
+    clearTransientCookie(GITHUB_RETURN_TO_COOKIE),
     ...extra,
   ];
 }
@@ -135,8 +174,15 @@ function syncError(reply: FastifyReply, cause: unknown) {
 
 export function registerGitHubLoginRoutes(app: FastifyInstance, options: RegisterGitHubLoginRoutesOptions): void {
   app.get('/v1/auth/github/start', async (request, reply) => {
-    const query = request.query as {switch?: string};
-    return beginOAuth(reply, options, 'login', [], query.switch === '1');
+    const query = request.query as {switch?: string; return_to?: string};
+    const returnTo = normalizeGitHubLoginReturnTo(query.return_to, options.appOrigin);
+    return beginOAuth(
+      reply,
+      options,
+      'login',
+      returnTo ? [serializeReturnToCookie(returnTo)] : [],
+      query.switch === '1',
+    );
   });
 
   app.get('/v1/auth/github/install', async (request, reply) => {
@@ -198,9 +244,8 @@ export function registerGitHubLoginRoutes(app: FastifyInstance, options: Registe
   app.get('/v1/auth/github/callback', async (request, reply) => {
     const query = request.query as {code?: string; state?: string; error?: string};
     const flow = (readCookie(request.headers.cookie, GITHUB_FLOW_COOKIE) ?? 'login') as GitHubOAuthFlow;
-    const loginFailure = new URL('/', options.appOrigin);
-    loginFailure.searchParams.set('mode', 'command');
-    loginFailure.searchParams.set('auth', 'github_failed');
+    const returnTo = readReturnToCookie(request.headers.cookie, options.appOrigin);
+    const loginFailure = buildGitHubLoginResultUrl(options.appOrigin, 'github_failed', returnTo);
     const failureUrl = flow === 'login'
       ? loginFailure.toString()
       : sourceResultUrl(options.appOrigin, 'authorization_failed', query.error || 'github_oauth_failed');
@@ -232,9 +277,7 @@ export function registerGitHubLoginRoutes(app: FastifyInstance, options: Registe
         } catch {
           syncFailed = true;
         }
-        const success = new URL('/', options.appOrigin);
-        success.searchParams.set('mode', 'command');
-        success.searchParams.set('auth', 'github');
+        const success = buildGitHubLoginResultUrl(options.appOrigin, 'github', returnTo);
         if (syncFailed) success.searchParams.set('github_sync', 'failed');
         if (observationWarnings.length > 0) {
           success.searchParams.set('github_observation', 'degraded');

@@ -26,6 +26,22 @@ export interface GitHubReconcileView {
   warnings: string[];
 }
 
+export interface PublicBuildContractSummary {
+  contract_version: string;
+  terms_digest: string;
+  title: string;
+  brief: string;
+  outcome_criteria: Array<{id: string; description: string; mandatory: boolean}>;
+  production_criteria: Array<{id: string; description: string; mandatory: boolean}>;
+  delivery_criteria: Array<{id: string; description: string; mandatory: boolean}>;
+  normative_constraints: Array<{id: string; description: string; mandatory: boolean}>;
+  normative_references: Array<{id: string; kind: string; content_digest: string; source_url?: string}>;
+  informational_references: Array<{id: string; url: string}>;
+  prize_minor_units: number;
+  prize_display?: string;
+  settlement_asset: string;
+}
+
 export interface PublicChallengeView {
   schema_version: 'challenge.public.v1';
   challenge_id: string;
@@ -36,6 +52,8 @@ export interface PublicChallengeView {
   current_contract_version: string | null;
   current_terms_digest: string | null;
   has_frozen_contract: boolean;
+  contract_summary?: PublicBuildContractSummary | null;
+  organizer?: {display_name: string; github_login: string | null} | null;
   slot_limit: number;
   activation_minimum: number;
   entry_deadline: string;
