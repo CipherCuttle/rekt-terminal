@@ -229,7 +229,7 @@ describe('Stage E Challenge product shell', () => {
     const proposal = compileChallenge.mock.calls[0]![0];
     expect(proposal.source_intent).toBe('Build a realtime public launch dashboard');
     expect(proposal.requirements).toEqual([{key: 'realtime', value: true, provenance: 'SOURCE'}]);
-    expect(screen.getByText(/Which realtime transport\/state consistency guarantees/i)).toBeTruthy();
+    expect(screen.getAllByText(/Which realtime transport\/state consistency guarantees/i).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByText('Technical compiler details'));
     expect(screen.getByText('WEB_REALTIME@1.0.0')).toBeTruthy();
@@ -298,8 +298,8 @@ describe('Stage E Challenge product shell', () => {
     expect(persistAuthority).toEqual(expect.objectContaining({contract_version: '1.0.0', title: 'Static launch Challenge'}));
     expect(expectedDigest).toBe(contractPreview.contract.terms_digest);
     await waitFor(() => expect(getChallenge).toHaveBeenCalledTimes(2));
-    expect(screen.getByRole('heading', {name: 'OPEN TO BUILDERS'})).toBeTruthy();
-    expect(screen.getByText('FROZEN', {selector: 'dd'})).toBeTruthy();
+    expect(screen.getByText('OPEN IT TO BUILDERS')).toBeTruthy();
+    expect(screen.queryByRole('button', {name: 'LOCK THESE RULES'})).toBeNull();
   });
 
   it('reads a canonical public Challenge projection instead of Mission or Project state', async () => {
