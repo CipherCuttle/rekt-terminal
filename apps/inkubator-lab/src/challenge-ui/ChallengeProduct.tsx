@@ -476,7 +476,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     && !canonicalContract
     && persistPhase !== 'LOADING',
   );
-  const currentRequirement = REQUIREMENTS[requirementIndex];
+  const currentRequirement = REQUIREMENTS[requirementIndex] ?? REQUIREMENTS[0];
   const guidance = deriveOrganizerGuidance({sourceIntent, clarificationComplete, compilerState, accepted, challenge: challengeView});
   const compilerReadyAndAccepted = compilerState?.status === 'READY' && accepted;
 
