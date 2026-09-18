@@ -1,1 +1,1 @@
-j2-faucet-playwright-gelato-2026-09-18\n
+j2-faucet-playwright-quicknode-2026-09-18\n
