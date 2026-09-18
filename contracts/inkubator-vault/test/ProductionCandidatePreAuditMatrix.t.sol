@@ -120,6 +120,16 @@ contract ShortReturnResolver {
     }
 }
 
+contract GasBurnResolver {
+    fallback() external {
+        assembly ("memory-safe") {
+            for {} 1 {} {
+                pop(gas())
+            }
+        }
+    }
+}
+
 contract ProductionCandidatePreAuditMatrixTest {
     VmJ4Matrix private constant vm = VmJ4Matrix(address(uint160(uint256(keccak256("hevm cheat code")))));
 
@@ -318,6 +328,10 @@ contract ProductionCandidatePreAuditMatrixTest {
 
     function testErc1271ShortReturnFailsClosed() public {
         _assertHostileResolverRejects(address(new ShortReturnResolver()));
+    }
+
+    function testErc1271GasGriefFailsClosedWithoutExhaustingCaller() public {
+        _assertHostileResolverRejects(address(new GasBurnResolver()));
     }
 
     function testErc1271ValidSignatureForWrongResolverSetFailsClosed() public {
