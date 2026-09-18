@@ -25,12 +25,14 @@ contract TestnetChallengeVault {
 
     struct PayoutMemberInput {
         bytes32 entryDigest;
+        uint16 payoutOrder;
         address payout;
         bytes32[] payoutProof;
     }
 
     struct RecipientClaimInput {
         bytes32 entryDigest;
+        uint16 payoutOrder;
         address payout;
         uint256 amount;
         bytes32[] qualifierProof;
@@ -42,7 +44,6 @@ contract TestnetChallengeVault {
     error AuthoritiesMustBeIndependent();
     error AlreadyFunded();
     error NotFunded();
-    error UnexpectedPreFundingBalance();
     error FundingAmountMismatch();
     error PayoutSetAlreadySealed();
     error PayoutSetNotSealed();
@@ -169,12 +170,11 @@ contract TestnetChallengeVault {
         if (funded) revert AlreadyFunded();
 
         uint256 beforeBalance = _tokenBalance();
-        if (beforeBalance != 0) revert UnexpectedPreFundingBalance();
 
         _safeTransferFrom(msg.sender, address(this), prizeAmount);
 
         uint256 afterBalance = _tokenBalance();
-        if (afterBalance != prizeAmount || afterBalance - beforeBalance != prizeAmount) {
+        if (afterBalance < beforeBalance || afterBalance - beforeBalance != prizeAmount) {
             revert FundingAmountMismatch();
         }
 
@@ -219,23 +219,33 @@ contract TestnetChallengeVault {
         if (length > payoutCount || length > MAX_RECIPIENTS) revert InvalidQualifierSet();
 
         bytes32[] memory leaves = new bytes32[](length);
-        bytes32 previousEntry;
+        uint16 previousOrder;
 
         for (uint256 index = 0; index < length; ++index) {
             PayoutMemberInput calldata qualifier = qualifiers[index];
             if (qualifier.entryDigest == bytes32(0) || qualifier.payout == address(0)) revert InvalidQualifierSet();
-            if (index != 0 && uint256(qualifier.entryDigest) <= uint256(previousEntry)) revert InvalidQualifierSet();
-            previousEntry = qualifier.entryDigest;
+            if (qualifier.payoutOrder >= payoutCount) revert InvalidQualifierSet();
+            if (index != 0 && qualifier.payoutOrder <= previousOrder) revert InvalidQualifierSet();
+            previousOrder = qualifier.payoutOrder;
 
             for (uint256 prior = 0; prior < index; ++prior) {
-                if (qualifiers[prior].payout == qualifier.payout) revert InvalidQualifierSet();
+                if (
+                    qualifiers[prior].payout == qualifier.payout
+                        || qualifiers[prior].entryDigest == qualifier.entryDigest
+                ) revert InvalidQualifierSet();
             }
 
-            if (!_verifyProof(payoutLeaf(qualifier.entryDigest, qualifier.payout), qualifier.payoutProof, payoutSetRoot)) {
+            if (
+                !_verifyProof(
+                    payoutLeaf(qualifier.entryDigest, qualifier.payoutOrder, qualifier.payout),
+                    qualifier.payoutProof,
+                    payoutSetRoot
+                )
+            ) {
                 revert InvalidPayoutProof();
             }
 
-            leaves[index] = payoutLeaf(qualifier.entryDigest, qualifier.payout);
+            leaves[index] = payoutLeaf(qualifier.entryDigest, qualifier.payoutOrder, qualifier.payout);
         }
 
         bytes32 root = _rootFromLeaves(leaves);
@@ -268,7 +278,8 @@ contract TestnetChallengeVault {
         if (recipient.amount != prizeAmount || recipient.payout == address(0)) revert InvalidSettlementAmount();
         _requireQualifierProof(recipient);
 
-        bytes32 recipientsDigest = _singleRecipientDigest(recipient.entryDigest, recipient.payout, recipient.amount);
+        bytes32 recipientsDigest =
+            _singleRecipientDigest(recipient.entryDigest, recipient.payoutOrder, recipient.payout, recipient.amount);
         bytes32 digest = settlementAuthorizationDigest(
             manifestDigest,
             qualifierSetRoot,
@@ -295,7 +306,8 @@ contract TestnetChallengeVault {
         if (recipient.amount != prizeAmount || recipient.payout == address(0)) revert InvalidSettlementAmount();
         _requireQualifierProof(recipient);
 
-        bytes32 recipientsDigest = _singleRecipientDigest(recipient.entryDigest, recipient.payout, recipient.amount);
+        bytes32 recipientsDigest =
+            _singleRecipientDigest(recipient.entryDigest, recipient.payoutOrder, recipient.payout, recipient.amount);
         bytes32 digest = settlementAuthorizationDigest(
             manifestDigest,
             qualifierSetRoot,
@@ -324,17 +336,21 @@ contract TestnetChallengeVault {
         uint256 base = prizeAmount / length;
         uint256 remainder = prizeAmount % length;
         uint256 total;
-        bytes32 previousEntry;
+        uint16 previousOrder;
         bytes32 recipientsDigest = keccak256("");
 
         for (uint256 index = 0; index < length; ++index) {
             RecipientClaimInput calldata recipient = recipients[index];
             if (recipient.payout == address(0) || recipient.entryDigest == bytes32(0)) revert InvalidRecipientSet();
-            if (index != 0 && uint256(recipient.entryDigest) <= uint256(previousEntry)) revert InvalidRecipientSet();
-            previousEntry = recipient.entryDigest;
+            if (recipient.payoutOrder >= payoutCount) revert InvalidRecipientSet();
+            if (index != 0 && recipient.payoutOrder <= previousOrder) revert InvalidRecipientSet();
+            previousOrder = recipient.payoutOrder;
 
             for (uint256 prior = 0; prior < index; ++prior) {
-                if (recipients[prior].payout == recipient.payout) revert InvalidRecipientSet();
+                if (
+                    recipients[prior].payout == recipient.payout
+                        || recipients[prior].entryDigest == recipient.entryDigest
+                ) revert InvalidRecipientSet();
             }
 
             _requireQualifierProof(recipient);
@@ -343,8 +359,12 @@ contract TestnetChallengeVault {
             if (recipient.amount != expectedAmount) revert InvalidSettlementAmount();
 
             total += recipient.amount;
-            recipientsDigest =
-                keccak256(abi.encode(recipientsDigest, recipientItemHash(recipient.entryDigest, recipient.payout, recipient.amount)));
+            recipientsDigest = keccak256(
+                abi.encode(
+                    recipientsDigest,
+                    recipientItemHash(recipient.entryDigest, recipient.payoutOrder, recipient.payout, recipient.amount)
+                )
+            );
         }
 
         if (total != prizeAmount) revert InvalidSettlementAmount();
@@ -368,7 +388,7 @@ contract TestnetChallengeVault {
         if (!qualificationResolved || qualifierCount != 0) revert InvalidQualifierSet();
         if (manifestDigest == bytes32(0)) revert InvalidManifest();
 
-        bytes32 recipientsDigest = _singleRecipientDigest(bytes32(0), refundRecipient, prizeAmount);
+        bytes32 recipientsDigest = _singleRecipientDigest(bytes32(0), 0, refundRecipient, prizeAmount);
         bytes32 digest = settlementAuthorizationDigest(
             manifestDigest,
             qualifierSetRoot,
@@ -389,7 +409,7 @@ contract TestnetChallengeVault {
         _requireSettlementReady();
         if (manifestDigest == bytes32(0)) revert InvalidManifest();
 
-        bytes32 recipientsDigest = _singleRecipientDigest(bytes32(0), refundRecipient, prizeAmount);
+        bytes32 recipientsDigest = _singleRecipientDigest(bytes32(0), 0, refundRecipient, prizeAmount);
         bytes32 digest = settlementAuthorizationDigest(
             manifestDigest,
             qualifierSetRoot,
@@ -486,8 +506,8 @@ contract TestnetChallengeVault {
         return _hashTypedData(structHash);
     }
 
-    function payoutLeaf(bytes32 entryDigest, address payout) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(bytes1(0x00), entryDigest, payout));
+    function payoutLeaf(bytes32 entryDigest, uint16 payoutOrder, address payout) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(bytes1(0x00), entryDigest, payoutOrder, payout));
     }
 
     function merklePair(bytes32 left, bytes32 right) public pure returns (bytes32) {
@@ -495,24 +515,30 @@ contract TestnetChallengeVault {
         return keccak256(abi.encodePacked(bytes1(0x01), left, right));
     }
 
-    function recipientItemHash(bytes32 entryDigest, address payout, uint256 amount) public pure returns (bytes32) {
-        return keccak256(abi.encode(entryDigest, payout, amount));
+    function recipientItemHash(bytes32 entryDigest, uint16 payoutOrder, address payout, uint256 amount)
+        public
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(entryDigest, payoutOrder, payout, amount));
     }
 
-    function singleRecipientDigest(bytes32 entryDigest, address payout, uint256 amount)
+    function singleRecipientDigest(bytes32 entryDigest, uint16 payoutOrder, address payout, uint256 amount)
         external
         pure
         returns (bytes32)
     {
-        return _singleRecipientDigest(entryDigest, payout, amount);
+        return _singleRecipientDigest(entryDigest, payoutOrder, payout, amount);
     }
 
-    function _singleRecipientDigest(bytes32 entryDigest, address payout, uint256 amount)
+    function _singleRecipientDigest(bytes32 entryDigest, uint16 payoutOrder, address payout, uint256 amount)
         internal
         pure
         returns (bytes32)
     {
-        return keccak256(abi.encode(keccak256(""), recipientItemHash(entryDigest, payout, amount)));
+        return keccak256(
+            abi.encode(keccak256(""), recipientItemHash(entryDigest, payoutOrder, payout, amount))
+        );
     }
 
     function _requireSettlementReady() internal view {
@@ -541,7 +567,13 @@ contract TestnetChallengeVault {
     }
 
     function _requireQualifierProof(RecipientClaimInput calldata recipient) internal view {
-        if (!_verifyProof(payoutLeaf(recipient.entryDigest, recipient.payout), recipient.qualifierProof, qualifierSetRoot)) {
+        if (
+            !_verifyProof(
+                payoutLeaf(recipient.entryDigest, recipient.payoutOrder, recipient.payout),
+                recipient.qualifierProof,
+                qualifierSetRoot
+            )
+        ) {
             revert InvalidQualifierProof();
         }
     }
