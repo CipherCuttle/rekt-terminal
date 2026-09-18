@@ -10,16 +10,8 @@ commits = [
   "2a0a4c50831508d88364574bc9ead0c72b4cbab8"
 ]
 regexes = [
-  '''(?i)^\s*address:\s*['\"]0x2d270e6886d130d724215a266106e6832161eaed['\"][,;]?\s*  '''^\s*"baseTokenAddress"\s*:\s*"0x[a-fA-F0-9]{40}",?\s*$''',
-  '''^\s*- synthetic token:\s*`0x[a-fA-F0-9]{40}`;?\s*$''',
-  '''^\s*- Ink mainnet token:\s*`0x[a-fA-F0-9]{40}`;?\s*$'''
-]
-'',
-  '''(?i)^\s*-\s*exact token address:\s*`0x2d270e6886d130d724215a266106e6832161eaed`;?\s*  '''^\s*"baseTokenAddress"\s*:\s*"0x[a-fA-F0-9]{40}",?\s*$''',
-  '''^\s*- synthetic token:\s*`0x[a-fA-F0-9]{40}`;?\s*$''',
-  '''^\s*- Ink mainnet token:\s*`0x[a-fA-F0-9]{40}`;?\s*$'''
-]
-'',
+  '''(?i)^\s*address:\s*['"]0x2d270e6886d130d724215a266106e6832161eaed['"][,;]?\s*$''',
+  '''(?i)^\s*-\s*exact token address:\s*`0x2d270e6886d130d724215a266106e6832161eaed`;?\s*$''',
   '''^\s*"baseTokenAddress"\s*:\s*"0x[a-fA-F0-9]{40}",?\s*$''',
   '''^\s*- synthetic token:\s*`0x[a-fA-F0-9]{40}`;?\s*$''',
   '''^\s*- Ink mainnet token:\s*`0x[a-fA-F0-9]{40}`;?\s*$'''
