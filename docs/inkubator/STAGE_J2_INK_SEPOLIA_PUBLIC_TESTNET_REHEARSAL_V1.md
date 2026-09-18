@@ -1,6 +1,6 @@
 # REKT INKUBATOR — STAGE J2 INK SEPOLIA PUBLIC-TESTNET REHEARSAL V1
 
-**Status:** ACTIVE / PUBLIC-TESTNET REHEARSAL  
+**Status:** CLOSED / PASS  
 **Date:** 2026-09-18  
 **Branch:** `agent/stage-j2-ink-sepolia-rehearsal-v1`  
 **Base:** Stage-J1 exact head `6b73f63bd77da5fc4d2407428538088c0995f18e`  
@@ -9,6 +9,7 @@
 **Production-money authority:** NONE  
 **Mainnet authority:** NONE  
 **Merge authority:** NONE
+**Closure receipt:** `STAGE_J2_CLOSURE_V1.md`
 
 ## 1. Objective
 
