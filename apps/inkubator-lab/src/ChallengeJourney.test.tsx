@@ -38,7 +38,7 @@ describe('Stage I owner journey composition', () => {
     window.history.replaceState({}, '', '/?mode=command&auth=github&github_observation=degraded&github_observation_reason=github_push_event_required');
     renderJourney(client());
 
-    expect(await screen.findByRole('heading', {name: /LAUNCH A CHALLENGE.*PROVE WHAT GETS BUILT/i})).toBeTruthy();
+    expect(await screen.findByRole('heading', {name: //DESCRIBE IT ONCE\.\*LET BUILDERS PROVE IT/i/i})).toBeTruthy();
     await waitFor(() => expect(new URLSearchParams(window.location.search).get('surface')).toBe('discover'));
     expect(new URLSearchParams(window.location.search).get('mode')).toBeNull();
     expect(new URLSearchParams(window.location.search).get('auth')).toBe('github');
@@ -47,6 +47,8 @@ describe('Stage I owner journey composition', () => {
     expect(screen.queryByText('PROJECT')).toBeNull();
     expect(screen.queryByText('PLAYER')).toBeNull();
     expect(screen.queryByText('SHIP')).toBeNull();
+    expect(screen.getByText('WHY INKUBATOR EXISTS')).toBeTruthy();
+    expect(screen.getByRole('heading', {name: /STOP GUESSING WHAT.*DONE.*MEANS/i})).toBeTruthy();
   });
 
   it('makes GitHub login step zero for a logged-out organizer and preserves the Compiler return target', async () => {
