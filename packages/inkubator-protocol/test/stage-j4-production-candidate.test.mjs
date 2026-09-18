@@ -5,6 +5,7 @@ import {
   STAGE_J4_EXCLUDED_USDC_E,
   STAGE_J4_FINALITY_PROVIDERS,
   STAGE_J4_NATIVE_USDC,
+  appendStageJ4ReconciliationReceipt,
   buildStageJ4DeploymentPlan,
   buildStageJ4ReleaseCandidateReceipt,
   evaluateStageJ4Finality,
@@ -185,4 +186,57 @@ test('release receipt pins toolchain, hashes, tuple and remains non-production',
   assert.equal(receipt.external_audit, 'NOT_STARTED');
   assert.equal(receipt.production_money, 'NOT_AUTHORIZED');
   assert.match(receipt.release_digest, /^[0-9a-f]{64}$/);
+});
+
+
+test('reconciliation corrections append and supersede without mutating prior facts', () => {
+  const first = appendStageJ4ReconciliationReceipt([], {
+    record_id: 'settlement-1',
+    kind: 'FINALIZED',
+    expected_tx_hash: DIGEST_A,
+    evidence_digest: DIGEST_B,
+    recorded_at_ms: 1_000,
+  });
+  assert.equal(first.length, 1);
+  assert.equal(first[0].supersedes_record_id, null);
+
+  const corrected = appendStageJ4ReconciliationReceipt(first, {
+    record_id: 'settlement-1-correction-1',
+    kind: 'CORRECTION',
+    expected_tx_hash: DIGEST_A,
+    evidence_digest: DIGEST_C,
+    recorded_at_ms: 2_000,
+    supersedes_record_id: 'settlement-1',
+  });
+
+  assert.equal(corrected.length, 2);
+  assert.deepEqual(corrected[0], first[0]);
+  assert.equal(corrected[1].supersedes_record_id, 'settlement-1');
+  assert.equal(corrected[1].expected_tx_hash, DIGEST_A);
+
+  const replay = appendStageJ4ReconciliationReceipt(corrected, corrected[1]);
+  assert.deepEqual(replay, corrected);
+
+  assert.throws(() => appendStageJ4ReconciliationReceipt(corrected, {
+    ...corrected[1],
+    evidence_digest: DIGEST_D,
+  }), /record id conflict/);
+
+  assert.throws(() => appendStageJ4ReconciliationReceipt(corrected, {
+    record_id: 'settlement-1-correction-2',
+    kind: 'CORRECTION',
+    expected_tx_hash: DIGEST_E,
+    evidence_digest: DIGEST_F,
+    recorded_at_ms: 3_000,
+    supersedes_record_id: 'settlement-1-correction-1',
+  }), /cannot change settlement transaction identity/);
+
+  assert.throws(() => appendStageJ4ReconciliationReceipt(corrected, {
+    record_id: 'settlement-1-correction-fork',
+    kind: 'CORRECTION',
+    expected_tx_hash: DIGEST_A,
+    evidence_digest: DIGEST_F,
+    recorded_at_ms: 3_000,
+    supersedes_record_id: 'settlement-1',
+  }), /must supersede latest receipt/);
 });
