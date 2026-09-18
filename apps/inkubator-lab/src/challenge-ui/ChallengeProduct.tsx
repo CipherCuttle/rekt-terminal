@@ -73,6 +73,100 @@ function creatorXProfileUrl(summary: PublicBuildContractSummary | null | undefin
   return summary?.informational_references.find((reference) => reference.id === 'creator-x-profile')?.url ?? null;
 }
 
+const CHALLENGE_LIFECYCLE = [
+  {id: 'OPEN', label: 'OPEN'},
+  {id: 'BUILD', label: 'BUILD'},
+  {id: 'SUBMIT', label: 'SUBMIT'},
+  {id: 'TEST', label: 'TEST'},
+  {id: 'PICK', label: 'PICK'},
+  {id: 'PAY', label: 'PAY'},
+  {id: 'RECEIPT', label: 'RECEIPT'},
+] as const;
+
+function challengeLifecycleIndex(status: string): number {
+  if (['DRAFT', 'AWAITING_FUNDING', 'FUNDED', 'ENTRY_OPEN', 'NOT_ACTIVATED'].includes(status)) return 0;
+  if (status === 'BUILDING') return 1;
+  if (status === 'SUBMISSIONS_LOCKED') return 2;
+  if (['QUALIFICATION', 'APPEAL_WINDOW', 'FINAL_QUALIFIERS'].includes(status)) return 3;
+  if (['SELECTION', 'DEFAULT_RESOLUTION'].includes(status)) return 4;
+  if (status === 'SETTLEMENT_PENDING') return 5;
+  return 6;
+}
+
+function challengeLifecycleMessage(view: PublicChallengeView): {title: string; body: string} {
+  switch (view.status) {
+    case 'DRAFT':
+      return {title: 'NEXT: FINISH SETUP', body: 'The Challenge is still a draft. Lock the rules and open it before builders can enter.'};
+    case 'AWAITING_FUNDING':
+      return {title: 'NEXT: FUNDING GATE', body: 'The production roadmap requires the prize to be locked before the competition proceeds. In this rehearsal, value remains synthetic/test only.'};
+    case 'FUNDED':
+      return {title: 'NEXT: OPEN ENTRY', body: 'The Challenge is ready for builders to enter under the frozen terms.'};
+    case 'ENTRY_OPEN':
+      return {title: 'NEXT: GET BUILDERS IN', body: 'Organizer: share the Challenge link. Builder: read the locked rules and join before the entry deadline.'};
+    case 'NOT_ACTIVATED':
+      return {title: 'CHALLENGE DID NOT ACTIVATE', body: 'The activation minimum was not reached. No build competition, winner or payout should be inferred.'};
+    case 'BUILDING':
+      return {title: 'NEXT: BUILD + SUBMIT', body: 'Builders work against the frozen contract and must submit immutable final work before the submission deadline.'};
+    case 'SUBMISSIONS_LOCKED':
+      return {title: 'NEXT: REVEAL', body: 'Submissions are sealed. The next step is synchronized reveal followed by the Test Arena.'};
+    case 'QUALIFICATION':
+      return {title: 'NEXT: TEST THE FROZEN CRITERIA', body: 'The Test Arena checks only the mandatory criteria that were frozen before the build started.'};
+    case 'APPEAL_WINDOW':
+      return {title: 'NEXT: RESOLVE THE TEST RESULT', body: 'Qualification evidence is recorded and the bounded appeal/review window is active.'};
+    case 'FINAL_QUALIFIERS':
+      return {title: 'NEXT: PICK FROM QUALIFIERS', body: 'Objective qualification is finished. The organizer may choose only among the final qualified builds.'};
+    case 'SELECTION':
+      return {title: 'NEXT: PICK THE WINNER', body: 'The organizer chooses among already-qualified builds. Preference cannot rewrite qualification truth.'};
+    case 'DEFAULT_RESOLUTION':
+      return {title: 'NEXT: RESOLVE THE TERMINAL OUTCOME', body: 'The Challenge reached the default-resolution path. Settlement must follow the frozen protocol outcome.'};
+    case 'SETTLEMENT_PENDING':
+      return {title: 'NEXT: SETTLEMENT', body: 'Settlement is pending. In Stage I this is test/synthetic value only; no production money moves.'};
+    case 'SETTLED':
+      return {title: 'NEXT: FILE THE RECEIPT', body: 'The settlement fact exists. The remaining step is the durable append-only Challenge receipt.'};
+    case 'RECEIPT_FILED':
+      return {title: 'DONE: DURABLE RESULT FILED', body: 'The competition has a durable receipt preserving the result and settlement facts allowed by the current value mode.'};
+    default:
+      return {title: 'FOLLOW THE CANONICAL CHALLENGE STATE', body: `Current server state: ${view.status}. Inkubator will not invent a later step.`};
+  }
+}
+
+function ChallengeLifecycleSignal({view}: {view: PublicChallengeView}) {
+  const currentIndex = challengeLifecycleIndex(view.status);
+  const message = challengeLifecycleMessage(view);
+  return (
+    <section className="challenge-lifecycle" aria-labelledby="challenge-lifecycle-title">
+      <div className="challenge-lifecycle__head">
+        <div><small>COMPETITION SIGNAL</small><h3 id="challenge-lifecycle-title">WHERE THIS CHALLENGE GOES</h3></div>
+        <b>{view.status}</b>
+      </div>
+      <ol>
+        {CHALLENGE_LIFECYCLE.map((stage, index) => (
+          <li key={stage.id} data-state={index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'future'}>
+            <span>{String(index + 1).padStart(2, '0')}</span><b>{stage.label}</b>
+          </li>
+        ))}
+      </ol>
+      <div className="challenge-lifecycle__next"><strong>{message.title}</strong><p>{message.body}</p></div>
+      <section className="challenge-payment-explainer" aria-labelledby="challenge-payment-title">
+        <small>PAYMENT / STAGE I REHEARSAL</small>
+        <h4 id="challenge-payment-title">NO REAL MONEY MOVES HERE YET.</h4>
+        <p>The displayed prize is <b>TEST value</b>. A selected builder does not receive production funds from this rehearsal.</p>
+        <details>
+          <summary>How production payment is designed to work later</summary>
+          <ol>
+            <li>Organizer locks one supported asset + amount against the frozen Challenge terms.</li>
+            <li>Builder payout address is bound before the build window and cannot be casually redirected.</li>
+            <li>Test Arena determines qualifiers; the organizer selects only from that qualified set.</li>
+            <li>The Challenge Vault pays the already-frozen authorized recipient.</li>
+            <li><code>SETTLED</code> requires finalized chain evidence, then Inkubator files the durable receipt.</li>
+          </ol>
+          <p>That is Stage-J production-value work and is not active in this rehearsal.</p>
+        </details>
+      </section>
+    </section>
+  );
+}
+
 
 const COMPILER_DRAFT_STORAGE_KEY = 'inkubator.compiler-draft.v1';
 
@@ -1028,11 +1122,13 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
             {creatorXProfileUrl(summary) ? <a href={creatorXProfileUrl(summary)!} target="_blank" rel="noreferrer">X / CREATOR PROFILE ↗</a> : null}
           </div>
           <dl className="challenge-rule-summary__highlights">
-            <div><dt>TEST REWARD</dt><dd>{summary.prize_display ?? `${summary.prize_minor_units} ${summary.settlement_asset}`}</dd></div>
+            <div><dt>REWARD / TEST ONLY</dt><dd>{summary.prize_display ?? `${summary.prize_minor_units} ${summary.settlement_asset}`}</dd></div>
             <div><dt>BUILDERS</dt><dd>{view.entry_count} / {view.slot_limit} joined</dd></div>
             <div><dt>ENTRY CLOSES</dt><dd>{view.entry_deadline}</dd></div>
             <div><dt>SUBMIT BY</dt><dd>{view.submission_deadline}</dd></div>
           </dl>
+
+          <ChallengeLifecycleSignal view={view} />
 
           <section className="challenge-pass-contract" aria-labelledby="challenge-pass-contract-title">
             <small>THE PASS CONTRACT</small>
