@@ -522,6 +522,160 @@ contract ProductionCandidatePreAuditMatrixTest {
         _assert(vault.isFinalized(), "distribution finalizes exactly");
     }
 
+    function testConstructorRejectsZeroCoreIdentityAndPrize() public {
+        MatrixToken token = new MatrixToken();
+        ProductionCandidateChallengeVault.VaultConfig memory config = _config(token, address(resolver), 100);
+
+        config.token = IERC20ProductionCandidate(address(0));
+        vm.expectRevert(ProductionCandidateChallengeVault.ZeroAddress.selector);
+        new ProductionCandidateChallengeVault(config);
+
+        config = _config(token, address(resolver), 100);
+        config.refundRecipient = address(0);
+        vm.expectRevert(ProductionCandidateChallengeVault.ZeroAddress.selector);
+        new ProductionCandidateChallengeVault(config);
+
+        config = _config(token, address(resolver), 100);
+        config.challengeDigest = bytes32(0);
+        vm.expectRevert(ProductionCandidateChallengeVault.ZeroDigest.selector);
+        new ProductionCandidateChallengeVault(config);
+
+        config = _config(token, address(resolver), 100);
+        config.termsDigest = bytes32(0);
+        vm.expectRevert(ProductionCandidateChallengeVault.ZeroDigest.selector);
+        new ProductionCandidateChallengeVault(config);
+
+        config = _config(token, address(resolver), 100);
+        config.bindingDigest = bytes32(0);
+        vm.expectRevert(ProductionCandidateChallengeVault.ZeroDigest.selector);
+        new ProductionCandidateChallengeVault(config);
+
+        config = _config(token, address(resolver), 0);
+        vm.expectRevert(ProductionCandidateChallengeVault.InvalidPrizeAmount.selector);
+        new ProductionCandidateChallengeVault(config);
+    }
+
+    function testUnsolicitedDustCannotSatisfyOrChangeFundingLiability() public {
+        MatrixToken token = new MatrixToken();
+        ProductionCandidateChallengeVault vault =
+            new ProductionCandidateChallengeVault(_config(token, address(resolver), 100));
+
+        token.mint(address(vault), 7);
+        token.mint(address(this), 100);
+        token.approve(address(vault), 100);
+        vault.fund();
+
+        _assert(vault.funded(), "funding must still require exact transfer");
+        _assertEq(token.balanceOf(address(vault)), 107, "dust remains surplus");
+        _assertEq(vault.remainingLiability(), 100, "liability remains exact prize");
+    }
+
+    function testPayoutSealRejectsWrongCoAuthorityAndCannotReseal() public {
+        MatrixToken token = new MatrixToken();
+        ProductionCandidateChallengeVault vault = _deployAndFund(token, address(resolver), 100);
+
+        bytes32 root = vault.payoutLeaf(ENTRY_A, 0, ALICE);
+        bytes32 digest = vault.payoutSetAuthorizationDigest(root, 1);
+
+        vm.expectRevert(ProductionCandidateChallengeVault.WrongAuthority.selector);
+        vault.sealPayoutSet(root, 1, _sign(OUTCOME_PK, digest), _sign(OUTCOME_PK, digest));
+
+        vault.sealPayoutSet(root, 1, _sign(OUTCOME_PK, digest), _sign(ORGANIZER_PK, digest));
+
+        vm.expectRevert(ProductionCandidateChallengeVault.PayoutSetAlreadySealed.selector);
+        vault.sealPayoutSet(root, 1, _sign(OUTCOME_PK, digest), _sign(ORGANIZER_PK, digest));
+    }
+
+    function testRecoveryEvidenceAndManifestMutationInvalidateAuthorization() public {
+        MatrixToken token = new MatrixToken();
+        ProductionCandidateChallengeVault vault = _deployAndFund(token, address(resolver), 100);
+        _sealSinglePayout(vault);
+
+        ProductionCandidateChallengeVault.PayoutMemberInput[] memory qualifiers = _singleQualifier();
+        bytes32 root = vault.payoutLeaf(ENTRY_A, 0, ALICE);
+        bytes32 digest = vault.qualifierSetAuthorizationDigest(
+            root,
+            1,
+            DEFAULT_MANIFEST,
+            RECOVERY_EVIDENCE,
+            ProductionCandidateChallengeVault.QualifierSetMode.RECOVERY
+        );
+        bytes memory outcomeSig = _sign(OUTCOME_PK, digest);
+        bytes memory resolverSig = _resolverSignature(digest, RESOLVER_1_PK, RESOLVER_2_PK);
+
+        vm.warp(organizerDeadline);
+
+        vm.expectRevert(ProductionCandidateChallengeVault.WrongAuthority.selector);
+        vault.sealQualifierSetRecoveryCoSigned(
+            qualifiers,
+            DEFAULT_MANIFEST,
+            keccak256("mutated-evidence"),
+            outcomeSig,
+            resolverSig
+        );
+
+        vm.expectRevert(ProductionCandidateChallengeVault.WrongAuthority.selector);
+        vault.sealQualifierSetRecoveryCoSigned(
+            qualifiers,
+            keccak256("mutated-manifest"),
+            RECOVERY_EVIDENCE,
+            outcomeSig,
+            resolverSig
+        );
+
+        vault.sealQualifierSetRecoveryCoSigned(
+            qualifiers,
+            DEFAULT_MANIFEST,
+            RECOVERY_EVIDENCE,
+            outcomeSig,
+            resolverSig
+        );
+    }
+
+    function testOrganizerWinnerRejectsWrongAmountNonQualifierAndExpiredWindow() public {
+        MatrixToken token = new MatrixToken();
+        ProductionCandidateChallengeVault vault = _deployAndFund(token, address(resolver), 100);
+        _sealSinglePayout(vault);
+        _sealSingleQualifierNormal(vault);
+
+        ProductionCandidateChallengeVault.RecipientClaimInput memory valid =
+            ProductionCandidateChallengeVault.RecipientClaimInput(ENTRY_A, 0, ALICE, 100, new bytes32[](0));
+
+        ProductionCandidateChallengeVault.RecipientClaimInput memory wrongAmount =
+            ProductionCandidateChallengeVault.RecipientClaimInput(ENTRY_A, 0, ALICE, 99, new bytes32[](0));
+        vm.expectRevert(ProductionCandidateChallengeVault.InvalidSettlementAmount.selector);
+        vault.authorizeOrganizerWinner(DEFAULT_MANIFEST, wrongAmount, hex"", hex"");
+
+        ProductionCandidateChallengeVault.RecipientClaimInput memory nonQualifier =
+            ProductionCandidateChallengeVault.RecipientClaimInput(ENTRY_B, 0, BOB, 100, new bytes32[](0));
+        vm.expectRevert(ProductionCandidateChallengeVault.InvalidQualifierProof.selector);
+        vault.authorizeOrganizerWinner(DEFAULT_MANIFEST, nonQualifier, hex"", hex"");
+
+        vm.warp(organizerDeadline);
+        vm.expectRevert(ProductionCandidateChallengeVault.OrganizerSelectionExpired.selector);
+        vault.authorizeOrganizerWinner(DEFAULT_MANIFEST, valid, hex"", hex"");
+    }
+
+    function testSettlementAuthorizationAndClaimAreSingleUse() public {
+        MatrixToken token = new MatrixToken();
+        ProductionCandidateChallengeVault vault = _deployAndFund(token, address(resolver), 100);
+        _sealSinglePayout(vault);
+        _sealSingleQualifierNormal(vault);
+
+        ProductionCandidateChallengeVault.RecipientClaimInput memory recipient =
+            ProductionCandidateChallengeVault.RecipientClaimInput(ENTRY_A, 0, ALICE, 100, new bytes32[](0));
+
+        vm.warp(organizerDeadline);
+        vault.executeDefaultSingleQualifier(recipient);
+
+        vm.expectRevert(ProductionCandidateChallengeVault.SettlementAlreadyAuthorized.selector);
+        vault.executeDefaultSingleQualifier(recipient);
+
+        vault.claimFor(ALICE);
+        vm.expectRevert(ProductionCandidateChallengeVault.NothingToClaim.selector);
+        vault.claimFor(ALICE);
+    }
+
     function _assertHostileResolverRejects(address hostileResolver) internal {
         MatrixToken token = new MatrixToken();
         ProductionCandidateChallengeVault vault = _deployAndFund(token, hostileResolver, 100);
