@@ -281,6 +281,40 @@ contract ProductionCandidateChallengeVault {
         );
     }
 
+    /// @notice Exceptional pre-resolution recovery under the frozen J3 outcome + resolver authority law.
+    function sealQualifierSetRecoveryCoSigned(
+        PayoutMemberInput[] calldata qualifiers,
+        bytes32 qualifierDefaultManifestDigest,
+        bytes32 recoveryEvidenceDigest_,
+        bytes calldata outcomeSignature,
+        bytes calldata resolverSignature
+    ) external {
+        _requireQualifierFreezeReady();
+        if (block.timestamp >= resolutionDeadline) revert RecoveryNotEligible();
+        if (qualifierDefaultManifestDigest == bytes32(0)) revert InvalidManifest();
+        if (recoveryEvidenceDigest_ == bytes32(0)) revert ZeroDigest();
+
+        bytes32 root = _validateQualifierMembers(qualifiers);
+        bytes32 digest = qualifierSetAuthorizationDigest(
+            root,
+            uint16(qualifiers.length),
+            qualifierDefaultManifestDigest,
+            recoveryEvidenceDigest_,
+            QualifierSetMode.RECOVERY
+        );
+
+        _requireEoaSigner(digest, outcomeSignature, outcomeAuthority);
+        _requireResolverSignature(digest, resolverSignature);
+
+        _freezeQualifierSet(
+            root,
+            uint16(qualifiers.length),
+            qualifierDefaultManifestDigest,
+            recoveryEvidenceDigest_,
+            QualifierSetMode.RECOVERY
+        );
+    }
+
     function sealQualifierSetRecovery(
         PayoutMemberInput[] calldata qualifiers,
         bytes32 qualifierDefaultManifestDigest,
