@@ -42,10 +42,21 @@ function deepFreeze(value) {
   return value;
 }
 
+function byteCompare(a, b) {
+  const encoder = new TextEncoder();
+  const left = encoder.encode(a);
+  const right = encoder.encode(b);
+  const length = Math.min(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    if (left[index] !== right[index]) return left[index] - right[index];
+  }
+  return left.length - right.length;
+}
+
 function stableUnique(values, label) {
   const unique = new Set(values);
   invariant(unique.size === values.length, `${label} must be unique`);
-  return [...values].sort();
+  return [...values].sort(byteCompare);
 }
 
 export const SETTLEMENT_ADAPTER_BINDING_SCHEMA_VERSION = 'inkubator.settlement-adapter-binding/1.0';
@@ -160,7 +171,7 @@ function canonicalRecipients(recipients) {
     assertString(recipient.recipient_id, 'settlement recipient.recipient_id');
     assertSafeInt(recipient.amount_minor_units, 'settlement recipient.amount_minor_units', {min: 0});
     return {recipient_id: recipient.recipient_id, amount_minor_units: recipient.amount_minor_units};
-  }).sort((a, b) => a.recipient_id.localeCompare(b.recipient_id));
+  }).sort((a, b) => byteCompare(a.recipient_id, b.recipient_id));
   stableUnique(normalized.map((recipient) => recipient.recipient_id), 'settlement recipient ids');
   return normalized;
 }
@@ -337,7 +348,8 @@ export function assertRecordedStageJ0AuthorizationSet(manifest, authorizationFac
   return authorizationFacts;
 }
 
-export function buildStageJ0ExecutionEnvelope({manifest, authorizationFacts}) {
+export function buildStageJ0ExecutionEnvelope({contract, settlementIntent, binding, manifest, authorizationFacts}) {
+  assertStageJ0SettlementManifestMatchesIntent(contract, settlementIntent, binding, manifest);
   assertRecordedStageJ0AuthorizationSet(manifest, authorizationFacts);
   const payload = {
     schema_version: SETTLEMENT_EXECUTION_ENVELOPE_SCHEMA_VERSION,
