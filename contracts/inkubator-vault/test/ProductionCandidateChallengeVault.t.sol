@@ -130,13 +130,13 @@ contract ProductionCandidateChallengeVaultTest {
         bytes memory valid = _resolverSignature(digest, RESOLVER_1_PK, RESOLVER_2_PK);
         _assertEq(vault.resolverAuthority(), address(resolver), "resolver address");
         _assertEq(resolver.quorum(), 2, "resolver quorum");
-        _assertEq(resolver.isValidSignature(digest, valid), resolver.MAGICVALUE(), "2-of-3 signature");
+        _assertEqBytes4(resolver.isValidSignature(digest, valid), resolver.MAGICVALUE(), "2-of-3 signature");
 
         bytes memory duplicate = _resolverSignature(digest, RESOLVER_1_PK, RESOLVER_1_PK);
-        _assertEq(resolver.isValidSignature(digest, duplicate), resolver.INVALID(), "duplicate signer rejected");
+        _assertEqBytes4(resolver.isValidSignature(digest, duplicate), resolver.INVALID(), "duplicate signer rejected");
 
         bytes memory outsider = _resolverSignature(digest, RESOLVER_1_PK, OUTSIDER_PK);
-        _assertEq(resolver.isValidSignature(digest, outsider), resolver.INVALID(), "outsider rejected");
+        _assertEqBytes4(resolver.isValidSignature(digest, outsider), resolver.INVALID(), "outsider rejected");
     }
 
     function testFundingIsExactSingleShotAndFeeOnTransferFails() public {
@@ -638,7 +638,7 @@ contract ProductionCandidateChallengeVaultTest {
         require(left == right, message);
     }
 
-    function _assertEq(bytes4 left, bytes4 right, string memory message) internal pure {
+    function _assertEqBytes4(bytes4 left, bytes4 right, string memory message) internal pure {
         require(left == right, message);
     }
 }
