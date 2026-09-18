@@ -52,9 +52,10 @@ describe('Stage I owner journey composition', () => {
     expect(screen.getByRole('heading', {name: 'Realtime Launch Radar'})).toBeTruthy();
     expect(screen.getByRole('heading', {name: 'Wallet Safety Check'})).toBeTruthy();
     expect(screen.getAllByText(/EXAMPLE ONLY · NOT A LIVE CHALLENGE/i)).toHaveLength(3);
-    const demoLink = screen.getByRole('link', {name: 'START FROM THIS IDEA →', exact: true});
-    expect(demoLink.getAttribute('href')).toContain('surface=compiler');
-    expect(demoLink.getAttribute('href')).toContain('idea=');
+    const demoLinks = screen.getAllByRole('link', {name: 'START FROM THIS IDEA →', exact: true});
+    expect(demoLinks).toHaveLength(3);
+    expect(demoLinks[0]!.getAttribute('href')).toContain('surface=compiler');
+    expect(demoLinks[0]!.getAttribute('href')).toContain('idea=');
     expect(screen.getByText('POST')).toBeTruthy();
     expect(screen.getByText('RECEIPT')).toBeTruthy();
   });
