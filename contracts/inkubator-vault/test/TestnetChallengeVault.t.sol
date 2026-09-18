@@ -125,23 +125,16 @@ contract TestnetChallengeVaultTest {
         feeVault.fund();
     }
 
-    function testConstructorRejectsSingleActorWinnerAuthority() public {
+    function testConstructorRequiresPairwiseIndependentAuthorities() public {
         vm.expectRevert(TestnetChallengeVault.AuthoritiesMustBeIndependent.selector);
-        new TestnetChallengeVault(
-            token,
-            CHALLENGE,
-            TERMS,
-            BINDING,
-            PRIZE,
-            organizer,
-            outcome,
-            outcome,
-            resolver
-        );
+        new TestnetChallengeVault(token, CHALLENGE, TERMS, BINDING, PRIZE, organizer, outcome, outcome, resolver);
+
+        vm.expectRevert(TestnetChallengeVault.AuthoritiesMustBeIndependent.selector);
+        new TestnetChallengeVault(token, CHALLENGE, TERMS, BINDING, PRIZE, organizer, outcome, organizer, outcome);
     }
 
-    function testPayoutSetRequiresBothIndependentAuthoritiesAndCannotReseal() public {
-        (bytes32 root,,,) = _threeLeafTree();
+    function testPayoutSetRequiresOutcomeAndOrganizerAndCannotReseal() public {
+        (bytes32 root,,,) = _payoutTree();
         bytes32 digest = vault.payoutSetAuthorizationDigest(root, 3);
 
         vm.expectRevert(TestnetChallengeVault.WrongAuthority.selector);
@@ -149,98 +142,187 @@ contract TestnetChallengeVaultTest {
 
         vault.sealPayoutSet(root, 3, _sign(OUTCOME_PK, digest), _sign(ORGANIZER_PK, digest));
         _assert(vault.payoutSetSealed(), "payout set should be sealed");
-        _assertEq(vault.payoutSetRoot(), root, "payout root");
 
         vm.expectRevert(TestnetChallengeVault.PayoutSetAlreadySealed.selector);
         vault.sealPayoutSet(root, 3, _sign(OUTCOME_PK, digest), _sign(ORGANIZER_PK, digest));
     }
 
-    function testWinnerRequiresFrozenRecipientProofAndDualAuthorization() public {
-        (bytes32 root, bytes32[] memory proofA,,) = _threeLeafTree();
-        _seal(root, 3);
+    function testQualifierSetMustBeSubsetOfPayoutSetAndNeedsIndependentCoAuthority() public {
+        (bytes32 payoutRoot, bytes32[] memory payoutProofA, bytes32[] memory payoutProofB,) = _payoutTree();
+        _sealPayoutSet(payoutRoot, 3);
+
+        TestnetChallengeVault.PayoutMemberInput[] memory qualifiers =
+            new TestnetChallengeVault.PayoutMemberInput[](2);
+        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, alice, payoutProofA);
+        qualifiers[1] = TestnetChallengeVault.PayoutMemberInput(entryB, bob, payoutProofB);
+
+        bytes32 qualifierRoot = _twoLeafRoot(entryA, alice, entryB, bob);
+        bytes32 digest = vault.qualifierSetAuthorizationDigest(
+            qualifierRoot,
+            2,
+            TestnetChallengeVault.QualifierSetCoAuthority.ORGANIZER
+        );
+
+        vm.expectRevert(TestnetChallengeVault.WrongAuthority.selector);
+        vault.sealQualifierSet(
+            qualifiers,
+            TestnetChallengeVault.QualifierSetCoAuthority.ORGANIZER,
+            _sign(OUTCOME_PK, digest),
+            _sign(OUTCOME_PK, digest)
+        );
+
+        vault.sealQualifierSet(
+            qualifiers,
+            TestnetChallengeVault.QualifierSetCoAuthority.ORGANIZER,
+            _sign(OUTCOME_PK, digest),
+            _sign(ORGANIZER_PK, digest)
+        );
+
+        _assert(vault.qualificationResolved(), "qualification should resolve");
+        _assertEq(vault.qualifierSetRoot(), qualifierRoot, "qualifier root");
+        _assertEq(uint256(vault.qualifierCount()), 2, "qualifier count");
+    }
+
+    function testQualifierSetCanUseResolverFallbackWhenOrganizerUnavailable() public {
+        (bytes32 payoutRoot, bytes32[] memory payoutProofA, bytes32[] memory payoutProofB,) = _payoutTree();
+        _sealPayoutSet(payoutRoot, 3);
+
+        TestnetChallengeVault.PayoutMemberInput[] memory qualifiers =
+            new TestnetChallengeVault.PayoutMemberInput[](2);
+        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, alice, payoutProofA);
+        qualifiers[1] = TestnetChallengeVault.PayoutMemberInput(entryB, bob, payoutProofB);
+
+        bytes32 qualifierRoot = _twoLeafRoot(entryA, alice, entryB, bob);
+        bytes32 digest = vault.qualifierSetAuthorizationDigest(
+            qualifierRoot,
+            2,
+            TestnetChallengeVault.QualifierSetCoAuthority.RESOLVER
+        );
+
+        vault.sealQualifierSet(
+            qualifiers,
+            TestnetChallengeVault.QualifierSetCoAuthority.RESOLVER,
+            _sign(OUTCOME_PK, digest),
+            _sign(RESOLVER_PK, digest)
+        );
+
+        _assertEq(uint256(vault.qualifierSetCoAuthority()), 1, "resolver co-authority");
+    }
+
+    function testOrganizerWinnerMustBeFrozenFinalQualifierAndDualAuthorized() public {
+        (bytes32 qualifierRoot, bytes32[] memory qualifierProofA,) = _sealQualifiersAB();
 
         TestnetChallengeVault.RecipientClaimInput memory winner =
-            TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE, proofA);
+            TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE, qualifierProofA);
 
-        bytes32 manifest = keccak256("manifest:winner");
+        bytes32 manifest = keccak256("manifest:organizer-winner");
         bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, alice, PRIZE);
         bytes32 digest = vault.settlementAuthorizationDigest(
             manifest,
-            root,
-            TestnetChallengeVault.SettlementKind.WINNER_PAYOUT,
+            qualifierRoot,
+            TestnetChallengeVault.SettlementKind.ORGANIZER_WINNER,
             recipientsDigest
         );
 
         vm.expectRevert(TestnetChallengeVault.WrongAuthority.selector);
-        vault.authorizeWinner(
+        vault.authorizeOrganizerWinner(
             manifest,
             winner,
             _sign(OUTCOME_PK, digest),
             _sign(OUTCOME_PK, digest)
         );
 
-        vault.authorizeWinner(
+        vault.authorizeOrganizerWinner(
             manifest,
             winner,
             _sign(OUTCOME_PK, digest),
             _sign(ORGANIZER_PK, digest)
         );
 
-        _assertEq(vault.claimable(alice), PRIZE, "winner claimable");
-        _assert(!vault.isFinalized(), "not finalized before claim");
-
         vm.prank(address(0xD00D));
         vault.claimFor(alice);
 
         _assertEq(token.balanceOf(alice), PRIZE, "winner paid");
-        _assert(vault.isFinalized(), "finalized after full claim");
+        _assert(vault.isFinalized(), "winner settlement finalized");
     }
 
-    function testWinnerCannotRedirectToUnsealedRecipient() public {
-        (bytes32 root, bytes32[] memory proofA,,) = _threeLeafTree();
-        _seal(root, 3);
+    function testOrganizerCannotSelectEntrantWhoDidNotQualify() public {
+        (bytes32 payoutRoot,,, bytes32[] memory payoutProofC) = _payoutTree();
+        _sealPayoutSet(payoutRoot, 3);
 
-        address attacker = address(0xBAD);
-        TestnetChallengeVault.RecipientClaimInput memory redirected =
-            TestnetChallengeVault.RecipientClaimInput(entryA, attacker, PRIZE, proofA);
+        TestnetChallengeVault.PayoutMemberInput[] memory qualifiers =
+            new TestnetChallengeVault.PayoutMemberInput[](1);
+        bytes32[] memory payoutProofA = _proofA();
+        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, alice, payoutProofA);
+        _sealQualifierSet(qualifiers, TestnetChallengeVault.QualifierSetCoAuthority.ORGANIZER);
 
-        bytes32 manifest = keccak256("manifest:redirect");
-        bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, attacker, PRIZE);
+        TestnetChallengeVault.RecipientClaimInput memory nonQualifier =
+            TestnetChallengeVault.RecipientClaimInput(entryC, carol, PRIZE, payoutProofC);
+
+        bytes32 manifest = keccak256("manifest:nonqualifier");
+        bytes32 recipientsDigest = vault.singleRecipientDigest(entryC, carol, PRIZE);
         bytes32 digest = vault.settlementAuthorizationDigest(
             manifest,
-            root,
-            TestnetChallengeVault.SettlementKind.WINNER_PAYOUT,
+            vault.qualifierSetRoot(),
+            TestnetChallengeVault.SettlementKind.ORGANIZER_WINNER,
             recipientsDigest
         );
 
-        vm.expectRevert(TestnetChallengeVault.InvalidPayoutProof.selector);
-        vault.authorizeWinner(
+        vm.expectRevert(TestnetChallengeVault.InvalidQualifierProof.selector);
+        vault.authorizeOrganizerWinner(
             manifest,
-            redirected,
+            nonQualifier,
             _sign(OUTCOME_PK, digest),
             _sign(ORGANIZER_PK, digest)
         );
     }
 
+    function testSingleQualifierDefaultPaysWithoutOrganizerSelectionSignature() public {
+        (bytes32 payoutRoot, bytes32[] memory payoutProofA,,) = _payoutTree();
+        _sealPayoutSet(payoutRoot, 3);
+
+        TestnetChallengeVault.PayoutMemberInput[] memory qualifiers =
+            new TestnetChallengeVault.PayoutMemberInput[](1);
+        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, alice, payoutProofA);
+        _sealQualifierSet(qualifiers, TestnetChallengeVault.QualifierSetCoAuthority.ORGANIZER);
+
+        TestnetChallengeVault.RecipientClaimInput memory soleQualifier =
+            TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE, new bytes32[](0));
+
+        bytes32 manifest = keccak256("manifest:single-default");
+        bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, alice, PRIZE);
+        bytes32 digest = vault.settlementAuthorizationDigest(
+            manifest,
+            vault.qualifierSetRoot(),
+            TestnetChallengeVault.SettlementKind.DEFAULT_SINGLE_QUALIFIER_WINNER,
+            recipientsDigest
+        );
+
+        vault.authorizeSingleQualifierDefault(manifest, soleQualifier, _sign(OUTCOME_PK, digest));
+        vault.claimFor(alice);
+
+        _assertEq(token.balanceOf(alice), PRIZE, "sole qualifier paid");
+        _assert(vault.isFinalized(), "single qualifier default finalized");
+    }
+
     function testManifestSignatureCannotReplayAcrossDifferentManifest() public {
-        (bytes32 root, bytes32[] memory proofA,,) = _threeLeafTree();
-        _seal(root, 3);
+        (bytes32 qualifierRoot, bytes32[] memory qualifierProofA,) = _sealQualifiersAB();
 
         TestnetChallengeVault.RecipientClaimInput memory winner =
-            TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE, proofA);
+            TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE, qualifierProofA);
 
         bytes32 manifestA = keccak256("manifest:A");
         bytes32 manifestB = keccak256("manifest:B");
         bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, alice, PRIZE);
         bytes32 digestA = vault.settlementAuthorizationDigest(
             manifestA,
-            root,
-            TestnetChallengeVault.SettlementKind.WINNER_PAYOUT,
+            qualifierRoot,
+            TestnetChallengeVault.SettlementKind.ORGANIZER_WINNER,
             recipientsDigest
         );
 
         vm.expectRevert(TestnetChallengeVault.WrongAuthority.selector);
-        vault.authorizeWinner(
+        vault.authorizeOrganizerWinner(
             manifestB,
             winner,
             _sign(OUTCOME_PK, digestA),
@@ -249,37 +331,46 @@ contract TestnetChallengeVaultTest {
     }
 
     function testSecondSettlementManifestIsRejected() public {
-        (bytes32 root, bytes32[] memory proofA,,) = _threeLeafTree();
-        _seal(root, 3);
+        (bytes32 qualifierRoot, bytes32[] memory qualifierProofA,) = _sealQualifiersAB();
 
         TestnetChallengeVault.RecipientClaimInput memory winner =
-            TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE, proofA);
+            TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE, qualifierProofA);
 
         bytes32 first = keccak256("manifest:first");
         bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, alice, PRIZE);
         bytes32 firstDigest = vault.settlementAuthorizationDigest(
             first,
-            root,
-            TestnetChallengeVault.SettlementKind.WINNER_PAYOUT,
+            qualifierRoot,
+            TestnetChallengeVault.SettlementKind.ORGANIZER_WINNER,
             recipientsDigest
         );
-        vault.authorizeWinner(first, winner, _sign(OUTCOME_PK, firstDigest), _sign(ORGANIZER_PK, firstDigest));
+        vault.authorizeOrganizerWinner(
+            first,
+            winner,
+            _sign(OUTCOME_PK, firstDigest),
+            _sign(ORGANIZER_PK, firstDigest)
+        );
 
         bytes32 second = keccak256("manifest:second");
         bytes32 secondDigest = vault.settlementAuthorizationDigest(
             second,
-            root,
-            TestnetChallengeVault.SettlementKind.WINNER_PAYOUT,
+            qualifierRoot,
+            TestnetChallengeVault.SettlementKind.ORGANIZER_WINNER,
             recipientsDigest
         );
 
         vm.expectRevert(TestnetChallengeVault.SettlementAlreadyAuthorized.selector);
-        vault.authorizeWinner(second, winner, _sign(OUTCOME_PK, secondDigest), _sign(ORGANIZER_PK, secondDigest));
+        vault.authorizeOrganizerWinner(
+            second,
+            winner,
+            _sign(OUTCOME_PK, secondDigest),
+            _sign(ORGANIZER_PK, secondDigest)
+        );
     }
 
-    function testDefaultSplitIsPolicyCheckedClaimableAndBlockedRecipientDoesNotFreezeOthers() public {
-        (bytes32 root, bytes32[] memory proofA, bytes32[] memory proofB, bytes32[] memory proofC) = _threeLeafTree();
-        _seal(root, 3);
+    function testDefaultSplitUsesEntireFrozenQualifierSetAndBlockedRecipientDoesNotFreezeOthers() public {
+        (bytes32 qualifierRoot, bytes32[] memory proofA, bytes32[] memory proofB, bytes32[] memory proofC) =
+            _sealQualifiersABC();
 
         uint256 base = PRIZE / 3;
         uint256 remainder = PRIZE % 3;
@@ -295,7 +386,7 @@ contract TestnetChallengeVaultTest {
         bytes32 recipientsDigest = _recipientDigest(recipients);
         bytes32 digest = vault.settlementAuthorizationDigest(
             manifest,
-            root,
+            qualifierRoot,
             TestnetChallengeVault.SettlementKind.DEFAULT_DISTRIBUTION,
             recipientsDigest
         );
@@ -306,26 +397,44 @@ contract TestnetChallengeVaultTest {
 
         vm.prank(address(0xD00D));
         vault.claimFor(bob);
-        _assertEq(token.balanceOf(bob), base, "bob claim should succeed");
-        _assert(!vault.isFinalized(), "blocked recipient must leave settlement pending");
+        _assertEq(token.balanceOf(bob), base, "bob claim succeeds");
+        _assert(!vault.isFinalized(), "blocked recipient leaves settlement pending");
 
         vm.expectRevert(TestnetChallengeVault.TokenTransferFailed.selector);
         vault.claimFor(alice);
-        _assertEq(vault.claimable(alice), base + 1, "failed claim must remain claimable");
+        _assertEq(vault.claimable(alice), base + 1, "failed claim remains claimable");
 
         vault.claimFor(carol);
-        _assertEq(token.balanceOf(carol), base, "carol claim should succeed");
-
         token.setBlockedRecipient(address(0));
         vault.claimFor(alice);
 
-        _assert(vault.isFinalized(), "settlement should finalize after all claims");
+        _assert(vault.isFinalized(), "settlement finalizes after all claims");
         _assertEq(vault.totalClaimed(), PRIZE, "full prize claimed");
     }
 
+    function testDefaultSplitCannotExcludeFrozenQualifier() public {
+        (bytes32 qualifierRoot, bytes32[] memory proofA, bytes32[] memory proofB,) = _sealQualifiersABC();
+
+        TestnetChallengeVault.RecipientClaimInput[] memory recipients =
+            new TestnetChallengeVault.RecipientClaimInput[](2);
+        recipients[0] = TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE / 2, proofA);
+        recipients[1] = TestnetChallengeVault.RecipientClaimInput(entryB, bob, PRIZE / 2, proofB);
+
+        bytes32 manifest = keccak256("manifest:subset");
+        bytes32 digest = vault.settlementAuthorizationDigest(
+            manifest,
+            qualifierRoot,
+            TestnetChallengeVault.SettlementKind.DEFAULT_DISTRIBUTION,
+            _recipientDigest(recipients)
+        );
+
+        vm.expectRevert(TestnetChallengeVault.InvalidRecipientSet.selector);
+        vault.authorizeDefaultDistribution(manifest, recipients, _sign(OUTCOME_PK, digest));
+    }
+
     function testDefaultSplitRejectsSkewedEconomicsEvenWithValidOutcomeSignature() public {
-        (bytes32 root, bytes32[] memory proofA, bytes32[] memory proofB, bytes32[] memory proofC) = _threeLeafTree();
-        _seal(root, 3);
+        (bytes32 qualifierRoot, bytes32[] memory proofA, bytes32[] memory proofB, bytes32[] memory proofC) =
+            _sealQualifiersABC();
 
         TestnetChallengeVault.RecipientClaimInput[] memory recipients =
             new TestnetChallengeVault.RecipientClaimInput[](3);
@@ -336,7 +445,7 @@ contract TestnetChallengeVaultTest {
         bytes32 manifest = keccak256("manifest:skew");
         bytes32 digest = vault.settlementAuthorizationDigest(
             manifest,
-            root,
+            qualifierRoot,
             TestnetChallengeVault.SettlementKind.DEFAULT_DISTRIBUTION,
             _recipientDigest(recipients)
         );
@@ -345,15 +454,19 @@ contract TestnetChallengeVaultTest {
         vault.authorizeDefaultDistribution(manifest, recipients, _sign(OUTCOME_PK, digest));
     }
 
-    function testNoQualifierRefundRequiresOutcomeAuthorityAndPaysFrozenRefundRecipient() public {
-        (bytes32 root,,,) = _threeLeafTree();
-        _seal(root, 3);
+    function testNoQualifierRefundNeedsFrozenZeroQualifierOutcome() public {
+        (bytes32 payoutRoot,,,) = _payoutTree();
+        _sealPayoutSet(payoutRoot, 3);
+
+        TestnetChallengeVault.PayoutMemberInput[] memory none =
+            new TestnetChallengeVault.PayoutMemberInput[](0);
+        _sealQualifierSet(none, TestnetChallengeVault.QualifierSetCoAuthority.RESOLVER);
 
         bytes32 manifest = keccak256("manifest:no-qualifier");
         bytes32 recipientsDigest = vault.singleRecipientDigest(bytes32(0), organizer, PRIZE);
         bytes32 digest = vault.settlementAuthorizationDigest(
             manifest,
-            root,
+            bytes32(0),
             TestnetChallengeVault.SettlementKind.REFUND_NO_QUALIFIER,
             recipientsDigest
         );
@@ -368,7 +481,7 @@ contract TestnetChallengeVaultTest {
         _assert(vault.isFinalized(), "refund finalized");
     }
 
-    function testResolutionCancellationUsesSeparateResolverAndNeedsNoPayoutSet() public {
+    function testResolutionCancellationRequiresOutcomeAndSeparateResolver() public {
         bytes32 manifest = keccak256("manifest:resolution-cancel");
         bytes32 recipientsDigest = vault.singleRecipientDigest(bytes32(0), organizer, PRIZE);
         bytes32 digest = vault.settlementAuthorizationDigest(
@@ -379,12 +492,20 @@ contract TestnetChallengeVaultTest {
         );
 
         vm.expectRevert(TestnetChallengeVault.WrongAuthority.selector);
-        vault.authorizeResolutionCancellation(manifest, _sign(OUTCOME_PK, digest));
+        vault.authorizeResolutionCancellation(
+            manifest,
+            _sign(OUTCOME_PK, digest),
+            _sign(OUTCOME_PK, digest)
+        );
 
-        vault.authorizeResolutionCancellation(manifest, _sign(RESOLVER_PK, digest));
+        vault.authorizeResolutionCancellation(
+            manifest,
+            _sign(OUTCOME_PK, digest),
+            _sign(RESOLVER_PK, digest)
+        );
         vault.claimFor(organizer);
 
-        _assert(vault.isFinalized(), "resolver refund finalized");
+        _assert(vault.isFinalized(), "resolver cancellation finalized");
     }
 
     function testCannotAuthorizeSettlementBeforeFunding() public {
@@ -401,7 +522,11 @@ contract TestnetChallengeVaultTest {
         );
 
         vm.expectRevert(TestnetChallengeVault.NotFunded.selector);
-        freshVault.authorizeResolutionCancellation(manifest, _sign(RESOLVER_PK, digest));
+        freshVault.authorizeResolutionCancellation(
+            manifest,
+            _sign(OUTCOME_PK, digest),
+            _sign(RESOLVER_PK, digest)
+        );
     }
 
     function _deploy(MockERC20 token_, uint256 amount) internal returns (TestnetChallengeVault) {
@@ -418,12 +543,75 @@ contract TestnetChallengeVaultTest {
         );
     }
 
-    function _seal(bytes32 root, uint16 count) internal {
+    function _sealPayoutSet(bytes32 root, uint16 count) internal {
         bytes32 digest = vault.payoutSetAuthorizationDigest(root, count);
         vault.sealPayoutSet(root, count, _sign(OUTCOME_PK, digest), _sign(ORGANIZER_PK, digest));
     }
 
-    function _threeLeafTree()
+    function _sealQualifierSet(
+        TestnetChallengeVault.PayoutMemberInput[] memory qualifiers,
+        TestnetChallengeVault.QualifierSetCoAuthority coAuthority
+    ) internal {
+        bytes32 root = _qualifierRoot(qualifiers);
+        bytes32 digest = vault.qualifierSetAuthorizationDigest(root, uint16(qualifiers.length), coAuthority);
+        uint256 counterpartyPk =
+            coAuthority == TestnetChallengeVault.QualifierSetCoAuthority.ORGANIZER ? ORGANIZER_PK : RESOLVER_PK;
+
+        vault.sealQualifierSet(
+            qualifiers,
+            coAuthority,
+            _sign(OUTCOME_PK, digest),
+            _sign(counterpartyPk, digest)
+        );
+    }
+
+    function _sealQualifiersAB()
+        internal
+        returns (bytes32 qualifierRoot, bytes32[] memory proofA, bytes32[] memory proofB)
+    {
+        (bytes32 payoutRoot, bytes32[] memory payoutProofA, bytes32[] memory payoutProofB,) = _payoutTree();
+        _sealPayoutSet(payoutRoot, 3);
+
+        TestnetChallengeVault.PayoutMemberInput[] memory qualifiers =
+            new TestnetChallengeVault.PayoutMemberInput[](2);
+        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, alice, payoutProofA);
+        qualifiers[1] = TestnetChallengeVault.PayoutMemberInput(entryB, bob, payoutProofB);
+        _sealQualifierSet(qualifiers, TestnetChallengeVault.QualifierSetCoAuthority.ORGANIZER);
+
+        bytes32 leafA = vault.payoutLeaf(entryA, alice);
+        bytes32 leafB = vault.payoutLeaf(entryB, bob);
+        qualifierRoot = vault.merklePair(leafA, leafB);
+
+        proofA = new bytes32[](1);
+        proofA[0] = leafB;
+        proofB = new bytes32[](1);
+        proofB[0] = leafA;
+    }
+
+    function _sealQualifiersABC()
+        internal
+        returns (
+            bytes32 qualifierRoot,
+            bytes32[] memory proofA,
+            bytes32[] memory proofB,
+            bytes32[] memory proofC
+        )
+    {
+        (bytes32 payoutRoot, bytes32[] memory payoutProofA, bytes32[] memory payoutProofB, bytes32[] memory payoutProofC) =
+            _payoutTree();
+        _sealPayoutSet(payoutRoot, 3);
+
+        TestnetChallengeVault.PayoutMemberInput[] memory qualifiers =
+            new TestnetChallengeVault.PayoutMemberInput[](3);
+        qualifiers[0] = TestnetChallengeVault.PayoutMemberInput(entryA, alice, payoutProofA);
+        qualifiers[1] = TestnetChallengeVault.PayoutMemberInput(entryB, bob, payoutProofB);
+        qualifiers[2] = TestnetChallengeVault.PayoutMemberInput(entryC, carol, payoutProofC);
+        _sealQualifierSet(qualifiers, TestnetChallengeVault.QualifierSetCoAuthority.ORGANIZER);
+
+        (qualifierRoot, proofA, proofB, proofC) = _payoutTree();
+    }
+
+    function _payoutTree()
         internal
         view
         returns (bytes32 root, bytes32[] memory proofA, bytes32[] memory proofB, bytes32[] memory proofC)
@@ -447,6 +635,37 @@ contract TestnetChallengeVaultTest {
         proofC = new bytes32[](2);
         proofC[0] = leafC;
         proofC[1] = branchAB;
+    }
+
+    function _proofA() internal view returns (bytes32[] memory proofA) {
+        (, proofA,,) = _payoutTree();
+    }
+
+    function _twoLeafRoot(bytes32 firstEntry, address firstPayout, bytes32 secondEntry, address secondPayout)
+        internal
+        view
+        returns (bytes32)
+    {
+        return vault.merklePair(
+            vault.payoutLeaf(firstEntry, firstPayout),
+            vault.payoutLeaf(secondEntry, secondPayout)
+        );
+    }
+
+    function _qualifierRoot(TestnetChallengeVault.PayoutMemberInput[] memory qualifiers)
+        internal
+        view
+        returns (bytes32)
+    {
+        if (qualifiers.length == 0) return bytes32(0);
+        bytes32 first = vault.payoutLeaf(qualifiers[0].entryDigest, qualifiers[0].payout);
+        if (qualifiers.length == 1) return first;
+
+        bytes32 second = vault.payoutLeaf(qualifiers[1].entryDigest, qualifiers[1].payout);
+        if (qualifiers.length == 2) return vault.merklePair(first, second);
+
+        bytes32 third = vault.payoutLeaf(qualifiers[2].entryDigest, qualifiers[2].payout);
+        return vault.merklePair(vault.merklePair(first, second), vault.merklePair(third, third));
     }
 
     function _recipientDigest(TestnetChallengeVault.RecipientClaimInput[] memory recipients)
