@@ -75,6 +75,20 @@ describe('Stage I owner journey composition', () => {
       current_contract_version: '1.0.0',
       current_terms_digest: 'terms-digest',
       has_frozen_contract: true,
+      contract_summary: {
+        contract_version: '1.0.0',
+        terms_digest: 'terms-digest',
+        title: 'Build a public launch dashboard',
+        brief: 'Ship a realtime dashboard that makes the launch state obvious.',
+        outcome_criteria: [{id: 'outcome-1', description: 'The dashboard shows the current launch state.', mandatory: true}],
+        production_criteria: [{id: 'production-1', description: 'The public view recovers after reload.', mandatory: true}],
+        delivery_criteria: [{id: 'delivery-1', description: 'Provide an immutable source reference.', mandatory: true}],
+        normative_constraints: [],
+        normative_references: [],
+        informational_references: [],
+        prize_minor_units: 100,
+        settlement_asset: 'TEST',
+      },
       slot_limit: 3,
       activation_minimum: 1,
       entry_deadline: '2026-09-18T12:00:00.000Z',
@@ -102,6 +116,9 @@ describe('Stage I owner journey composition', () => {
     const guide = await screen.findByRole('complementary', {name: /BUILDER journey guidance/i});
     expect(guide.getAttribute('data-journey-step')).toBe('1');
     expect(screen.getByText('READ IT, THEN JOIN')).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'Build a public launch dashboard'})).toBeTruthy();
+    expect(screen.getByText('Ship a realtime dashboard that makes the launch state obvious.')).toBeTruthy();
+    expect(screen.getByText('The dashboard shows the current launch state.')).toBeTruthy();
 
     const join = await screen.findByRole('button', {name: 'JOIN THIS CHALLENGE'});
     await waitFor(() => expect((join as HTMLButtonElement).disabled).toBe(false));
@@ -111,5 +128,41 @@ describe('Stage I owner journey composition', () => {
     expect(guide.getAttribute('data-journey-step')).toBe('2');
     expect(await screen.findByRole('link', {name: /CONTINUE TO MY BUILD/i})).toBeTruthy();
     expect(joinChallenge).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails builder entry closed when the locked rule projection is unavailable', async () => {
+    const challengeId = '123e4567-e89b-42d3-a456-426614174000';
+    window.history.replaceState({}, '', `/?surface=challenge&challenge=${challengeId}`);
+    const getChallenge = vi.fn(async () => ({
+      schema_version: 'challenge.public.v1',
+      challenge_id: challengeId,
+      status: 'ENTRY_OPEN',
+      mechanism_version: 'test',
+      settlement_policy_version: 'test',
+      ip_terms_version: 'test',
+      current_contract_version: '1.0.0',
+      current_terms_digest: 'terms-digest',
+      has_frozen_contract: true,
+      contract_summary: null,
+      slot_limit: 3,
+      activation_minimum: 1,
+      entry_deadline: '2026-09-18T12:00:00.000Z',
+      build_start: '2026-09-18T12:30:00.000Z',
+      submission_deadline: '2026-09-19T12:00:00.000Z',
+      appeal_window_ms: 3600000,
+      review_deadline: '2026-09-19T14:00:00.000Z',
+      entry_count: 0,
+      submission_count: 0,
+      qualification_count: 0,
+      receipt_count: 0,
+      created_at: '2026-09-18T00:00:00.000Z',
+      updated_at: '2026-09-18T00:00:00.000Z',
+    } as never));
+
+    renderJourney(client({getChallenge, joinChallenge: vi.fn()}));
+
+    expect(await screen.findByText('RULES NOT AVAILABLE YET')).toBeTruthy();
+    expect(screen.getByText(/will not offer a Join action/i)).toBeTruthy();
+    expect(screen.queryByRole('button', {name: 'JOIN THIS CHALLENGE'})).toBeNull();
   });
 });
