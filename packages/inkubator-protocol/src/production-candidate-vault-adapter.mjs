@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-import {buildStageJ2PayoutRoster} from './testnet-vault-adapter.mjs';
+import {buildCanonicalPayoutRoster} from './payout-roster.mjs';
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
@@ -77,7 +77,7 @@ export const STAGE_J4_TOOLCHAIN = Object.freeze({
 export const STAGE_J4_FINALITY_PROVIDERS = Object.freeze(['gelato', 'quicknode']);
 
 export function buildStageJ4PayoutRoster(entries) {
-  return buildStageJ2PayoutRoster(entries);
+  return buildCanonicalPayoutRoster(entries, {maxRecipients: 3, label: 'J4'});
 }
 
 export function buildStageJ4PayoutActivationPlan({refund_recipient, entries}) {
