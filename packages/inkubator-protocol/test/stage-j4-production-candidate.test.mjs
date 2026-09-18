@@ -7,6 +7,7 @@ import {
   STAGE_J4_NATIVE_USDC,
   appendStageJ4ReconciliationReceipt,
   buildStageJ4DeploymentPlan,
+  buildStageJ4PayoutActivationPlan,
   buildStageJ4PayoutRoster,
   buildStageJ4SigningRequest,
   buildStageJ4ReleaseCandidateReceipt,
@@ -301,4 +302,26 @@ test('J4 reuses canonical payout ordering and rejects duplicate roster identitie
     {entry_id: 'one', payout_address: '0x1111111111111111111111111111111111111111'},
     {entry_id: 'two', payout_address: '0x1111111111111111111111111111111111111111'},
   ]), /payout addresses must be unique/);
+});
+
+
+test('J4 payout activation rejects refund-recipient conflicts and freezes UTF-8 canonical ordering', () => {
+  const entries = [
+    {entry_id: 'ä', payout_address: '0x3333333333333333333333333333333333333333'},
+    {entry_id: 'z', payout_address: '0x2222222222222222222222222222222222222222'},
+    {entry_id: 'a', payout_address: '0x1111111111111111111111111111111111111111'},
+  ];
+
+  const plan = buildStageJ4PayoutActivationPlan({
+    refund_recipient: '0x9999999999999999999999999999999999999999',
+    entries,
+  });
+  assert.deepEqual(plan.payout_roster.map((entry) => entry.entry_id), ['a', 'z', 'ä']);
+  assert.deepEqual(plan.payout_roster.map((entry) => entry.payout_order), [0, 1, 2]);
+  assert.match(plan.activation_plan_digest, /^[0-9a-f]{64}$/);
+
+  assert.throws(() => buildStageJ4PayoutActivationPlan({
+    refund_recipient: '0x2222222222222222222222222222222222222222',
+    entries,
+  }), /must not equal any entrant payout address/);
 });
