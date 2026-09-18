@@ -124,11 +124,56 @@ function JourneyChrome({surface, challengeId, client, children}: {surface: Chall
   );
 }
 
-function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe'>}) {
+const DEMO_CHALLENGES = [
+  {
+    id: 'launch-radar',
+    eyebrow: 'DEMO / PRODUCT',
+    title: 'Realtime Launch Radar',
+    brief: 'Build a public dashboard that turns a noisy token launch into one clear, live status view.',
+    criteria: ['Live launch state is obvious', 'Reload recovers the current state', 'Public demo + immutable source'],
+    reward: '100 TEST',
+    idea: 'Build a realtime public launch dashboard that clearly shows the current launch state, key milestones and recent changes.',
+  },
+  {
+    id: 'wallet-safety',
+    eyebrow: 'DEMO / WEB3',
+    title: 'Wallet Safety Check',
+    brief: 'Build a read-only wallet checker that explains risky approvals without ever holding keys or signing transactions.',
+    criteria: ['Read-only wallet inspection', 'Risk explanation in plain language', 'No custody or hidden signing'],
+    reward: '100 TEST',
+    idea: 'Build a read-only wallet safety checker that explains risky token approvals in plain language and never holds private keys or signs transactions.',
+  },
+  {
+    id: 'creator-drop',
+    eyebrow: 'DEMO / CREATOR',
+    title: 'Creator Drop Board',
+    brief: 'Build a clean public board for a creator drop with status, deadlines and proof of what shipped.',
+    criteria: ['Public drop status', 'Clear deadline states', 'Immutable delivery evidence'],
+    reward: '100 TEST',
+    idea: 'Build a public creator drop board that clearly shows current status, deadlines, shipped items and immutable delivery evidence.',
+  },
+] as const;
+
+function compilerHrefFromIdea(idea: string): string {
+  const url = new URL('/', window.location.origin);
+  url.searchParams.set('surface', 'compiler');
+  url.searchParams.set('idea', idea);
+  return `${url.pathname}${url.search}`;
+}
+
+function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe'> & Pick<ChallengeProductApi, 'getChallenge'>}) {
   const params = new URLSearchParams(window.location.search);
   const existingChallenge = params.get('challenge');
   const [target, setTarget] = useState(existingChallenge ?? '');
   const challengeId = useMemo(() => parseChallengeTarget(target), [target]);
+  const currentChallengeId = useMemo(() => parseChallengeTarget(existingChallenge ?? ''), [existingChallenge]);
+  const currentChallenge = useQuery({
+    queryKey: ['inkubator', 'discover', 'challenge', currentChallengeId],
+    queryFn: () => client.getChallenge(currentChallengeId!),
+    enabled: Boolean(currentChallengeId),
+    retry: false,
+    staleTime: 10_000,
+  });
   const observation = params.get('github_observation');
   const observationReason = params.get('github_observation_reason');
 
@@ -136,9 +181,51 @@ function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe'>}) {
     <JourneyChrome surface="DISCOVER" challengeId={challengeId ?? existingChallenge} client={client}>
       {observation === 'degraded' ? <div className="challenge-journey-notice" role="status">GITHUB OBSERVATION DEGRADED · {observationReason ?? 'provider observation incomplete'} · challenge creation and deterministic state remain available.</div> : null}
       <section className="challenge-journey-intro">
-        <small>START / CHOOSE YOUR ROLE</small>
-        <h2>ONE FRONT DOOR.</h2>
-        <p>Organizers define what should exist and freeze the rules. Builders open an existing Challenge, read the exact contract, build, check and submit immutable evidence.</p>
+        <small>DISCOVER / BUILD SOMETHING WORTH TESTING</small>
+        <h2>LAUNCH A CHALLENGE.<br />PROVE WHAT GETS BUILT.</h2>
+        <p>Pick an idea, make the success criteria obvious, let builders compete against the same locked rules, then test what actually works.</p>
+      </section>
+
+      <section className="challenge-discover-dashboard" aria-labelledby="discover-dashboard-title">
+        <div className="challenge-discover-dashboard__head">
+          <div>
+            <small>CHALLENGE BOARD</small>
+            <h2 id="discover-dashboard-title">WHAT'S BUILDING?</h2>
+          </div>
+          <a className="challenge-journey-primary" href={challengeHref('COMPILER')}>+ LAUNCH YOUR OWN →</a>
+        </div>
+
+        {currentChallengeId ? (
+          <section className="challenge-current" aria-label="Your current Challenge">
+            <small>YOUR CURRENT CHALLENGE</small>
+            {currentChallenge.isPending ? <p>Reading your canonical Challenge…</p> : currentChallenge.data ? (
+              <>
+                <div className="challenge-current__status"><b>{currentChallenge.data.status}</b><span>{currentChallenge.data.entry_count} / {currentChallenge.data.slot_limit} builders</span></div>
+                <h3>{currentChallenge.data.contract_summary?.title ?? 'YOUR CHALLENGE'}</h3>
+                <p>{currentChallenge.data.contract_summary?.brief ?? 'The Challenge exists, but public locked rules are not available yet.'}</p>
+                <a className="challenge-journey-primary" href={challengeHref(currentChallenge.data.status === 'DRAFT' ? 'COMPILER' : 'CHALLENGE', currentChallenge.data.challenge_id)}>
+                  {currentChallenge.data.status === 'DRAFT' ? 'CONTINUE SETUP →' : 'OPEN YOUR CHALLENGE →'}
+                </a>
+              </>
+            ) : <p>Your Challenge could not be read right now. The demo board below is still safe to explore.</p>}
+          </section>
+        ) : null}
+
+        <div className="challenge-demo-grid">
+          {DEMO_CHALLENGES.map((demo) => (
+            <article className="challenge-demo-card" key={demo.id}>
+              <div className="challenge-demo-card__meta"><span>{demo.eyebrow}</span><b>{demo.reward}</b></div>
+              <h3>{demo.title}</h3>
+              <p>{demo.brief}</p>
+              <div className="challenge-demo-card__criteria">
+                <small>WHAT COUNTS AS DONE?</small>
+                <ul>{demo.criteria.map((criterion) => <li key={criterion}>{criterion}</li>)}</ul>
+              </div>
+              <a href={compilerHrefFromIdea(demo.idea)}>START FROM THIS IDEA →</a>
+              <small className="challenge-demo-card__truth">EXAMPLE ONLY · NOT A LIVE CHALLENGE</small>
+            </article>
+          ))}
+        </div>
       </section>
 
       <div className="challenge-journey-lanes">
