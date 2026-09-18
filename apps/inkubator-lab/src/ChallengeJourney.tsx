@@ -73,6 +73,27 @@ function FaceplateRail({surface, challengeId}: {surface: ChallengeSurface; chall
   );
 }
 
+function GitHubIdentityDock({client}: {client: Pick<InkubatorApiClient, 'getMyConnectionContext'>}) {
+  const query = useQuery({
+    queryKey: ['inkubator', 'connection', 'journey'],
+    queryFn: () => client.getMyConnectionContext(),
+    retry: false,
+    staleTime: 30_000,
+  });
+  const login = query.data?.github.login;
+  if (!login) return null;
+  const profileUrl = `https://github.com/${login}`;
+  return (
+    <a className="challenge-github-dock" href={profileUrl} target="_blank" rel="noreferrer" aria-label={`GitHub connected as ${login}`}>
+      <span className="challenge-github-dock__avatar">
+        <img src={`${profileUrl}.png?size=96`} alt="" />
+        <i aria-hidden="true">GH</i>
+      </span>
+      <span className="challenge-github-dock__copy"><b>@{login}</b><small><i aria-hidden="true" /> GITHUB CONNECTED</small></span>
+    </a>
+  );
+}
+
 function SessionStatus({client}: {client: Pick<InkubatorApiClient, 'getMe'>}) {
   const query = useQuery({queryKey: ['inkubator', 'session', 'journey'], queryFn: () => client.getMe(), retry: false, staleTime: 30_000});
   if (query.isPending) return <span className="challenge-journey-session">IDENTITY / CHECKING</span>;
@@ -82,7 +103,7 @@ function SessionStatus({client}: {client: Pick<InkubatorApiClient, 'getMe'>}) {
   return <button type="button" className="challenge-journey-session challenge-journey-session--action" onClick={() => void query.refetch()}>IDENTITY OFFLINE / RETRY</button>;
 }
 
-function JourneyChrome({surface, challengeId, client, children}: {surface: ChallengeSurface; challengeId: string | null; client: Pick<InkubatorApiClient, 'getMe'>; children: ReactNode}) {
+function JourneyChrome({surface, challengeId, client, children}: {surface: ChallengeSurface; challengeId: string | null; client: Pick<InkubatorApiClient, 'getMe' | 'getMyConnectionContext'>; children: ReactNode}) {
   return (
     <div className="ios-lab ios-shell ios-shell-v2 challenge-journey-shell" data-shell="terminal" data-shell-variant="v2" data-mode="command">
       <nav className="faceplate-topbar" aria-label="Product controls">
@@ -120,6 +141,7 @@ function JourneyChrome({surface, challengeId, client, children}: {surface: Chall
       <footer className="ios-lab-footer ios-shell-footer challenge-journey-footer">
         <span>STAGE I / OWNER TRIAL</span><span>NO REAL VALUE</span><span>TRUTH BEFORE THEATER</span>
       </footer>
+      <GitHubIdentityDock client={client} />
     </div>
   );
 }
@@ -161,7 +183,7 @@ function compilerHrefFromIdea(idea: string): string {
   return `${url.pathname}${url.search}`;
 }
 
-function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe'> & Pick<ChallengeProductApi, 'getChallenge'>}) {
+function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe' | 'getMyConnectionContext'> & Pick<ChallengeProductApi, 'getChallenge'>}) {
   const params = new URLSearchParams(window.location.search);
   const existingChallenge = params.get('challenge');
   const [target, setTarget] = useState(existingChallenge ?? '');
@@ -255,7 +277,7 @@ function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe'> & Pick
   );
 }
 
-export type ChallengeJourneyClient = ChallengeProductApi & Pick<InkubatorApiClient, 'getMe'>;
+export type ChallengeJourneyClient = ChallengeProductApi & Pick<InkubatorApiClient, 'getMe' | 'getMyConnectionContext'>;
 
 export default function ChallengeJourney({client = defaultClient as ChallengeJourneyClient}: {client?: ChallengeJourneyClient}) {
   const [surface, setSurface] = useState(currentSurface);
