@@ -1,6 +1,7 @@
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {afterEach, describe, expect, it, vi} from 'vitest';
+import {InkubatorApiError} from './generated/inkubator-api-client';
 import ChallengeJourney, {type ChallengeJourneyClient} from './ChallengeJourney';
 
 function client(overrides: Partial<ChallengeJourneyClient> = {}): ChallengeJourneyClient {
@@ -45,6 +46,20 @@ describe('Stage I owner journey composition', () => {
     expect(screen.queryByText('PROJECT')).toBeNull();
     expect(screen.queryByText('PLAYER')).toBeNull();
     expect(screen.queryByText('SHIP')).toBeNull();
+  });
+
+  it('makes GitHub login step zero for a logged-out organizer and preserves the Compiler return target', async () => {
+    renderJourney(client({
+      getMe: vi.fn(async () => { throw new InkubatorApiError(401, 'authentication_required'); }),
+      getMyConnectionContext: vi.fn(async () => { throw new InkubatorApiError(401, 'authentication_required'); }),
+    }));
+
+    expect(await screen.findByText('GITHUB REQUIRED TO ORGANIZE')).toBeTruthy();
+    const connect = screen.getByRole('link', {name: 'CONNECT GITHUB & CONTINUE →'});
+    const href = new URL(connect.getAttribute('href')!, window.location.origin);
+    expect(href.pathname).toBe('/v1/auth/github/start');
+    expect(href.searchParams.get('return_to')).toBe('/?surface=compiler');
+    expect(screen.queryByRole('link', {name: 'CREATE A CHALLENGE →'})).toBeNull();
   });
 
   it('keeps connected GitHub identity visible across the journey shell', async () => {
