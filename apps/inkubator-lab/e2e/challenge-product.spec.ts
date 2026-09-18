@@ -33,23 +33,35 @@ test('Stage I default root exposes one white Challenge front door without revivi
   expect(accessibility.violations).toEqual([]);
 });
 
-test('Stage I Compiler/Create is usable on mobile and keeps uncompiled source truthful', async ({page}) => {
+test('Stage I Compiler/Create guides a first-time organizer one decision at a time on mobile', async ({page}) => {
   await page.setViewportSize({width: 390, height: 844});
   await page.goto('/?surface=compiler');
 
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
   await expect(page.locator('main.challenge-product')).toHaveAttribute('data-challenge-surface', 'compiler');
   await expect(page.getByRole('heading', {name: 'COMPILER / CREATE'})).toBeVisible();
-  const sourceIntent = page.getByLabel('SOURCE INTENT');
+
+  const guide = page.locator('[data-journey-role="organizer"]');
+  await expect(guide).toHaveAttribute('data-journey-step', '1');
+  await expect(guide.getByText('DESCRIBE WHAT YOU WANT BUILT', {exact: true})).toBeVisible();
+
+  const sourceIntent = page.getByLabel('YOUR IDEA');
   await sourceIntent.fill('Build a realtime public launch dashboard');
-  await expect(page.getByText('SOURCE DRAFT / UNCOMPILED')).toBeVisible();
-  await expect(page.getByText(/Unknown requirements stay UNKNOWN/i)).toBeVisible();
-  await expect(page.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i})).toBeEnabled();
-  await expect(page.getByText('REALTIME', {exact: true})).toBeVisible();
-  await expect(page.getByRole('heading', {name: 'NEGOTIATED BUILD CONTRACT'})).toBeVisible();
-  await expect(page.getByText(/SELECT A DRAFT CHALLENGE/i)).toBeVisible();
-  await expect(page.getByRole('button', {name: /FREEZE NONCANONICAL PREVIEW/i})).toBeDisabled();
-  await expect(page.getByRole('button', {name: /PERSIST CANONICAL CONTRACT/i})).toBeDisabled();
+  await expect(guide).toHaveAttribute('data-journey-step', '2');
+  await expect(page.getByText('DETAIL 1 OF 11', {exact: false})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'NOT SURE'})).toBeVisible();
+  await expect(page.getByText('REALTIME', {exact: true})).toHaveCount(0);
+
+  for (let index = 0; index < 10; index += 1) {
+    await page.getByRole('button', {name: 'NEXT DETAIL →'}).click();
+  }
+  await expect(page.getByText('DETAIL 11 OF 11', {exact: false})).toBeVisible();
+  await page.getByRole('button', {name: 'DONE WITH DETAILS ✓'}).click();
+
+  await expect(guide).toHaveAttribute('data-journey-step', '3');
+  await expect(guide.getByText('CHECK YOUR CHALLENGE RULES', {exact: true})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'CHECK MY CHALLENGE'})).toBeEnabled();
+  await expect(page.getByRole('heading', {name: 'REVIEW AND LOCK THE RULES'})).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 
   const accessibility = await new AxeBuilder({page}).analyze();
