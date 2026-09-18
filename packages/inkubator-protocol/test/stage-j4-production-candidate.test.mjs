@@ -7,8 +7,10 @@ import {
   STAGE_J4_NATIVE_USDC,
   appendStageJ4ReconciliationReceipt,
   buildStageJ4DeploymentPlan,
+  buildStageJ4SigningRequest,
   buildStageJ4ReleaseCandidateReceipt,
   evaluateStageJ4Finality,
+  registerStageJ4SigningRequest,
   stageJ4DeadlineSeconds,
 } from '../src/production-candidate-vault-adapter.mjs';
 
@@ -239,4 +241,40 @@ test('reconciliation corrections append and supersede without mutating prior fac
     recorded_at_ms: 3_000,
     supersedes_record_id: 'settlement-1',
   }), /must supersede latest receipt/);
+});
+
+
+test('signing requests bind human fields to typed digest and reject semantic reuse', () => {
+  const request = buildStageJ4SigningRequest({
+    request_id: 'qualifier-freeze-1',
+    authority_role: 'OUTCOME',
+    action: 'QUALIFIER_SET',
+    vault_address: '0x1111111111111111111111111111111111111111',
+    typed_data_digest: '0xfd1656fab8c2c886907ad90e2653f37eafd7da10244871054c8dea25ac7cf138',
+    display_fields: {
+      challenge_digest: '0x' + 'aa'.repeat(32),
+      terms_digest: '0x' + 'bb'.repeat(32),
+      binding_digest: '0x' + 'cc'.repeat(32),
+      payout_set_root: '0x0195b69843ca1d3cc2e4bfdb67b9a5d3c0719929a033f045db6d90095cf0312d',
+      qualifier_set_root: '0x281a7222c0e843ba2a41febded46e963bf6cde4ba6697bcfa51c6537e7b8f643',
+      qualifier_count: 1,
+      default_manifest_digest: '0x' + 'ee'.repeat(32),
+      recovery_evidence_digest: '0x' + '00'.repeat(32),
+      mode: 'NORMAL',
+    },
+  });
+
+  assert.equal(request.chain_id, 57073);
+  assert.equal(request.typed_data_digest, '0xfd1656fab8c2c886907ad90e2653f37eafd7da10244871054c8dea25ac7cf138');
+  assert.match(request.display_fields_digest, /^[0-9a-f]{64}$/);
+  assert.match(request.request_digest, /^[0-9a-f]{64}$/);
+
+  const once = registerStageJ4SigningRequest([], request);
+  const replay = registerStageJ4SigningRequest(once, request);
+  assert.deepEqual(replay, once);
+
+  assert.throws(() => registerStageJ4SigningRequest(once, {
+    ...request,
+    display_fields: {...request.display_fields, qualifier_count: 2},
+  }), /signing request id conflict/);
 });
