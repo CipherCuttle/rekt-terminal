@@ -344,7 +344,7 @@ describe('Stage E Challenge product shell', () => {
 
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
     expect(screen.getByText('REVIEW THE RULES')).toBeTruthy();
-    expect(screen.queryByRole('button', {name: 'PREVIEW LOCKED RULES'})).toBeNull();
+    expect(screen.queryByRole('button', {name: 'REVIEW FINAL RULES →'})).toBeNull();
 
     fireEvent.click(screen.getByRole('button', {name: 'USE THESE RULES'}));
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(2));
@@ -352,10 +352,9 @@ describe('Stage E Challenge product shell', () => {
       {key: 'realtime', value: false, provenance: 'ORGANIZER_ACCEPTED'},
     ]);
 
-    const previewButton = screen.getByRole('button', {name: 'PREVIEW LOCKED RULES'}) as HTMLButtonElement;
-    const persistButton = screen.getByRole('button', {name: 'LOCK THESE RULES'}) as HTMLButtonElement;
+    const previewButton = screen.getByRole('button', {name: 'REVIEW FINAL RULES →'}) as HTMLButtonElement;
     expect(previewButton.disabled).toBe(true);
-    expect(persistButton.disabled).toBe(true);
+    expect(screen.queryByRole('button', {name: 'LOCK RULES & CONTINUE →'})).toBeNull();
 
     fireEvent.change(screen.getByLabelText('CHALLENGE TITLE'), {target: {value: 'Static launch Challenge'}});
     fireEvent.change(screen.getByLabelText('CREATOR X PROFILE / OPTIONAL'), {target: {value: 'https://example.com/not-x'}});
@@ -375,8 +374,9 @@ describe('Stage E Challenge product shell', () => {
       informational_references: [{id: 'creator-x-profile', url: 'https://x.com/creator_handle'}],
     });
     expect(previewBuildContract).toHaveBeenCalledWith(draftChallenge.challenge_id, acceptedState, acceptedAuthority);
-    expect(screen.getByText('PREVIEW ONLY · NOT LOCKED YET', {selector: 'strong'})).toBeTruthy();
+    expect(screen.getByText('FINAL PREVIEW · NOT LOCKED YET', {selector: 'strong'})).toBeTruthy();
     expect(document.querySelector('[data-build-contract-preview="noncanonical"]')).toBeTruthy();
+    const persistButton = screen.getByRole('button', {name: 'LOCK RULES & CONTINUE →'}) as HTMLButtonElement;
     expect(persistButton.disabled).toBe(false);
 
     fireEvent.click(persistButton);
@@ -394,7 +394,7 @@ describe('Stage E Challenge product shell', () => {
     await waitFor(() => expect(getChallenge).toHaveBeenCalledTimes(2));
     expect(window.sessionStorage.getItem('inkubator.compiler-draft.v1')).toBeNull();
     expect(screen.getByText('OPEN IT TO BUILDERS')).toBeTruthy();
-    expect(screen.queryByRole('button', {name: 'LOCK THESE RULES'})).toBeNull();
+    expect(screen.queryByRole('button', {name: 'LOCK RULES & CONTINUE →'})).toBeNull();
   });
 
   it('reads a canonical public Challenge projection instead of Mission or Project state', async () => {
