@@ -7,6 +7,7 @@ import {
   type CompilerInputProvenance,
   type CompilerProposalInput,
   type CompilerStateView,
+  type PublicBuildContractSummary,
   type PublicChallengeView,
 } from '../inkubator-api';
 import {
