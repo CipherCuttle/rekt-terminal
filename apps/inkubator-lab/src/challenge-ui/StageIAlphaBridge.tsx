@@ -213,14 +213,16 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
               <span>Creation stays disabled until organizer identity is known.</span>
             </div>
           ) : null}
-          <div className="compiler-contract__fields">
-            <label htmlFor="stage-i-slots">BUILDER SLOTS<input id="stage-i-slots" inputMode="numeric" value={slots} onChange={(event) => setSlots(event.target.value)} /></label>
+          {authState !== 'REQUIRED' && authState !== 'CHECKING' ? (
+            <div className="compiler-contract__fields">
+              <label htmlFor="stage-i-slots">BUILDER SLOTS<input id="stage-i-slots" inputMode="numeric" value={slots} onChange={(event) => setSlots(event.target.value)} /></label>
             <label htmlFor="stage-i-activation">MINIMUM BUILDERS TO START<input id="stage-i-activation" inputMode="numeric" value={activationMinimum} onChange={(event) => setActivationMinimum(event.target.value)} /></label>
             <label htmlFor="stage-i-entry">ENTRY DEADLINE<input id="stage-i-entry" type="datetime-local" value={entryDeadline} onChange={(event) => setEntryDeadline(event.target.value)} /></label>
             <label htmlFor="stage-i-submission">SUBMISSION DEADLINE<input id="stage-i-submission" type="datetime-local" value={submissionDeadline} onChange={(event) => setSubmissionDeadline(event.target.value)} /></label>
             <label htmlFor="stage-i-review">REVIEW DEADLINE<input id="stage-i-review" type="datetime-local" value={reviewDeadline} onChange={(event) => setReviewDeadline(event.target.value)} /></label>
-            <label htmlFor="stage-i-appeal">REVIEW APPEAL WINDOW / MINUTES<input id="stage-i-appeal" inputMode="numeric" value={appealMinutes} onChange={(event) => setAppealMinutes(event.target.value)} /></label>
-          </div>
+              <label htmlFor="stage-i-appeal">REVIEW APPEAL WINDOW / MINUTES<input id="stage-i-appeal" inputMode="numeric" value={appealMinutes} onChange={(event) => setAppealMinutes(event.target.value)} /></label>
+            </div>
+          ) : null}
           <div className="compiler-contract__actions">
             {authState === 'REQUIRED' ? (
               <a className="journey-next-action journey-next-action--link challenge-auth-login" href={githubLoginHref()}>CONNECT GITHUB TO CREATE →</a>
