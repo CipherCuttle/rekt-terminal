@@ -47,7 +47,8 @@ Forward product strategy and staged roadmap are governed by:
 41. `STAGE_J1_TESTNET_CHALLENGE_VAULT_V1.md` — closed/pass no-deploy testnet-vault contract authority.
 42. `STAGE_J2_INK_SEPOLIA_PUBLIC_TESTNET_REHEARSAL_V1.md` — closed/pass public-testnet synthetic-value rehearsal authority; no production-money or mainnet authority.
 43. `STAGE_J2_CLOSURE_V1.md` — durable Stage-J2 closure receipt, public contract addresses, conservation evidence and hostile-review verdict.
-44. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+44. `STAGE_J3_PRODUCTION_VALUE_READINESS_V1.md` — active production-value threat-model/readiness authority; no mainnet or production-money authority.
+45. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -92,6 +93,7 @@ Stage-I external-human Alpha                  NOT AUTHORIZED
 Stage J0 settlement adapter                   ACTIVE / TEST-ONLY PROTOCOL SLICE
 Stage J1 testnet Challenge Vault              CLOSED / PASS / PR #126 DRAFT UNMERGED
 Stage J2 Ink Sepolia rehearsal                CLOSED / PASS / PR #127 DRAFT UNMERGED
+Stage J3 production-value readiness           ACTIVE / THREAT MODEL + SAFETY CONTRACT
 Production money                              NOT AUTHORIZED
 Stage-I prep merge-to-main                    NOT AUTHORIZED
 Stage-J0 merge-to-main                        NOT AUTHORIZED
@@ -162,3 +164,12 @@ Owner authorization on 2026-09-18 starts the bounded Ink Sepolia public-testnet 
 J2 may deploy only disposable synthetic-value rehearsal contracts to Ink Sepolia chain `763373`, use faucet-only test ETH, generate runner-ephemeral test signers, execute the bounded 250-unit winner/default/refund scenarios, and preserve public-chain evidence.
 
 J2 is CLOSED / PASS at reviewed implementation head `66c45586ffadec5d85455c895cd320455c5413ee`; durable closure evidence is recorded in `STAGE_J2_CLOSURE_V1.md`. J2 did not authorize Ink mainnet, production-value assets, reusable private keys, owner wallets, production signer infrastructure, fees, custody, merge authority or production settlement authority.
+
+
+## Current Stage-J3 authority
+
+Stage J3 starts from the closed Stage-J2 evidence line on `agent/stage-j3-production-value-readiness-v1`.
+
+J3 may freeze the production-value trust model, deterministic default/liveness law, threshold-resolver/EIP-1271 policy, long-stop and pre-build refund semantics, exact chain/asset/deployment identity requirements, finality/reconciliation policy, key lifecycle and the external audit package.
+
+J3 may not deploy to mainnet, move production-value assets, create production signer secrets, introduce custody/fees, claim legal compliance or claim an external audit has passed. `STAGE_J3_PRODUCTION_VALUE_READINESS_V1.md` is the active slice authority.
