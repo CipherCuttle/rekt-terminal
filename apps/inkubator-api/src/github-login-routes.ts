@@ -62,7 +62,7 @@ function readCookie(cookieHeader: string | undefined, name: string): string | nu
   return null;
 }
 
-function safeReturnTo(value: string | null | undefined, appOrigin: string): string | null {
+export function normalizeGitHubLoginReturnTo(value: string | null | undefined, appOrigin: string): string | null {
   if (!value) return null;
   try {
     const target = new URL(value, appOrigin);
@@ -82,13 +82,13 @@ function readReturnToCookie(cookieHeader: string | undefined, appOrigin: string)
   const encoded = readCookie(cookieHeader, GITHUB_RETURN_TO_COOKIE);
   if (!encoded) return null;
   try {
-    return safeReturnTo(decodeURIComponent(encoded), appOrigin);
+    return normalizeGitHubLoginReturnTo(decodeURIComponent(encoded), appOrigin);
   } catch {
     return null;
   }
 }
 
-function loginResultUrl(
+export function buildGitHubLoginResultUrl(
   appOrigin: string,
   auth: 'github' | 'github_failed',
   returnTo: string | null,
@@ -175,7 +175,7 @@ function syncError(reply: FastifyReply, cause: unknown) {
 export function registerGitHubLoginRoutes(app: FastifyInstance, options: RegisterGitHubLoginRoutesOptions): void {
   app.get('/v1/auth/github/start', async (request, reply) => {
     const query = request.query as {switch?: string; return_to?: string};
-    const returnTo = safeReturnTo(query.return_to, options.appOrigin);
+    const returnTo = normalizeGitHubLoginReturnTo(query.return_to, options.appOrigin);
     return beginOAuth(
       reply,
       options,
@@ -245,7 +245,7 @@ export function registerGitHubLoginRoutes(app: FastifyInstance, options: Registe
     const query = request.query as {code?: string; state?: string; error?: string};
     const flow = (readCookie(request.headers.cookie, GITHUB_FLOW_COOKIE) ?? 'login') as GitHubOAuthFlow;
     const returnTo = readReturnToCookie(request.headers.cookie, options.appOrigin);
-    const loginFailure = loginResultUrl(options.appOrigin, 'github_failed', returnTo);
+    const loginFailure = buildGitHubLoginResultUrl(options.appOrigin, 'github_failed', returnTo);
     const failureUrl = flow === 'login'
       ? loginFailure.toString()
       : sourceResultUrl(options.appOrigin, 'authorization_failed', query.error || 'github_oauth_failed');
@@ -277,7 +277,7 @@ export function registerGitHubLoginRoutes(app: FastifyInstance, options: Registe
         } catch {
           syncFailed = true;
         }
-        const success = loginResultUrl(options.appOrigin, 'github', returnTo);
+        const success = buildGitHubLoginResultUrl(options.appOrigin, 'github', returnTo);
         if (syncFailed) success.searchParams.set('github_sync', 'failed');
         if (observationWarnings.length > 0) {
           success.searchParams.set('github_observation', 'degraded');
