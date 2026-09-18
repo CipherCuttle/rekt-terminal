@@ -1,0 +1,59 @@
+name: Inkubator Vault Verification
+
+on:
+  push:
+    branches:
+      - main
+      - 'agent/stage-j1-**'
+    paths:
+      - '.github/workflows/inkubator-vault.yml'
+      - 'contracts/inkubator-vault/**'
+  pull_request:
+    paths:
+      - '.github/workflows/inkubator-vault.yml'
+      - 'contracts/inkubator-vault/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inkubator-vault-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pinned Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
+        with:
+          version: v1.8.3
+          cache: false
+
+      - name: Verify Foundry version
+        shell: bash
+        run: |
+          set -euo pipefail
+          forge --version | grep -F '1.8.3'
+
+      - name: Format Solidity working tree
+        working-directory: contracts/inkubator-vault
+        run: forge fmt
+
+      - name: Verify formatter is idempotent
+        working-directory: contracts/inkubator-vault
+        run: forge fmt --check
+
+      - name: Compile vault
+        working-directory: contracts/inkubator-vault
+        run: forge build --sizes
+
+      - name: Adversarial vault tests
+        working-directory: contracts/inkubator-vault
+        run: forge test -vvv
