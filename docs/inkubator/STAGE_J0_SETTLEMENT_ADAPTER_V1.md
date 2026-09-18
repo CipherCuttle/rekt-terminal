@@ -85,7 +85,7 @@ The caller cannot supply a fresh recipient list while creating an execution enve
 
 J0 records authority requirements; it does not implement cryptographic verification.
 
-Recorded authorization facts MUST be produced only after the corresponding integration verifies the real authority. The protocol then checks that every fact is bound to the exact manifest digest and that the exact required authority set is present.
+Recorded authorization facts MUST be produced only after the corresponding integration verifies the real authority. The protocol then checks that every fact is bound to the exact manifest digest and that the exact required authority set is present. For normal winner payout, `INKUBATOR_OUTCOME` and `ORGANIZER_SELECTION` must also resolve to distinct actors; one actor cannot satisfy both authority classes.
 
 Required sets:
 
@@ -178,14 +178,15 @@ J0 is not complete unless tests prove:
 4. funding fact must match exact binding, terms, asset and amount;
 5. winner payout requires outcome + organizer-selection authority facts;
 6. missing authority blocks execution-envelope creation;
-7. authorization facts cannot replay against another manifest;
-8. default distribution remains winnerless and conserves the full prize;
-9. execution is claimable and inherits recipients from the manifest;
-10. recipient mutation changes/invalidates the manifest or execution digest;
-11. cancellation requires resolver-threshold + frozen-policy authority;
-12. illegal rail-state jumps fail closed;
-13. FINALIZED is terminal;
-14. no production-money or signing/broadcast implementation is introduced.
+7. winner outcome and organizer-selection authorities cannot be the same actor;
+8. authorization facts cannot replay against another manifest;
+9. default distribution remains winnerless and conserves the full prize;
+10. execution is claimable and inherits recipients from the manifest;
+11. recipient mutation changes/invalidates the manifest or execution digest;
+12. cancellation requires resolver-threshold + frozen-policy authority;
+13. illegal rail-state jumps fail closed;
+14. FINALIZED is terminal;
+15. no production-money or signing/broadcast implementation is introduced.
 
 ## 12. Next bounded slice after J0 closure
 
