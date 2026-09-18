@@ -56,7 +56,11 @@ Forward product strategy and staged roadmap are governed by:
 50. `STAGE_J3_EXTERNAL_REVIEW_PACKAGE_V1.md` — bounded external smart-contract review package structure.
 51. `STAGE_J3_TERMINAL_FALLBACK_DECISION_V1.md` — technically frozen terminal no-qualification fallback; external legal/terms gate remains open.
 52. `STAGE_J3_CLOSURE_V1.md` — durable J3 technical architecture closure receipt; production money/mainnet/external audit/legal gates remain unauthorized/open.
-53. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+53. `STAGE_J4_PRODUCTION_CANDIDATE_VAULT_V1.md` — active production-candidate implementation/verification authority; no mainnet, production money, signer or merge authority.
+54. `STAGE_J4_IMPLEMENTATION_RECEIPT_V1.md` — durable J4 core implementation/verification + bounded hostile-review receipt.
+55. `STAGE_J4_PREAUDIT_MATRIX_RECEIPT_V1.md` — durable pre-audit matrix tranche receipt; substantial technical coverage pass with remaining audit-handoff matrix explicit.
+56. `STAGE_J4_EXTERNAL_AUDIT_HANDOFF_V1.md` — exact-head J4 technical package for independent smart-contract audit; external audit not started and production authority unchanged.
+57. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -102,6 +106,7 @@ Stage J0 settlement adapter                   ACTIVE / TEST-ONLY PROTOCOL SLICE
 Stage J1 testnet Challenge Vault              CLOSED / PASS / PR #126 DRAFT UNMERGED
 Stage J2 Ink Sepolia rehearsal                CLOSED / PASS / PR #127 DRAFT UNMERGED
 Stage J3 production-value readiness           CLOSED / PASS / PR #128 DRAFT UNMERGED
+Stage J4 production-candidate vault            ACTIVE / TECHNICAL AUDIT HANDOFF READY / AUDIT NOT STARTED
 Production money                              NOT AUTHORIZED
 Stage-I prep merge-to-main                    NOT AUTHORIZED
 Stage-J0 merge-to-main                        NOT AUTHORIZED
@@ -128,6 +133,9 @@ Stage-J2 merge-to-main                        NOT AUTHORIZED
 - **Stage E→H main integration:** PR #121 merged verified integration head `a4836d3be76dd3f2f47e7274cba4e62c5fa444bf` into `main`; canonical merge commit `ab9d281086e3a2859274065d3ed9cb3ed5cf2f51`.
 - **Stage J2:** `66c45586ffadec5d85455c895cd320455c5413ee` — public Ink Sepolia synthetic settlement rehearsal PASS; run `35396664547`; hostile review `5252888951` PASS with no Critical/High findings; closure receipt `STAGE_J2_CLOSURE_V1.md`.
 - **Stage J3:** architecture head `bd4422cc77e8b7c0d8d4ea6bdf54a7e5715a5821` — exact-head CI `35400084955` PASS; hostile review `5253037975` found 3 High and all were repaired; targeted rereview `5253071138` PASS / original High findings closed; durable closure receipt `STAGE_J3_CLOSURE_V1.md`; PR #128 remains draft/open/unmerged.
+- **Stage J4 core implementation:** `f5875e3be51c21bf55fcf83583f9af5ca9b22403` — J4 `35401916531` PASS; Vault `35401916544` PASS; J2 regression `35401916669` PASS; generic CI `35401916601` PASS; hostile review `5253171614` found 3 High and all were repaired; targeted rereview `5253190481` PASS / original High findings closed; durable core receipt `STAGE_J4_IMPLEMENTATION_RECEIPT_V1.md`.
+- **Stage J4 pre-audit tranche:** `18998bfe485a420046596ebba8a132691f02c2ff` — J4 push `35403653150` PASS; J4 PR `35403656052` PASS; Vault `35403656058` PASS; J2 regression `35403656061` PASS; Inkubator Verification `35403656051` PASS; generic push CI `35403653070` PASS; dual-RPC read-only Ink/native-USDC identity probe PASS; two independent clean-runner release-hash reproduction PASS; durable tranche receipt `STAGE_J4_PREAUDIT_MATRIX_RECEIPT_V1.md`.
+- **Stage J4 external-audit handoff:** exact auditor scope `05e345181dfde2c720874b1fc2d1ee7dd39272a9` — J4 push `35405529740` PASS; J4 PR `35405530719` PASS; Vault `35405530824` PASS; J2 regression `35405530700` PASS; Inkubator Verification `35405530816` PASS; generic push CI `35405529606` PASS; cross-language known answers, controlled native-USDC fork, dual-RPC proxy/admin attestation, release differentiation, independent reproducibility, resolver gas-grief, signer-request, reconciliation and privacy/secret boundaries verified; durable handoff `STAGE_J4_EXTERNAL_AUDIT_HANDOFF_V1.md`; PR #129 remains draft/open/unmerged; audit itself not started.
 
 ## Current Stage-I prep authority
 
@@ -182,3 +190,13 @@ Stage J3 starts from the closed Stage-J2 evidence line on `agent/stage-j3-produc
 J3 may freeze the production-value trust model, deterministic default/liveness law, threshold-resolver/EIP-1271 policy, long-stop and pre-build refund semantics, exact chain/asset/deployment identity requirements, finality/reconciliation policy, key lifecycle and the external audit package.
 
 J3 architecture is CLOSED / PASS. The bounded hostile architecture review `5253037975` found three High issues; all three were repaired, targeted rereview `5253071138` passed, and exact-head CI `35400084955` passed on architecture head `bd4422cc77e8b7c0d8d4ea6bdf54a7e5715a5821`. Durable closure evidence is recorded in `STAGE_J3_CLOSURE_V1.md`. J3 may not deploy to mainnet, move production-value assets, create production signer secrets, introduce custody/fees, claim legal compliance or claim an external audit has passed. Production money, external audit, legal/accounting/privacy and merge authority remain blocked/open. `STAGE_J3_PRODUCTION_VALUE_READINESS_V1.md` remains the frozen technical authority for J4 implementation.
+
+## Current Stage-J4 authority
+
+Stage J4 starts from J3 closure head `da346243e6fbcf5e259bdd8de85c0e099a6e1adc` on `agent/stage-j4-production-candidate-vault-v1`.
+
+J4 may implement and verify the isolated production-candidate vault, immutable verification-only 2-of-3 ERC-1271 resolver, qualifier-bound default-manifest identity, immutable refund manifests, signerless deterministic defaults, timed recovery/long-stop behavior, two-provider finalized-evidence reconciliation and reproducible candidate release identity tooling defined by the frozen J3 package.
+
+J4 core implementation is verified at `f5875e3be51c21bf55fcf83583f9af5ca9b22403`; bounded hostile review `5253171614` found three High issues, all were repaired, and targeted rereview `5253190481` closed the original High findings. The pre-audit tranche is verified at `18998bfe485a420046596ebba8a132691f02c2ff`. The exact independent-auditor source scope is now frozen at `05e345181dfde2c720874b1fc2d1ee7dd39272a9` with J4/Vault/J2/Inkubator/generic CI green and durable handoff `STAGE_J4_EXTERNAL_AUDIT_HANDOFF_V1.md`. Cross-language known answers, controlled native-USDC fork behavior, live read-only proxy/admin identity, release differentiation/reproducibility, bounded ERC-1271 gas grief, payout conflict/order, signer-request idempotency, append-only corrections and privacy/secret boundaries are technical PASS. J4 is not stage-closed: external audit is not started; deployed-code attestation is post-audit/pre-funding; actual production signer ceremony and legal/accounting/privacy/eligibility gates remain before production authority.
+
+J4 remains synthetic/local/testnet/fork-only. It may not deploy to Ink mainnet, move real USDC, create production signer secrets, introduce custody or fees, claim an external audit/legal gate passed, or merge. `STAGE_J4_PRODUCTION_CANDIDATE_VAULT_V1.md` is the active slice authority.

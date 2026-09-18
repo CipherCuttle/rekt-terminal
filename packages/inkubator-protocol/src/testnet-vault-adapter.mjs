@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {buildCanonicalPayoutRoster} from './payout-roster.mjs';
 import {assertFrozenBuildContract} from './challenge.mjs';
 import {
   SETTLEMENT_FUNDING_FACT_SCHEMA_VERSION,
@@ -72,26 +73,10 @@ export function stageJ2ChallengeDigest(challengeId) {
 }
 
 export function buildStageJ2PayoutRoster(entries) {
-  invariant(Array.isArray(entries) && entries.length > 0, 'J2 payout entries must be a non-empty array');
-  invariant(entries.length <= STAGE_J2_MAX_PAYOUT_RECIPIENTS, `J2 supports at most ${STAGE_J2_MAX_PAYOUT_RECIPIENTS} payout recipients`);
-
-  const normalized = entries.map((entry, index) => {
-    invariant(entry && typeof entry === 'object' && !Array.isArray(entry), `J2 payout entry[${index}] must be an object`);
-    assertString(entry.entry_id, `J2 payout entry[${index}].entry_id`);
-    return {
-      entry_id: entry.entry_id,
-      payout_address: assertAddress(entry.payout_address, `J2 payout entry[${index}].payout_address`),
-    };
-  }).sort((left, right) => byteCompare(left.entry_id, right.entry_id));
-
-  invariant(new Set(normalized.map((entry) => entry.entry_id)).size === normalized.length, 'J2 payout entry ids must be unique');
-  invariant(new Set(normalized.map((entry) => entry.payout_address)).size === normalized.length, 'J2 payout addresses must be unique');
-
-  return freeze(normalized.map((entry, payoutOrder) => ({
-    ...entry,
-    entry_digest: `0x${sha256Hex(entry.entry_id)}`,
-    payout_order: payoutOrder,
-  })));
+  return buildCanonicalPayoutRoster(entries, {
+    maxRecipients: STAGE_J2_MAX_PAYOUT_RECIPIENTS,
+    label: 'J2',
+  });
 }
 
 export function buildStageJ2VaultPlan({
