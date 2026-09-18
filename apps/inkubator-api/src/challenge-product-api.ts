@@ -113,7 +113,7 @@ function safeDate(value: Date): string {
 }
 
 function toPublicBuildContractSummary(snapshot: ChallengeSnapshot): PublicBuildContractSummary | null {
-  if (!snapshot.contract) return null;
+  if (!snapshot.contract || snapshot.challenge.status === 'DRAFT') return null;
   const contract = assertFrozenBuildContract(snapshot.contract.contract_json);
   const termsDigest = typeof contract.terms_digest === 'string' ? contract.terms_digest : null;
   if (
