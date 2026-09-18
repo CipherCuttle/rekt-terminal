@@ -183,6 +183,7 @@ test('public Challenge projection fails closed when the frozen contract pointer 
   const snapshot = draftSnapshot();
   const preview = buildFrozenBuildContractPreview(acceptedState, previewAuthority(), snapshot);
 
+  snapshot.challenge.status = 'ENTRY_OPEN';
   snapshot.challenge.current_contract_version = preview.contract.contract_version;
   snapshot.challenge.current_terms_digest = '0'.repeat(64);
   snapshot.contract = {
