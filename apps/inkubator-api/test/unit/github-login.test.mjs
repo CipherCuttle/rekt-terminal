@@ -9,6 +9,10 @@ import {
   serializeGitHubOauthCookie,
   verifyGitHubLoginIdentity,
 } from '../../dist/github-login.js';
+import {
+  buildGitHubLoginResultUrl,
+  normalizeGitHubLoginReturnTo,
+} from '../../dist/github-login-routes.js';
 
 const runtime = {
   appSlug: 'rekt-inkubator',
@@ -77,4 +81,16 @@ test('GitHub access token remains server-side and immutable numeric user id is i
 
   assert.deepEqual(identity, {githubUserId: '123456', login: 'renamable-handle'});
   assert.equal(calls.length, 2);
+});
+
+test('GitHub login return target stays same-origin and preserves the requested Compiler surface', () => {
+  const returnTo = normalizeGitHubLoginReturnTo('/?surface=compiler&idea=launch+radar', 'https://ink.example');
+  assert.equal(returnTo, '/?surface=compiler&idea=launch+radar');
+  assert.equal(
+    buildGitHubLoginResultUrl('https://ink.example', 'github', returnTo).toString(),
+    'https://ink.example/?surface=compiler&idea=launch+radar&auth=github',
+  );
+
+  assert.equal(normalizeGitHubLoginReturnTo('https://evil.example/?surface=compiler', 'https://ink.example'), null);
+  assert.equal(normalizeGitHubLoginReturnTo('/v1/auth/github/callback', 'https://ink.example'), null);
 });
