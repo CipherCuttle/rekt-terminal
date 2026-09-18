@@ -185,6 +185,9 @@ function finishClarificationAfterRealtime(answer: 'YES' | 'NO') {
 function enterGuidedCompilerInput(source: string, realtime: 'YES' | 'NO') {
   fireEvent.change(screen.getByLabelText('YOUR IDEA'), {target: {value: source}});
   finishClarificationAfterRealtime(realtime);
+  fireEvent.change(screen.getByPlaceholderText(/The dashboard always shows the current launch state after reload/i), {
+    target: {value: 'The finished experience visibly satisfies the requested outcome.'},
+  });
 }
 
 function returnToRealtimeRequirement(): HTMLElement {
