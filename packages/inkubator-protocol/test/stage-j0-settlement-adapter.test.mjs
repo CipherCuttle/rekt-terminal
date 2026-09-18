@@ -179,7 +179,7 @@ test('execution envelope has no caller-controlled recipient surface', () => {
     auth(manifest, 'INKUBATOR_OUTCOME', 'outcome-authority'),
     auth(manifest, 'ORGANIZER_SELECTION', 'organizer'),
   ];
-  const envelope = buildStageJ0ExecutionEnvelope({manifest, authorizationFacts});
+  const envelope = buildStageJ0ExecutionEnvelope({contract: c, settlementIntent: intent, binding: b, manifest, authorizationFacts});
   assert.equal(assertStageJ0ExecutionEnvelopeMatchesManifest(manifest, envelope), envelope);
   assert.equal(envelope.delivery_mode, 'CLAIMABLE');
   assert.deepEqual(envelope.recipients, manifest.recipients);
