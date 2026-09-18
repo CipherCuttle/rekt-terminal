@@ -73,6 +73,51 @@ function creatorXProfileUrl(summary: PublicBuildContractSummary | null | undefin
   return summary?.informational_references.find((reference) => reference.id === 'creator-x-profile')?.url ?? null;
 }
 
+
+const COMPILER_DRAFT_STORAGE_KEY = 'inkubator.compiler-draft.v1';
+
+type CompilerDraftSnapshot = {
+  sourceIntent: string;
+  answers: CompilerRequirementAnswers;
+  requirementIndex: number;
+  clarificationComplete: boolean;
+  followUpAnswers: CompilerFollowUpAnswers;
+  followUpIndex: number;
+  successCriteria: string[];
+  contractVersion: string;
+  contractTitle: string;
+  prizeMinorUnits: string;
+  settlementAsset: string;
+  creatorXUrl: string;
+};
+
+function readCompilerDraft(): Partial<CompilerDraftSnapshot> | null {
+  try {
+    const raw = window.sessionStorage.getItem(COMPILER_DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CompilerDraftSnapshot>;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCompilerDraft(snapshot: CompilerDraftSnapshot): void {
+  try {
+    window.sessionStorage.setItem(COMPILER_DRAFT_STORAGE_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Browser storage is convenience only; canonical authority stays server-side.
+  }
+}
+
+function clearCompilerDraft(): void {
+  try {
+    window.sessionStorage.removeItem(COMPILER_DRAFT_STORAGE_KEY);
+  } catch {
+    // No-op: storage availability never changes Challenge authority.
+  }
+}
+
 type RequirementAnswer = 'UNKNOWN' | 'YES' | 'NO';
 export type CompilerRequirementAnswers = Record<(typeof REQUIREMENTS)[number][0], RequirementAnswer>;
 
@@ -308,24 +353,26 @@ function CompilerReadout({compilerState}: {compilerState: CompilerStateView}) {
 }
 
 function CompilerSurface({api}: {api: ChallengeProductApi}) {
+  const restoredDraft = useMemo(() => readCompilerDraft(), []);
+  const initialIdea = new URLSearchParams(window.location.search).get('idea');
   const [challengeId, setChallengeId] = useState(() => new URLSearchParams(window.location.search).get('challenge'));
-  const [sourceIntent, setSourceIntent] = useState(() => new URLSearchParams(window.location.search).get('idea') ?? '');
-  const [answers, setAnswers] = useState<CompilerRequirementAnswers>(() => emptyRequirementAnswers());
-  const [requirementIndex, setRequirementIndex] = useState(0);
-  const [clarificationComplete, setClarificationComplete] = useState(false);
-  const [followUpAnswers, setFollowUpAnswers] = useState<CompilerFollowUpAnswers>({});
-  const [followUpIndex, setFollowUpIndex] = useState(0);
-  const [successCriteria, setSuccessCriteria] = useState<string[]>(['']);
+  const [sourceIntent, setSourceIntent] = useState(() => initialIdea ?? restoredDraft?.sourceIntent ?? '');
+  const [answers, setAnswers] = useState<CompilerRequirementAnswers>(() => restoredDraft?.answers ?? emptyRequirementAnswers());
+  const [requirementIndex, setRequirementIndex] = useState(() => Number.isSafeInteger(restoredDraft?.requirementIndex) ? restoredDraft!.requirementIndex! : 0);
+  const [clarificationComplete, setClarificationComplete] = useState(() => restoredDraft?.clarificationComplete === true);
+  const [followUpAnswers, setFollowUpAnswers] = useState<CompilerFollowUpAnswers>(() => restoredDraft?.followUpAnswers ?? {});
+  const [followUpIndex, setFollowUpIndex] = useState(() => Number.isSafeInteger(restoredDraft?.followUpIndex) ? restoredDraft!.followUpIndex! : 0);
+  const [successCriteria, setSuccessCriteria] = useState<string[]>(() => Array.isArray(restoredDraft?.successCriteria) && restoredDraft!.successCriteria!.length ? restoredDraft!.successCriteria! : ['']);
   const [compilerState, setCompilerState] = useState<CompilerStateView | null>(null);
   const [compilePhase, setCompilePhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
   const [accepted, setAccepted] = useState(false);
   const [challengeView, setChallengeView] = useState<PublicChallengeView | null>(null);
   const [challengePhase, setChallengePhase] = useState<'IDLE' | 'LOADING' | 'NOT_FOUND' | 'ERROR'>('IDLE');
-  const [contractVersion, setContractVersion] = useState('1.0.0');
-  const [contractTitle, setContractTitle] = useState('');
-  const [prizeMinorUnits, setPrizeMinorUnits] = useState('100');
-  const [settlementAsset, setSettlementAsset] = useState('TEST');
-  const [creatorXUrl, setCreatorXUrl] = useState('');
+  const [contractVersion, setContractVersion] = useState(() => restoredDraft?.contractVersion ?? '1.0.0');
+  const [contractTitle, setContractTitle] = useState(() => restoredDraft?.contractTitle ?? '');
+  const [prizeMinorUnits, setPrizeMinorUnits] = useState(() => restoredDraft?.prizeMinorUnits ?? '100');
+  const [settlementAsset, setSettlementAsset] = useState(() => restoredDraft?.settlementAsset ?? 'TEST');
+  const [creatorXUrl, setCreatorXUrl] = useState(() => restoredDraft?.creatorXUrl ?? '');
   const [preview, setPreview] = useState<BuildContractPreviewView | null>(null);
   const [previewAuthority, setPreviewAuthority] = useState<BuildContractPreviewAuthorityInput | null>(null);
   const [previewPhase, setPreviewPhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
@@ -339,6 +386,36 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
+
+  useEffect(() => {
+    writeCompilerDraft({
+      sourceIntent,
+      answers,
+      requirementIndex,
+      clarificationComplete,
+      followUpAnswers,
+      followUpIndex,
+      successCriteria,
+      contractVersion,
+      contractTitle,
+      prizeMinorUnits,
+      settlementAsset,
+      creatorXUrl,
+    });
+  }, [
+    sourceIntent,
+    answers,
+    requirementIndex,
+    clarificationComplete,
+    followUpAnswers,
+    followUpIndex,
+    successCriteria,
+    contractVersion,
+    contractTitle,
+    prizeMinorUnits,
+    settlementAsset,
+    creatorXUrl,
+  ]);
 
   useEffect(() => {
     if (!challengeId) {
@@ -487,6 +564,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     }
 
     setCanonicalContract(next);
+    clearCompilerDraft();
     setPersistPhase('IDLE');
     setChallengePhase('LOADING');
     try {
