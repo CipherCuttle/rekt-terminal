@@ -10,10 +10,6 @@ commits = [
   "2a0a4c50831508d88364574bc9ead0c72b4cbab8"
 ]
 regexes = [
-  '''^\s*"baseTokenAddress"\s*:\s*"0x[a-fA-F0-9]{40}",?\s*
-]
-'',
-  '''^\s*- synthetic token:\s*`0x[a-fA-F0-9]{40}`\s*
-]
-''
+  '''^\s*"baseTokenAddress"\s*:\s*"0x[a-fA-F0-9]{40}",?\s*$''',
+  '''^\s*- synthetic token:\s*`0x[a-fA-F0-9]{40}`\s*$'''
 ]
