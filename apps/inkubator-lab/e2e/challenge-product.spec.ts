@@ -9,7 +9,17 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth + 1);
 }
 
+async function mockLoggedOutGitHub(page: Page) {
+  await page.route('**/v1/me', async (route) => {
+    await route.fulfill({status: 401, contentType: 'application/json', body: JSON.stringify({error: 'authentication_required'})});
+  });
+  await page.route('**/v1/me/connection', async (route) => {
+    await route.fulfill({status: 401, contentType: 'application/json', body: JSON.stringify({error: 'authentication_required'})});
+  });
+}
+
 test('Stage I default root exposes one white Challenge front door without reviving legacy navigation', async ({page}) => {
+  await mockLoggedOutGitHub(page);
   await page.setViewportSize({width: 1440, height: 900});
   await page.goto('/');
 
@@ -55,6 +65,7 @@ test('Discover demo challenge can seed a readable Compiler draft', async ({page}
 });
 
 test('Stage I Discover becomes a phone-first step flow instead of a squeezed desktop faceplate', async ({page}) => {
+  await mockLoggedOutGitHub(page);
   await page.setViewportSize({width: 390, height: 844});
   await page.goto('/');
 
