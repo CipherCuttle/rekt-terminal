@@ -239,6 +239,71 @@ describe('Stage E Challenge product shell', () => {
     expect(screen.getByText('SOURCE', {selector: 'small'})).toBeTruthy();
   });
 
+  it('makes blocking compiler follow-ups answerable and feeds them back as authoritative knowledge', async () => {
+    const resolvedState: CompilerStateView = {
+      ...compilerState,
+      knowledge: [{kind: 'KNOWN', key: 'Q_REALTIME_TRANSPORT', material: true, value: 'WebSocket updates with server-authoritative ordering.', provenance: 'SOURCE'}],
+      unresolved_decisions: [],
+      status: 'READY',
+    };
+    const compileChallenge = vi.fn(async (body: CompilerProposalInput) => (
+      body.knowledge.some((item) => item.key === 'Q_REALTIME_TRANSPORT' && item.value)
+        ? resolvedState
+        : compilerState
+    ));
+    render(<ChallengeProduct api={api({compileChallenge})} />);
+    fireEvent.click(screen.getByRole('button', {name: /COMPILER \/ CREATE/i}));
+
+    enterGuidedCompilerInput('Build a realtime public launch dashboard', 'YES');
+    fireEvent.click(screen.getByRole('button', {name: 'CHECK MY CHALLENGE'}));
+    await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
+
+    const followUp = screen.getByLabelText(/Which realtime transport\/state consistency guarantees are actually required/i);
+    fireEvent.change(followUp, {target: {value: 'WebSocket updates with server-authoritative ordering.'}});
+    fireEvent.click(screen.getByRole('button', {name: 'CHECK AGAIN →'}));
+
+    await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(2));
+    expect(compileChallenge.mock.calls[1]![0].knowledge).toEqual([{
+      kind: 'KNOWN',
+      key: 'Q_REALTIME_TRANSPORT',
+      material: true,
+      value: 'WebSocket updates with server-authoritative ordering.',
+      provenance: 'SOURCE',
+    }]);
+    expect(screen.getByText('REVIEW THE RULES')).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'USE THESE RULES'})).toBeEnabled();
+  });
+
+  it('routes an unsupported compiler choice directly back to the blocking requirement', async () => {
+    const unsupportedState: CompilerStateView = {
+      ...compilerState,
+      requirements: [{key: 'custody_private_keys', value: true, provenance: 'SOURCE'}],
+      questions: [],
+      unresolved_decisions: [],
+      findings: [{
+        severity: 'HIGH',
+        code: 'PRIVATE_KEY_CUSTODY',
+        message: 'Private-key custody/signing authority is unsupported for Stage D and pre-production Alpha.',
+        rule_id: 'R_PRIVATE_KEY_CUSTODY_V1',
+      }],
+      status: 'UNSUPPORTED',
+    };
+    const compileChallenge = vi.fn(async () => unsupportedState);
+    render(<ChallengeProduct api={api({compileChallenge})} />);
+    fireEvent.click(screen.getByRole('button', {name: /COMPILER \/ CREATE/i}));
+
+    enterGuidedCompilerInput('Build a wallet-assisted app', 'NO');
+    fireEvent.click(screen.getByRole('button', {name: 'CHECK MY CHALLENGE'}));
+    await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByText('ONE OF YOUR CHOICES NEEDS CHANGING')).toBeTruthy();
+    const change = screen.getByRole('button', {name: 'CHANGE PRIVATE-KEY CUSTODY ANSWER →'});
+    fireEvent.click(change);
+    expect(screen.getByText('PRIVATE-KEY CUSTODY')).toBeTruthy();
+    expect(screen.getByText(/Would the product itself hold or sign with private keys/i)).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'CHECK MY CHALLENGE'})).toBeEnabled();
+  });
+
   it('binds canonical persistence to the exact accepted preview digest and refreshes Challenge truth', async () => {
     const sourceState = readyCompilerState('SOURCE');
     const acceptedState = readyCompilerState('ORGANIZER_ACCEPTED');
