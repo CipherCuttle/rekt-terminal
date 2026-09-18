@@ -76,7 +76,7 @@ for (const pattern of [
 
 const resolverNames = resolverFunctions.map((item) => item.name).sort();
 invariant(
-  JSON.stringify(resolverNames) === JSON.stringify(['isSigner', 'isValidSignature', 'quorum', 'signer1', 'signer2', 'signer3'].sort()),
+  JSON.stringify(resolverNames) === JSON.stringify(['INVALID', 'MAGICVALUE', 'isSigner', 'isValidSignature', 'quorum', 'signer1', 'signer2', 'signer3'].sort()),
   `unexpected resolver ABI: ${resolverNames.join(',')}`,
 );
 
