@@ -23,7 +23,11 @@ test('Stage I default root exposes one white Challenge front door without revivi
   await expect(nav.getByText('MY BUILD', {exact: true})).toBeVisible();
   await expect(nav.getByText('REVIEW / TEST ARENA', {exact: true})).toBeVisible();
   await expect(nav.getByText('RECEIPT / HISTORY', {exact: true})).toBeVisible();
-  await expect(page.getByRole('link', {name: /CREATE A CHALLENGE/i})).toBeVisible();
+  const organizerLogin = page.getByRole('link', {name: 'CONNECT GITHUB & CONTINUE →'});
+  await expect(organizerLogin).toBeVisible();
+  const organizerLoginHref = await organizerLogin.getAttribute('href');
+  expect(organizerLoginHref).toContain('/v1/auth/github/start');
+  expect(decodeURIComponent(organizerLoginHref ?? '')).toContain('return_to=/?surface=compiler');
   await expect(page.getByRole('heading', {name: "WHAT'S BUILDING?"})).toBeVisible();
   await expect(page.getByRole('heading', {name: 'Realtime Launch Radar'})).toBeVisible();
   await expect(page.getByRole('heading', {name: 'Wallet Safety Check'})).toBeVisible();
@@ -67,7 +71,7 @@ test('Stage I Discover becomes a phone-first step flow instead of a squeezed des
   const titleSize = await title.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
   expect(titleSize).toBeLessThanOrEqual(40);
 
-  const launch = page.getByRole('link', {name: /LAUNCH YOUR OWN/i});
+  const launch = page.getByRole('link', {name: /CONNECT GITHUB TO LAUNCH/i});
   const launchBox = await launch.boundingBox();
   expect(launchBox).not.toBeNull();
   expect(launchBox!.width).toBeGreaterThan(300);
