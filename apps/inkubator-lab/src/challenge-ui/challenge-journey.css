@@ -98,6 +98,11 @@
 .challenge-pass-contract p{max-width:820px;margin:0;font:16px/1.55 var(--ios2-font-body)}.challenge-pass-contract strong{padding:3px 5px;background:var(--ios2-ink);color:#fff;font:800 11px/1 var(--ios2-font-mono);letter-spacing:.04em}
 
 
+.challenge-auth-gate{display:grid;gap:6px;margin:14px 0;padding:14px 16px;border:2px solid var(--ios2-selection);background:#fff7fc;box-shadow:inset 5px 0 var(--ios2-selection)}
+.challenge-auth-gate b{font:900 12px/1.25 var(--ios2-font-mono);letter-spacing:.05em}
+.challenge-auth-gate span{font:14px/1.45 var(--ios2-font-body);color:var(--ios2-muted)}
+.challenge-auth-login{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:12px 14px;border:1px solid var(--ios2-selection);background:var(--ios2-ink);color:#fff!important;font:800 11px/1.2 var(--ios2-font-mono);text-decoration:none}
+
 /* Persistent connected identity */
 .challenge-github-dock{position:fixed;right:18px;bottom:18px;z-index:80;display:flex;align-items:center;gap:10px;min-width:176px;padding:8px 12px 8px 8px;border:1px solid var(--ios2-ink);background:rgba(255,255,255,.96);color:var(--ios2-ink);text-decoration:none;box-shadow:0 10px 30px rgba(0,0,0,.14),inset 0 1px #fff;backdrop-filter:blur(8px)}
 .challenge-github-dock:hover{border-color:var(--ios2-selection)}
@@ -342,4 +347,11 @@
   .challenge-current__facts,.challenge-rule-summary__highlights{grid-template-columns:1fr}
   .challenge-current__facts>div:last-child{grid-column:auto}
   .challenge-journey-intro h2{font-size:34px}
+}
+
+@media(max-width:760px){
+  .challenge-auth-gate{margin:10px 0;padding:12px}
+  .challenge-auth-gate b{font-size:11px}
+  .challenge-auth-gate span{font-size:13px}
+  .challenge-auth-login{box-sizing:border-box;width:100%;min-height:48px}
 }
