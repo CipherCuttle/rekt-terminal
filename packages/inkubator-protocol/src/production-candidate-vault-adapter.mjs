@@ -235,6 +235,50 @@ export function evaluateStageJ4Finality(input) {
   });
 }
 
+export function appendStageJ4ReconciliationReceipt(history, input) {
+  invariant(Array.isArray(history), 'reconciliation history must be an array');
+  invariant(input && typeof input === 'object' && !Array.isArray(input), 'reconciliation receipt required');
+  invariant(typeof input.record_id === 'string' && /^[a-z0-9._:-]{1,96}$/.test(input.record_id), 'record id must be stable lowercase text');
+  invariant(input.kind === 'FINALIZED' || input.kind === 'CORRECTION', 'reconciliation kind must be FINALIZED or CORRECTION');
+
+  const payload = {
+    schema_version: 'inkubator.j4-reconciliation-receipt/1.0',
+    record_id: input.record_id,
+    kind: input.kind,
+    expected_tx_hash: assertDigest(input.expected_tx_hash, 'expected tx hash'),
+    evidence_digest: assertDigest(input.evidence_digest, 'evidence digest'),
+    recorded_at_ms: assertSafeNonNegative(input.recorded_at_ms, 'recorded at ms'),
+    supersedes_record_id: input.supersedes_record_id ?? null,
+  };
+
+  invariant(
+    payload.supersedes_record_id === null
+      || (typeof payload.supersedes_record_id === 'string' && /^[a-z0-9._:-]{1,96}$/.test(payload.supersedes_record_id)),
+    'supersedes record id must be null or stable lowercase text',
+  );
+
+  const next = deepFreeze({...payload, record_digest: digestRecord(payload)});
+  const existing = history.find((item) => item?.record_id === next.record_id);
+  if (existing) {
+    invariant(canonicalize(existing) === canonicalize(next), 'record id conflict');
+    return deepFreeze([...history]);
+  }
+
+  if (next.kind === 'FINALIZED') {
+    invariant(next.supersedes_record_id === null, 'initial finalized receipt cannot supersede another record');
+  } else {
+    invariant(history.length > 0, 'correction requires existing receipt');
+    const previous = history[history.length - 1];
+    invariant(next.supersedes_record_id === previous.record_id, 'correction must supersede latest receipt');
+    invariant(
+      assertDigest(previous.expected_tx_hash, 'previous expected tx hash') === next.expected_tx_hash,
+      'correction cannot change settlement transaction identity',
+    );
+  }
+
+  return deepFreeze([...history, next]);
+}
+
 export function buildStageJ4ReleaseCandidateReceipt({
   source_commit,
   foundry_toml_digest,
