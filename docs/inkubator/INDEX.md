@@ -100,7 +100,7 @@ Stage-I external-human Alpha                  NOT AUTHORIZED
 Stage J0 settlement adapter                   ACTIVE / TEST-ONLY PROTOCOL SLICE
 Stage J1 testnet Challenge Vault              CLOSED / PASS / PR #126 DRAFT UNMERGED
 Stage J2 Ink Sepolia rehearsal                CLOSED / PASS / PR #127 DRAFT UNMERGED
-Stage J3 production-value readiness           ACTIVE / ARCHITECTURE COMPLETE / HOSTILE REVIEW NEXT
+Stage J3 production-value readiness           ACTIVE / 3 HIGH REPAIRED / TARGETED REREVIEW NEXT
 Production money                              NOT AUTHORIZED
 Stage-I prep merge-to-main                    NOT AUTHORIZED
 Stage-J0 merge-to-main                        NOT AUTHORIZED
@@ -179,4 +179,4 @@ Stage J3 starts from the closed Stage-J2 evidence line on `agent/stage-j3-produc
 
 J3 may freeze the production-value trust model, deterministic default/liveness law, threshold-resolver/EIP-1271 policy, long-stop and pre-build refund semantics, exact chain/asset/deployment identity requirements, finality/reconciliation policy, key lifecycle and the external audit package.
 
-J3 architecture is specified across the J3 threat matrix, decisions, signer custody, reproducible deployment, test matrix, external review package and terminal fallback decision. The next bounded action is one hostile architecture review. J3 may not deploy to mainnet, move production-value assets, create production signer secrets, introduce custody/fees, claim legal compliance or claim an external audit has passed. `STAGE_J3_PRODUCTION_VALUE_READINESS_V1.md` is the active slice authority.
+J3 architecture is specified across the J3 threat matrix, decisions, signer custody, reproducible deployment, test matrix, external review package and terminal fallback decision. The bounded hostile architecture review found three High issues; all three are repaired. The next bounded action is one targeted rereview of those repairs. J3 may not deploy to mainnet, move production-value assets, create production signer secrets, introduce custody/fees, claim legal compliance or claim an external audit has passed. `STAGE_J3_PRODUCTION_VALUE_READINESS_V1.md` is the active slice authority.
