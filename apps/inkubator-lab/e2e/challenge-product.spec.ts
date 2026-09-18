@@ -25,7 +25,10 @@ test('Stage I default root exposes one white Challenge front door without revivi
 
   await expect(page.locator('[data-shell="terminal"]')).toHaveAttribute('data-shell-variant', 'v2');
   await expect(page.getByRole('heading', {name: 'WHAT ARE YOU HERE TO DO?', exact: true})).toBeVisible();
-  await expect(page.getByRole('heading', {name: /LAUNCH A CHALLENGE.*PROVE WHAT GETS BUILT/i})).toBeVisible();
+  await expect(page.getByRole('heading', {name: /DESCRIBE IT ONCE.*LET BUILDERS PROVE IT/i})).toBeVisible();
+  await expect(page.getByText('WHY INKUBATOR EXISTS', {exact: true})).toBeVisible();
+  await expect(page.getByRole('heading', {name: /STOP GUESSING WHAT.*DONE.*MEANS/i})).toBeVisible();
+  await expect(page.getByText(/YOU STILL MAKE THE FINAL CHOICE/i)).toBeVisible();
   const nav = page.getByRole('navigation', {name: 'Inkubator journey'});
   await expect(nav.getByText('DISCOVER / START', {exact: true})).toBeVisible();
   await expect(nav.getByText('COMPILER / CREATE', {exact: true})).toBeVisible();
