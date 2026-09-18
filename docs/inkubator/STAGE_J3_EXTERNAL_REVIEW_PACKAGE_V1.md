@@ -51,6 +51,7 @@ The implementation handoff must pin:
 
 - exact Git commit;
 - production-candidate vault source;
+- immutable 2-of-3 ERC-1271 resolver-verifier source;
 - signature-verification library/source;
 - deployment script;
 - application settlement/finality adapter;
@@ -101,7 +102,7 @@ Co-attests normal frozen payout/qualification/selection facts. It is not a custo
 
 ### Resolver
 
-ERC-1271-compatible 2-of-3 threshold authority for exceptional recovery/resolution within exact contract-valid bounds.
+A minimal non-upgradeable ERC-1271 verification-only contract with immutable three-signer set and immutable 2-of-3 quorum. It has no owner/threshold mutation, modules, delegatecall, asset custody, arbitrary execution or upgrade surface.
 
 ### Permissionless execution
 
@@ -111,6 +112,13 @@ Once final qualification is frozen:
 - claim execution requires no privileged caller.
 
 At terminal long-stop, exact predeclared fallback is executable without privileged signers under its preconditions.
+
+Every permissionless economic path uses a manifest/policy identity frozen before execution:
+
+- qualifier freeze commits the exact default settlement manifest digest;
+- pre-build refund manifest digest is immutable at deployment;
+- terminal-refund manifest digest is immutable at deployment;
+- callers cannot substitute manifest identity.
 
 ## 6. Time model supplied to reviewer
 
@@ -126,6 +134,8 @@ Provisional first-candidate inputs:
 - activation deadline = build start;
 - resolution deadline = organizer deadline + 72 hours;
 - terminal long-stop = organizer deadline + 30 days.
+
+All Build Contract millisecond deadlines that create a not-before EVM right are mapped with `ceil(ms/1000)`. Relative recovery offsets start from the already-ceiled organizer deadline.
 
 Reviewer should treat timestamp boundary errors and griefing around these windows as high-value attack areas.
 
@@ -153,6 +163,8 @@ Reviewer should attempt:
 - signature malleability;
 - wrong authority;
 - ERC-1271 revert/short/wrong magic/gas grief;
+- resolver duplicate signer proof;
+- resolver signer/quorum mutation surface;
 - stale authorization reuse;
 - semantic payload substitution under the same external request identity.
 
@@ -163,19 +175,21 @@ The independent review should answer at minimum:
 1. Can any authority combination redirect prize to an address not frozen by the Challenge law?
 2. Can organizer/outcome/resolver bypass final qualifier membership?
 3. Can deterministic default be blocked by disappearance of Inkubator or organizer?
-4. Can the terminal long-stop be reached early or abused to create an organizer free option?
+4. Can the terminal long-stop/pre-build/default boundary become reachable early through millisecond→second truncation or timestamp logic?
 5. Can a recovery qualifier set replace an existing final qualifier set?
 6. Can the resolver threshold authorize arbitrary cancellation/amount/recipient?
-7. Can any signature replay across vaults/chains/actions?
-8. Can malformed ERC-1271 behavior be interpreted as valid?
-9. Can malicious/nonstandard token behavior create accounting divergence?
-10. Can reentrancy/double claim exceed prize liability?
-11. Can one blocked recipient freeze unrelated claims?
-12. Can unsolicited token transfers alter liability/accounting?
-13. Can any deployer/factory/admin mutate active vault law?
-14. Can finality/reconciliation mark an unfinalized/reorged transaction terminal?
-15. Is any recovery path dependent on a secret held by the ordinary web/API runtime?
-16. Does the long-stop preserve liveness without creating arbitrary custody power?
+7. Can a permissionless caller substitute a manifest/receipt digest after the relevant authority was frozen?
+8. Can any signature replay across vaults/chains/actions?
+9. Can malformed ERC-1271 behavior be interpreted as valid?
+10. Can the immutable resolver verifier's signer set/quorum/code be changed after an active Challenge references it?
+11. Can malicious/nonstandard token behavior create accounting divergence?
+12. Can reentrancy/double claim exceed prize liability?
+13. Can one blocked recipient freeze unrelated claims?
+14. Can unsolicited token transfers alter liability/accounting?
+15. Can any deployer/factory/admin mutate active vault law?
+16. Can finality/reconciliation mark an unfinalized/reorged transaction terminal?
+17. Is any recovery path dependent on a secret held by the ordinary web/API runtime?
+18. Does the long-stop preserve liveness without creating arbitrary custody power?
 
 ## 9. Threat matrix traceability
 
@@ -230,8 +244,9 @@ Package includes:
 - source commit;
 - toolchain versions;
 - `foundry.toml` digest;
-- creation bytecode hash;
-- runtime bytecode hash;
+- vault creation/runtime bytecode hashes;
+- resolver-verifier creation/runtime bytecode hashes;
+- resolver immutable signer-set/quorum evidence;
 - constructor ABI digest;
 - release chain/token tuple;
 - independent reproduction result.
