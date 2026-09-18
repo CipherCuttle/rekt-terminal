@@ -8,6 +8,7 @@ interface Vm {
     function sign(uint256 privateKey, bytes32 digest) external returns (uint8 v, bytes32 r, bytes32 s);
     function prank(address sender) external;
     function expectRevert(bytes4 selector) external;
+    function warp(uint256 timestamp) external;
 }
 
 contract MockERC20 is IERC20Minimal {
@@ -65,6 +66,7 @@ contract TestnetChallengeVaultTest {
     uint256 private constant RESOLVER_PK = 0xCAFE;
 
     uint256 private constant PRIZE = 250_000_000;
+    uint256 private selectionDeadline;
 
     bytes32 private constant CHALLENGE = keccak256("challenge:stage-j1");
     bytes32 private constant TERMS = keccak256("terms:stage-j1");
@@ -97,6 +99,7 @@ contract TestnetChallengeVaultTest {
         bob = address(0xB0B0);
         carol = address(0xCA20);
 
+        selectionDeadline = block.timestamp + 7 days;
         token = new MockERC20();
         vault = _deploy(token, PRIZE);
 
@@ -298,6 +301,10 @@ contract TestnetChallengeVaultTest {
             recipientsDigest
         );
 
+        vm.expectRevert(TestnetChallengeVault.DefaultNotEligible.selector);
+        vault.authorizeSingleQualifierDefault(manifest, soleQualifier, _sign(OUTCOME_PK, digest));
+
+        vm.warp(selectionDeadline);
         vault.authorizeSingleQualifierDefault(manifest, soleQualifier, _sign(OUTCOME_PK, digest));
         vault.claimFor(alice);
 
@@ -391,6 +398,10 @@ contract TestnetChallengeVaultTest {
             recipientsDigest
         );
 
+        vm.expectRevert(TestnetChallengeVault.DefaultNotEligible.selector);
+        vault.authorizeDefaultDistribution(manifest, recipients, _sign(OUTCOME_PK, digest));
+
+        vm.warp(selectionDeadline);
         vault.authorizeDefaultDistribution(manifest, recipients, _sign(OUTCOME_PK, digest));
 
         token.setBlockedRecipient(alice);
@@ -428,6 +439,7 @@ contract TestnetChallengeVaultTest {
             _recipientDigest(recipients)
         );
 
+        vm.warp(selectionDeadline);
         vm.expectRevert(TestnetChallengeVault.InvalidRecipientSet.selector);
         vault.authorizeDefaultDistribution(manifest, recipients, _sign(OUTCOME_PK, digest));
     }
@@ -450,8 +462,59 @@ contract TestnetChallengeVaultTest {
             _recipientDigest(recipients)
         );
 
+        vm.warp(selectionDeadline);
         vm.expectRevert(TestnetChallengeVault.InvalidSettlementAmount.selector);
         vault.authorizeDefaultDistribution(manifest, recipients, _sign(OUTCOME_PK, digest));
+    }
+
+
+    function testDefaultRemainderGoesToFirstSortedQualifierOnly() public {
+        (bytes32 qualifierRoot, bytes32[] memory proofA, bytes32[] memory proofB, bytes32[] memory proofC) =
+            _sealQualifiersABC();
+
+        uint256 base = PRIZE / 3;
+
+        TestnetChallengeVault.RecipientClaimInput[] memory recipients =
+            new TestnetChallengeVault.RecipientClaimInput[](3);
+        recipients[0] = TestnetChallengeVault.RecipientClaimInput(entryA, alice, base, proofA);
+        recipients[1] = TestnetChallengeVault.RecipientClaimInput(entryB, bob, base + 1, proofB);
+        recipients[2] = TestnetChallengeVault.RecipientClaimInput(entryC, carol, base, proofC);
+
+        bytes32 manifest = keccak256("manifest:wrong-remainder-recipient");
+        bytes32 digest = vault.settlementAuthorizationDigest(
+            manifest,
+            qualifierRoot,
+            TestnetChallengeVault.SettlementKind.DEFAULT_DISTRIBUTION,
+            _recipientDigest(recipients)
+        );
+
+        vm.warp(selectionDeadline);
+        vm.expectRevert(TestnetChallengeVault.InvalidSettlementAmount.selector);
+        vault.authorizeDefaultDistribution(manifest, recipients, _sign(OUTCOME_PK, digest));
+    }
+
+    function testOrganizerWinnerExpiresAtFrozenSelectionDeadline() public {
+        (bytes32 qualifierRoot, bytes32[] memory qualifierProofA,) = _sealQualifiersAB();
+        TestnetChallengeVault.RecipientClaimInput memory winner =
+            TestnetChallengeVault.RecipientClaimInput(entryA, alice, PRIZE, qualifierProofA);
+
+        bytes32 manifest = keccak256("manifest:late-organizer-winner");
+        bytes32 recipientsDigest = vault.singleRecipientDigest(entryA, alice, PRIZE);
+        bytes32 digest = vault.settlementAuthorizationDigest(
+            manifest,
+            qualifierRoot,
+            TestnetChallengeVault.SettlementKind.ORGANIZER_WINNER,
+            recipientsDigest
+        );
+
+        vm.warp(selectionDeadline);
+        vm.expectRevert(TestnetChallengeVault.OrganizerSelectionExpired.selector);
+        vault.authorizeOrganizerWinner(
+            manifest,
+            winner,
+            _sign(OUTCOME_PK, digest),
+            _sign(ORGANIZER_PK, digest)
+        );
     }
 
     function testNoQualifierRefundNeedsFrozenZeroQualifierOutcome() public {
@@ -536,6 +599,7 @@ contract TestnetChallengeVaultTest {
             TERMS,
             BINDING,
             amount,
+            selectionDeadline,
             organizer,
             outcome,
             organizer,
