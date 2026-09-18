@@ -62,7 +62,7 @@ A funding observation is accepted in J0 only when it is `CONFIRMED_TEST` and mat
 
 Existing `SettlementIntent` remains the canonical Challenge-side economic resolution.
 
-J0 derives a content-addressed `inkubator.settlement-manifest/1.0` from:
+J0 derives a content-addressed `inkubator.settlement-manifest/1.1` from:
 
 - the frozen Build Contract;
 - the canonical SettlementIntent;
@@ -73,6 +73,7 @@ The manifest commits to:
 - Challenge and terms;
 - adapter binding;
 - settlement-intent digest/type;
+- explicit settlement authorization mode;
 - exact asset and amount;
 - exact recipients;
 - winner entry if any;
@@ -87,15 +88,16 @@ J0 records authority requirements; it does not implement cryptographic verificat
 
 Recorded authorization facts MUST be produced only after the corresponding integration verifies the real authority. The protocol then checks that every fact is bound to the exact manifest digest and that the exact required authority set is present. For normal winner payout, `INKUBATOR_OUTCOME` and `ORGANIZER_SELECTION` must also resolve to distinct actors; one actor cannot satisfy both authority classes.
 
-Required sets:
+Required sets are keyed by **authorization mode**, not intent type alone, because `WINNER_PAYOUT` has two legitimate provenances: organizer selection and the deterministic one-qualifier default.
 
-| Settlement intent | Required authority facts |
-| --- | --- |
-| `WINNER_PAYOUT` | `INKUBATOR_OUTCOME` + `ORGANIZER_SELECTION` |
-| `DEFAULT_DISTRIBUTION` | `FROZEN_POLICY` + `INKUBATOR_OUTCOME` |
-| `REFUND_NO_QUALIFIER` | `FROZEN_POLICY` + `INKUBATOR_OUTCOME` |
-| `REFUND_PRE_BUILD` | `FROZEN_POLICY` |
-| `CANCELLED_BY_RESOLUTION` | `FROZEN_POLICY` + `RESOLVER_THRESHOLD` |
+| Authorization mode | Allowed intent | Required authority facts |
+| --- | --- | --- |
+| `ORGANIZER_SELECTION` | `WINNER_PAYOUT` | `INKUBATOR_OUTCOME` + `ORGANIZER_SELECTION` |
+| `FROZEN_DEFAULT` | `WINNER_PAYOUT`, `DEFAULT_DISTRIBUTION`, `REFUND_NO_QUALIFIER` | `FROZEN_POLICY` + `INKUBATOR_OUTCOME` |
+| `FROZEN_REFUND` | `REFUND_PRE_BUILD` | `FROZEN_POLICY` |
+| `RESOLVER_CANCEL` | `CANCELLED_BY_RESOLUTION` | `FROZEN_POLICY` + `RESOLVER_THRESHOLD` |
+
+A winner-payout manifest MUST explicitly say whether it came from organizer selection or frozen default. The protocol refuses to infer that provenance from `WINNER_PAYOUT` alone.
 
 For the future production vault, the expected direction is that organizer selection and outcome/policy authority become independently verifiable facts. The exact signature scheme, signer topology, threshold policy and on-chain verification are NOT frozen by J0.
 
@@ -179,14 +181,15 @@ J0 is not complete unless tests prove:
 5. winner payout requires outcome + organizer-selection authority facts;
 6. missing authority blocks execution-envelope creation;
 7. winner outcome and organizer-selection authorities cannot be the same actor;
-8. authorization facts cannot replay against another manifest;
-9. default distribution remains winnerless and conserves the full prize;
-10. execution is claimable and inherits recipients from the manifest;
-11. recipient mutation changes/invalidates the manifest or execution digest;
-12. cancellation requires resolver-threshold + frozen-policy authority;
-13. illegal rail-state jumps fail closed;
-14. FINALIZED is terminal;
-15. no production-money or signing/broadcast implementation is introduced.
+8. winner payout provenance is explicit and single-qualifier default does not require a vanished organizer;
+9. authorization facts cannot replay against another manifest;
+10. default distribution remains winnerless and conserves the full prize;
+11. execution is claimable and inherits recipients from the manifest;
+12. recipient mutation changes/invalidates the manifest or execution digest;
+13. cancellation requires resolver-threshold + frozen-policy authority;
+14. illegal rail-state jumps fail closed;
+15. FINALIZED is terminal;
+16. no production-money or signing/broadcast implementation is introduced.
 
 ## 12. Next bounded slice after J0 closure
 
