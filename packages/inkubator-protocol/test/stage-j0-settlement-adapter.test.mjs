@@ -136,6 +136,10 @@ test('winner settlement requires independent outcome and organizer-selection aut
   ];
   assert.equal(assertRecordedStageJ0AuthorizationSet(manifest, facts), facts);
   assert.throws(() => assertRecordedStageJ0AuthorizationSet(manifest, facts.slice(0, 1)), /does not satisfy manifest/);
+  assert.throws(() => assertRecordedStageJ0AuthorizationSet(manifest, [
+    auth(manifest, 'INKUBATOR_OUTCOME', 'same-actor'),
+    auth(manifest, 'ORGANIZER_SELECTION', 'same-actor'),
+  ]), /must be independent/);
 });
 
 test('authorization facts cannot be replayed against a different settlement manifest', () => {
