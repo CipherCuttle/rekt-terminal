@@ -69,6 +69,9 @@ jobs:
       - name: Run J4 adapter/finality/release tests
         run: node --test packages/inkubator-protocol/test/stage-j4-production-candidate.test.mjs
 
+      - name: Generate J4 cross-language known-answer vectors
+        run: node scripts/inkubator/stage-j4-known-answer-vectors.mjs
+
       - name: Verify forbidden release surfaces
         run: node scripts/inkubator/stage-j4-preaudit-verify.mjs
 
