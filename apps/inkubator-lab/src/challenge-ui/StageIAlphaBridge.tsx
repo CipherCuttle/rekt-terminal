@@ -92,6 +92,20 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
   const [phase, setPhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
   const [message, setMessage] = useState<string | null>(null);
   const challenge = launchedChallenge ?? suppliedChallenge ?? null;
+  const organizerTitle = !challengeId
+    ? 'SET UP THE CHALLENGE'
+    : challenge?.status === 'DRAFT'
+      ? 'OPEN TO BUILDERS'
+      : challenge?.status === 'ENTRY_OPEN'
+        ? 'CHALLENGE IS OPEN'
+        : 'CHALLENGE IN PROGRESS';
+  const organizerDescription = !challengeId
+    ? 'Choose how many builders can join and when each part of the Challenge closes.'
+    : challenge?.status === 'DRAFT'
+      ? 'Your rules stay locked. Opening the Challenge lets builders join under those exact terms.'
+      : challenge?.status === 'ENTRY_OPEN'
+        ? 'Builders can join now under the locked rules.'
+        : `Setup is complete. Canonical state: ${challenge?.status ?? 'READING'}.`;
 
   const create = async () => {
     if (!api.createChallenge) return;
@@ -152,8 +166,8 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
   return (
     <section className="compiler-contract" aria-labelledby="stage-i-organizer-title">
       <small>{challengeId ? 'STEP 5 / OPEN' : 'STEP 3 / SET UP'}</small>
-      <h2 id="stage-i-organizer-title">{challengeId ? 'OPEN TO BUILDERS' : 'SET UP THE CHALLENGE'}</h2>
-      <p>{challengeId ? 'Your rules stay locked. Opening the Challenge lets builders join under those exact terms.' : 'Choose how many builders can join and when each part of the Challenge closes.'} <b>THIS REHEARSAL USES TEST VALUE ONLY.</b></p>
+      <h2 id="stage-i-organizer-title">{organizerTitle}</h2>
+      <p>{organizerDescription} <b>THIS REHEARSAL USES TEST VALUE ONLY.</b></p>
 
       {!challengeId ? (
         <>
@@ -180,12 +194,14 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
             <div><dt>VALUE</dt><dd>TEST ONLY / REAL VALUE FALSE</dd></div>
           </dl>
           <div className="compiler-contract__actions">
-            <button
-              type="button"
-              disabled={phase === 'LOADING' || challenge?.status !== 'DRAFT' || !challenge.has_frozen_contract}
-              onClick={() => void launch()}
-            >{phase === 'LOADING' ? 'OPENING…' : 'OPEN CHALLENGE / TEST ONLY'}</button>
-            <span>{challenge?.status === 'ENTRY_OPEN' ? 'OPEN · BUILDERS CAN JOIN' : !challenge?.has_frozen_contract ? 'LOCK THE RULES FIRST' : 'READY TO OPEN · SERVER VALIDATES THE TRANSITION'}</span>
+            {challenge?.status === 'DRAFT' ? (
+              <button
+                type="button"
+                disabled={phase === 'LOADING' || !challenge.has_frozen_contract}
+                onClick={() => void launch()}
+              >{phase === 'LOADING' ? 'OPENING…' : 'OPEN CHALLENGE / TEST ONLY'}</button>
+            ) : null}
+            <span>{challenge?.status === 'ENTRY_OPEN' ? 'OPEN · BUILDERS CAN JOIN' : challenge?.status === 'DRAFT' ? !challenge.has_frozen_contract ? 'LOCK THE RULES FIRST' : 'READY TO OPEN · SERVER VALIDATES THE TRANSITION' : challenge ? `CURRENT STATE · ${challenge.status}` : 'READING CANONICAL STATE'}</span>
           </div>
         </>
       )}
