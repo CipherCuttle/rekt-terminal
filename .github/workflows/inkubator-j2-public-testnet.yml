@@ -28,7 +28,7 @@ env:
 jobs:
   public-testnet-rehearsal:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 150
 
     steps:
       - name: Check out exact authorized J2 source
@@ -126,7 +126,7 @@ jobs:
         run: |
           set -euo pipefail
           funded=0
-          for attempt in $(seq 1 360); do
+          for attempt in $(seq 1 1440); do
             balance="$(cast balance "$DEPLOYER_ADDRESS" --rpc-url "$INK_SEPOLIA_RPC_URL" 2>/dev/null || true)"
             if [[ "$balance" =~ ^[0-9]+$ ]] && [ "$balance" -gt 0 ]; then
               funded=1
