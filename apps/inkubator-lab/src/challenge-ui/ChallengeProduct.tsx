@@ -301,7 +301,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
       return;
     }
     let cancelled = false;
-    setChallengeView(null);
+    setChallengeView((current) => current?.challenge_id === challengeId ? current : null);
     setChallengePhase('LOADING');
     void api.getChallenge(challengeId).then((next) => {
       if (cancelled) return;
@@ -430,7 +430,6 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
 
     setCanonicalContract(next);
     setPersistPhase('IDLE');
-    setChallengeView(null);
     setChallengePhase('LOADING');
     try {
       setChallengeView(await api.getChallenge(challengeId));
