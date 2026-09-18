@@ -45,8 +45,9 @@ Forward product strategy and staged roadmap are governed by:
 39. `ALPHA_OPERATOR_RUNBOOK_V1.md` — solo-operator failure/recovery authority for Stage-I rehearsal and future Closed Alpha.
 40. `STAGE_J0_SETTLEMENT_ADAPTER_V1.md` — active test-only settlement-adapter/manifest authority; no production-money authority.
 41. `STAGE_J1_TESTNET_CHALLENGE_VAULT_V1.md` — closed/pass no-deploy testnet-vault contract authority.
-42. `STAGE_J2_INK_SEPOLIA_PUBLIC_TESTNET_REHEARSAL_V1.md` — active public-testnet synthetic-value rehearsal authority; no production-money or mainnet authority.
-43. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+42. `STAGE_J2_INK_SEPOLIA_PUBLIC_TESTNET_REHEARSAL_V1.md` — closed/pass public-testnet synthetic-value rehearsal authority; no production-money or mainnet authority.
+43. `STAGE_J2_CLOSURE_V1.md` — durable Stage-J2 closure receipt, public contract addresses, conservation evidence and hostile-review verdict.
+44. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -90,7 +91,7 @@ Stage-I deployed rehearsal                    PENDING
 Stage-I external-human Alpha                  NOT AUTHORIZED
 Stage J0 settlement adapter                   ACTIVE / TEST-ONLY PROTOCOL SLICE
 Stage J1 testnet Challenge Vault              CLOSED / PASS / PR #126 DRAFT UNMERGED
-Stage J2 Ink Sepolia rehearsal                ACTIVE / SYNTHETIC PUBLIC-TESTNET SLICE
+Stage J2 Ink Sepolia rehearsal                CLOSED / PASS / PR #127 DRAFT UNMERGED
 Production money                              NOT AUTHORIZED
 Stage-I prep merge-to-main                    NOT AUTHORIZED
 Stage-J0 merge-to-main                        NOT AUTHORIZED
@@ -115,6 +116,7 @@ Stage-J2 merge-to-main                        NOT AUTHORIZED
 - **Stage-H independent review:** reviewed pre-H base `04365d2d4a20948c15d76d02c566499c5ed5bd57` through `ed16eaec46939e20e30b6fbbcc4466ab8599e444`; run `35232699651`; verdict `CLEAN_NO_CRITICAL_HIGH`; artifact id `10501783369`, SHA-256 `114c57a92e8af3802dda63aaaae9c7c9c18622f02c2cb789bc1abcf5434510c4`.
 - **Integration reconciliation:** current-main `c21d01cb5254d8ec653f6bd8b3f9a1084cdc65c2` reconciled into the dedicated integration branch through PR #120 at `22226fe4f4584064c56665427daa62b839d3116a`.
 - **Stage E→H main integration:** PR #121 merged verified integration head `a4836d3be76dd3f2f47e7274cba4e62c5fa444bf` into `main`; canonical merge commit `ab9d281086e3a2859274065d3ed9cb3ed5cf2f51`.
+- **Stage J2:** `66c45586ffadec5d85455c895cd320455c5413ee` — public Ink Sepolia synthetic settlement rehearsal PASS; run `35396664547`; hostile review `5252888951` PASS with no Critical/High findings; closure receipt `STAGE_J2_CLOSURE_V1.md`.
 
 ## Current Stage-I prep authority
 
@@ -159,4 +161,4 @@ Owner authorization on 2026-09-18 starts the bounded Ink Sepolia public-testnet 
 
 J2 may deploy only disposable synthetic-value rehearsal contracts to Ink Sepolia chain `763373`, use faucet-only test ETH, generate runner-ephemeral test signers, execute the bounded 250-unit winner/default/refund scenarios, and preserve public-chain evidence.
 
-J2 may not use Ink mainnet, production-value assets, reusable private keys, owner wallets, production signer infrastructure, fees, custody, merge authority or production settlement authority. `STAGE_J2_INK_SEPOLIA_PUBLIC_TESTNET_REHEARSAL_V1.md` is the slice authority.
+J2 is CLOSED / PASS at reviewed implementation head `66c45586ffadec5d85455c895cd320455c5413ee`; durable closure evidence is recorded in `STAGE_J2_CLOSURE_V1.md`. J2 did not authorize Ink mainnet, production-value assets, reusable private keys, owner wallets, production signer infrastructure, fees, custody, merge authority or production settlement authority.
