@@ -197,14 +197,16 @@ type JourneyGuideProps = {
   title: string;
   body: string;
   detail?: string;
+  nextAction?: string;
 };
 
-function JourneyGuide({role, step, total, title, body, detail}: JourneyGuideProps) {
+function JourneyGuide({role, step, total, title, body, detail, nextAction}: JourneyGuideProps) {
   return (
     <aside className="journey-guide" data-journey-role={role.toLowerCase()} data-journey-step={step} aria-label={`${role} journey guidance`}>
       <div className="journey-guide__meta"><span>{role} JOURNEY</span><b>STEP {step} OF {total}</b></div>
       <h2>{title}</h2>
       <p>{body}</p>
+      {nextAction ? <div className="journey-guide__next"><span>DO THIS NEXT</span><b>{nextAction}</b></div> : null}
       {detail ? <small>{detail}</small> : null}
     </aside>
   );
@@ -217,46 +219,49 @@ type OrganizerGuidanceInput = {
   accepted: boolean;
   successCriteriaCount: number;
   challenge: PublicChallengeView | null;
+  hasPreview: boolean;
 };
 
 export function deriveOrganizerGuidance(input: OrganizerGuidanceInput): Omit<JourneyGuideProps, 'role' | 'total'> {
-  const {sourceIntent, clarificationComplete, compilerState, accepted, successCriteriaCount, challenge} = input;
+  const {sourceIntent, clarificationComplete, compilerState, accepted, successCriteriaCount, challenge, hasPreview} = input;
 
   if (challenge?.has_frozen_contract) {
     if (challenge.status === 'ENTRY_OPEN') {
-      return {step: 5, title: 'YOUR CHALLENGE IS OPEN', body: 'Builders can now join under the locked rules. You can leave this screen and share the Challenge link.', detail: 'The server remains authoritative for lifecycle state and deadlines.'};
+      return {step: 5, title: 'YOUR CHALLENGE IS OPEN', body: 'Builders can now join under the locked rules. Setup is finished.', nextAction: 'Share the Challenge link with builders.', detail: 'The rules they see are the same rules you locked.'};
     }
     if (challenge.status === 'DRAFT') {
-      return {step: 5, title: 'OPEN IT TO BUILDERS', body: 'The rules are locked. Opening the Challenge is the only remaining organizer action in this setup flow.', detail: 'Opening does not change the locked Build Contract.'};
+      return {step: 5, title: 'OPEN IT TO BUILDERS', body: 'The rules are locked. Nothing else needs editing before builders can enter.', nextAction: 'Press “OPEN TO BUILDERS →”.', detail: 'Opening does not change the rules you already locked.'};
     }
-    return {step: 5, title: 'CHALLENGE IN PROGRESS', body: `The guided setup is complete. The canonical Challenge is now in ${challenge.status}; setup actions will not pretend that it can be opened again.`, detail: 'Use the lifecycle surfaces for the next canonical action.'};
+    return {step: 5, title: 'CHALLENGE IN PROGRESS', body: `Setup is complete. The Challenge is now in ${challenge.status}.`, nextAction: 'Follow the Challenge status above; there is nothing left to press in setup.', detail: 'The locked rules remain unchanged.'};
   }
   if (!sourceIntent.trim()) {
-    return {step: 1, title: 'DESCRIBE WHAT YOU WANT BUILT', body: 'Start in normal language. Describe the finished software or outcome you want builders to deliver.', detail: 'You do not need to know Inkubator protocol terms.'};
+    return {step: 1, title: 'DESCRIBE WHAT YOU WANT BUILT', body: 'Start in normal language. Describe the finished software or outcome you want builders to deliver.', nextAction: 'Type your idea in “YOUR IDEA” below.', detail: 'You do not need to know Inkubator terminology.'};
   }
   if (!clarificationComplete) {
-    return {step: 2, title: 'CLARIFY A FEW DETAILS', body: 'Answer one detail at a time. Yes, No, and Not sure are all valid answers.', detail: 'Unknown stays unknown; the UI will not invent requirements for you.'};
+    return {step: 2, title: 'CLARIFY A FEW DETAILS', body: 'Answer one detail at a time. Yes, No, and Not sure are all valid answers.', nextAction: 'Answer the current question, then press “NEXT DETAIL →”.', detail: 'If you genuinely do not know, choose Not sure.'};
   }
   if (!compilerState && successCriteriaCount === 0) {
-    return {step: 3, title: 'DEFINE WHAT COUNTS AS DONE', body: 'Write at least one observable result a builder must achieve. This becomes part of the locked Challenge criteria.', detail: 'Good criteria describe something you can actually check, not “make it good”.'};
+    return {step: 3, title: 'DEFINE WHAT COUNTS AS DONE', body: 'Write at least one observable result a builder must achieve. This becomes part of the locked Challenge criteria.', nextAction: 'Add at least one required result below.', detail: 'Good criteria describe something you can actually check, not “make it good”.'};
   }
   if (!compilerState) {
-    return {step: 3, title: 'CHECK YOUR CHALLENGE RULES', body: 'You have supplied the idea, technical details and success criteria. Check what is ready and what still needs clarification.', detail: 'No Challenge is created or opened by this check.'};
+    return {step: 3, title: 'CHECK YOUR CHALLENGE RULES', body: 'You have supplied the idea, technical details and success criteria. Inkubator can now show you what those choices mean as one build brief.', nextAction: 'Press “CHECK MY CHALLENGE”.', detail: 'This check does not publish or lock anything.'};
   }
   if (compilerState.status === 'UNSUPPORTED') {
-    return {step: 2, title: 'ONE OF YOUR CHOICES NEEDS CHANGING', body: 'This version of Inkubator cannot safely support the current setup. The blocking choice is shown below with a direct way back to it.', detail: 'Nothing is locked or created while this is unresolved.'};
+    return {step: 2, title: 'ONE OF YOUR CHOICES NEEDS CHANGING', body: 'This version of Inkubator cannot safely support the current setup. The blocking choice is shown below.', nextAction: 'Use the “CHANGE … ANSWER →” action below, then check again.', detail: 'Nothing is locked or created while this is unresolved.'};
   }
   if (compilerState.status !== 'READY') {
     const blockingCount = compilerState.unresolved_decisions.length;
-    return {step: 2, title: 'A FEW DETAILS STILL NEED CLARITY', body: 'The exact unresolved items are shown below. Answer those follow-ups or reopen the specific detail that needs a Yes/No decision.', detail: `${blockingCount} unresolved decision${blockingCount === 1 ? '' : 's'} remain.`};
+    return {step: 2, title: 'A FEW DETAILS STILL NEED CLARITY', body: 'The exact unresolved items are shown below. Answer only what is highlighted.', nextAction: 'Resolve the highlighted item, then press “CHECK AGAIN →”.', detail: `${blockingCount} unresolved decision${blockingCount === 1 ? '' : 's'} remain.`};
   }
   if (!accepted) {
-    return {step: 3, title: 'REVIEW THE RULES', body: 'The compiler is ready. Confirm that these are the rules you actually want before creating the draft Challenge.', detail: 'Technical compiler output is available below if you want to inspect it.'};
+    return {step: 3, title: 'REVIEW THE RULES', body: 'Read the plain-language pass criteria below. This is the moment to change anything that does not match what you meant.', nextAction: 'If they are right, press “USE THESE RULES”.', detail: 'Nothing is locked yet; this is still reversible.'};
   }
   if (!challenge) {
-    return {step: 3, title: 'SET UP THE CHALLENGE', body: 'The rules are accepted. Choose builder capacity and deadlines; this creates a draft only.', detail: 'Nothing is visible to builders until you lock the rules and open it.'};
+    return {step: 3, title: 'SET UP THE CHALLENGE', body: 'The rules are accepted. Now choose how many builders can join and the deadlines.', nextAction: 'When the schedule looks right, press “CREATE DRAFT & CONTINUE →”.', detail: 'Creating the draft does not open it to builders.'};
   }
-  return {step: 4, title: 'LOCK THE RULES', body: 'Review the final Challenge details, preview exactly what will be frozen, then lock those rules.', detail: 'Locking is permanent for this Challenge. The server recomputes and verifies the canonical contract.'};
+  return hasPreview
+    ? {step: 4, title: 'LOCK THE RULES', body: 'You are looking at the final preview. This is the last reversible moment before the rules become permanent for this Challenge.', nextAction: 'If the preview is right, press “LOCK RULES & CONTINUE →”.', detail: 'After locking, builders will be judged against exactly these rules.'}
+    : {step: 4, title: 'REVIEW THE FINAL DETAILS', body: 'Give the Challenge a title and check the reward/details. Inkubator will show one final preview before anything becomes permanent.', nextAction: 'When ready, press “REVIEW FINAL RULES →”.', detail: 'You can still edit everything at this point.'};
 }
 
 function DiscoverSurface() {
@@ -631,7 +636,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const unsupportedFindings = compilerState?.status === 'UNSUPPORTED' ? compilerState.findings.filter((finding) => finding.severity === 'HIGH' || finding.severity === 'CRITICAL') : [];
   const otherUnresolvedDecisions = compilerState?.unresolved_decisions.filter((decision) => !decision.id.startsWith('QUESTION:') && !decision.id.startsWith('MISSING_REQUIREMENT:')) ?? [];
   const allBlockingFollowUpsAnswered = blockingFollowUps.every((question) => Boolean(followUpAnswers[question.id]?.trim()));
-  const guidance = deriveOrganizerGuidance({sourceIntent, clarificationComplete, compilerState, accepted, successCriteriaCount, challenge: challengeView});
+  const guidance = deriveOrganizerGuidance({sourceIntent, clarificationComplete, compilerState, accepted, successCriteriaCount, challenge: challengeView, hasPreview: Boolean(preview)});
   const compilerReadyAndAccepted = compilerState?.status === 'READY' && accepted;
 
   return (
@@ -872,20 +877,24 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         {creatorXUrl.trim() && !normalizeCreatorXProfileUrl(creatorXUrl) ? <p className="compiler-contract__notice">X PROFILE MUST BE A DIRECT HTTPS PROFILE URL ON x.com.</p> : null}
 
         <div className="compiler-contract__actions">
-          <button type="button" className={previewReady && !preview ? 'journey-next-action' : undefined} disabled={!previewReady} onClick={() => void previewContract()}>
-            {previewPhase === 'LOADING' ? 'BUILDING PREVIEW…' : 'PREVIEW LOCKED RULES'}
-          </button>
-          <button type="button" className={persistReady ? 'journey-next-action' : undefined} disabled={!persistReady} onClick={() => void persistContract()}>
-            {persistPhase === 'LOADING' ? 'LOCKING RULES…' : 'LOCK THESE RULES'}
-          </button>
-          <span>{canonicalContract ? 'RULES LOCKED' : preview ? 'PREVIEW READY · LOCKING IS PERMANENT' : !challengeReadyForPreview ? 'DRAFT CHALLENGE REQUIRED' : 'PREVIEW BEFORE LOCKING'}</span>
+          {!preview && !canonicalContract ? (
+            <button type="button" className={previewReady ? 'journey-next-action' : undefined} disabled={!previewReady} onClick={() => void previewContract()}>
+              {previewPhase === 'LOADING' ? 'BUILDING PREVIEW…' : 'REVIEW FINAL RULES →'}
+            </button>
+          ) : null}
+          {preview && !canonicalContract ? (
+            <button type="button" className={persistReady ? 'journey-next-action' : undefined} disabled={!persistReady} onClick={() => void persistContract()}>
+              {persistPhase === 'LOADING' ? 'LOCKING RULES…' : 'LOCK RULES & CONTINUE →'}
+            </button>
+          ) : null}
+          <span>{canonicalContract ? 'RULES LOCKED' : preview ? 'LAST REVERSIBLE STEP · REVIEW BEFORE LOCKING' : !challengeReadyForPreview ? 'CREATE THE DRAFT FIRST' : 'FILL THE FINAL DETAILS TO CONTINUE'}</span>
         </div>
 
         {previewPhase === 'ERROR' ? <p className="compiler-contract__notice">PREVIEW REJECTED — authority, readiness or Build Contract validation failed. Nothing was persisted.</p> : null}
         {persistPhase === 'ERROR' ? <p className="compiler-contract__notice">CANONICAL PERSISTENCE REJECTED — authentication, organizer authority, preview lineage or idempotency validation failed.</p> : null}
         {preview ? (
           <div className="compiler-contract__result" data-build-contract-preview="noncanonical">
-            <strong>PREVIEW ONLY · NOT LOCKED YET</strong>
+            <strong>FINAL PREVIEW · NOT LOCKED YET</strong>
             <span>TERMS DIGEST <code>{preview.contract.terms_digest}</code></span>
             <details className="journey-technical-details"><summary>Exact contract JSON</summary><pre>{JSON.stringify(preview.contract, null, 2)}</pre></details>
           </div>
