@@ -118,6 +118,11 @@ function toPublicBuildContractSummary(snapshot: ChallengeSnapshot): PublicBuildC
   const termsDigest = typeof contract.terms_digest === 'string' ? contract.terms_digest : null;
   if (
     !termsDigest
+    || contract.challenge_id !== snapshot.challenge.challenge_id
+    || snapshot.contract.challenge_id !== snapshot.challenge.challenge_id
+    || !snapshot.challenge.current_contract_version
+    || contract.contract_version !== snapshot.challenge.current_contract_version
+    || snapshot.contract.contract_version !== snapshot.challenge.current_contract_version
     || !snapshot.challenge.current_terms_digest
     || termsDigest !== snapshot.challenge.current_terms_digest
     || snapshot.contract.terms_digest !== snapshot.challenge.current_terms_digest
