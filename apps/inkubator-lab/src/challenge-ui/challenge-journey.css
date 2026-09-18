@@ -207,7 +207,7 @@
     font:800 10px/1 var(--ios2-font-body)!important;letter-spacing:0!important
   }
   .challenge-journey-rail a small,.challenge-journey-rail__pending small{display:none!important}
-  .challenge-journey-rail__pending{opacity:.5}
+  .challenge-journey-rail__pending{opacity:1!important;background:var(--ios2-recessed)!important;border-style:dashed!important}
 
   .challenge-journey-workspace{
     min-width:0!important;padding:12px 10px max(92px,calc(76px + env(safe-area-inset-bottom)))!important
