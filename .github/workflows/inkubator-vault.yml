@@ -50,15 +50,6 @@ jobs:
         working-directory: contracts/inkubator-vault
         run: forge fmt --check
 
-      - name: Upload formatted Solidity sources
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02c # v4
-        with:
-          name: stage-j1-formatted-solidity
-          path: |
-            contracts/inkubator-vault/src
-            contracts/inkubator-vault/test
-          if-no-files-found: error
-
       - name: Compile vault
         working-directory: contracts/inkubator-vault
         run: forge build --sizes
