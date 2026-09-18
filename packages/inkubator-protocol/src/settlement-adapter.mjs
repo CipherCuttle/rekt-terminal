@@ -345,6 +345,11 @@ export function assertRecordedStageJ0AuthorizationSet(manifest, authorizationFac
   const actual = stableUnique(seen, 'settlement authorization authorities');
   const expected = stableUnique(manifest.required_authorities, 'settlement manifest authorities');
   invariant(digestRecord(actual) === digestRecord(expected), 'settlement authorization set does not satisfy manifest');
+  if (expected.includes('INKUBATOR_OUTCOME') && expected.includes('ORGANIZER_SELECTION')) {
+    const outcome = authorizationFacts.find((fact) => fact.authority === 'INKUBATOR_OUTCOME');
+    const organizer = authorizationFacts.find((fact) => fact.authority === 'ORGANIZER_SELECTION');
+    invariant(outcome.actor_id !== organizer.actor_id, 'winner settlement outcome and organizer-selection authorities must be independent');
+  }
   return authorizationFacts;
 }
 
