@@ -407,6 +407,10 @@ describe('Stage E Challenge product shell', () => {
     expect(screen.getByRole('heading', {name: publicContractSummary.title})).toBeTruthy();
     expect(screen.getByText(publicContractSummary.brief)).toBeTruthy();
     expect(screen.getByText('The launch state is visible.')).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'WHERE THIS CHALLENGE GOES'})).toBeTruthy();
+    expect(screen.getByText('NEXT: GET BUILDERS IN')).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'NO REAL MONEY MOVES HERE YET.'})).toBeTruthy();
+    expect(screen.getByText('REWARD / TEST ONLY')).toBeTruthy();
     expect(screen.getByText(/PUBLIC LOCKED-RULE PROJECTION ONLY/i)).toBeTruthy();
     expect(document.body.textContent).not.toContain('Mission');
     expect(document.body.textContent).not.toContain('Project state');
