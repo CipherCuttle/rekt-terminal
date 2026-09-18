@@ -12,20 +12,20 @@ Severity means impact if the control is absent in a real-value launch candidate.
 | J3-T02 | Web/API compromise redirects prize | Critical | No single compromise redirects settlement | Vault accepts only frozen recipient sets and contract-valid settlement kinds; API never has sweep key | Compare manifest/binding/roots to chain | Stop reconciliation; no admin override | Compromised outcome+organizer could still select among qualifiers | Adversarial test with arbitrary recipient/amount |
 | J3-T03 | Organizer + outcome collude before deadline | High | Subjective selection only among qualifiers | Winner must be member of frozen qualifier set; exact prize only | Receipt includes qualifier root + winner | Resolver only for policy breach/dispute, not taste | Colluders can choose any qualifying entry, which is allowed product semantics | Test non-qualifier winner always reverts |
 | J3-T04 | Outcome signer alone fabricates qualifier set | Critical | Qualification integrity | Qualifier set requires outcome + organizer or outcome + resolver co-authority | Append-only qualification receipt | Resolver correction/versioned supersession before settlement only | Two-authority collusion remains | Tests for one-signature rejection and co-authority domain binding |
-| J3-T05 | Resolver single-key compromise cancels Challenge | Critical | Exceptional cancellation | Production resolver must be threshold / contract-wallet authority; never one EOA | Threshold signer audit log | Key rotation / threshold recovery | Threshold quorum compromise | EIP-1271 threshold integration tests + governance runbook |
+| J3-T05 | Resolver single-key compromise cancels Challenge | Critical | Exceptional cancellation | Resolver is a minimal non-upgradeable ERC-1271 verifier with immutable 3-signer set and immutable 2-of-3 quorum; no mutable wallet governance | Threshold signer audit log + codehash | Remaining fixed quorum or terminal long-stop; new verifier only for new Challenges | Two signer compromises | EIP-1271 threshold integration tests + immutable-config/codehash tests |
 | J3-T06 | Signature replay across vaults | Critical | Authorization uniqueness | EIP-712 domain includes chain ID + verifying contract; message binds challenge/terms/binding | Signature digest inspection | None needed if impossible | Chain-id fork semantics | Cross-vault replay property test |
 | J3-T07 | Signature replay across chains | Critical | Chain isolation | EIP-712 domain chain ID; deployment allowlist | Reconciliation checks expected chain | Refuse settlement | Chain reconfiguration/fork edge | Cross-chain replay test |
 | J3-T08 | ECDSA malleability / invalid signer | High | Signature authenticity | Low-s enforcement, v normalization, zero-address rejection | Revert telemetry | Rotate compromised key if allowed by frozen governance | Wallet implementation variance | Fuzz high-s/invalid-v/zero signer |
 | J3-T09 | EIP-1271 wallet returns malformed/adversarial response | High | Contract-wallet authority | Static call exact magic value `0x1626ba7e`; bounded gas strategy; revert/short return = invalid | Signature verification errors | Alternate authorized threshold wallet only via explicit migration policy | Smart-wallet upgrade risk | Mock 1271 wallet suite: valid, invalid, revert, short return, gas grief |
 | J3-T10 | Qualifier root substituted after payout set | Critical | Frozen membership | Qualifier digest binds payout-set root + challenge/terms/binding | Receipt/readback | No mutation; deploy new Challenge if corrupted | Co-authority compromise | Root substitution tests |
 | J3-T11 | Payout order manipulated to steal remainder | High | Deterministic default economics | Canonical UTF-8 byte ordering frozen before BUILDING; order committed in payout leaf | Compare roster digest | None; bad plan blocks deployment | Unicode/canonicalization ambiguity | Property tests with reordered inputs/non-ASCII IDs |
-| J3-T12 | Wrong settlement manifest digest used | Critical | Terms/intention binding | Settlement signature binds manifest digest + qualifier root + kind + recipients digest | Recompute manifest from product authority | Reconciliation hold | Offchain canonicalization bug | Known-answer vectors from J0 manifest to Solidity digest |
+| J3-T12 | Wrong settlement manifest digest used | Critical | Terms/intention binding | Organizer winner signatures bind manifest; qualifier freeze also binds/stores exact default manifest; pre-build/terminal refund manifest digests are immutable at deployment; permissionless paths accept no caller-selected manifest | Recompute manifest from product authority and compare stored digest | Reconciliation hold | Offchain canonicalization bug before freeze | Known-answer vectors + tests that alternate permissionless manifest input is impossible |
 | J3-T13 | Wrong terms/binding deployed | Critical | Challenge/terms identity | Constructor immutables; post-deploy readback before accepting funding/build | Deployment verifier | Abandon wrong vault; never migrate active funds silently | Human links wrong vault in UI | Deployment snapshot gate + UI/API vault binding test |
-| J3-T14 | Default executes before organizer deadline | Critical | Organizer selection window | Immutable deadline; contract checks `block.timestamp >= deadline` | Chain event monitoring | None; must be impossible | Timestamp granularity | Boundary tests at deadline-1/deadline/deadline+1 |
-| J3-T15 | Default requires platform signer and funds lock after platform outage | Critical | Settlement liveness | **Production delta:** once qualifier set is frozen, deterministic default execution is permissionless after deadline | Liveness test with all signer keys unavailable | Anyone calls default path | Gas availability / frozen recipient blacklist | Test default with zero available authority keys after qualifier freeze |
+| J3-T14 | Default executes before organizer deadline | Critical | Organizer selection window | Immutable deadline; all Build Contract ms→EVM not-before deadlines use `ceil(ms/1000)`; contract checks `block.timestamp >= deadline` | Chain event monitoring | None; must be impossible | Timestamp granularity | Exact-second/+1ms/+999ms known-answer conversion plus deadline-1/deadline/deadline+1 |
+| J3-T15 | Default requires platform signer and funds lock after platform outage | Critical | Settlement liveness | **Production delta:** qualifier freeze commits exact default manifest digest; after deadline execution is permissionless and uses only frozen digest/roots | Liveness test with all signer keys unavailable | Anyone calls default path | Gas availability / frozen recipient blacklist | Test default with zero available authority keys and no caller-controlled manifest after qualifier freeze |
 | J3-T16 | Qualification never finalizes and funds lock forever | Critical | Terminal liveness | Immutable recovery deadline + later terminal long-stop committed at deployment | Age/liability monitor | Resolver-threshold recovery window; terminal fallback only to predeclared policy | Terminal refund may disadvantage valid builders if platform died before qualification | Time-warp tests covering unresolved recovery and terminal fallback |
 | J3-T17 | Organizer deliberately suppresses qualification to reach refund long-stop | High | Builder fairness | Organizer cannot alone control qualifier finalization; outcome/resolver independence; long-stop is distant and public; dispute/recovery window | Missing-qualification alarms + public timestamps | Resolver threshold can finalize/cancel before terminal fallback | Coordinated multi-authority failure/collusion | Game-theoretic review + scenario test |
-| J3-T18 | Pre-build refund abused after builder work starts | Critical | No free organizer option | Immutable entry/build deadlines; pre-build refund only under frozen activation condition before BUILDING | Lifecycle vs chain deadline check | No refund path after BUILDING | Offchain activation evidence correctness | Tests refund legal before boundary, impossible after boundary |
+| J3-T18 | Pre-build refund abused after builder work starts | Critical | No free organizer option | Immutable activation/build deadline uses ceiling conversion; pre-build refund only under frozen activation condition and immutable pre-build-refund manifest | Lifecycle vs chain deadline check | No refund path after payout roster/build activation | Offchain activation evidence correctness | X001ms/X999ms conversion + refund legal at boundary and impossible once payout set sealed |
 | J3-T19 | No entrants / activation failure leaves funds stuck | High | Pre-build liveness | Explicit pre-build refund semantics or funding delayed until activation | Activation monitor | Frozen refund recipient | Operator outage before activation fact | Recovery-window test |
 | J3-T20 | Fee-on-transfer/rebasing token underfunds vault | Critical | Exact prize conservation | One exact allowlisted asset; before/after balance delta must equal prize; rebasing/fee tokens prohibited | Funding delta + token identity check | Funding reverts | Token implementation may change behind proxy | Token proxy/admin risk review + fork/integration test |
 | J3-T21 | Token pauses/blacklists recipient | High | Claim liveness | Asset review explicitly models pause/blacklist; pull claims isolate recipients | Failed claim telemetry | Other recipients continue; blocked amount remains claimable; policy for terminal blocked funds frozen before launch | Issuer censorship cannot be eliminated | Blacklisted-recipient simulation/fork test |
@@ -41,7 +41,7 @@ Severity means impact if the control is absent in a real-value launch candidate.
 | J3-T31 | Reorg after inclusion | High | Finality | Chain-specific finality policy; `included != finalized` | Block hash/height tracking | Reconcile until canonical | Deep L2/L1 reorg risk | Reorg simulation + finality policy evidence |
 | J3-T32 | Production key leaked in web/API environment | Critical | Signer isolation | No production settlement private key in ordinary app runtime; dedicated signer/threshold wallet | Secret inventory/runtime scans | Revoke/rotate via predeclared authority migration only where safe | Supply-chain compromise of signer system | Architecture review + secret-scan + incident drill |
 | J3-T33 | Key loss makes outcome/resolution impossible | High | Liveness | Threshold signers, backup/recovery procedure, role separation | Key-health drill | Threshold recovery | Multiple simultaneous losses | Key-loss tabletop + recovery test |
-| J3-T34 | Key rotation silently changes active Challenge authority | Critical | Frozen authority | Active vault authorities immutable; rotation applies through explicit predeclared wallet/threshold mechanism, not DB pointer | Compare chain authority to registry | Existing Challenge follows original authority or audited recovery law | Long-lived active Challenge | Rotation compatibility test |
+| J3-T34 | Key rotation silently changes active Challenge authority | Critical | Frozen authority | Outcome/organizer addresses are immutable; resolver verifier signer set/quorum/code are immutable; no active resolver rotation | Compare chain authority + resolver runtime/config to release registry | New authority/verifier only for new Challenges; active Challenge uses original or timed fallback | Long-lived active Challenge / organizer-owned smart-wallet semantics | Tests prove resolver config has no mutation surface and old Challenge remains unchanged |
 | J3-T35 | Funder/refund identity conflicts with entrant payout | High | Conflict-of-interest / refund safety | Launch policy rejects organizer/funder refund wallet equal to any entrant payout wallet | Pre-activation validation | Block Challenge activation | Same human controls multiple addresses | Curated identity policy; cannot solve Sybil fully onchain |
 | J3-T36 | Personal/private data put onchain | High | Privacy irreversibility | Only opaque digests, deadlines, amounts, authorities/payout addresses | ABI/event/privacy review | Cannot erase chain data | Wallet address is personal data in some contexts | DPIA + event-schema review |
 | J3-T37 | Receipt mutated after settlement | High | Economic history | Append-only receipt/superseding correction semantics; chain facts referenced | Hash/audit log | Add correction, never overwrite | Offchain storage compromise | Receipt immutability tests |
@@ -61,6 +61,8 @@ After a final qualifier set is frozen and the organizer-selection deadline expir
 - recipient identities and amounts remain fully determined by frozen roots/policy.
 
 No fresh organizer or Inkubator outcome signature is required at execution time.
+
+The qualifier-set authorization also freezes the exact default settlement manifest digest. Permissionless default uses that stored digest and accepts no caller-selected manifest.
 
 The signatures used to freeze the qualifier set are the final human/platform authority needed for deterministic default.
 
@@ -97,22 +99,26 @@ New law ships as a new version for new Challenges.
 
 Platform-fee settlement is excluded from the first production-value vault candidate unless separately specified, threat-modeled and audited.
 
+### D6 — deadline conversion is monotonic-safe
+
+Every Build Contract millisecond deadline that creates a not-before EVM permission uses `ceil(ms/1000)`. Relative recovery/long-stop offsets start from the already-ceiled organizer deadline.
+
+### D7 — permissionless receipt identity is frozen
+
+- default manifest digest freezes with qualifier set;
+- pre-build refund manifest digest is immutable at deployment;
+- terminal refund manifest digest is immutable at deployment;
+- permissionless paths never accept caller-selected manifest identity.
+
 ## J3 blockers still open
 
-- exact resolver threshold/quorum and signer custody;
-- exact unresolved terminal long-stop timing/fallback approval;
-- pre-build refund/activation semantics;
-- final chain + canonical asset tuple;
-- token proxy/admin/blacklist risk acceptance;
-- chain finality threshold and provider quorum;
-- EIP-1271 implementation details;
-- authority migration/key-recovery law;
-- reproducible deployment/codehash procedure;
-- external audit scope/vendor;
-- Sweden/EU legal/payment/CASP analysis;
+- external audit reviewer/vendor selection;
+- external legal/payment/CASP analysis;
 - tax/accounting;
 - DPIA/privacy;
 - launch eligibility/terms.
+
+Technical J3 architecture is otherwise frozen subject to the targeted rereview of the three repaired High findings.
 
 Until these are frozen and independently gated:
 
