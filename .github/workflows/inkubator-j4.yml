@@ -83,6 +83,24 @@ jobs:
           grep -F '"external_audit": "NOT_STARTED"' /tmp/j4-release-candidate.json
           grep -F '"production_money": "NOT_AUTHORIZED"' /tmp/j4-release-candidate.json
 
+  ink_asset_probe:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pinned Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
+        with:
+          version: v1.8.3
+          cache: false
+
+      - name: Read-only dual-RPC Ink/native-USDC identity probe
+        run: node scripts/inkubator/stage-j4-readonly-ink-asset-probe.mjs
+
   release_repro_a:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
