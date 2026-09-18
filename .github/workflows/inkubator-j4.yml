@@ -46,7 +46,11 @@ jobs:
       - name: Verify pinned Foundry
         run: forge --version | grep -F '1.8.3'
 
-      - name: Verify Solidity formatting
+      - name: Format Solidity working tree
+        working-directory: contracts/inkubator-vault
+        run: forge fmt
+
+      - name: Verify formatter is idempotent
         working-directory: contracts/inkubator-vault
         run: forge fmt --check
 
@@ -63,7 +67,7 @@ jobs:
 
       - name: Build reproducible candidate release receipt
         env:
-          SOURCE_COMMIT: ${{ github.sha }}
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
           RESOLVER_SIGNER_SET_DIGEST: 0x7777777777777777777777777777777777777777777777777777777777777777
         run: |
           node scripts/inkubator/stage-j4-release-candidate.mjs > /tmp/j4-release-candidate.json
