@@ -36,3 +36,5 @@ export declare function evaluateStageJ4Finality(observations: unknown): Readonly
 export declare function buildStageJ4ReleaseCandidateReceipt(input: Record<string, unknown>): Readonly<Record<string, unknown>>;
 
 export declare function appendStageJ4ReconciliationReceipt(history: readonly Readonly<Record<string, unknown>>[], input: Record<string, unknown>): readonly Readonly<Record<string, unknown>>[];
+export declare function buildStageJ4SigningRequest(input: Record<string, unknown>): Readonly<Record<string, unknown>>;
+export declare function registerStageJ4SigningRequest(history: readonly Readonly<Record<string, unknown>>[], request: Record<string, unknown>): readonly Readonly<Record<string, unknown>>[];
