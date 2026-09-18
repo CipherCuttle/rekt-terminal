@@ -7,6 +7,7 @@ import {
   STAGE_J4_NATIVE_USDC,
   appendStageJ4ReconciliationReceipt,
   buildStageJ4DeploymentPlan,
+  buildStageJ4PayoutRoster,
   buildStageJ4SigningRequest,
   buildStageJ4ReleaseCandidateReceipt,
   evaluateStageJ4Finality,
@@ -277,4 +278,27 @@ test('signing requests bind human fields to typed digest and reject semantic reu
     ...request,
     display_fields: {...request.display_fields, qualifier_count: 2},
   }), /signing request id conflict/);
+});
+
+
+test('J4 reuses canonical payout ordering and rejects duplicate roster identities', () => {
+  const roster = buildStageJ4PayoutRoster([
+    {entry_id: 'zeta', payout_address: '0x3333333333333333333333333333333333333333'},
+    {entry_id: 'alpha', payout_address: '0x1111111111111111111111111111111111111111'},
+    {entry_id: 'middle', payout_address: '0x2222222222222222222222222222222222222222'},
+  ]);
+
+  assert.deepEqual(roster.map((entry) => entry.entry_id), ['alpha', 'middle', 'zeta']);
+  assert.deepEqual(roster.map((entry) => entry.payout_order), [0, 1, 2]);
+  assert.ok(roster.every((entry) => /^0x[0-9a-f]{64}$/.test(entry.entry_digest)));
+
+  assert.throws(() => buildStageJ4PayoutRoster([
+    {entry_id: 'same', payout_address: '0x1111111111111111111111111111111111111111'},
+    {entry_id: 'same', payout_address: '0x2222222222222222222222222222222222222222'},
+  ]), /entry ids must be unique/);
+
+  assert.throws(() => buildStageJ4PayoutRoster([
+    {entry_id: 'one', payout_address: '0x1111111111111111111111111111111111111111'},
+    {entry_id: 'two', payout_address: '0x1111111111111111111111111111111111111111'},
+  ]), /payout addresses must be unique/);
 });
