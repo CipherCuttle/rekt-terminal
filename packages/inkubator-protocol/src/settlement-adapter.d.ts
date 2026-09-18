@@ -1,6 +1,7 @@
 import type {BuildContract, SettlementIntent} from './challenge.d.ts';
 
 export type StageJ0SettlementAdapterKind = 'MOCK' | 'TESTNET_CHALLENGE_VAULT';
+export type SettlementAuthorizationMode = 'ORGANIZER_SELECTION' | 'FROZEN_DEFAULT' | 'FROZEN_REFUND' | 'RESOLVER_CANCEL';
 export type SettlementAuthority =
   | 'INKUBATOR_OUTCOME'
   | 'ORGANIZER_SELECTION'
@@ -42,7 +43,7 @@ export interface StageJ0SettlementFundingFact {
 }
 
 export interface StageJ0SettlementManifest {
-  schema_version: 'inkubator.settlement-manifest/1.0';
+  schema_version: 'inkubator.settlement-manifest/1.1';
   value_mode: 'TEST_ONLY';
   challenge_id: string;
   terms_digest: string;
@@ -51,6 +52,7 @@ export interface StageJ0SettlementManifest {
   binding_digest: string;
   intent_digest: string;
   intent_type: SettlementIntent['type'];
+  authorization_mode: SettlementAuthorizationMode;
   asset: string;
   total_minor_units: number;
   recipients: SettlementIntent['recipients'];
@@ -91,6 +93,7 @@ export const SETTLEMENT_AUTHORIZATION_SCHEMA_VERSION: string;
 export const SETTLEMENT_EXECUTION_ENVELOPE_SCHEMA_VERSION: string;
 export const STAGE_J0_ADAPTER_KINDS: readonly StageJ0SettlementAdapterKind[];
 export const SETTLEMENT_AUTHORITIES: readonly SettlementAuthority[];
+export const SETTLEMENT_AUTHORIZATION_MODES: readonly SettlementAuthorizationMode[];
 export const SETTLEMENT_ADAPTER_STATES: readonly SettlementAdapterState[];
 
 export function bindStageJ0SettlementAdapter(args: {
@@ -103,7 +106,7 @@ export function bindStageJ0SettlementAdapter(args: {
 export function assertStageJ0SettlementAdapterBinding(binding: unknown): StageJ0SettlementAdapterBinding;
 export function assertStageJ0SettlementAdapterBindingMatchesContract(contract: BuildContract, binding: StageJ0SettlementAdapterBinding): StageJ0SettlementAdapterBinding;
 export function assertStageJ0FundingFactMatchesBinding(contract: BuildContract, binding: StageJ0SettlementAdapterBinding, fact: StageJ0SettlementFundingFact): StageJ0SettlementFundingFact;
-export function buildStageJ0SettlementManifest(args: {contract: BuildContract; settlementIntent: SettlementIntent; binding: StageJ0SettlementAdapterBinding}): Readonly<StageJ0SettlementManifest>;
+export function buildStageJ0SettlementManifest(args: {contract: BuildContract; settlementIntent: SettlementIntent; binding: StageJ0SettlementAdapterBinding; authorization_mode?: SettlementAuthorizationMode | null}): Readonly<StageJ0SettlementManifest>;
 export function assertStageJ0SettlementManifest(manifest: unknown): StageJ0SettlementManifest;
 export function assertStageJ0SettlementManifestMatchesIntent(contract: BuildContract, settlementIntent: SettlementIntent, binding: StageJ0SettlementAdapterBinding, manifest: StageJ0SettlementManifest): StageJ0SettlementManifest;
 export function assertRecordedStageJ0AuthorizationSet(manifest: StageJ0SettlementManifest, authorizationFacts: StageJ0SettlementAuthorizationFact[]): StageJ0SettlementAuthorizationFact[];
