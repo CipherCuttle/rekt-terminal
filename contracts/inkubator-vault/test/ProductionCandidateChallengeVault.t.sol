@@ -19,6 +19,9 @@ contract MockProductionToken is IERC20ProductionCandidate {
     mapping(address => mapping(address => uint256)) public allowance;
 
     uint256 public transferFromFeeBps;
+    uint256 public transferFeeBps;
+    bool public falseTransferReturn;
+    bool public malformedTransferReturn;
     address public blockedRecipient;
 
     function mint(address to, uint256 amount) external {
@@ -34,14 +37,36 @@ contract MockProductionToken is IERC20ProductionCandidate {
         transferFromFeeBps = feeBps;
     }
 
+    function setTransferFeeBps(uint256 feeBps) external {
+        transferFeeBps = feeBps;
+    }
+
+    function setFalseTransferReturn(bool enabled) external {
+        falseTransferReturn = enabled;
+    }
+
+    function setMalformedTransferReturn(bool enabled) external {
+        malformedTransferReturn = enabled;
+    }
+
     function setBlockedRecipient(address recipient) external {
         blockedRecipient = recipient;
     }
 
     function transfer(address to, uint256 amount) external override returns (bool) {
         if (to == blockedRecipient) revert("blocked");
+
+        uint256 fee = amount * transferFeeBps / 10_000;
         balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
+        balanceOf[to] += amount - fee;
+
+        if (malformedTransferReturn) {
+            assembly ("memory-safe") {
+                mstore(0, 1)
+                return(31, 1)
+            }
+        }
+        if (falseTransferReturn) return false;
         return true;
     }
 
@@ -436,6 +461,42 @@ contract ProductionCandidateChallengeVaultTest {
             _sign(ORGANIZER_PK, digest)
         );
         _assertEq(vault.claimable(alice), PRIZE, "winner claimable");
+    }
+
+    function testShortFalseAndMalformedClaimDeliveryFailClosed() public {
+        _sealOneQualifierNormal();
+
+        ProductionCandidateChallengeVault.RecipientClaimInput memory recipient =
+            ProductionCandidateChallengeVault.RecipientClaimInput(entryA, 0, alice, PRIZE, new bytes32[](0));
+
+        vm.warp(organizerDeadline);
+        vault.executeDefaultSingleQualifier(recipient);
+
+        token.setTransferFeeBps(100);
+        vm.expectRevert(ProductionCandidateChallengeVault.TokenTransferFailed.selector);
+        vault.claimFor(alice);
+        _assertEq(vault.claimable(alice), PRIZE, "short transfer liability preserved");
+        _assertEq(vault.totalClaimed(), 0, "short transfer cannot count as claimed");
+        _assertEq(token.balanceOf(address(vault)), PRIZE, "short transfer fully rolled back");
+
+        token.setTransferFeeBps(0);
+        token.setFalseTransferReturn(true);
+        vm.expectRevert(ProductionCandidateChallengeVault.TokenTransferFailed.selector);
+        vault.claimFor(alice);
+        _assertEq(vault.claimable(alice), PRIZE, "false return liability preserved");
+        _assertEq(vault.totalClaimed(), 0, "false return cannot count as claimed");
+
+        token.setFalseTransferReturn(false);
+        token.setMalformedTransferReturn(true);
+        vm.expectRevert();
+        vault.claimFor(alice);
+        _assertEq(vault.claimable(alice), PRIZE, "malformed return liability preserved");
+        _assertEq(vault.totalClaimed(), 0, "malformed return cannot count as claimed");
+
+        token.setMalformedTransferReturn(false);
+        vault.claimFor(alice);
+        _assertEq(token.balanceOf(alice), PRIZE, "exact delivery succeeds");
+        _assert(vault.isFinalized(), "exact delivery finalizes");
     }
 
     function testBlockedRecipientCannotBlockOtherClaims() public {
