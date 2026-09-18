@@ -57,6 +57,12 @@ export const STAGE_J4_NATIVE_USDC = Object.freeze({
   issuer: 'Circle',
 });
 
+export const STAGE_J4_EXCLUDED_USDC_E = Object.freeze({
+  symbol: 'USDC.e',
+  address: '0xf1815bd50389c46847f0bda824ec8da914045d14',
+  status: 'EXCLUDED_FROM_FIRST_CANDIDATE',
+});
+
 export const STAGE_J4_TOOLCHAIN = Object.freeze({
   foundry: '1.8.3',
   solc: '0.8.37',
