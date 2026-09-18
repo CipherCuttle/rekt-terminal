@@ -139,7 +139,7 @@ function JourneyChrome({surface, challengeId, client, children}: {surface: Chall
         <div>
           <small>{String(USER_SURFACES.indexOf(surface) + 1).padStart(2, '0')} / {String(USER_SURFACES.length).padStart(2, '0')} · {SURFACE_CUES[surface]}</small>
           <h1>{surface === 'DISCOVER' ? 'WHAT ARE YOU HERE TO DO?' : SURFACE_LABELS[surface]}</h1>
-          <p>{surface === 'DISCOVER' ? 'Run a build challenge or enter one. The product should tell you the next move without requiring secret URLs or internal protocol knowledge.' : 'ONE CHALLENGE. ONE FROZEN CONTRACT. ONE CLEAR NEXT MOVE.'}</p>
+          <p>{surface === 'DISCOVER' ? 'Turn an idea into a fair build competition with rules everyone can see before work starts.' : 'ONE CHALLENGE. ONE SET OF RULES. ONE CLEAR NEXT MOVE.'}</p>
         </div>
         <div className="ios-shell-readout" aria-label="Alpha authority">
           <div><span>VALUE</span><b>TEST ONLY</b></div>
@@ -235,9 +235,36 @@ function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe' | 'getM
     <JourneyChrome surface="DISCOVER" challengeId={challengeId ?? existingChallenge} client={client}>
       {observation === 'degraded' ? <div className="challenge-journey-notice" role="status">GITHUB OBSERVATION DEGRADED · {observationReason ?? 'provider observation incomplete'} · challenge creation and deterministic state remain available.</div> : null}
       <section className="challenge-journey-intro">
-        <small>DISCOVER / BUILD SOMETHING WORTH TESTING</small>
-        <h2>LAUNCH A CHALLENGE.<br />PROVE WHAT GETS BUILT.</h2>
-        <p>Pick an idea, make the success criteria obvious, let builders compete against the same locked rules, then test what actually works.</p>
+        <small>INKUBATOR / BUILD WITHOUT MOVING GOALPOSTS</small>
+        <h2>DESCRIBE IT ONCE.<br />LET BUILDERS PROVE IT.</h2>
+        <p>Inkubator turns a vague software request into one shared set of requirements before anyone starts building.</p>
+      </section>
+
+      <section className="challenge-why" aria-labelledby="challenge-why-title">
+        <small>WHY INKUBATOR EXISTS</small>
+        <h2 id="challenge-why-title">STOP GUESSING WHAT “DONE” MEANS.</h2>
+        <p className="challenge-why__lead">Use Inkubator when you want several builders — people or agents — to build toward the same outcome without changing the brief halfway through.</p>
+        <div className="challenge-why__grid">
+          <article>
+            <small>FOR ORGANIZERS</small>
+            <h3>GET COMPARABLE BUILDS.</h3>
+            <p>Define the outcome and pass conditions up front. Every submission is judged against the same visible requirements.</p>
+          </article>
+          <article>
+            <small>FOR BUILDERS</small>
+            <h3>KNOW THE BAR BEFORE YOU START.</h3>
+            <p>No hidden criteria and no moving target. You can see what must work, what must be delivered and when it is due.</p>
+          </article>
+          <article>
+            <small>WHAT INKUBATOR DOES</small>
+            <h3>TEST THE OBJECTIVE PARTS.</h3>
+            <p>It records the shared rules, checks what can be checked objectively, and preserves evidence of what was submitted.</p>
+          </article>
+        </div>
+        <div className="challenge-why__promise">
+          <b>YOU STILL MAKE THE FINAL CHOICE.</b>
+          <span>Inkubator makes the qualifying bar explicit; it does not replace organizer judgment with hidden scoring.</span>
+        </div>
       </section>
 
       <section className="challenge-discover-dashboard" aria-labelledby="discover-dashboard-title">
@@ -304,8 +331,8 @@ function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe' | 'getM
         <article className="challenge-journey-lane challenge-journey-lane--organizer">
           <small>01 / ORGANIZER</small>
           <h3>I WANT TO RUN A BUILD CHALLENGE.</h3>
-          <p>Describe the software outcome, resolve the compiler questions, freeze the Build Contract, then open the competition with TEST value.</p>
-          <ol><li>CREATE</li><li>COMPILE</li><li>LOCK</li><li>OPEN</li></ol>
+          <p>Say what you want built, define what “done” means, lock those rules, then invite builders to compete against the same brief.</p>
+          <ol><li>DESCRIBE</li><li>DEFINE DONE</li><li>LOCK RULES</li><li>INVITE BUILDERS</li></ol>
           {organizerNeedsGitHub ? (
             <>
               <div className="challenge-auth-gate" role="status">
@@ -324,7 +351,7 @@ function JourneyHome({client}: {client: Pick<InkubatorApiClient, 'getMe' | 'getM
         <article className="challenge-journey-lane challenge-journey-lane--builder">
           <small>02 / BUILDER</small>
           <h3>I HAVE A CHALLENGE TO BUILD.</h3>
-          <p>Paste the Challenge link or ID. You should land on the public contract first, then join and continue into My Build.</p>
+          <p>Open a Challenge, read exactly what must pass before you commit, then join and build against that same rule set.</p>
           <label htmlFor="challenge-target">CHALLENGE LINK OR ID</label>
           <input id="challenge-target" value={target} onChange={(event) => setTarget(event.target.value)} placeholder="Paste a Challenge URL or UUID" />
           {challengeId ? <a className="challenge-journey-primary" href={challengeHref('CHALLENGE', challengeId)}>OPEN CHALLENGE →</a> : <span className="challenge-journey-primary challenge-journey-primary--disabled">ENTER A VALID CHALLENGE ID</span>}
