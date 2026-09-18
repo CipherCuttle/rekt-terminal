@@ -29,7 +29,7 @@ contract MatrixToken is IERC20ProductionCandidate {
         return true;
     }
 
-    function transfer(address to, uint256 amount) external override returns (bool) {
+    function transfer(address to, uint256 amount) external virtual override returns (bool) {
         balanceOf[msg.sender] -= amount;
         balanceOf[to] += amount;
         return true;
@@ -278,11 +278,19 @@ contract ProductionCandidatePreAuditMatrixTest {
         vault.sealPayoutSet(root, 1, zeroRecovery, validOrganizer);
     }
 
-    function testHostileErc1271ResponsesFailClosed() public {
+    function testErc1271WrongMagicFailsClosed() public {
         _assertHostileResolverRejects(address(new WrongMagicResolver()));
-        _assertHostileResolverRejects(address(new RevertingResolver()));
-        _assertHostileResolverRejects(address(new ShortReturnResolver()));
+    }
 
+    function testErc1271RevertFailsClosed() public {
+        _assertHostileResolverRejects(address(new RevertingResolver()));
+    }
+
+    function testErc1271ShortReturnFailsClosed() public {
+        _assertHostileResolverRejects(address(new ShortReturnResolver()));
+    }
+
+    function testErc1271ValidSignatureForWrongResolverSetFailsClosed() public {
         ImmutableResolver1271 wrongResolver =
             new ImmutableResolver1271(vm.addr(0x1111), vm.addr(0x2222), vm.addr(0x3333));
         _assertHostileResolverRejects(address(wrongResolver));
