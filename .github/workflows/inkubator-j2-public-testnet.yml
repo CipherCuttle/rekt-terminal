@@ -15,14 +15,12 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 env:
   INK_SEPOLIA_RPC_URL: https://rpc-gel-sepolia.inkonchain.com
   INK_SEPOLIA_CHAIN_ID: '763373'
   INK_SEPOLIA_EXPLORER_URL: https://explorer-sepolia.inkonchain.com
   J2_PRIZE_AMOUNT: '250000000'
-  J2_PR_NUMBER: ${{ inputs.pull_request_number || '127' }}
   J2_BUILDER_A: '0x1111111111111111111111111111111111111111'
   J2_BUILDER_B: '0x2222222222222222222222222222222222222222'
   J2_BUILDER_C: '0x3333333333333333333333333333333333333333'
@@ -74,9 +72,6 @@ jobs:
       - name: Generate ephemeral J2-only signers
         id: signers
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ env.J2_PR_NUMBER }}
         run: |
           set -euo pipefail
 
@@ -116,19 +111,15 @@ jobs:
             echo "J2_REFUND_RECIPIENT=$DEPLOYER_ADDRESS"
           } >> "$GITHUB_ENV"
 
-          body=$(cat <<EOF
-          J2_FAUCET_REQUEST
+          mkdir -p j2-artifacts
+          printf '%s\n' "$DEPLOYER_ADDRESS" > j2-artifacts/faucet-address.txt
 
-          Ephemeral Ink Sepolia deployer for this single Stage-J2 rehearsal:
-
-          `$DEPLOYER_ADDRESS`
-
-          Network: Ink Sepolia / chain `$INK_SEPOLIA_CHAIN_ID`
-          Required value: faucet test ETH only.
-          Private key is runner-ephemeral, masked, and is not persisted to the repository.
-          EOF
-          )
-          gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
+      - name: Upload public faucet address
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: inkubator-stage-j2-faucet-address
+          path: j2-artifacts/faucet-address.txt
+          if-no-files-found: error
 
       - name: Wait for faucet-only test ETH
         shell: bash
@@ -246,28 +237,6 @@ jobs:
           snapshot "$J2_DEFAULT_VAULT" j2-artifacts/snapshots/default.json
           snapshot "$J2_REFUND_VAULT" j2-artifacts/snapshots/refund.json
 
-      - name: Record public deployment checkpoint
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ env.J2_PR_NUMBER }}
-        run: |
-          set -euo pipefail
-          body=$(cat <<EOF
-          J2_PUBLIC_DEPLOYMENT_PREPARED
-
-          Chain: Ink Sepolia (`$INK_SEPOLIA_CHAIN_ID`)
-          Plan digest: `$J2_PLAN_DIGEST`
-          Synthetic token: $INK_SEPOLIA_EXPLORER_URL/address/$J2_TOKEN_ADDRESS
-          Winner vault: $INK_SEPOLIA_EXPLORER_URL/address/$J2_WINNER_VAULT
-          Default vault: $INK_SEPOLIA_EXPLORER_URL/address/$J2_DEFAULT_VAULT
-          Zero-qualifier refund vault: $INK_SEPOLIA_EXPLORER_URL/address/$J2_REFUND_VAULT
-
-          Winner and zero-qualifier refund paths are finalized. Default vault is intentionally waiting for the frozen organizer-selection deadline.
-          EOF
-          )
-          gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
-
       - name: Wait until the frozen organizer-selection deadline
         shell: bash
         run: |
@@ -341,35 +310,3 @@ jobs:
           name: inkubator-stage-j2-public-rehearsal
           path: j2-artifacts
           if-no-files-found: error
-
-      - name: Record J2 public-testnet PASS
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ env.J2_PR_NUMBER }}
-        run: |
-          set -euo pipefail
-          body=$(cat <<EOF
-          J2_PUBLIC_TESTNET_REHEARSAL_PASS
-
-          Exact head: `$GITHUB_SHA`
-          Network: Ink Sepolia / chain `$INK_SEPOLIA_CHAIN_ID`
-          Plan digest: `$J2_PLAN_DIGEST`
-
-          Synthetic token: $INK_SEPOLIA_EXPLORER_URL/address/$J2_TOKEN_ADDRESS
-          Organizer-winner vault: $INK_SEPOLIA_EXPLORER_URL/address/$J2_WINNER_VAULT
-          Frozen-default vault: $INK_SEPOLIA_EXPLORER_URL/address/$J2_DEFAULT_VAULT
-          Zero-qualifier-refund vault: $INK_SEPOLIA_EXPLORER_URL/address/$J2_REFUND_VAULT
-
-          Verified on public testnet:
-          - exact J0/J2 immutable snapshot match;
-          - 250-unit organizer winner path finalized;
-          - 250-unit three-qualifier deterministic default finalized only after frozen review deadline;
-          - 250-unit zero-qualifier refund finalized;
-          - all vault liabilities fully claimed;
-          - exact synthetic prize conservation.
-
-          No production asset, mainnet transaction, reusable wallet key, platform fee, merge, or production settlement authority was used.
-          EOF
-          )
-          gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
