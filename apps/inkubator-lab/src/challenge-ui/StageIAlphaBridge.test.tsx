@@ -93,6 +93,24 @@ describe('Stage I alpha browser bridge', () => {
     expect(onChallengeChanged.mock.calls[0]![0].challenge_id).toBe(input.challenge_id);
   });
 
+  it('does not attempt draft creation when GitHub identity is missing', async () => {
+    const createChallenge = vi.fn(async (_input: StageIChallengeCreateInput) => draft);
+    const api = baseApi({
+      getMe: vi.fn(async () => { throw new Error('authentication_required'); }),
+      createChallenge,
+      launchStageIMockChallenge: vi.fn(async () => entryOpen),
+    });
+
+    render(<StageIOrganizerBridge api={api} />);
+    expect(await screen.findByText('CONNECT GITHUB BEFORE CREATING THE DRAFT')).toBeTruthy();
+    const connect = screen.getByRole('link', {name: 'CONNECT GITHUB TO CREATE →'});
+    const href = new URL(connect.getAttribute('href')!, window.location.origin);
+    expect(href.pathname).toBe('/v1/auth/github/start');
+    expect(href.searchParams.get('return_to')).toContain('surface=compiler');
+    expect(screen.queryByRole('button', {name: 'CREATE DRAFT CHALLENGE'})).toBeNull();
+    expect(createChallenge).not.toHaveBeenCalled();
+  });
+
   it('mock-launches only an already frozen DRAFT through the test-only endpoint', async () => {
     const launchStageIMockChallenge = vi.fn(async (_challengeId: string, _requestId: string) => entryOpen);
     window.history.replaceState({}, '', `/?surface=compiler&challenge=${challengeId}`);
