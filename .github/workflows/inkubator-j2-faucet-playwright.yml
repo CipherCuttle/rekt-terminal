@@ -16,6 +16,7 @@ jobs:
     timeout-minutes: 5
     env:
       J2_FAUCET_ADDRESS: '0x7a9e62a0Ee31395DE45F79e6357E3E5C80c8AabB'
+      J2_FAUCET_URL: 'https://faucet-gel-sepolia.inkonchain.com'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
