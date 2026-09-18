@@ -66,6 +66,8 @@ The qualifier set is content-bound to the already-frozen payout set.
 
 ### Normal winner
 
+May settle only **before** the frozen organizer-selection deadline.
+
 Requires:
 
 - membership proof in the final qualifier set;
@@ -78,7 +80,7 @@ Stage J0 now explicitly distinguishes winner provenance.
 
 If the frozen default policy has exactly one qualifier, the economic intent is still `WINNER_PAYOUT`, but its authorization mode is `FROZEN_DEFAULT`, not `ORGANIZER_SELECTION`.
 
-J1 therefore permits the sole frozen qualifier to receive the prize with:
+J1 therefore permits the sole frozen qualifier to receive the prize only **at/after** the frozen organizer-selection deadline, with:
 
 - final-qualifier membership proof;
 - outcome signature;
@@ -90,13 +92,15 @@ This prevents a disappeared organizer from locking a valid sole qualifier's priz
 
 ### Multi-qualifier default
 
+May settle only **at/after** the frozen organizer-selection deadline.
+
 Requires:
 
 - every frozen final qualifier, not a subset;
 - membership proofs for all recipients;
 - unique canonical entry ordering;
 - unique payout addresses;
-- deterministic equal split;
+- deterministic equal split, including the exact frozen remainder rule: extra minor units go to the first sorted qualifier IDs;
 - exact prize conservation;
 - outcome signature.
 
@@ -219,12 +223,12 @@ J1 closes only if exact-head verification proves:
 6. final qualifier set is a verified subset of payout set;
 7. qualifier set requires an independent co-authority;
 8. organizer winner must be a frozen final qualifier;
-9. normal winner requires outcome + organizer;
-10. one-qualifier frozen default does not require vanished organizer selection;
+9. normal winner requires outcome + organizer and expires at the frozen selection deadline;
+10. one-qualifier frozen default cannot execute before that deadline and does not require vanished organizer selection;
 11. manifest signatures cannot replay to another manifest;
 12. only one settlement may be authorized;
 13. multi-qualifier default must include the entire frozen qualifier set;
-14. default economics are equal-split and conserve full prize;
+14. default economics exactly match canonical sorted equal-split remainder allocation and conserve full prize;
 15. blocked-recipient failure does not freeze unrelated claims;
 16. zero-qualifier refund requires frozen zero-qualifier outcome;
 17. resolver cancellation cannot be driven by the test resolver key alone;
