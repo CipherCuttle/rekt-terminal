@@ -1,6 +1,6 @@
 # REKT INKUBATOR — STAGE J3 PRODUCTION-VALUE READINESS / THREAT MODEL V1
 
-**Status:** ACTIVE / HOSTILE REVIEW NEXT  
+**Status:** ACTIVE / TARGETED REREVIEW NEXT  
 **Date:** 2026-09-18  
 **Branch:** `agent/stage-j3-production-value-readiness-v1`  
 **Base:** Stage-J2 closure head `b765984a93c4c865a1da20d1daeb0355700ce8d0`  
@@ -373,7 +373,7 @@ J3 closes only when:
 14. legal/accounting/privacy questions are explicitly listed as unresolved external gates;
 15. one bounded hostile review finds no remaining Critical/High architecture issue.
 
-Gates 1–14 are now specified by the J3 design package. Gate 15 is the next bounded action.
+Gates 1–14 are specified by the J3 design package. The bounded hostile review found three High issues; those exact surfaces have been repaired. The only next review action is one targeted rereview of those repairs.
 
 ## 18. Explicit non-authority
 
