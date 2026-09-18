@@ -1,4 +1,4 @@
-import {cleanup, render, screen, waitFor} from '@testing-library/react';
+import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import ChallengeJourney, {type ChallengeJourneyClient} from './ChallengeJourney';
@@ -104,7 +104,8 @@ describe('Stage I owner journey composition', () => {
     expect(screen.getByText('READ IT, THEN JOIN')).toBeTruthy();
 
     const join = await screen.findByRole('button', {name: 'JOIN THIS CHALLENGE'});
-    join.click();
+    await waitFor(() => expect((join as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(join);
 
     expect(await screen.findByText("YOU'RE IN")).toBeTruthy();
     expect(guide.getAttribute('data-journey-step')).toBe('2');
