@@ -683,8 +683,12 @@ contract ProductionCandidateChallengeVault {
     }
 
     function _tokenBalance() internal view returns (uint256 amount) {
+        return _tokenBalanceOf(address(this));
+    }
+
+    function _tokenBalanceOf(address account) internal view returns (uint256 amount) {
         (bool ok, bytes memory data) =
-            address(token).staticcall(abi.encodeCall(IERC20ProductionCandidate.balanceOf, (address(this))));
+            address(token).staticcall(abi.encodeCall(IERC20ProductionCandidate.balanceOf, (account)));
         if (!ok || data.length < 32) revert TokenTransferFailed();
         amount = abi.decode(data, (uint256));
     }
@@ -694,7 +698,17 @@ contract ProductionCandidateChallengeVault {
     }
 
     function _safeTransfer(address to, uint256 amount) internal {
+        uint256 vaultBefore = _tokenBalance();
+        uint256 recipientBefore = _tokenBalanceOf(to);
+
         _callOptionalReturn(abi.encodeCall(IERC20ProductionCandidate.transfer, (to, amount)));
+
+        uint256 vaultAfter = _tokenBalance();
+        uint256 recipientAfter = _tokenBalanceOf(to);
+        if (
+            vaultAfter > vaultBefore || vaultBefore - vaultAfter != amount || recipientAfter < recipientBefore
+                || recipientAfter - recipientBefore != amount
+        ) revert TokenTransferFailed();
     }
 
     function _callOptionalReturn(bytes memory callData) internal {
