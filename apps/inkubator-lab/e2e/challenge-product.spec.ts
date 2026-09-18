@@ -50,6 +50,35 @@ test('Discover demo challenge can seed a readable Compiler draft', async ({page}
   expect(ideaFontSize).toBeGreaterThanOrEqual(15);
 });
 
+test('Stage I Discover becomes a phone-first step flow instead of a squeezed desktop faceplate', async ({page}) => {
+  await page.setViewportSize({width: 390, height: 844});
+  await page.goto('/');
+
+  const rail = page.getByRole('navigation', {name: 'Inkubator journey'});
+  const railStyle = await rail.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {display: style.display, overflowX: style.overflowX, width: element.getBoundingClientRect().width};
+  });
+  expect(railStyle.display).toBe('flex');
+  expect(['auto', 'scroll']).toContain(railStyle.overflowX);
+  expect(railStyle.width).toBeLessThanOrEqual(390);
+
+  const title = page.getByRole('heading', {name: 'WHAT ARE YOU HERE TO DO?', exact: true});
+  const titleSize = await title.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+  expect(titleSize).toBeLessThanOrEqual(40);
+
+  const launch = page.getByRole('link', {name: /LAUNCH YOUR OWN/i});
+  const launchBox = await launch.boundingBox();
+  expect(launchBox).not.toBeNull();
+  expect(launchBox!.width).toBeGreaterThan(300);
+
+  await expect(page.getByText('WHAT ARE YOU DOING RIGHT NOW?', {exact: true})).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  const accessibility = await new AxeBuilder({page}).analyze();
+  expect(accessibility.violations).toEqual([]);
+});
+
 test('Stage I Compiler/Create guides a first-time organizer one decision at a time on mobile', async ({page}) => {
   await page.setViewportSize({width: 390, height: 844});
   await page.goto('/?surface=compiler');
