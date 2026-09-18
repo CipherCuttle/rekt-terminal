@@ -747,7 +747,7 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
               <div><dt>STATE</dt><dd>{view.status}</dd></div>
             </dl>
             {summary.normative_references.length ? <ul>{summary.normative_references.map((reference) => <li key={reference.id}><code>{reference.id}</code> · {reference.kind} · <code>{reference.content_digest}</code></li>)}</ul> : null}
-            {summary.informational_references.length ? <ul>{summary.informational_references.map((reference) => <li key={reference.id}><a href={reference.url} target="_blank" rel="noreferrer">{reference.id}</a></li>)}</ul> : null}
+            {summary.informational_references.length ? <ul>{summary.informational_references.map((reference) => <li key={reference.id}><code>{reference.id}</code> · <code>{reference.url}</code></li>)}</ul> : null}
           </details>
           <p className="challenge-state__foot">PUBLIC LOCKED-RULE PROJECTION ONLY — PAYOUT IDENTITIES, PRIVATE ENTRY DATA AND ARCHIVE INTERNALS ARE NOT EXPOSED.</p>
         </section>
