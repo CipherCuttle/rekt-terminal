@@ -1,0 +1,62 @@
+name: Inkubator J4 Production Candidate Verification
+
+on:
+  push:
+    branches:
+      - 'agent/stage-j4-**'
+    paths:
+      - '.github/workflows/inkubator-j4.yml'
+      - 'contracts/inkubator-vault/**'
+      - 'packages/inkubator-protocol/src/production-candidate-vault-adapter.*'
+      - 'packages/inkubator-protocol/test/stage-j4-production-candidate.test.mjs'
+      - 'packages/inkubator-protocol/package.json'
+      - 'scripts/inkubator/stage-j4-**'
+  pull_request:
+    paths:
+      - '.github/workflows/inkubator-j4.yml'
+      - 'contracts/inkubator-vault/**'
+      - 'packages/inkubator-protocol/src/production-candidate-vault-adapter.*'
+      - 'packages/inkubator-protocol/test/stage-j4-production-candidate.test.mjs'
+      - 'packages/inkubator-protocol/package.json'
+      - 'scripts/inkubator/stage-j4-**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inkubator-j4-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pinned Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
+        with:
+          version: v1.8.3
+          cache: false
+
+      - name: Verify pinned Foundry
+        run: forge --version | grep -F '1.8.3'
+
+      - name: Verify Solidity formatting
+        working-directory: contracts/inkubator-vault
+        run: forge fmt --check
+
+      - name: Build candidate contracts
+        working-directory: contracts/inkubator-vault
+        run: forge build --sizes
+
+      - name: Run J4 adversarial vault suite
+        working-directory: contracts/inkubator-vault
+        run: forge test --match-contract ProductionCandidateChallengeVaultTest -vvv
+
+      - name: Run J4 adapter/finality/release tests
+        run: node --test packages/inkubator-protocol/test/stage-j4-production-candidate.test.mjs
