@@ -19,6 +19,7 @@ interface VmJ4Matrix {
 contract MatrixToken is IERC20ProductionCandidate {
     mapping(address => uint256) public override balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
+    bool public paused;
 
     function mint(address to, uint256 amount) external {
         balanceOf[to] += amount;
@@ -29,19 +30,48 @@ contract MatrixToken is IERC20ProductionCandidate {
         return true;
     }
 
+    function setPaused(bool value) external {
+        paused = value;
+    }
+
     function transfer(address to, uint256 amount) external virtual override returns (bool) {
+        require(!paused, "paused");
         balanceOf[msg.sender] -= amount;
         balanceOf[to] += amount;
         return true;
     }
 
-    function transferFrom(address from, address to, uint256 amount) external override returns (bool) {
+    function transferFrom(address from, address to, uint256 amount) external virtual override returns (bool) {
+        require(!paused, "paused");
         uint256 allowed = allowance[from][msg.sender];
         require(allowed >= amount, "allowance");
         allowance[from][msg.sender] = allowed - amount;
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
         return true;
+    }
+}
+
+contract NoReturnMatrixToken is MatrixToken {
+    function transfer(address to, uint256 amount) external override returns (bool) {
+        require(!paused, "paused");
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        assembly ("memory-safe") {
+            return(0, 0)
+        }
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external override returns (bool) {
+        require(!paused, "paused");
+        uint256 allowed = allowance[from][msg.sender];
+        require(allowed >= amount, "allowance");
+        allowance[from][msg.sender] = allowed - amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        assembly ("memory-safe") {
+            return(0, 0)
+        }
     }
 }
 
@@ -294,6 +324,47 @@ contract ProductionCandidatePreAuditMatrixTest {
         ImmutableResolver1271 wrongResolver =
             new ImmutableResolver1271(vm.addr(0x1111), vm.addr(0x2222), vm.addr(0x3333));
         _assertHostileResolverRejects(address(wrongResolver));
+    }
+
+    function testNoReturnTokenExactDeliveryMatchesSupportedWrapperPolicy() public {
+        NoReturnMatrixToken token = new NoReturnMatrixToken();
+        ProductionCandidateChallengeVault vault = _deployAndFund(token, address(resolver), 100);
+        _sealSinglePayout(vault);
+        _sealSingleQualifierNormal(vault);
+
+        ProductionCandidateChallengeVault.RecipientClaimInput memory recipient =
+            ProductionCandidateChallengeVault.RecipientClaimInput(ENTRY_A, 0, ALICE, 100, new bytes32[](0));
+
+        vm.warp(organizerDeadline);
+        vault.executeDefaultSingleQualifier(recipient);
+        vault.claimFor(ALICE);
+
+        _assertEq(token.balanceOf(ALICE), 100, "no-return exact token delivers");
+        _assert(vault.isFinalized(), "no-return exact token finalizes");
+    }
+
+    function testPausedTokenLeavesClaimRecoverableAfterUnpause() public {
+        MatrixToken token = new MatrixToken();
+        ProductionCandidateChallengeVault vault = _deployAndFund(token, address(resolver), 100);
+        _sealSinglePayout(vault);
+        _sealSingleQualifierNormal(vault);
+
+        ProductionCandidateChallengeVault.RecipientClaimInput memory recipient =
+            ProductionCandidateChallengeVault.RecipientClaimInput(ENTRY_A, 0, ALICE, 100, new bytes32[](0));
+
+        vm.warp(organizerDeadline);
+        vault.executeDefaultSingleQualifier(recipient);
+
+        token.setPaused(true);
+        vm.expectRevert(ProductionCandidateChallengeVault.TokenTransferFailed.selector);
+        vault.claimFor(ALICE);
+        _assertEq(vault.claimable(ALICE), 100, "paused claim remains recoverable");
+        _assertEq(vault.totalClaimed(), 0, "paused claim not counted");
+
+        token.setPaused(false);
+        vault.claimFor(ALICE);
+        _assertEq(token.balanceOf(ALICE), 100, "claim succeeds after unpause");
+        _assert(vault.isFinalized(), "unpaused recovery finalizes");
     }
 
     function testReentrantTokenCannotDoubleClaim() public {
