@@ -58,10 +58,13 @@ function emptyRequirementAnswers(): CompilerRequirementAnswers {
   return Object.fromEntries(REQUIREMENTS.map(([key]) => [key, 'UNKNOWN'])) as CompilerRequirementAnswers;
 }
 
+export type CompilerFollowUpAnswers = Record<string, string>;
+
 export function buildCompilerProposal(
   sourceIntent: string,
   answers: CompilerRequirementAnswers,
   provenance: CompilerInputProvenance = 'SOURCE',
+  followUpAnswers: CompilerFollowUpAnswers = {},
 ): CompilerProposalInput {
   return {
     schema_version: 'inkubator.compiler-proposal/1.0',
@@ -71,7 +74,11 @@ export function buildCompilerProposal(
       if (answer === 'UNKNOWN') return [];
       return [{key, value: answer === 'YES', provenance}];
     }),
-    knowledge: [],
+    knowledge: Object.entries(followUpAnswers).flatMap(([key, value]) => {
+      const trimmed = value.trim();
+      if (!trimmed) return [];
+      return [{kind: 'KNOWN' as const, key, material: true, value: trimmed, provenance}];
+    }),
     outcome_criteria: [],
     delivery_criteria: [],
     preferences: {},
@@ -160,8 +167,12 @@ export function deriveOrganizerGuidance(input: OrganizerGuidanceInput): Omit<Jou
   if (!compilerState) {
     return {step: 3, title: 'CHECK YOUR CHALLENGE RULES', body: 'You have supplied enough input to ask the deterministic compiler what is ready and what still needs clarification.', detail: 'No Challenge is created or opened by this check.'};
   }
+  if (compilerState.status === 'UNSUPPORTED') {
+    return {step: 2, title: 'ONE OF YOUR CHOICES NEEDS CHANGING', body: 'This version of Inkubator cannot safely support the current setup. The blocking choice is shown below with a direct way back to it.', detail: 'Nothing is locked or created while this is unresolved.'};
+  }
   if (compilerState.status !== 'READY') {
-    return {step: 2, title: 'A FEW DETAILS STILL NEED CLARITY', body: 'Review the compiler questions, adjust the answers above, then check the Challenge again.', detail: `${compilerState.questions.length} compiler question${compilerState.questions.length === 1 ? '' : 's'} remain.`};
+    const blockingCount = compilerState.unresolved_decisions.length;
+    return {step: 2, title: 'A FEW DETAILS STILL NEED CLARITY', body: 'The exact unresolved items are shown below. Answer those follow-ups or reopen the specific detail that needs a Yes/No decision.', detail: `${blockingCount} unresolved decision${blockingCount === 1 ? '' : 's'} remain.`};
   }
   if (!accepted) {
     return {step: 3, title: 'REVIEW THE RULES', body: 'The compiler is ready. Confirm that these are the rules you actually want before creating the draft Challenge.', detail: 'Technical compiler output is available below if you want to inspect it.'};
@@ -271,6 +282,8 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const [answers, setAnswers] = useState<CompilerRequirementAnswers>(() => emptyRequirementAnswers());
   const [requirementIndex, setRequirementIndex] = useState(0);
   const [clarificationComplete, setClarificationComplete] = useState(false);
+  const [followUpAnswers, setFollowUpAnswers] = useState<CompilerFollowUpAnswers>({});
+  const [followUpIndex, setFollowUpIndex] = useState(0);
   const [compilerState, setCompilerState] = useState<CompilerStateView | null>(null);
   const [compilePhase, setCompilePhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
   const [accepted, setAccepted] = useState(false);
@@ -348,7 +361,17 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
 
   const updateAnswer = (key: keyof CompilerRequirementAnswers, answer: RequirementAnswer) => {
     setAnswers((current) => ({...current, [key]: answer}));
+    setFollowUpAnswers({});
+    setFollowUpIndex(0);
     invalidate();
+  };
+
+  const reopenRequirement = (key: string) => {
+    const index = REQUIREMENTS.findIndex(([requirementKey]) => requirementKey === key);
+    if (index < 0) return;
+    setRequirementIndex(index);
+    setClarificationComplete(false);
+    setTimeout(() => document.querySelector('.compiler-requirements--guided')?.scrollIntoView({behavior: 'smooth', block: 'center'}), 0);
   };
 
   const compile = async (provenance: CompilerInputProvenance = 'SOURCE') => {
@@ -361,7 +384,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     setPersistRequestId(null);
     setCanonicalContract(null);
     try {
-      const next = await api.compileChallenge(buildCompilerProposal(sourceIntent, answers, provenance));
+      const next = await api.compileChallenge(buildCompilerProposal(sourceIntent, answers, provenance, followUpAnswers));
       if (compilerRequestRevision.current !== requestRevision) return;
       setCompilerState(next);
       setAccepted(provenance === 'ORGANIZER_ACCEPTED');
@@ -480,6 +503,18 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     && persistPhase !== 'LOADING',
   );
   const currentRequirement = REQUIREMENTS[requirementIndex] ?? REQUIREMENTS[0];
+  const unresolvedQuestionIds = new Set(
+    compilerState?.unresolved_decisions
+      .filter((decision) => decision.id.startsWith('QUESTION:'))
+      .map((decision) => decision.id.slice('QUESTION:'.length)) ?? [],
+  );
+  const blockingFollowUps = compilerState?.questions.filter((question) => question.blocking && unresolvedQuestionIds.has(question.id)) ?? [];
+  const currentFollowUp = blockingFollowUps[followUpIndex] ?? blockingFollowUps[0] ?? null;
+  const missingRequirementKeys = compilerState?.unresolved_decisions
+    .filter((decision) => decision.id.startsWith('MISSING_REQUIREMENT:'))
+    .map((decision) => decision.id.slice('MISSING_REQUIREMENT:'.length)) ?? [];
+  const unsupportedFindings = compilerState?.status === 'UNSUPPORTED' ? compilerState.findings.filter((finding) => finding.severity === 'HIGH' || finding.severity === 'CRITICAL') : [];
+  const allBlockingFollowUpsAnswered = blockingFollowUps.every((question) => Boolean(followUpAnswers[question.id]?.trim()));
   const guidance = deriveOrganizerGuidance({sourceIntent, clarificationComplete, compilerState, accepted, challenge: challengeView});
   const compilerReadyAndAccepted = compilerState?.status === 'READY' && accepted;
 
@@ -494,7 +529,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         <textarea
           id="compiler-source-intent"
           value={sourceIntent}
-          onChange={(event) => { setSourceIntent(event.target.value); invalidate(); }}
+          onChange={(event) => { setSourceIntent(event.target.value); setFollowUpAnswers({}); setFollowUpIndex(0); invalidate(); }}
           placeholder="Example: Build a public dashboard that tracks…"
           rows={6}
         />
@@ -552,14 +587,71 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         {compilerState ? (
           <>
             <div className="journey-review-summary">
-              <strong>{compilerState.status === 'READY' ? 'THE RULES ARE READY TO REVIEW.' : 'THE COMPILER STILL NEEDS CLARITY.'}</strong>
-              <p>{compilerState.status === 'READY' ? 'Check that this matches what you meant, then use these rules to continue.' : `${compilerState.questions.length} question${compilerState.questions.length === 1 ? '' : 's'} remain. Adjust the details above and check again.`}</p>
-              {compilerState.status !== 'READY' && compilerState.questions.length ? (
-                <ul className="journey-review-questions">
-                  {compilerState.questions.map((question) => <li key={`${question.rule_id}:${question.id}`}>{question.prompt}</li>)}
-                </ul>
-              ) : null}
+              <strong>{compilerState.status === 'READY' ? 'THE RULES ARE READY TO REVIEW.' : compilerState.status === 'UNSUPPORTED' ? 'THIS SETUP CANNOT MOVE FORWARD YET.' : 'THE COMPILER NEEDS A FEW MORE DECISIONS.'}</strong>
+              <p>{compilerState.status === 'READY' ? 'Check that this matches what you meant, then use these rules to continue.' : compilerState.status === 'UNSUPPORTED' ? 'One of the choices below is outside the safe rehearsal boundary. Change that choice to continue.' : 'Nothing is broken. Finish the specific unresolved items below, then check again.'}</p>
             </div>
+
+            {unsupportedFindings.length ? (
+              <section className="journey-resolution" aria-labelledby="journey-unsupported-title">
+                <small>BLOCKING CHOICE</small>
+                <h3 id="journey-unsupported-title">CHANGE THIS BEFORE CONTINUING</h3>
+                {unsupportedFindings.map((finding) => (
+                  <div className="journey-resolution__item" key={`${finding.rule_id}:${finding.code}`}>
+                    <b>{finding.message}</b>
+                    {finding.code === 'PRIVATE_KEY_CUSTODY' ? (
+                      <button type="button" onClick={() => reopenRequirement('custody_private_keys')}>CHANGE PRIVATE-KEY CUSTODY ANSWER →</button>
+                    ) : null}
+                  </div>
+                ))}
+              </section>
+            ) : null}
+
+            {missingRequirementKeys.length ? (
+              <section className="journey-resolution" aria-labelledby="journey-missing-title">
+                <small>NEEDS A YES / NO DECISION</small>
+                <h3 id="journey-missing-title">REVIEW THESE DETAILS</h3>
+                <p>You chose “Not sure” for something the compiler cannot safely guess. Open each item and choose Yes or No when you know which applies.</p>
+                <div className="journey-resolution__list">
+                  {missingRequirementKeys.map((key) => {
+                    const requirement = REQUIREMENTS.find(([requirementKey]) => requirementKey === key);
+                    if (!requirement) return null;
+                    return (
+                      <button type="button" key={key} onClick={() => reopenRequirement(key)}>
+                        <b>{requirement[1]}</b>
+                        <span>{requirement[2]}</span>
+                        <em>REVIEW →</em>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            {currentFollowUp ? (
+              <fieldset className="journey-resolution journey-followup">
+                <legend>FOLLOW-UP {Math.min(followUpIndex + 1, blockingFollowUps.length)} OF {blockingFollowUps.length}</legend>
+                <label htmlFor={`compiler-follow-up-${currentFollowUp.id}`}>
+                  <b>{currentFollowUp.prompt}</b>
+                  <span>Answer in normal language. A short sentence is enough.</span>
+                </label>
+                <textarea
+                  id={`compiler-follow-up-${currentFollowUp.id}`}
+                  value={followUpAnswers[currentFollowUp.id] ?? ''}
+                  onChange={(event) => setFollowUpAnswers((current) => ({...current, [currentFollowUp.id]: event.target.value}))}
+                  rows={4}
+                  placeholder="Type your answer here…"
+                />
+                <div className="journey-question-nav">
+                  <button type="button" disabled={followUpIndex === 0} onClick={() => setFollowUpIndex((index) => Math.max(0, index - 1))}>← BACK</button>
+                  <span>{allBlockingFollowUpsAnswered ? 'ALL FOLLOW-UPS ANSWERED' : 'ANSWER EACH BLOCKING FOLLOW-UP'}</span>
+                  {followUpIndex < blockingFollowUps.length - 1 ? (
+                    <button type="button" disabled={!followUpAnswers[currentFollowUp.id]?.trim()} onClick={() => setFollowUpIndex((index) => Math.min(blockingFollowUps.length - 1, index + 1))}>NEXT FOLLOW-UP →</button>
+                  ) : (
+                    <button type="button" disabled={!allBlockingFollowUpsAnswered || compilePhase === 'LOADING'} onClick={() => void compile('SOURCE')}>{compilePhase === 'LOADING' ? 'CHECKING…' : 'CHECK AGAIN →'}</button>
+                  )}
+                </div>
+              </fieldset>
+            ) : null}
             <details className="journey-technical-details">
               <summary>Technical compiler details</summary>
               <CompilerReadout compilerState={compilerState} />
