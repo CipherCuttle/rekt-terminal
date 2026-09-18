@@ -191,8 +191,10 @@ function enterGuidedCompilerInput(source: string, realtime: 'YES' | 'NO') {
 }
 
 function returnToRealtimeRequirement(): HTMLElement {
+  const requirementGuide = document.querySelector('.compiler-requirements--guided');
+  expect(requirementGuide).not.toBeNull();
   for (let index = 0; index < 7; index += 1) {
-    fireEvent.click(screen.getByRole('button', {name: '← BACK'}));
+    fireEvent.click(within(requirementGuide as HTMLElement).getByRole('button', {name: '← BACK'}));
   }
   return currentRealtimeRequirementRow();
 }
