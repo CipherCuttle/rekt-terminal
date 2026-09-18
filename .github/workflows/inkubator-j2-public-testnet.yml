@@ -7,6 +7,11 @@ on:
         description: Draft PR receiving the faucet/deployment receipts
         required: true
         type: string
+  push:
+    branches:
+      - 'agent/stage-j2-ink-sepolia-rehearsal-v1'
+    paths:
+      - '.github/j2-public-testnet.trigger'
 
 permissions:
   contents: read
@@ -17,6 +22,7 @@ env:
   INK_SEPOLIA_CHAIN_ID: '763373'
   INK_SEPOLIA_EXPLORER_URL: https://explorer-sepolia.inkonchain.com
   J2_PRIZE_AMOUNT: '250000000'
+  J2_PR_NUMBER: ${{ inputs.pull_request_number || '127' }}
   J2_BUILDER_A: '0x1111111111111111111111111111111111111111'
   J2_BUILDER_B: '0x2222222222222222222222222222222222222222'
   J2_BUILDER_C: '0x3333333333333333333333333333333333333333'
@@ -54,12 +60,23 @@ jobs:
           chain_id="$(cast chain-id --rpc-url "$INK_SEPOLIA_RPC_URL")"
           test "$chain_id" = "$INK_SEPOLIA_CHAIN_ID"
 
+      - name: Re-run J2 protocol and Solidity preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test packages/inkubator-protocol/test/stage-j0-settlement-adapter.test.mjs packages/inkubator-protocol/test/stage-j2-testnet-vault-adapter.test.mjs
+          (
+            cd contracts/inkubator-vault
+            forge build --sizes
+            forge test -vvv
+          )
+
       - name: Generate ephemeral J2-only signers
         id: signers
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pull_request_number }}
+          PR_NUMBER: ${{ env.J2_PR_NUMBER }}
         run: |
           set -euo pipefail
 
@@ -233,7 +250,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pull_request_number }}
+          PR_NUMBER: ${{ env.J2_PR_NUMBER }}
         run: |
           set -euo pipefail
           body=$(cat <<EOF
@@ -329,7 +346,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pull_request_number }}
+          PR_NUMBER: ${{ env.J2_PR_NUMBER }}
         run: |
           set -euo pipefail
           body=$(cat <<EOF
