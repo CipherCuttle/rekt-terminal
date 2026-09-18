@@ -66,8 +66,9 @@ jobs:
         run: node --test packages/inkubator-protocol/test/stage-j4-production-candidate.test.mjs
 
       - name: Build reproducible candidate release receipt
+        if: github.event_name == 'push'
         env:
-          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          SOURCE_COMMIT: ${{ github.sha }}
           RESOLVER_SIGNER_SET_DIGEST: 0x7777777777777777777777777777777777777777777777777777777777777777
         run: |
           node scripts/inkubator/stage-j4-release-candidate.mjs > /tmp/j4-release-candidate.json
