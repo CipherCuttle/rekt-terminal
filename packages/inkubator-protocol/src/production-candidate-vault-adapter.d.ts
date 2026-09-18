@@ -34,3 +34,5 @@ export declare function stageJ4DeadlineSeconds(deadlineMs: number): number;
 export declare function buildStageJ4DeploymentPlan(input: Record<string, unknown>): Readonly<Record<string, unknown>>;
 export declare function evaluateStageJ4Finality(observations: unknown): Readonly<Record<string, unknown>>;
 export declare function buildStageJ4ReleaseCandidateReceipt(input: Record<string, unknown>): Readonly<Record<string, unknown>>;
+
+export declare function appendStageJ4ReconciliationReceipt(history: readonly Readonly<Record<string, unknown>>[], input: Record<string, unknown>): readonly Readonly<Record<string, unknown>>[];
