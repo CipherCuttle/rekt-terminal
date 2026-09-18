@@ -76,6 +76,9 @@ test('Stage I Compiler/Create guides a first-time organizer one decision at a ti
   await page.getByRole('button', {name: 'DONE WITH DETAILS ✓'}).click();
 
   await expect(guide).toHaveAttribute('data-journey-step', '3');
+  await expect(guide.getByText('DEFINE WHAT COUNTS AS DONE', {exact: true})).toBeVisible();
+  const criterion = page.getByPlaceholder(/The dashboard always shows the current launch state after reload/i);
+  await criterion.fill('The dashboard clearly shows the current launch state after reload.');
   await expect(guide.getByText('CHECK YOUR CHALLENGE RULES', {exact: true})).toBeVisible();
   await expect(page.getByRole('button', {name: 'CHECK MY CHALLENGE'})).toBeEnabled();
   await expect(page.getByRole('heading', {name: 'REVIEW AND LOCK THE RULES'})).toHaveCount(0);
