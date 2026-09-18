@@ -302,8 +302,10 @@ describe('Stage E Challenge product shell', () => {
     expect(screen.getByText('ONE OF YOUR CHOICES NEEDS CHANGING')).toBeTruthy();
     const change = screen.getByRole('button', {name: 'CHANGE PRIVATE-KEY CUSTODY ANSWER →'});
     fireEvent.click(change);
-    expect(screen.getByText('PRIVATE-KEY CUSTODY')).toBeTruthy();
-    expect(screen.getByText(/Would the product itself hold or sign with private keys/i)).toBeTruthy();
+    const custodyRow = screen.getByText('PRIVATE-KEY CUSTODY').closest('.compiler-requirement');
+    expect(custodyRow).not.toBeNull();
+    expect(within(custodyRow as HTMLElement).getByText(/Would the product itself hold or sign with private keys/i)).toBeTruthy();
+    fireEvent.click(within(custodyRow as HTMLElement).getByRole('button', {name: 'NO'}));
     expect((screen.getByRole('button', {name: 'CHECK MY CHALLENGE'}) as HTMLButtonElement).disabled).toBe(false);
   });
 
