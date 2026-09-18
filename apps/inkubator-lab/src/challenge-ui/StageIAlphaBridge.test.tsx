@@ -126,6 +126,11 @@ describe('Stage I alpha browser bridge', () => {
     expect(launchStageIMockChallenge.mock.calls[0]![0]).toBe(challengeId);
     expect(launchStageIMockChallenge.mock.calls[0]![1]).toMatch(/^[0-9a-f-]{36}$/i);
     expect(screen.getByText(/OPEN · BUILDERS CAN JOIN/i)).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'YOU OPENED IT. NOW RUN THE COMPETITION.'})).toBeTruthy();
+    const nextLink = screen.getByRole('link', {name: 'OPEN CHALLENGE STATUS →'});
+    expect(nextLink.getAttribute('href')).toContain(`challenge=${challengeId}`);
+    expect(nextLink.getAttribute('href')).toContain('surface=challenge');
+    expect(screen.getByText(/NO REAL FUNDS ARE ESCROWED OR PAID/i)).toBeTruthy();
   });
 
   it('joins against the current frozen terms digest instead of browser-derived terms', async () => {
