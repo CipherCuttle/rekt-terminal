@@ -1,6 +1,6 @@
 # REKT INKUBATOR — STAGE J3 PRODUCTION-VALUE READINESS / THREAT MODEL V1
 
-**Status:** ACTIVE / AUTHORITY LOCK  
+**Status:** ACTIVE / HOSTILE REVIEW NEXT  
 **Date:** 2026-09-18  
 **Branch:** `agent/stage-j3-production-value-readiness-v1`  
 **Base:** Stage-J2 closure head `b765984a93c4c865a1da20d1daeb0355700ce8d0`  
@@ -339,6 +339,20 @@ Do not build heavyweight KYC/compliance infrastructure until qualified counsel d
 
 Do not launch around the questions.
 
+## 16A. J3 design package
+
+The complete technical design package is:
+
+- `STAGE_J3_PRODUCTION_VALUE_THREAT_MATRIX_V1.md` — 40-threat adversarial inventory and control/evidence map;
+- `STAGE_J3_PRODUCTION_VALUE_DECISIONS_V1.md` — chain, native USDC, finality, authority, liveness, deployment and issuer-risk decisions;
+- `STAGE_J3_SIGNER_CUSTODY_RUNBOOK_V1.md` — outcome/resolver/organizer custody, loss and compromise law;
+- `STAGE_J3_REPRODUCIBLE_DEPLOYMENT_IDENTITY_V1.md` — clean-build/runtime-hash/deployment identity procedure;
+- `STAGE_J3_PRODUCTION_CANDIDATE_TEST_MATRIX_V1.md` — executable future implementation acceptance matrix;
+- `STAGE_J3_EXTERNAL_REVIEW_PACKAGE_V1.md` — exact independent smart-contract review handoff;
+- `STAGE_J3_TERMINAL_FALLBACK_DECISION_V1.md` — technically frozen no-qualification long-stop fallback with external legal/terms gate explicitly open.
+
+No production Solidity implementation is introduced by these documents.
+
 ## 17. J3 acceptance gates
 
 J3 closes only when:
@@ -358,6 +372,8 @@ J3 closes only when:
 13. independent audit package is ready;
 14. legal/accounting/privacy questions are explicitly listed as unresolved external gates;
 15. one bounded hostile review finds no remaining Critical/High architecture issue.
+
+Gates 1–14 are now specified by the J3 design package. Gate 15 is the next bounded action.
 
 ## 18. Explicit non-authority
 
