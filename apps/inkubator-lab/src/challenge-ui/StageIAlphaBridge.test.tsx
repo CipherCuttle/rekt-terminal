@@ -108,6 +108,7 @@ describe('Stage I alpha browser bridge', () => {
     expect(href.pathname).toBe('/v1/auth/github/start');
     expect(href.searchParams.get('return_to')).toContain('surface=compiler');
     expect(screen.queryByRole('button', {name: 'CREATE DRAFT CHALLENGE'})).toBeNull();
+    expect(screen.queryByLabelText('BUILDER SLOTS')).toBeNull();
     expect(createChallenge).not.toHaveBeenCalled();
   });
 
