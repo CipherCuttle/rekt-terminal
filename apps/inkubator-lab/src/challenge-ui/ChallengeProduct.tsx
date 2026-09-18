@@ -143,9 +143,13 @@ export function deriveOrganizerGuidance(input: OrganizerGuidanceInput): Omit<Jou
   const {sourceIntent, clarificationComplete, compilerState, accepted, challenge} = input;
 
   if (challenge?.has_frozen_contract) {
-    return challenge.status === 'ENTRY_OPEN'
-      ? {step: 5, title: 'YOUR CHALLENGE IS OPEN', body: 'Builders can now join under the locked rules. You can leave this screen and share the Challenge link.', detail: 'The server remains authoritative for lifecycle state and deadlines.'}
-      : {step: 5, title: 'OPEN IT TO BUILDERS', body: 'The rules are locked. Opening the Challenge is the only remaining organizer action in this setup flow.', detail: 'Opening does not change the locked Build Contract.'};
+    if (challenge.status === 'ENTRY_OPEN') {
+      return {step: 5, title: 'YOUR CHALLENGE IS OPEN', body: 'Builders can now join under the locked rules. You can leave this screen and share the Challenge link.', detail: 'The server remains authoritative for lifecycle state and deadlines.'};
+    }
+    if (challenge.status === 'DRAFT') {
+      return {step: 5, title: 'OPEN IT TO BUILDERS', body: 'The rules are locked. Opening the Challenge is the only remaining organizer action in this setup flow.', detail: 'Opening does not change the locked Build Contract.'};
+    }
+    return {step: 5, title: 'CHALLENGE IN PROGRESS', body: `The guided setup is complete. The canonical Challenge is now in ${challenge.status}; setup actions will not pretend that it can be opened again.`, detail: 'Use the lifecycle surfaces for the next canonical action.'};
   }
   if (!sourceIntent.trim()) {
     return {step: 1, title: 'DESCRIBE WHAT YOU WANT BUILT', body: 'Start in normal language. Describe the finished software or outcome you want builders to deliver.', detail: 'You do not need to know Inkubator protocol terms.'};
@@ -551,6 +555,11 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
             <div className="journey-review-summary">
               <strong>{compilerState.status === 'READY' ? 'THE RULES ARE READY TO REVIEW.' : 'THE COMPILER STILL NEEDS CLARITY.'}</strong>
               <p>{compilerState.status === 'READY' ? 'Check that this matches what you meant, then use these rules to continue.' : `${compilerState.questions.length} question${compilerState.questions.length === 1 ? '' : 's'} remain. Adjust the details above and check again.`}</p>
+              {compilerState.status !== 'READY' && compilerState.questions.length ? (
+                <ul className="journey-review-questions">
+                  {compilerState.questions.map((question) => <li key={`${question.rule_id}:${question.id}`}>{question.prompt}</li>)}
+                </ul>
+              ) : null}
             </div>
             <details className="journey-technical-details">
               <summary>Technical compiler details</summary>
