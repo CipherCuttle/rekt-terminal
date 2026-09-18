@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  STAGE_J4_EXCLUDED_USDC_E,
   STAGE_J4_FINALITY_PROVIDERS,
   STAGE_J4_NATIVE_USDC,
   buildStageJ4DeploymentPlan,
@@ -69,7 +70,7 @@ test('deployment plan rejects bridged/wrong token identity', () => {
     challenge_digest: DIGEST_A,
     terms_digest: DIGEST_B,
     binding_digest: DIGEST_C,
-    token_address: '0x' + '99'.repeat(20),
+    token_address: STAGE_J4_EXCLUDED_USDC_E.address,
     refund_recipient: '0x' + '10'.repeat(20),
     outcome_authority: '0x' + '20'.repeat(20),
     organizer_selection_authority: '0x' + '30'.repeat(20),
