@@ -201,6 +201,7 @@ function returnToRealtimeRequirement(): HTMLElement {
 
 afterEach(() => {
   cleanup();
+  window.sessionStorage.removeItem('inkubator.compiler-draft.v1');
   window.history.replaceState({}, '', '/');
 });
 
