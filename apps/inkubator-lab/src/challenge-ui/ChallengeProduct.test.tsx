@@ -221,6 +221,20 @@ describe('Stage E Challenge product shell', () => {
     expect(document.querySelector('[data-surface-state="unavailable_or_stale"]')).toBeTruthy();
   });
 
+  it('restores the in-progress Compiler draft after an OAuth-style page reload', () => {
+    window.sessionStorage.setItem('inkubator.compiler-draft.v1', JSON.stringify({
+      sourceIntent: 'Build my preserved OAuth draft',
+      successCriteria: ['The preserved result remains visible.'],
+      contractTitle: 'Preserved Challenge',
+      creatorXUrl: 'https://x.com/preserved_creator',
+    }));
+    window.history.replaceState({}, '', '/?surface=compiler&auth=github');
+
+    render(<ChallengeProduct initialSurface="COMPILER" api={api()} />);
+
+    expect((screen.getByLabelText('YOUR IDEA') as HTMLTextAreaElement).value).toBe('Build my preserved OAuth draft');
+  });
+
   it('compiles only explicit SOURCE requirements and renders deterministic compiler state', async () => {
     const compileChallenge = vi.fn(async (_body: CompilerProposalInput) => compilerState);
     render(<ChallengeProduct api={api({compileChallenge})} />);
@@ -378,6 +392,7 @@ describe('Stage E Challenge product shell', () => {
     }));
     expect(expectedDigest).toBe(contractPreview.contract.terms_digest);
     await waitFor(() => expect(getChallenge).toHaveBeenCalledTimes(2));
+    expect(window.sessionStorage.getItem('inkubator.compiler-draft.v1')).toBeNull();
     expect(screen.getByText('OPEN IT TO BUILDERS')).toBeTruthy();
     expect(screen.queryByRole('button', {name: 'LOCK THESE RULES'})).toBeNull();
   });
