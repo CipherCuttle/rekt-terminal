@@ -370,7 +370,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     const index = REQUIREMENTS.findIndex(([requirementKey]) => requirementKey === key);
     if (index < 0) return;
     setRequirementIndex(index);
-    setClarificationComplete(false);
+    setClarificationComplete(true);
     setTimeout(() => document.querySelector('.compiler-requirements--guided')?.scrollIntoView({behavior: 'smooth', block: 'center'}), 0);
   };
 
@@ -514,6 +514,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     .filter((decision) => decision.id.startsWith('MISSING_REQUIREMENT:'))
     .map((decision) => decision.id.slice('MISSING_REQUIREMENT:'.length)) ?? [];
   const unsupportedFindings = compilerState?.status === 'UNSUPPORTED' ? compilerState.findings.filter((finding) => finding.severity === 'HIGH' || finding.severity === 'CRITICAL') : [];
+  const otherUnresolvedDecisions = compilerState?.unresolved_decisions.filter((decision) => !decision.id.startsWith('QUESTION:') && !decision.id.startsWith('MISSING_REQUIREMENT:')) ?? [];
   const allBlockingFollowUpsAnswered = blockingFollowUps.every((question) => Boolean(followUpAnswers[question.id]?.trim()));
   const guidance = deriveOrganizerGuidance({sourceIntent, clarificationComplete, compilerState, accepted, challenge: challengeView});
   const compilerReadyAndAccepted = compilerState?.status === 'READY' && accepted;
@@ -624,6 +625,17 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
                     );
                   })}
                 </div>
+              </section>
+            ) : null}
+
+            {otherUnresolvedDecisions.length && compilerState.status !== 'UNSUPPORTED' ? (
+              <section className="journey-resolution" aria-labelledby="journey-other-title">
+                <small>ONE MORE DECISION</small>
+                <h3 id="journey-other-title">THE CURRENT COMBINATION NEEDS REVIEW</h3>
+                <ul className="journey-resolution__reasons">
+                  {otherUnresolvedDecisions.map((decision) => <li key={decision.id}>{decision.reason}</li>)}
+                </ul>
+                <button type="button" onClick={() => { setRequirementIndex(0); setClarificationComplete(true); setTimeout(() => document.querySelector('.compiler-requirements--guided')?.scrollIntoView({behavior: 'smooth', block: 'center'}), 0); }}>REVIEW THE YES / NO DETAILS →</button>
               </section>
             ) : null}
 
