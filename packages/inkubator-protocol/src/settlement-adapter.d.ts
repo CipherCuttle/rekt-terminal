@@ -107,7 +107,7 @@ export function buildStageJ0SettlementManifest(args: {contract: BuildContract; s
 export function assertStageJ0SettlementManifest(manifest: unknown): StageJ0SettlementManifest;
 export function assertStageJ0SettlementManifestMatchesIntent(contract: BuildContract, settlementIntent: SettlementIntent, binding: StageJ0SettlementAdapterBinding, manifest: StageJ0SettlementManifest): StageJ0SettlementManifest;
 export function assertRecordedStageJ0AuthorizationSet(manifest: StageJ0SettlementManifest, authorizationFacts: StageJ0SettlementAuthorizationFact[]): StageJ0SettlementAuthorizationFact[];
-export function buildStageJ0ExecutionEnvelope(args: {manifest: StageJ0SettlementManifest; authorizationFacts: StageJ0SettlementAuthorizationFact[]}): Readonly<StageJ0SettlementExecutionEnvelope>;
+export function buildStageJ0ExecutionEnvelope(args: {contract: BuildContract; settlementIntent: SettlementIntent; binding: StageJ0SettlementAdapterBinding; manifest: StageJ0SettlementManifest; authorizationFacts: StageJ0SettlementAuthorizationFact[]}): Readonly<StageJ0SettlementExecutionEnvelope>;
 export function assertStageJ0ExecutionEnvelopeMatchesManifest(manifest: StageJ0SettlementManifest, envelope: StageJ0SettlementExecutionEnvelope): StageJ0SettlementExecutionEnvelope;
 export function canTransitionSettlementAdapterState(from: SettlementAdapterState, to: SettlementAdapterState): boolean;
 export function transitionSettlementAdapterState(from: SettlementAdapterState, to: SettlementAdapterState): SettlementAdapterState;
