@@ -134,51 +134,65 @@ test('Build Contract preview refuses a Challenge that is no longer an unfrozen D
   );
 });
 
-test('public Challenge projection cannot leak payout identities or private entry rows', () => {
+test('public Challenge projection exposes readable frozen rules without leaking private authority', () => {
+  const acceptedState = compileOrganizerDraft(proposal({}, 'ORGANIZER_ACCEPTED'));
+  const snapshot = draftSnapshot();
+  const preview = buildFrozenBuildContractPreview(acceptedState, previewAuthority(), snapshot);
   const now = new Date('2026-09-14T00:00:00.000Z');
-  const view = toPublicChallengeView({
-    challenge: {
-      challenge_id: '11111111-1111-4111-8111-111111111111',
-      organizer_player_id: '22222222-2222-4222-8222-222222222222',
-      organizer_payout_identity: 'secret-organizer-wallet',
-      funder_payout_identity: 'secret-funder-wallet',
-      status: 'ENTRY_OPEN',
-      mechanism_version: 'mechanism.v1',
-      settlement_policy_version: 'settlement.v1',
-      ip_terms_version: 'ip.v1',
-      current_contract_version: '1',
-      current_terms_digest: 'terms-digest',
-      slot_limit: 4,
-      activation_minimum: 2,
-      entry_deadline: now,
-      build_start: now,
-      submission_deadline: now,
-      appeal_window_ms: 3600000,
-      review_deadline: now,
-      created_at: now,
-      updated_at: now,
-    },
-    contract: {
-      challenge_id: '11111111-1111-4111-8111-111111111111',
-      contract_version: '1',
-      terms_digest: 'terms-digest',
-      contract_json: {},
-      created_at: now,
-    },
-    entries: [{payout_identity: 'secret-builder-wallet'}],
-    submissions: [{submission_id: 'submission'}],
-    qualifications: [{qualification_id: 'qualification'}],
-    decisions: [{decision_id: 'decision'}],
-    receipts: [{receipt_id: 'receipt'}],
-  });
+
+  snapshot.challenge.status = 'ENTRY_OPEN';
+  snapshot.challenge.current_contract_version = preview.contract.contract_version;
+  snapshot.challenge.current_terms_digest = preview.contract.terms_digest;
+  snapshot.contract = {
+    challenge_id: snapshot.challenge.challenge_id,
+    contract_version: preview.contract.contract_version,
+    schema_version: preview.contract.schema_version,
+    terms_digest: preview.contract.terms_digest,
+    contract_json: preview.contract,
+    frozen_at: now,
+  };
+  snapshot.entries = [{payout_identity: 'secret-builder-wallet'}];
+  snapshot.submissions = [{submission_id: 'submission'}];
+  snapshot.qualifications = [{qualification_id: 'qualification'}];
+  snapshot.decisions = [{decision_id: 'decision'}];
+  snapshot.receipts = [{receipt_id: 'receipt'}];
+
+  const view = toPublicChallengeView(snapshot);
 
   assert.equal(view.entry_count, 1);
   assert.equal(view.submission_count, 1);
   assert.equal(view.qualification_count, 1);
   assert.equal(view.receipt_count, 1);
+  assert.equal(view.contract_summary.title, 'Useful static Challenge');
+  assert.equal(view.contract_summary.brief, 'Build the thing described by explicit source requirements.');
+  assert.equal(view.contract_summary.terms_digest, preview.contract.terms_digest);
+  assert.equal(view.contract_summary.prize_minor_units, 100);
+  assert.equal(view.contract_summary.settlement_asset, 'TEST');
+
   const serialized = JSON.stringify(view);
   assert.equal(serialized.includes('secret-organizer-wallet'), false);
   assert.equal(serialized.includes('secret-funder-wallet'), false);
   assert.equal(serialized.includes('secret-builder-wallet'), false);
   assert.equal('organizer_player_id' in view, false);
+  assert.equal('reference_architecture' in view.contract_summary, false);
+  assert.equal('knowledge' in view.contract_summary, false);
+});
+
+test('public Challenge projection fails closed when the frozen contract pointer disagrees with canonical terms', () => {
+  const acceptedState = compileOrganizerDraft(proposal({}, 'ORGANIZER_ACCEPTED'));
+  const snapshot = draftSnapshot();
+  const preview = buildFrozenBuildContractPreview(acceptedState, previewAuthority(), snapshot);
+
+  snapshot.challenge.current_contract_version = preview.contract.contract_version;
+  snapshot.challenge.current_terms_digest = '0'.repeat(64);
+  snapshot.contract = {
+    challenge_id: snapshot.challenge.challenge_id,
+    contract_version: preview.contract.contract_version,
+    schema_version: preview.contract.schema_version,
+    terms_digest: preview.contract.terms_digest,
+    contract_json: preview.contract,
+    frozen_at: new Date('2026-09-14T00:00:00.000Z'),
+  };
+
+  assert.throws(() => toPublicChallengeView(snapshot), /challenge_contract_pointer_invalid/);
 });
