@@ -1,0 +1,55 @@
+name: Inkubator J2 Faucet Playwright
+
+on:
+  push:
+    branches:
+      - 'agent/stage-j2-ink-sepolia-rehearsal-v1'
+    paths:
+      - '.github/j2-faucet-playwright.trigger'
+
+permissions:
+  contents: read
+
+jobs:
+  one-shot-faucet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      J2_FAUCET_ADDRESS: '0x7a9e62a0Ee31395DE45F79e6357E3E5C80c8AabB'
+      J2_FAUCET_URL: 'https://faucet.quicknode.com/ink/sepolia'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+
+      - name: Install isolated Playwright runner
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/j2-playwright
+          cd /tmp/j2-playwright
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+          cp "$GITHUB_WORKSPACE/scripts/inkubator/stage-j2-faucet.spec.mjs" ./stage-j2-faucet.spec.mjs
+
+      - name: Make exactly one faucet request
+        working-directory: /tmp/j2-playwright
+        run: |
+          set -euo pipefail
+          mkdir -p j2-faucet-playwright
+          set +e
+          npx playwright test stage-j2-faucet.spec.mjs --workers=1 --retries=0
+          status=$?
+          set -e
+          cp -r j2-faucet-playwright "$GITHUB_WORKSPACE/"
+          exit "$status"
+
+      - name: Upload faucet diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: inkubator-stage-j2-faucet-playwright
+          path: j2-faucet-playwright
+          if-no-files-found: warn

@@ -1,0 +1,67 @@
+name: Inkubator J2 Verification
+
+on:
+  push:
+    branches:
+      - 'agent/stage-j2-**'
+    paths:
+      - '.github/workflows/inkubator-j2.yml'
+      - 'contracts/inkubator-vault/**'
+      - 'packages/inkubator-protocol/**'
+      - 'scripts/inkubator/stage-j2-**'
+  pull_request:
+    paths:
+      - '.github/workflows/inkubator-j2.yml'
+      - 'contracts/inkubator-vault/**'
+      - 'packages/inkubator-protocol/**'
+      - 'scripts/inkubator/stage-j2-**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inkubator-j2-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify canonical npm
+        run: test "$(npm -v)" = '11.19.0'
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Install pinned Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
+        with:
+          version: v1.8.3
+          cache: false
+
+      - name: Verify pinned Foundry supports explicit sender nonce
+        run: forge script --help | grep -F -- '--sender-nonce'
+
+      - name: Test J0/J2 protocol bridge
+        run: node --test packages/inkubator-protocol/test/stage-j0-settlement-adapter.test.mjs packages/inkubator-protocol/test/stage-j2-testnet-vault-adapter.test.mjs
+
+      - name: Compile and test J1/J2 Solidity
+        working-directory: contracts/inkubator-vault
+        run: |
+          set -euo pipefail
+          forge fmt
+          forge fmt --check
+          forge build --sizes
+          forge test -vvv
+
+      - name: Exercise exact J2 scripts on local chain 763373
+        run: bash scripts/inkubator/stage-j2-local-rehearsal.sh
