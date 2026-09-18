@@ -220,10 +220,26 @@ type OrganizerGuidanceInput = {
   successCriteriaCount: number;
   challenge: PublicChallengeView | null;
   hasPreview: boolean;
+  blockingFollowUpCount: number;
+  followUpIndex: number;
+  hasMissingRequirements: boolean;
+  hasOtherUnresolved: boolean;
 };
 
 export function deriveOrganizerGuidance(input: OrganizerGuidanceInput): Omit<JourneyGuideProps, 'role' | 'total'> {
-  const {sourceIntent, clarificationComplete, compilerState, accepted, successCriteriaCount, challenge, hasPreview} = input;
+  const {
+    sourceIntent,
+    clarificationComplete,
+    compilerState,
+    accepted,
+    successCriteriaCount,
+    challenge,
+    hasPreview,
+    blockingFollowUpCount,
+    followUpIndex,
+    hasMissingRequirements,
+    hasOtherUnresolved,
+  } = input;
 
   if (challenge?.has_frozen_contract) {
     if (challenge.status === 'ENTRY_OPEN') {
@@ -251,7 +267,16 @@ export function deriveOrganizerGuidance(input: OrganizerGuidanceInput): Omit<Jou
   }
   if (compilerState.status !== 'READY') {
     const blockingCount = compilerState.unresolved_decisions.length;
-    return {step: 2, title: 'A FEW DETAILS STILL NEED CLARITY', body: 'The exact unresolved items are shown below. Answer only what is highlighted.', nextAction: 'Resolve the highlighted item, then press “CHECK AGAIN →”.', detail: `${blockingCount} unresolved decision${blockingCount === 1 ? '' : 's'} remain.`};
+    const nextAction = blockingFollowUpCount > 0
+      ? followUpIndex < blockingFollowUpCount - 1
+        ? 'Answer the follow-up below, then press “NEXT FOLLOW-UP →”.'
+        : 'Answer the follow-up below, then press “CHECK AGAIN →”.'
+      : hasMissingRequirements
+        ? 'Press “REVIEW →” on the highlighted detail and choose Yes or No.'
+        : hasOtherUnresolved
+          ? 'Press “REVIEW THE YES / NO DETAILS →”.'
+          : 'Review the highlighted blocker below.';
+    return {step: 2, title: 'A FEW DETAILS STILL NEED CLARITY', body: 'The exact unresolved items are shown below. Answer only what is highlighted.', nextAction, detail: `${blockingCount} unresolved decision${blockingCount === 1 ? '' : 's'} remain.`};
   }
   if (!accepted) {
     return {step: 3, title: 'REVIEW THE RULES', body: 'Read the plain-language pass criteria below. This is the moment to change anything that does not match what you meant.', nextAction: 'If they are right, press “USE THESE RULES”.', detail: 'Nothing is locked yet; this is still reversible.'};
@@ -636,7 +661,19 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const unsupportedFindings = compilerState?.status === 'UNSUPPORTED' ? compilerState.findings.filter((finding) => finding.severity === 'HIGH' || finding.severity === 'CRITICAL') : [];
   const otherUnresolvedDecisions = compilerState?.unresolved_decisions.filter((decision) => !decision.id.startsWith('QUESTION:') && !decision.id.startsWith('MISSING_REQUIREMENT:')) ?? [];
   const allBlockingFollowUpsAnswered = blockingFollowUps.every((question) => Boolean(followUpAnswers[question.id]?.trim()));
-  const guidance = deriveOrganizerGuidance({sourceIntent, clarificationComplete, compilerState, accepted, successCriteriaCount, challenge: challengeView, hasPreview: Boolean(preview)});
+  const guidance = deriveOrganizerGuidance({
+    sourceIntent,
+    clarificationComplete,
+    compilerState,
+    accepted,
+    successCriteriaCount,
+    challenge: challengeView,
+    hasPreview: Boolean(preview),
+    blockingFollowUpCount: blockingFollowUps.length,
+    followUpIndex,
+    hasMissingRequirements: missingRequirementKeys.length > 0,
+    hasOtherUnresolved: otherUnresolvedDecisions.length > 0,
+  });
   const compilerReadyAndAccepted = compilerState?.status === 'READY' && accepted;
 
   return (
