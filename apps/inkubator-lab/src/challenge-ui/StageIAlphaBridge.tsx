@@ -17,6 +17,7 @@ import type {
 import type {SurfaceState} from './state';
 
 export interface StageIProductApi {
+  getMe?(): Promise<unknown>;
   createChallenge?(input: StageIChallengeCreateInput): Promise<PublicChallengeView>;
   launchStageIMockChallenge?(challengeId: string, requestId: string): Promise<PublicChallengeView>;
   joinChallenge?(challengeId: string, requestId: string, entryId: string, expectedTermsDigest: string): Promise<StageIChallengeEntryView>;
@@ -79,6 +80,15 @@ function challengeLink(challengeId: string, surface: string): string {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
+function githubLoginHref(): string {
+  const returnTo = new URL(window.location.href);
+  returnTo.searchParams.set('surface', 'compiler');
+  returnTo.searchParams.delete('auth');
+  const login = new URL('/v1/auth/github/start', window.location.origin);
+  login.searchParams.set('return_to', `${returnTo.pathname}${returnTo.search}${returnTo.hash}`);
+  return `${login.pathname}${login.search}`;
+}
+
 export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChallengeChanged}: {api: StageIProductApi; challenge?: PublicChallengeView | null; onChallengeChanged?: (challenge: PublicChallengeView) => void}) {
   const challengeId = currentChallengeId();
   const [schedule] = useState(initialSchedule);
@@ -91,6 +101,7 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
   const [launchedChallenge, setLaunchedChallenge] = useState<PublicChallengeView | null>(null);
   const [phase, setPhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
   const [message, setMessage] = useState<string | null>(null);
+  const [authState, setAuthState] = useState<'CHECKING' | 'CONNECTED' | 'REQUIRED' | 'UNKNOWN'>(() => api.getMe ? 'CHECKING' : 'UNKNOWN');
   const challenge = launchedChallenge ?? suppliedChallenge ?? null;
   const organizerTitle = !challengeId
     ? 'SET UP THE CHALLENGE'
@@ -107,8 +118,25 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
         ? 'Builders can join now under the locked rules.'
         : `Setup is complete. Canonical state: ${challenge?.status ?? 'READING'}.`;
 
+  useEffect(() => {
+    if (!api.getMe) {
+      setAuthState('UNKNOWN');
+      return;
+    }
+    let cancelled = false;
+    setAuthState('CHECKING');
+    void api.getMe().then(() => {
+      if (!cancelled) setAuthState('CONNECTED');
+    }).catch((cause) => {
+      if (cancelled) return;
+      const nextMessage = cause instanceof Error ? cause.message : '';
+      setAuthState(nextMessage === 'authentication_required' ? 'REQUIRED' : 'UNKNOWN');
+    });
+    return () => { cancelled = true; };
+  }, [api]);
+
   const create = async () => {
-    if (!api.createChallenge) return;
+    if (!api.createChallenge || authState === 'REQUIRED' || authState === 'CHECKING') return;
     const slotLimit = Number(slots);
     const activation = Number(activationMinimum);
     const entryMs = new Date(entryDeadline).getTime();
@@ -141,7 +169,9 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
       onChallengeChanged?.(view);
       setPhase('IDLE');
     } catch (cause) {
-      setMessage(errorMessage(cause));
+      const nextMessage = errorMessage(cause);
+      if (nextMessage === 'authentication_required') setAuthState('REQUIRED');
+      setMessage(nextMessage);
       setPhase('ERROR');
     }
   };
@@ -172,6 +202,17 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
       {!challengeId ? (
         <>
           <p>These settings create the draft container for the rules you just reviewed. Nothing opens to builders yet.</p>
+          {authState === 'REQUIRED' ? (
+            <div className="challenge-auth-gate" role="status">
+              <b>CONNECT GITHUB BEFORE CREATING THE DRAFT</b>
+              <span>Your GitHub identity becomes the Challenge creator. Public browsing stays available without login.</span>
+            </div>
+          ) : authState === 'CHECKING' ? (
+            <div className="challenge-auth-gate" role="status">
+              <b>CHECKING GITHUB SESSION…</b>
+              <span>Creation stays disabled until organizer identity is known.</span>
+            </div>
+          ) : null}
           <div className="compiler-contract__fields">
             <label htmlFor="stage-i-slots">BUILDER SLOTS<input id="stage-i-slots" inputMode="numeric" value={slots} onChange={(event) => setSlots(event.target.value)} /></label>
             <label htmlFor="stage-i-activation">MINIMUM BUILDERS TO START<input id="stage-i-activation" inputMode="numeric" value={activationMinimum} onChange={(event) => setActivationMinimum(event.target.value)} /></label>
@@ -181,7 +222,13 @@ export function StageIOrganizerBridge({api, challenge: suppliedChallenge, onChal
             <label htmlFor="stage-i-appeal">REVIEW APPEAL WINDOW / MINUTES<input id="stage-i-appeal" inputMode="numeric" value={appealMinutes} onChange={(event) => setAppealMinutes(event.target.value)} /></label>
           </div>
           <div className="compiler-contract__actions">
-            <button type="button" className={phase === 'LOADING' ? undefined : 'journey-next-action'} disabled={phase === 'LOADING'} onClick={() => void create()}>{phase === 'LOADING' ? 'CREATING DRAFT…' : 'CREATE DRAFT CHALLENGE'}</button>
+            {authState === 'REQUIRED' ? (
+              <a className="journey-next-action journey-next-action--link challenge-auth-login" href={githubLoginHref()}>CONNECT GITHUB TO CREATE →</a>
+            ) : (
+              <button type="button" className={phase === 'LOADING' || authState === 'CHECKING' ? undefined : 'journey-next-action'} disabled={phase === 'LOADING' || authState === 'CHECKING'} onClick={() => void create()}>
+                {phase === 'LOADING' ? 'CREATING DRAFT…' : authState === 'CHECKING' ? 'CHECKING GITHUB…' : 'CREATE DRAFT CHALLENGE'}
+              </button>
+            )}
             <span>DRAFT ONLY · NOT OPEN TO BUILDERS · NO REAL VALUE</span>
           </div>
         </>
