@@ -29,7 +29,7 @@ describe('Stage I owner journey composition', () => {
     window.history.replaceState({}, '', '/?mode=command&auth=github&github_observation=degraded&github_observation_reason=github_push_event_required');
     renderJourney(client());
 
-    expect(await screen.findByText('ONE FRONT DOOR.')).toBeTruthy();
+    expect(await screen.findByRole('heading', {name: /LAUNCH A CHALLENGE.*PROVE WHAT GETS BUILT/i})).toBeTruthy();
     await waitFor(() => expect(new URLSearchParams(window.location.search).get('surface')).toBe('discover'));
     expect(new URLSearchParams(window.location.search).get('mode')).toBeNull();
     expect(new URLSearchParams(window.location.search).get('auth')).toBe('github');
@@ -48,8 +48,65 @@ describe('Stage I owner journey composition', () => {
     expect(screen.getByText(/I HAVE A CHALLENGE TO BUILD/i)).toBeTruthy();
     expect(screen.getByLabelText(/CHALLENGE LINK OR ID/i)).toBeTruthy();
     expect(screen.getByText(/ENTER A VALID CHALLENGE ID/i)).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'WHAT\'S BUILDING?'})).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'Realtime Launch Radar'})).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'Wallet Safety Check'})).toBeTruthy();
+    expect(screen.getAllByText(/EXAMPLE ONLY · NOT A LIVE CHALLENGE/i)).toHaveLength(3);
+    const demoLink = screen.getByRole('link', {name: 'START FROM THIS IDEA →', exact: true});
+    expect(demoLink.getAttribute('href')).toContain('surface=compiler');
+    expect(demoLink.getAttribute('href')).toContain('idea=');
     expect(screen.getByText('POST')).toBeTruthy();
     expect(screen.getByText('RECEIPT')).toBeTruthy();
+  });
+
+  it('shows the selected canonical Challenge on Discover after creation/opening', async () => {
+    const challengeId = '123e4567-e89b-42d3-a456-426614174000';
+    window.history.replaceState({}, '', `/?surface=discover&challenge=${challengeId}`);
+    const getChallenge = vi.fn(async () => ({
+      schema_version: 'challenge.public.v1',
+      challenge_id: challengeId,
+      status: 'ENTRY_OPEN',
+      mechanism_version: 'test',
+      settlement_policy_version: 'test',
+      ip_terms_version: 'test',
+      current_contract_version: '1.0.0',
+      current_terms_digest: 'terms-digest',
+      has_frozen_contract: true,
+      contract_summary: {
+        contract_version: '1.0.0',
+        terms_digest: 'terms-digest',
+        title: 'My Launch Tracker',
+        brief: 'Track the launch publicly with clear state.',
+        outcome_criteria: [],
+        production_criteria: [],
+        delivery_criteria: [],
+        normative_constraints: [],
+        normative_references: [],
+        informational_references: [],
+        prize_minor_units: 100,
+        settlement_asset: 'TEST',
+      },
+      slot_limit: 3,
+      activation_minimum: 1,
+      entry_deadline: '2026-09-18T12:00:00.000Z',
+      build_start: '2026-09-18T12:30:00.000Z',
+      submission_deadline: '2026-09-19T12:00:00.000Z',
+      appeal_window_ms: 3600000,
+      review_deadline: '2026-09-19T14:00:00.000Z',
+      entry_count: 1,
+      submission_count: 0,
+      qualification_count: 0,
+      receipt_count: 0,
+      created_at: '2026-09-18T00:00:00.000Z',
+      updated_at: '2026-09-18T00:00:00.000Z',
+    } as never));
+
+    renderJourney(client({getChallenge}));
+
+    expect(await screen.findByText('YOUR CURRENT CHALLENGE')).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'My Launch Tracker'})).toBeTruthy();
+    expect(screen.getByText('Track the launch publicly with clear state.')).toBeTruthy();
+    expect(screen.getByRole('link', {name: 'OPEN YOUR CHALLENGE →'}).getAttribute('href')).toContain(challengeId);
   });
 
   it('keeps Challenge surfaces inside the same white journey shell', async () => {
@@ -119,6 +176,8 @@ describe('Stage I owner journey composition', () => {
     expect(screen.getByRole('heading', {name: 'Build a public launch dashboard'})).toBeTruthy();
     expect(screen.getByText('Ship a realtime dashboard that makes the launch state obvious.')).toBeTruthy();
     expect(screen.getByText('The dashboard shows the current launch state.')).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'WHAT COUNTS AS DONE?'})).toBeTruthy();
+    expect(screen.getAllByText('MUST PASS').length).toBeGreaterThan(0);
 
     const join = await screen.findByRole('button', {name: 'JOIN THIS CHALLENGE'});
     await waitFor(() => expect((join as HTMLButtonElement).disabled).toBe(false));
