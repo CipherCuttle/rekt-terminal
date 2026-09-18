@@ -67,7 +67,7 @@ Acceptance:
 
 ## 4. Bytecode identity
 
-For the audited production-candidate contract `<VAULT_CONTRACT>`, derive both creation and runtime bytecode from the clean build.
+For every audited economic contract — at minimum `<VAULT_CONTRACT>` and the immutable `<RESOLVER_1271_VERIFIER>` — derive both creation and runtime bytecode from the clean build.
 
 Reference commands:
 
@@ -84,7 +84,9 @@ runtime_hash="$(cast keccak "$runtime")"
 printf 'creation=%s\nruntime=%s\n' "$creation_hash" "$runtime_hash"
 ```
 
-The release receipt records both values.
+The release receipt records both values for each audited contract.
+
+The resolver verifier release identity additionally records the immutable three signer addresses and fixed quorum encoded/committed at deployment.
 
 Do not treat source verification alone as bytecode identity.
 
@@ -122,7 +124,10 @@ Each deployed vault must additionally publish/read back its immutable constructo
 - outcome authority;
 - organizer authority;
 - resolver authority;
+- frozen default/pre-build/terminal manifest-policy identities required by the candidate specification;
 - release/version identifier if included.
+
+The resolver verifier address must separately read back/verify its immutable three-signer set and 2-of-3 quorum.
 
 Deployment is rejected before funding if any readback mismatches the signed/frozen deployment plan.
 
@@ -222,7 +227,7 @@ A later Challenge deployment receipt references this release receipt plus its ow
 Before a production canary can be authorized:
 
 - one independent clean environment reproduces the expected runtime hash from the frozen source;
-- one independent reviewer compares deployed `eth_getCode` hash to the release hash;
+- one independent reviewer compares deployed vault **and resolver-verifier** `eth_getCode` hashes to the release hashes;
 - differences fail closed.
 
 “Explorer says verified” is supporting evidence, not a substitute for hash equality.
