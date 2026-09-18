@@ -188,9 +188,9 @@ test('Stage E canonical Build Contract persistence is authenticated, organizer-b
     assert.equal(publicRead.json().status, 'DRAFT');
     assert.equal(publicRead.json().has_frozen_contract, true);
     assert.equal(publicRead.json().current_terms_digest, preview.contract.terms_digest);
-    assert.equal(publicRead.json().contract_summary.title, authority().title);
-    assert.equal(publicRead.json().contract_summary.brief, authority().brief);
-    assert.equal(publicRead.json().contract_summary.terms_digest, preview.contract.terms_digest);
+    assert.equal(publicRead.json().contract_summary, null);
+    assert.equal(publicRead.body.includes(authority().title), false);
+    assert.equal(publicRead.body.includes(authority().brief), false);
     assert.equal(publicRead.body.includes(`organizer-pay-${challengeId}`), false);
     assert.equal(publicRead.body.includes(`funder-pay-${challengeId}`), false);
   } finally {
