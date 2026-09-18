@@ -9,6 +9,7 @@ import {
 
 function challengeRow() {
   const now = new Date('2026-09-16T00:00:00.000Z');
+  const buildStart = new Date('2026-09-16T01:00:00.000Z');
   return {
     challenge_id: '11111111-1111-4111-8111-111111111111',
     organizer_player_id: '22222222-2222-4222-8222-222222222222',
@@ -20,11 +21,11 @@ function challengeRow() {
     current_terms_digest: 'a'.repeat(64),
     slot_limit: 2,
     activation_minimum: 1,
-    entry_deadline: now,
-    build_start: now,
-    submission_deadline: now,
+    entry_deadline: buildStart,
+    build_start: buildStart,
+    submission_deadline: new Date('2026-09-17T01:00:00.000Z'),
     appeal_window_ms: 100,
-    review_deadline: now,
+    review_deadline: new Date('2026-09-18T01:00:00.000Z'),
     created_at: now,
     updated_at: now,
   };
