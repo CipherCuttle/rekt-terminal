@@ -56,7 +56,8 @@ Forward product strategy and staged roadmap are governed by:
 50. `STAGE_J3_EXTERNAL_REVIEW_PACKAGE_V1.md` — bounded external smart-contract review package structure.
 51. `STAGE_J3_TERMINAL_FALLBACK_DECISION_V1.md` — technically frozen terminal no-qualification fallback; external legal/terms gate remains open.
 52. `STAGE_J3_CLOSURE_V1.md` — durable J3 technical architecture closure receipt; production money/mainnet/external audit/legal gates remain unauthorized/open.
-53. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
+53. `STAGE_J4_PRODUCTION_CANDIDATE_VAULT_V1.md` — active production-candidate implementation/verification authority; no mainnet, production money, signer or merge authority.
+54. `REKT_TECHNICAL_FACEPLATE_V1.md` — highest visual execution authority; it may not override product truth/trust/API semantics.
 
 Repository-level agents must also obey root `AGENTS.md` and hydrate from this index before Inkubator implementation.
 
@@ -102,6 +103,7 @@ Stage J0 settlement adapter                   ACTIVE / TEST-ONLY PROTOCOL SLICE
 Stage J1 testnet Challenge Vault              CLOSED / PASS / PR #126 DRAFT UNMERGED
 Stage J2 Ink Sepolia rehearsal                CLOSED / PASS / PR #127 DRAFT UNMERGED
 Stage J3 production-value readiness           CLOSED / PASS / PR #128 DRAFT UNMERGED
+Stage J4 production-candidate vault            ACTIVE / IMPLEMENTED / VERIFY NEXT
 Production money                              NOT AUTHORIZED
 Stage-I prep merge-to-main                    NOT AUTHORIZED
 Stage-J0 merge-to-main                        NOT AUTHORIZED
@@ -182,3 +184,11 @@ Stage J3 starts from the closed Stage-J2 evidence line on `agent/stage-j3-produc
 J3 may freeze the production-value trust model, deterministic default/liveness law, threshold-resolver/EIP-1271 policy, long-stop and pre-build refund semantics, exact chain/asset/deployment identity requirements, finality/reconciliation policy, key lifecycle and the external audit package.
 
 J3 architecture is CLOSED / PASS. The bounded hostile architecture review `5253037975` found three High issues; all three were repaired, targeted rereview `5253071138` passed, and exact-head CI `35400084955` passed on architecture head `bd4422cc77e8b7c0d8d4ea6bdf54a7e5715a5821`. Durable closure evidence is recorded in `STAGE_J3_CLOSURE_V1.md`. J3 may not deploy to mainnet, move production-value assets, create production signer secrets, introduce custody/fees, claim legal compliance or claim an external audit has passed. Production money, external audit, legal/accounting/privacy and merge authority remain blocked/open. `STAGE_J3_PRODUCTION_VALUE_READINESS_V1.md` remains the frozen technical authority for J4 implementation.
+
+## Current Stage-J4 authority
+
+Stage J4 starts from J3 closure head `da346243e6fbcf5e259bdd8de85c0e099a6e1adc` on `agent/stage-j4-production-candidate-vault-v1`.
+
+J4 may implement and verify the isolated production-candidate vault, immutable verification-only 2-of-3 ERC-1271 resolver, qualifier-bound default-manifest identity, immutable refund manifests, signerless deterministic defaults, timed recovery/long-stop behavior, two-provider finalized-evidence reconciliation and reproducible candidate release identity tooling defined by the frozen J3 package.
+
+J4 remains synthetic/local/testnet/fork-only. It may not deploy to Ink mainnet, move real USDC, create production signer secrets, introduce custody or fees, claim an external audit/legal gate passed, or merge. `STAGE_J4_PRODUCTION_CANDIDATE_VAULT_V1.md` is the active slice authority.
