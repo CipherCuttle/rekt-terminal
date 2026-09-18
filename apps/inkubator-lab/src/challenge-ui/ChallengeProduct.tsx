@@ -358,10 +358,10 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const [challengeId, setChallengeId] = useState(() => new URLSearchParams(window.location.search).get('challenge'));
   const [sourceIntent, setSourceIntent] = useState(() => initialIdea ?? restoredDraft?.sourceIntent ?? '');
   const [answers, setAnswers] = useState<CompilerRequirementAnswers>(() => restoredDraft?.answers ?? emptyRequirementAnswers());
-  const [requirementIndex, setRequirementIndex] = useState(() => Number.isSafeInteger(restoredDraft?.requirementIndex) ? restoredDraft!.requirementIndex! : 0);
+  const [requirementIndex, setRequirementIndex] = useState(() => typeof restoredDraft?.requirementIndex === 'number' && Number.isSafeInteger(restoredDraft.requirementIndex) ? restoredDraft.requirementIndex : 0);
   const [clarificationComplete, setClarificationComplete] = useState(() => restoredDraft?.clarificationComplete === true);
   const [followUpAnswers, setFollowUpAnswers] = useState<CompilerFollowUpAnswers>(() => restoredDraft?.followUpAnswers ?? {});
-  const [followUpIndex, setFollowUpIndex] = useState(() => Number.isSafeInteger(restoredDraft?.followUpIndex) ? restoredDraft!.followUpIndex! : 0);
+  const [followUpIndex, setFollowUpIndex] = useState(() => typeof restoredDraft?.followUpIndex === 'number' && Number.isSafeInteger(restoredDraft.followUpIndex) ? restoredDraft.followUpIndex : 0);
   const [successCriteria, setSuccessCriteria] = useState<string[]>(() => Array.isArray(restoredDraft?.successCriteria) && restoredDraft!.successCriteria!.length ? restoredDraft!.successCriteria! : ['']);
   const [compilerState, setCompilerState] = useState<CompilerStateView | null>(null);
   const [compilePhase, setCompilePhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
