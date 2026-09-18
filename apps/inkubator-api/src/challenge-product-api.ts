@@ -52,6 +52,11 @@ export interface PublicBuildContractSummary {
   settlement_asset: string;
 }
 
+export interface PublicChallengeOrganizerView {
+  display_name: string;
+  github_login: string | null;
+}
+
 export interface PublicChallengeView {
   schema_version: 'challenge.public.v1';
   challenge_id: string;
@@ -63,6 +68,7 @@ export interface PublicChallengeView {
   current_terms_digest: string | null;
   has_frozen_contract: boolean;
   contract_summary: PublicBuildContractSummary | null;
+  organizer: PublicChallengeOrganizerView | null;
   slot_limit: number;
   activation_minimum: number;
   entry_deadline: string;
@@ -146,7 +152,10 @@ function toPublicBuildContractSummary(snapshot: ChallengeSnapshot): PublicBuildC
   };
 }
 
-export function toPublicChallengeView(snapshot: ChallengeSnapshot): PublicChallengeView {
+export function toPublicChallengeView(
+  snapshot: ChallengeSnapshot,
+  organizer: PublicChallengeOrganizerView | null = null,
+): PublicChallengeView {
   const {challenge} = snapshot;
   return {
     schema_version: 'challenge.public.v1',
@@ -159,6 +168,7 @@ export function toPublicChallengeView(snapshot: ChallengeSnapshot): PublicChalle
     current_terms_digest: challenge.current_terms_digest,
     has_frozen_contract: snapshot.contract !== null,
     contract_summary: toPublicBuildContractSummary(snapshot),
+    organizer,
     slot_limit: challenge.slot_limit,
     activation_minimum: challenge.activation_minimum,
     entry_deadline: safeDate(challenge.entry_deadline),
@@ -276,8 +286,16 @@ export function registerStageEChallengeProductRoutes(app: FastifyInstance, db: I
     try {
       const snapshot = await readChallengeSnapshot(db, challengeId);
       if (!snapshot) return apiError(reply, 404, 'challenge_not_found');
+      const organizerRow = await db
+        .selectFrom('players')
+        .select(['display_name', 'github_login'])
+        .where('player_id', '=', snapshot.challenge.organizer_player_id)
+        .executeTakeFirst();
       reply.header('cache-control', 'no-store');
-      return toPublicChallengeView(snapshot);
+      return toPublicChallengeView(snapshot, organizerRow ? {
+        display_name: organizerRow.display_name,
+        github_login: organizerRow.github_login,
+      } : null);
     } catch (cause) {
       if (cause instanceof Error && cause.message === 'invalid_challenge_id') {
         return apiError(reply, 400, 'invalid_challenge_id');
