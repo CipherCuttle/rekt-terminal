@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState, type ReactNode} from 'react';
+import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import {InkubatorApiError, type InkubatorApiClient} from './generated/inkubator-api-client';
 import {createInkubatorApiClient} from './inkubator-api';
@@ -41,8 +41,19 @@ function currentSurface(): ChallengeSurface {
 }
 
 function FaceplateRail({surface, challengeId}: {surface: ChallengeSurface; challengeId: string | null}) {
+  const railRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!window.matchMedia('(max-width: 760px)').matches) return;
+    railRef.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    });
+  }, [surface]);
+
   return (
-    <nav className="ios-mode-rail ios-shell-mode-rail challenge-journey-rail" aria-label="Inkubator journey">
+    <nav ref={railRef} className="ios-mode-rail ios-shell-mode-rail challenge-journey-rail" aria-label="Inkubator journey">
       <span className="ios-rail-label">JOURNEY / SELECT</span>
       {USER_SURFACES.map((item, index) => {
         const needsChallenge = ['CHALLENGE', 'MY_BUILD', 'REVIEW', 'HISTORY'].includes(item);
