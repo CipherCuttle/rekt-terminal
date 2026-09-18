@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
-import {toPublicChallengeView} from '../../dist/challenge-product-api.js';
+import {
+  buildFrozenBuildContractPreview,
+  compileOrganizerDraft,
+  toPublicChallengeView,
+} from '../../dist/challenge-product-api.js';
 
 function challengeRow() {
   const now = new Date('2026-09-16T00:00:00.000Z');
@@ -26,11 +30,73 @@ function challengeRow() {
   };
 }
 
+function frozenContractFixture() {
+  const draft = challengeRow();
+  draft.status = 'DRAFT';
+  draft.current_contract_version = null;
+  draft.current_terms_digest = null;
+
+  const compilerState = compileOrganizerDraft({
+    schema_version: 'inkubator.compiler-proposal/1.0',
+    source_intent: 'Build the H2 privacy boundary fixture.',
+    requirements: [
+      'accounts',
+      'persistence',
+      'uploads_private',
+      'realtime',
+      'notifications',
+      'onchain_read',
+      'wallet_transactions',
+      'custody_private_keys',
+    ].map((key) => ({key, value: false, provenance: 'ORGANIZER_ACCEPTED'})),
+    knowledge: [],
+    outcome_criteria: [],
+    delivery_criteria: [],
+    preferences: {},
+  });
+  const preview = buildFrozenBuildContractPreview(
+    compilerState,
+    {
+      contract_version: 'h2-fixture-v1',
+      title: 'H2 privacy fixture',
+      brief: 'Exercise the public projection without exposing private submission material.',
+      preferences: {},
+      normative_constraints: [],
+      normative_references: [],
+      informational_references: [],
+      prize_minor_units: 100,
+      prize_display: '100 TEST',
+      settlement_asset: 'TEST',
+    },
+    {
+      challenge: draft,
+      contract: null,
+      entries: [],
+      submissions: [],
+      qualifications: [],
+      decisions: [],
+      receipts: [],
+    },
+  );
+  return preview.contract;
+}
+
 test('H2 public challenge projection cannot leak restricted submission/archive material', () => {
   const sentinel = 'PRIVATE_SOURCE_SENTINEL_H2';
+  const contract = frozenContractFixture();
+  const challenge = challengeRow();
+  challenge.current_contract_version = contract.contract_version;
+  challenge.current_terms_digest = contract.terms_digest;
   const snapshot = {
-    challenge: challengeRow(),
-    contract: {contract_version: 'h2-fixture-v1', terms_digest: 'a'.repeat(64)},
+    challenge,
+    contract: {
+      challenge_id: challenge.challenge_id,
+      contract_version: contract.contract_version,
+      schema_version: contract.schema_version,
+      terms_digest: contract.terms_digest,
+      contract_json: contract,
+      frozen_at: new Date('2026-09-16T00:00:00.000Z'),
+    },
     entries: [],
     submissions: [{
       submission_id: '33333333-3333-4333-8333-333333333333',
