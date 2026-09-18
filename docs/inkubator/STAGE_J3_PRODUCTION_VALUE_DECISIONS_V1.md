@@ -97,7 +97,9 @@ Once a final qualifier set is frozen:
 - organizer winner remains possible only before the organizer-selection deadline;
 - at/after the deadline, deterministic default requires **no fresh organizer, outcome or resolver signature**;
 - any caller may execute;
-- contract derives/validates exact recipients and amounts from the frozen qualifier/payout state.
+- contract derives/validates exact recipients and amounts from the frozen qualifier/payout state;
+- the exact **default settlement manifest digest is frozen together with the qualifier set** and included in the qualifier-set authorization digest;
+- permissionless default accepts no caller-selected manifest digest and uses only the stored frozen digest.
 
 Cases:
 
@@ -105,7 +107,9 @@ Cases:
 - 2–3 qualifiers → equal split with canonical payout-order remainder;
 - 0 qualifiers → full refund to immutable refund recipient.
 
-The human/platform authority ended when the qualifier set was frozen.
+The default manifest is computed off-chain from the same frozen J0 contract/binding/qualifier result before qualifier freeze. Normal qualifier authorities sign a digest that commits to both the qualifier root/count and that exact default manifest digest. Recovery qualifier freeze commits to the recovery default manifest digest under the same rule.
+
+The human/platform authority ended when the qualifier set — including its default manifest identity — was frozen.
 
 This is the required production delta from J1.
 
@@ -122,6 +126,8 @@ Law:
 - ordinary organizer/API authority cannot refund after builder identities have been frozen.
 
 This gives J0 `REFUND_PRE_BUILD` a deterministic on-chain meaning without an admin sweep.
+
+The exact pre-build refund manifest digest is immutable at vault deployment. The permissionless pre-build refund path accepts no caller-selected manifest digest.
 
 ## D7. Unresolved qualification recovery
 
@@ -161,30 +167,37 @@ Recovery authority law:
 - before `resolution_deadline`, normal recovery qualifier freeze requires outcome + resolver;
 - at/after `resolution_deadline`, if and only if no qualifier set exists, the 2-of-3 resolver threshold may freeze one recovery qualifier set from the already-frozen payout roster, binding a durable recovery-evidence digest;
 - an existing qualifier set is never replaceable by this path;
-- at/after `terminal_long_stop`, if no qualifier set exists and no settlement is authorized, anyone may trigger full refund to the immutable refund recipient.
+- at/after `terminal_long_stop`, if no qualifier set exists and no settlement is authorized, anyone may trigger full refund to the immutable refund recipient;
+- the terminal-refund manifest digest is immutable at vault deployment and the permissionless terminal path accepts no caller-selected manifest digest.
 
-The terminal refund tradeoff still requires product/legal hostile review before production contract freeze.
+The terminal refund tradeoff still requires external legal/terms review before production contract freeze.
 
 ## D8. Resolver authority
 
-Production resolver is not an EOA.
+Production resolver is not an EOA and is not a mutable general-purpose smart wallet.
 
-Contract interface:
+First-candidate resolver is a **minimal non-upgradeable ERC-1271 threshold verifier** with:
 
-- resolver address MAY be a smart-contract account;
-- signature verifier supports ERC-1271;
-- exact magic value: `0x1626ba7e`;
-- invalid/reverting/malformed response fails closed.
+- exactly three immutable signer addresses;
+- immutable quorum **2-of-3**;
+- exact ERC-1271 magic value `0x1626ba7e`;
+- strict duplicate-signer rejection;
+- strict ECDSA validation for underlying signer proofs;
+- no owner mutation;
+- no threshold mutation;
+- no modules;
+- no delegatecall;
+- no asset custody;
+- no arbitrary transaction execution;
+- no upgrade/proxy surface.
 
-Operational launch direction:
+Invalid/reverting/malformed verification fails closed.
 
-- threshold smart wallet;
-- quorum: **2-of-3** for the first capped candidate;
-- at least two distinct security principals must be required to form a quorum;
-- no ordinary web/API credential can form a resolver quorum;
-- resolver address is independent from organizer and outcome authorities.
+At least two signer keys must live behind distinct security principals/boundaries. No ordinary web/API credential can form resolver quorum.
 
-The vault does not hardcode a particular wallet vendor.
+The resolver verifier address is immutable in each Challenge Vault and independent from organizer/outcome authorities.
+
+If resolver membership must change, deploy a new reviewed resolver verifier for **new Challenges**. Active Challenges keep their original immutable verifier. Signer loss is handled by the remaining quorum or, if quorum is lost, by the precommitted terminal long-stop.
 
 ERC-1271 authority:
 
@@ -201,13 +214,13 @@ For the first production candidate:
 
 - organizer authority is the frozen organizer wallet (EOA or ERC-1271 wallet);
 - outcome authority is an isolated Inkubator **EOA signing key** kept outside the ordinary web/API runtime; it has no unilateral fund-moving path;
-- resolver is the 2-of-3 ERC-1271 threshold wallet;
+- resolver is the immutable 2-of-3 ERC-1271 threshold verifier;
 - qualifier-set freeze requires outcome + organizer in the normal path, or outcome + resolver in recovery;
-- exceptional architecture review must decide whether resolver-threshold-only qualification recovery is allowed after `resolution_deadline`.
+- at/after `resolution_deadline`, resolver-only recovery is permitted exactly as specified in D7, only while no qualifier set exists and only over the frozen payout roster.
 
-No active Challenge changes an immutable authority address through a database update.
+No active Challenge changes an immutable authority address or resolver signer/quorum configuration through a database update.
 
-If the outcome EOA is lost, the timed resolver recovery path is the liveness mechanism; the vault does not silently replace the outcome address. Contract-wallet authorities may rotate underlying owners only under their own audited threshold governance and that configuration is monitored as economic authority.
+If the outcome EOA is lost, the timed resolver recovery path is the liveness mechanism; the vault does not silently replace the outcome address.
 
 ## D10. Deployment law
 
@@ -272,6 +285,33 @@ No platform fee, skim or fee recipient is added to the first audited vault.
 
 A fee requires a new explicit economic/contract version and review.
 
+## D13. Deadline conversion law
+
+Build Contract timestamps are milliseconds; EVM `block.timestamp` is seconds.
+
+For every off-chain deadline that creates a **not-before** on-chain right, conversion is:
+
+`evm_deadline_seconds = ceil(build_contract_deadline_ms / 1000)`
+
+Never floor/truncate.
+
+This applies at minimum to:
+
+- activation/pre-build refund deadline;
+- organizer-selection/default deadline;
+- any absolute resolution deadline sourced from the Build Contract.
+
+Relative recovery offsets are added only after the base organizer deadline has been safely ceiling-converted:
+
+- `resolution_deadline = organizer_selection_deadline_seconds + 72 hours`;
+- `terminal_long_stop = organizer_selection_deadline_seconds + 30 days`.
+
+Constructor/order checks still enforce:
+
+`activation <= organizer_selection < resolution < terminal_long_stop`
+
+Known-answer tests must cover exact-second, `+1ms`, and `+999ms` inputs so no permission becomes available before frozen off-chain law.
+
 ## Native USDC issuer-control acceptance
 
 Circle's EVM USDC design is externally administered: it is upgradeable, pausable and blacklistable.
@@ -293,15 +333,21 @@ Authority references checked 2026-09-18:
 - https://github.com/circlefin/stablecoin-evm
 - https://github.com/circlefin/stablecoin-evm/blob/master/doc/tokendesign.md
 
-## Remaining J3 decisions
+## Hostile-review repair status
 
-Before J3 can close:
+The first bounded J3 hostile review identified three High architecture gaps:
 
-1. product/legal hostile review must accept or replace the terminal no-qualification refund fallback;
-2. freeze the production signer custody/runbook details for the outcome key and resolver 2-of-3 wallet;
-3. freeze reproducible build/deployment hash procedure and verification commands;
-4. build the production-candidate property/adversarial test plan;
-5. build the external audit package;
-6. bounded hostile review of the complete J3 architecture.
+1. permissionless settlement manifest identity;
+2. mutable resolver authority;
+3. underspecified millisecond-to-EVM deadline conversion.
+
+This document now freezes the repairs:
+
+- qualifier freeze also freezes the exact default manifest digest;
+- pre-build and terminal refund manifest digests are immutable at deployment;
+- resolver is a minimal immutable 2-of-3 ERC-1271 verifier;
+- all not-before deadlines use ceiling conversion.
+
+The next bounded action is one targeted rereview of those three repaired surfaces.
 
 External legal/accounting/privacy gates remain outside J3 technical closure and still block production money.
