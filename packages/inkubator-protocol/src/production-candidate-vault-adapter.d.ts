@@ -12,6 +12,8 @@ export declare const STAGE_J4_NATIVE_USDC: Readonly<{
   issuer: 'Circle';
 }>;
 
+export declare const STAGE_J4_FINALITY_PROVIDERS: readonly ['gelato', 'quicknode'];
+
 export declare const STAGE_J4_TOOLCHAIN: Readonly<{
   foundry: '1.8.3';
   solc: '0.8.37';
