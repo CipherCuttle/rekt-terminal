@@ -48,6 +48,9 @@ jobs:
           version: v1.8.3
           cache: false
 
+      - name: Verify pinned Foundry supports explicit sender nonce
+        run: forge script --help | grep -F -- '--sender-nonce'
+
       - name: Test J0/J2 protocol bridge
         run: node --test packages/inkubator-protocol/test/stage-j0-settlement-adapter.test.mjs packages/inkubator-protocol/test/stage-j2-testnet-vault-adapter.test.mjs
 
