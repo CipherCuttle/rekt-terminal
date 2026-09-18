@@ -105,8 +105,8 @@ describe('Stage I owner journey composition', () => {
     renderJourney(client({getChallenge}));
 
     expect(await screen.findByText('YOUR CURRENT CHALLENGE')).toBeTruthy();
-    expect(screen.getByRole('heading', {name: 'My Launch Tracker'})).toBeTruthy();
-    expect(screen.getByText('Track the launch publicly with clear state.')).toBeTruthy();
+    expect(await screen.findByRole('heading', {name: 'My Launch Tracker'})).toBeTruthy();
+    expect(await screen.findByText('Track the launch publicly with clear state.')).toBeTruthy();
     expect(screen.getByRole('link', {name: 'OPEN YOUR CHALLENGE →'}).getAttribute('href')).toContain(challengeId);
   });
 
