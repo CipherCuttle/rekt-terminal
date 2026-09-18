@@ -61,4 +61,54 @@ describe('Stage I owner journey composition', () => {
     expect(document.querySelector('.challenge-journey-runtime .challenge-product')).toBeTruthy();
     expect(screen.queryByText('WORLD')).toBeNull();
   });
+
+  it('guides a builder from reading an open Challenge into joined state', async () => {
+    const challengeId = '123e4567-e89b-42d3-a456-426614174000';
+    window.history.replaceState({}, '', `/?surface=challenge&challenge=${challengeId}`);
+    const getChallenge = vi.fn(async () => ({
+      schema_version: 'challenge.public.v1',
+      challenge_id: challengeId,
+      status: 'ENTRY_OPEN',
+      mechanism_version: 'test',
+      settlement_policy_version: 'test',
+      ip_terms_version: 'test',
+      current_contract_version: '1.0.0',
+      current_terms_digest: 'terms-digest',
+      has_frozen_contract: true,
+      slot_limit: 3,
+      activation_minimum: 1,
+      entry_deadline: '2026-09-18T12:00:00.000Z',
+      build_start: '2026-09-18T12:30:00.000Z',
+      submission_deadline: '2026-09-19T12:00:00.000Z',
+      appeal_window_ms: 3600000,
+      review_deadline: '2026-09-19T14:00:00.000Z',
+      entry_count: 0,
+      submission_count: 0,
+      qualification_count: 0,
+      receipt_count: 0,
+      created_at: '2026-09-18T00:00:00.000Z',
+      updated_at: '2026-09-18T00:00:00.000Z',
+    } as never));
+    const joinChallenge = vi.fn(async () => ({
+      schema_version: 'challenge.entry.joined.v1',
+      challenge_id: challengeId,
+      entry_id: 'entry-1',
+      state: 'JOINED',
+      terms_digest: 'terms-digest',
+    } as never));
+
+    renderJourney(client({getChallenge, joinChallenge}));
+
+    const guide = await screen.findByRole('complementary', {name: /BUILDER journey guidance/i});
+    expect(guide.getAttribute('data-journey-step')).toBe('1');
+    expect(screen.getByText('READ IT, THEN JOIN')).toBeTruthy();
+
+    const join = await screen.findByRole('button', {name: 'JOIN THIS CHALLENGE'});
+    join.click();
+
+    expect(await screen.findByText("YOU'RE IN")).toBeTruthy();
+    expect(guide.getAttribute('data-journey-step')).toBe('2');
+    expect(await screen.findByRole('link', {name: /CONTINUE TO MY BUILD/i})).toBeTruthy();
+    expect(joinChallenge).toHaveBeenCalledTimes(1);
+  });
 });
