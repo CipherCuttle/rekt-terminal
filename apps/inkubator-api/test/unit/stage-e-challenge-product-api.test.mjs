@@ -157,8 +157,9 @@ test('public Challenge projection exposes readable frozen rules without leaking 
   snapshot.decisions = [{decision_id: 'decision'}];
   snapshot.receipts = [{receipt_id: 'receipt'}];
 
-  const view = toPublicChallengeView(snapshot);
+  const view = toPublicChallengeView(snapshot, {display_name: 'Public Creator', github_login: 'public-creator'});
 
+  assert.deepEqual(view.organizer, {display_name: 'Public Creator', github_login: 'public-creator'});
   assert.equal(view.entry_count, 1);
   assert.equal(view.submission_count, 1);
   assert.equal(view.qualification_count, 1);
