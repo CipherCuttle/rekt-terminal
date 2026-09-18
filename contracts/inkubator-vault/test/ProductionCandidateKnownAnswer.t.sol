@@ -1,7 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.37;
 
+import {ImmutableResolver1271} from "../src/ImmutableResolver1271.sol";
+
+interface VmJ4KnownAnswer {
+    function addr(uint256 privateKey) external returns (address);
+    function sign(uint256 privateKey, bytes32 digest) external returns (uint8 v, bytes32 r, bytes32 s);
+}
+
 contract ProductionCandidateKnownAnswerTest {
+    VmJ4KnownAnswer private constant vm =
+        VmJ4KnownAnswer(address(uint160(uint256(keccak256("hevm cheat code")))));
+
     bytes32 private constant CHALLENGE =
         0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
     bytes32 private constant TERMS =
@@ -118,6 +128,32 @@ contract ProductionCandidateKnownAnswerTest {
             )
         );
         require(_typed(_domain(), structHash) == EXPECTED_ORGANIZER_WINNER_DIGEST, "winner digest drift");
+    }
+
+    function testKnownAnswerOutcomeSignatureVerifies() public {
+        uint256 outcomePk = 0xA11CE;
+        address outcome = vm.addr(outcomePk);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(outcomePk, EXPECTED_QUALIFIER_SET_DIGEST);
+        address recovered = ecrecover(EXPECTED_QUALIFIER_SET_DIGEST, v, r, s);
+        require(recovered == outcome, "known-answer outcome signature drift");
+    }
+
+    function testKnownAnswerResolverTwoOfThreeVerifies() public {
+        uint256 signer1Pk = 0xCAFE;
+        uint256 signer2Pk = 0xD00D;
+        uint256 signer3Pk = 0xF00D;
+
+        ImmutableResolver1271 resolver =
+            new ImmutableResolver1271(vm.addr(signer1Pk), vm.addr(signer2Pk), vm.addr(signer3Pk));
+
+        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(signer1Pk, EXPECTED_QUALIFIER_SET_DIGEST);
+        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(signer2Pk, EXPECTED_QUALIFIER_SET_DIGEST);
+        bytes memory proof = abi.encodePacked(r1, s1, v1, r2, s2, v2);
+
+        require(
+            resolver.isValidSignature(EXPECTED_QUALIFIER_SET_DIGEST, proof) == resolver.MAGICVALUE(),
+            "known-answer resolver signature drift"
+        );
     }
 
     function _domain() internal pure returns (bytes32) {
