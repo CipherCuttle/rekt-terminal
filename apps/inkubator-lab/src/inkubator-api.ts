@@ -53,6 +53,7 @@ export interface PublicChallengeView {
   current_terms_digest: string | null;
   has_frozen_contract: boolean;
   contract_summary?: PublicBuildContractSummary | null;
+  organizer?: {display_name: string; github_login: string | null} | null;
   slot_limit: number;
   activation_minimum: number;
   entry_deadline: string;
