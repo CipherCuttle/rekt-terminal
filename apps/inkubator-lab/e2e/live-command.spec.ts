@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page} from '@playwright/test';
 import type {CommandView} from '../src/generated/inkubator-api-client';
+import {fixtureConnectionContext, fixturePendingAssists} from './fixture-connection';
 
 function commandView(overrides: Partial<CommandView> = {}): CommandView {
   return {
@@ -75,6 +76,19 @@ async function routeCommand(page: Page, respond: () => CommandRouteResponse) {
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname !== '/v1/me/command') {
+      if (url.pathname === '/v1/me/connection') {
+        await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(fixtureConnectionContext)});
+        return;
+      }
+      if (url.pathname === '/v1/projects/P-LIVE-001/pending-assists') {
+        await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(fixturePendingAssists('P-LIVE-001'))});
+        return;
+      }
+      // Never leak an unmocked /v1 route to the (absent) backend proxy: fail closed instead.
+      if (url.pathname.startsWith('/v1/')) {
+        await route.fulfill({status: 500, contentType: 'application/json', body: JSON.stringify({error: 'unmocked_v1_route'})});
+        return;
+      }
       await route.continue();
       return;
     }
@@ -96,18 +110,16 @@ test('LIVE COMMAND renders one Living Thread and ripples canonical deltas withou
   let current = commandView();
   await routeCommand(page, () => ({status: 200, body: current}));
 
-  await page.goto('/?mode=command');
+  await page.goto('/?lab=live-legacy&mode=command');
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
   await expect(page.getByRole('heading', {name: 'Ship one real working thing.'})).toBeVisible();
   await expect(page.getByRole('heading', {name: 'CONNECT THE LIVE COMMAND BUS'})).toBeVisible();
-  await expect(page.getByText('PRIVATE', {exact: true})).toBeVisible();
+  await expect(page.getByText('GITHUB / PRIVATE')).toBeVisible();
   await expect(page.getByText('ADVISORY ONLY')).toBeVisible();
   await expect(page.getByText('CLAIMED ≠ OBSERVED ≠ PROVEN')).toBeVisible();
   await expect(page.getByLabel('Living Thread mission instrument')).toBeVisible();
-  await expect(page.locator('.command-sector')).toHaveCount(0);
-  await expect(page.locator('.command-ratchet')).toHaveCount(0);
-  await expect(page.locator('[data-renderer="pixi"] canvas')).toBeVisible();
-  await expect(page.locator('[data-renderer="pixi"]')).toHaveAttribute('data-app-generation', '1');
+  // One retained instrument shell: canonical deltas ripple in place, no surface recreation.
+  await expect(page.locator('[data-shell="terminal"]')).toHaveCount(1);
 
   const provenGate = page.locator('.command-thread-gates [data-truth="proven"]');
   await expect(provenGate).toHaveCount(1);
@@ -125,11 +137,11 @@ test('LIVE COMMAND renders one Living Thread and ripples canonical deltas withou
   });
 
   await expect.poll(async () => page.locator('.command-live').getAttribute('data-event-sequence'), {timeout: 7000}).toBe('1');
-  await expect(page.getByText(/EVENT \/\/ GATE:QUALITY_TESTING → BLOCKER → MISSION → DAEMON/i)).toBeVisible();
+  await expect(page.getByText(/CHANGE \/\/ GATE:QUALITY_TESTING → BLOCKER → MISSION → DAEMON/i)).toBeVisible();
   await expect(page.getByText('Need an external tester before ship.')).toBeVisible();
   await expect(page.locator('.command-thread-break')).toBeVisible();
   await expect(page.getByText('ADVISORY ONLY')).toBeVisible();
-  await expect(page.locator('[data-renderer="pixi"]')).toHaveAttribute('data-app-generation', '1');
+  await expect(page.locator('[data-shell="terminal"]')).toHaveCount(1);
 
   const results = await new AxeBuilder({page}).analyze();
   expect(results.violations).toEqual([]);
@@ -151,20 +163,18 @@ test('LIVE COMMAND proof projection stays readable on mobile and reduced motion'
   });
   await routeCommand(page, () => ({status: 200, body: shipReady}));
 
-  await page.goto('/?mode=command');
+  await page.goto('/?lab=live-legacy&mode=command');
   await expect(page.getByRole('heading', {name: 'OPEN SHIP REVIEW'})).toBeVisible();
   await expect(page.locator('.command-live')).toHaveAttribute('data-motion-policy', 'reduced');
-  await expect(page.locator('[data-renderer="pixi"]')).toHaveAttribute('data-motion-policy', 'reduced');
   await expect(page.locator('.command-thread-gates [data-truth="proven"]')).toHaveCount(4);
-  await expect(page.locator('.command-ship-endpoint')).toContainText('PROVEN');
-  await expect(page.locator('[data-renderer="pixi"] canvas')).toBeVisible();
+  await expect(page.getByRole('link', {name: 'OPEN SHIP →'})).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 
 test('LIVE COMMAND fails closed when the canonical command endpoint is unavailable', async ({page}) => {
   await routeCommand(page, () => ({status: 401, body: {error: 'session_required'}}));
 
-  await page.goto('/?mode=command');
+  await page.goto('/?lab=live-legacy&mode=command');
   await expect(page.getByRole('heading', {name: 'COMMAND LINK UNAVAILABLE'})).toBeVisible({timeout: 6000});
   await expect(page.getByText('session_required')).toBeVisible();
   await expect(page.getByText('No development fixture fallback is permitted.')).toBeVisible();

@@ -104,6 +104,12 @@ function stacksFromProjectEvidence(payload: unknown, key: 'previous_observed_sta
   return [...new Set(stacks as DetectedStack[])].sort();
 }
 
+function stringFromEvidence(payload: unknown, key: string): string | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
 function requireUuid(value: string, name: string): string {
   if (typeof value !== 'string' || !UUID_PATTERN.test(value)) throw new Error(`invalid_${name}`);
   return value.toLowerCase();
@@ -287,23 +293,29 @@ async function commandByMissionId(db: Kysely<DatabaseSchema>, missionId: string)
   const repository = project.repository_id
     ? (await db.selectFrom('github_repositories').selectAll().where('repository_id', '=', project.repository_id).executeTakeFirst()) ?? null
     : null;
-  const observation = await db.selectFrom('history_events')
-    .select(['history_event_id', 'occurred_at'])
-    .where('event_type', '=', 'project.github_repository_push.observed')
-    .where('subject_type', '=', 'project')
-    .where('subject_id', '=', project.project_id)
-    .orderBy('occurred_at', 'desc')
-    .orderBy('history_event_id', 'desc')
-    .executeTakeFirst();
-  const stackObservation = await db.selectFrom('history_events')
-    .select('payload')
-    .where('event_type', '=', 'project.github_repository_stack.observed')
-    .where('subject_type', '=', 'project')
-    .where('subject_id', '=', project.project_id)
-    .orderBy('occurred_at', 'desc')
-    .orderBy(sql<string>`payload ->> 'delivery_id'`, 'desc')
-    .executeTakeFirst();
-  const observedStacks = stacksFromProjectProjection(project.observed_stack_labels);
+  const observation = repository
+    ? await db.selectFrom('history_events')
+        .select(['history_event_id', 'occurred_at', 'payload'])
+        .where('event_type', '=', 'project.github_repository_push.observed')
+        .where('subject_type', '=', 'project')
+        .where('subject_id', '=', project.project_id)
+        .where(sql<string>`payload ->> 'repository_id'`, '=', repository.repository_id)
+        .orderBy('occurred_at', 'desc')
+        .orderBy('history_event_id', 'desc')
+        .executeTakeFirst()
+    : undefined;
+  const deliveryId = observation ? stringFromEvidence(observation.payload, 'delivery_id') : null;
+  const stackObservation = deliveryId
+    ? await db.selectFrom('history_events')
+        .select('payload')
+        .where('event_type', '=', 'project.github_repository_stack.observed')
+        .where('subject_type', '=', 'project')
+        .where('subject_id', '=', project.project_id)
+        .where(sql<string>`payload ->> 'delivery_id'`, '=', deliveryId)
+        .orderBy('occurred_at', 'desc')
+        .executeTakeFirst()
+    : undefined;
+  const observedStacks = observation ? stacksFromProjectProjection(project.observed_stack_labels) : [];
   const previousObservedStacks = stackObservation ? stacksFromProjectEvidence(stackObservation.payload, 'previous_observed_stacks') : [];
   const githubEvidence = classifyGitHubPushEvidence({
     ...(observation ? {observationId: observation.history_event_id, observedAt: observation.occurred_at} : {}),

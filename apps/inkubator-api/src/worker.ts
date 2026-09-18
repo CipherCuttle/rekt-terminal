@@ -1,5 +1,6 @@
 import {createDatabase} from './database.js';
-import {runOneJob} from './jobs.js';
+import {createGitHubR2ChallengeArchiveCaptureClient, loadGitHubR2ArchiveOptions} from './challenge-archive-github-r2.js';
+import {runOneJob, type JobWorkerEvent} from './jobs.js';
 import {reconcileShipAcceptances} from './ship-acceptance.js';
 import {createShipVerifierClient} from './ship-verifier-client.js';
 
@@ -23,12 +24,22 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function logWorkerEvent(event: JobWorkerEvent): void {
+  const line = JSON.stringify({component: 'inkubator-worker', ...event});
+  if (event.event === 'retry_exhausted') console.error(line);
+  else console.warn(line);
+}
+
 const db = createDatabase(requireValue('DATABASE_URL'));
 const pollMs = parsePositiveInt('INKUBATOR_WORKER_POLL_MS', 500, 50, 60_000);
 const leaseMs = parsePositiveInt('INKUBATOR_WORKER_LEASE_MS', 30_000, 1_000, 300_000);
 const retryBaseMs = parsePositiveInt('INKUBATOR_WORKER_RETRY_BASE_MS', 1_000, 100, 60_000);
 const shipVerifierUrl = process.env.INKUBATOR_VERIFIER_URL?.trim();
 const shipVerifierClient = shipVerifierUrl ? createShipVerifierClient(shipVerifierUrl) : undefined;
+const archiveOptions = loadGitHubR2ArchiveOptions();
+const challengeSubmissionArchiveClient = archiveOptions
+  ? createGitHubR2ChallengeArchiveCaptureClient(db, archiveOptions)
+  : undefined;
 let stopping = false;
 
 process.once('SIGTERM', () => {
@@ -41,7 +52,13 @@ process.once('SIGINT', () => {
 try {
   while (!stopping) {
     try {
-      const result = await runOneJob(db, {leaseMs, retryBaseMs, ...(shipVerifierClient ? {shipVerifierClient} : {})});
+      const result = await runOneJob(db, {
+        leaseMs,
+        retryBaseMs,
+        ...(shipVerifierClient ? {shipVerifierClient} : {}),
+        ...(challengeSubmissionArchiveClient ? {challengeSubmissionArchiveClient} : {}),
+        onEvent: logWorkerEvent,
+      });
       await reconcileShipAcceptances(db);
       if (result.status === 'idle') await sleep(pollMs);
     } catch (error) {

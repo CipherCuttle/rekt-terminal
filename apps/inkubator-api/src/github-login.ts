@@ -4,7 +4,7 @@ import type {DatabaseSchema, PlayerRow} from './database.js';
 import type {GitHubRuntimeOptions} from './github.js';
 import {enqueueOutboxJob, SESSION_EXPIRY_JOB_TYPE} from './jobs.js';
 import {createPlayer, getPlayer} from './players.js';
-import {createSession} from './session.js';
+import {createSession, revokeAllPlayerSessions} from './session.js';
 
 const GITHUB_API_VERSION = '2026-03-10';
 const OAUTH_TTL_SECONDS = 10 * 60;
@@ -14,6 +14,11 @@ export const GITHUB_OAUTH_VERIFIER_COOKIE = '__Host-rekt_github_oauth_verifier';
 export interface GitHubLoginIdentity {
   githubUserId: string;
   login: string;
+}
+
+export interface GitHubLoginVerification {
+  identity: GitHubLoginIdentity;
+  accessToken: string;
 }
 
 export interface GitHubLoginAttempt {
@@ -88,14 +93,19 @@ export function claimGitHubLoginAttempt(cookieHeader: string | undefined, return
   return {verifier};
 }
 
-export function buildGitHubLoginUrl(runtime: GitHubRuntimeOptions, appOrigin: string, attempt: GitHubLoginAttempt): string {
+export function buildGitHubLoginUrl(
+  runtime: GitHubRuntimeOptions,
+  appOrigin: string,
+  attempt: GitHubLoginAttempt,
+  options: {promptSelectAccount?: boolean} = {},
+): string {
   const url = new URL('https://github.com/login/oauth/authorize');
   url.searchParams.set('client_id', runtime.clientId);
   url.searchParams.set('redirect_uri', callbackUrl(appOrigin));
   url.searchParams.set('state', attempt.state);
   url.searchParams.set('code_challenge', attempt.challenge);
   url.searchParams.set('code_challenge_method', 'S256');
-  url.searchParams.set('prompt', 'select_account');
+  if (options.promptSelectAccount) url.searchParams.set('prompt', 'select_account');
   return url.toString();
 }
 
@@ -104,13 +114,13 @@ async function readJson(response: Response, errorName: string): Promise<unknown>
   return response.json();
 }
 
-export async function verifyGitHubLoginIdentity(
+export async function verifyGitHubLoginWithToken(
   runtime: GitHubRuntimeOptions,
   appOrigin: string,
   code: string,
   verifier: string,
   fetchImpl: FetchLike = fetch,
-): Promise<GitHubLoginIdentity> {
+): Promise<GitHubLoginVerification> {
   if (!code || code.length > 1000) throw new Error('github_oauth_code_invalid');
   const tokenResponse = await fetchImpl('https://github.com/login/oauth/access_token', {
     method: 'POST',
@@ -137,7 +147,20 @@ export async function verifyGitHubLoginIdentity(
     },
   });
   const userBody = await readJson(userResponse, 'github_user_lookup_failed') as {id?: unknown; login?: unknown};
-  return {githubUserId: positiveIntegerId(userBody.id), login: requireLogin(userBody.login)};
+  return {
+    identity: {githubUserId: positiveIntegerId(userBody.id), login: requireLogin(userBody.login)},
+    accessToken: tokenBody.access_token,
+  };
+}
+
+export async function verifyGitHubLoginIdentity(
+  runtime: GitHubRuntimeOptions,
+  appOrigin: string,
+  code: string,
+  verifier: string,
+  fetchImpl: FetchLike = fetch,
+): Promise<GitHubLoginIdentity> {
+  return (await verifyGitHubLoginWithToken(runtime, appOrigin, code, verifier, fetchImpl)).identity;
 }
 
 async function resolveExistingPlayerId(db: Kysely<DatabaseSchema>, githubUserId: string): Promise<string | null> {
@@ -172,20 +195,26 @@ export async function establishGitHubLoginSession(
       const currentGithubId = bound.rows[0]?.github_user_id ?? null;
       if (currentGithubId && currentGithubId !== identity.githubUserId) throw new Error('github_identity_conflict');
       await sql`
-        update players set github_user_id = ${identity.githubUserId}::bigint, updated_at = clock_timestamp()
+        update players set github_user_id = ${identity.githubUserId}::bigint, github_login = ${identity.login}, updated_at = clock_timestamp()
         where player_id = ${existingPlayerId}::uuid
       `.execute(transaction);
       player = await getPlayer(transaction, existingPlayerId);
     } else {
       player = await createPlayer(transaction, identity.login);
       await sql`
-        update players set github_user_id = ${identity.githubUserId}::bigint, updated_at = clock_timestamp()
+        update players set github_user_id = ${identity.githubUserId}::bigint, github_login = ${identity.login}, updated_at = clock_timestamp()
         where player_id = ${player.player_id}::uuid
       `.execute(transaction);
+      player = await getPlayer(transaction, player.player_id);
       created = true;
     }
 
     if (!player) throw new Error('github_identity_player_missing');
+
+    // A successful provider reauthentication is a security boundary: any bearer
+    // sessions created before it are immediately invalidated before the fresh
+    // replacement session is issued.
+    await revokeAllPlayerSessions(transaction, player.player_id);
     const session = await createSession(transaction, player.player_id, ttlSeconds);
     await enqueueOutboxJob(transaction, {
       jobType: SESSION_EXPIRY_JOB_TYPE,

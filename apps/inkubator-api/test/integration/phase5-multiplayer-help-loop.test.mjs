@@ -111,6 +111,31 @@ test('Phase 5 core makes another builder materially useful without minting proof
     assert.equal(assist.json().state, 'OFFERED');
     assert.equal((await app.inject({method: 'POST', url: `/v1/help-beacons/${beaconId}/assists`, headers: bobHeaders, payload: {request_id: assistRequest, message: 'I can test this and send a reproducible bug list'}})).statusCode, 201);
 
+    const publicLoopBeforeAccept = await app.inject({method: 'GET', url: `/v1/projects/${projectId}/help-loop`});
+    assert.equal(publicLoopBeforeAccept.statusCode, 200);
+    assert.equal(Object.hasOwn(publicLoopBeforeAccept.json(), 'pending_assists'), false);
+    assert.equal(JSON.stringify(publicLoopBeforeAccept.json()).includes('I can test this and send a reproducible bug list'), false);
+
+    const anonymousPending = await app.inject({method: 'GET', url: `/v1/projects/${projectId}/pending-assists`});
+    assert.equal(anonymousPending.statusCode, 401);
+    const bobPending = await app.inject({method: 'GET', url: `/v1/projects/${projectId}/pending-assists`, headers: {cookie: bob.cookie}});
+    assert.equal(bobPending.statusCode, 403);
+    const alicePending = await app.inject({method: 'GET', url: `/v1/projects/${projectId}/pending-assists`, headers: {cookie: alice.cookie}});
+    assert.equal(alicePending.statusCode, 200);
+    assert.equal(alicePending.headers['cache-control'], 'no-store');
+    assert.equal(alicePending.json().schema_version, 'project.pending_assists.private.v1');
+    assert.deepEqual(alicePending.json().assists, [{
+      assist_id: assistId,
+      beacon_id: beaconId,
+      project_id: projectId,
+      offered_by_player_id: bob.playerId,
+      offered_by_display_name: bobPublic.display_name,
+      message: 'I can test this and send a reproducible bug list',
+      state: 'OFFERED',
+      offered_at: alicePending.json().assists[0].offered_at,
+    }]);
+    assert.ok(Date.parse(alicePending.json().assists[0].offered_at));
+
     const bobCannotAccept = await app.inject({method: 'POST', url: `/v1/assists/${assistId}/accept`, headers: bobHeaders, payload: {request_id: randomUUID()}});
     assert.equal(bobCannotAccept.statusCode, 403);
 
@@ -120,6 +145,10 @@ test('Phase 5 core makes another builder materially useful without minting proof
     assert.equal(accepted.json().state, 'ACCEPTED');
     const retryAccepted = await app.inject({method: 'POST', url: `/v1/assists/${assistId}/accept`, headers: aliceHeaders, payload: {request_id: acceptRequest}});
     assert.equal(retryAccepted.statusCode, 200);
+
+    const pendingAfterAccept = await app.inject({method: 'GET', url: `/v1/projects/${projectId}/pending-assists`, headers: {cookie: alice.cookie}});
+    assert.equal(pendingAfterAccept.statusCode, 200);
+    assert.deepEqual(pendingAfterAccept.json().assists, []);
 
     const helpLoop = await app.inject({method: 'GET', url: `/v1/projects/${projectId}/help-loop`});
     assert.equal(helpLoop.statusCode, 200);

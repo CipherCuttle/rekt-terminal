@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, test, type Page, type Route} from '@playwright/test';
+import {fixtureConnectionContext, fixturePendingAssists} from './fixture-connection';
 
 const command = {
   schema_version: 'command.private.v2',
@@ -111,9 +112,11 @@ async function routeIntegratedApp(page: Page) {
     '/v1/discover/players': players,
     '/v1/world/signals': signals,
     '/v1/me': me,
+    '/v1/me/connection': fixtureConnectionContext,
     '/v1/me/profile': profile,
     '/v1/me/history': history,
     '/v1/players/PLAYER-1/reputation': reputation,
+    '/v1/projects/P-LIVE-001/pending-assists': fixturePendingAssists('P-LIVE-001'),
   };
 
   await page.route('**/*', async (route) => {
@@ -124,6 +127,10 @@ async function routeIntegratedApp(page: Page) {
     }
     if (url.pathname in responses) {
       await fulfillJson(route, responses[url.pathname]);
+      return;
+    }
+    if (url.pathname.startsWith('/v1/')) {
+      await fulfillJson(route, {error: 'unmocked_v1_route'}, 500);
       return;
     }
     await route.continue();
@@ -150,17 +157,17 @@ test('integrated Instrument OS switches all five live surfaces in-place and pres
   await page.setViewportSize({width: 1440, height: 900});
   await routeIntegratedApp(page);
 
-  await page.goto('/?mode=command');
+  await page.goto('/?lab=live-legacy&mode=command');
   await expectMode(page, 'command');
   await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'}).first()).toBeVisible();
 
   await page.locator('button[data-mode="project"]').click();
   await expectMode(page, 'project');
-  await expect(page.getByRole('heading', {name: 'PROVE PROJECT'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Current records'})).toBeVisible();
 
   await page.locator('button[data-mode="world"]').click();
   await expectMode(page, 'world');
-  await expect(page.getByRole('heading', {name: 'UNDERGROUND BUILD NETWORK'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Public signal.'})).toBeVisible();
 
   await page.locator('button[data-mode="player"]').click();
   await expectMode(page, 'player');
@@ -168,7 +175,7 @@ test('integrated Instrument OS switches all five live surfaces in-place and pres
 
   await page.locator('button[data-mode="ship"]').click();
   await expectMode(page, 'ship');
-  await expect(page.getByRole('heading', {name: 'Ship the thing.'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'WEIRD LITTLE THING'})).toBeVisible();
 
   await page.evaluate(() => window.history.back());
   await expectMode(page, 'player');
@@ -184,7 +191,7 @@ test('integrated Instrument OS keeps every live mode usable on the 390px rehears
   await page.emulateMedia({reducedMotion: 'reduce'});
   await routeIntegratedApp(page);
 
-  await page.goto('/?mode=world');
+  await page.goto('/?lab=live-legacy&mode=world');
   for (const mode of ['world', 'command', 'project', 'player', 'ship'] as const) {
     if (mode !== 'world') await page.locator(`button[data-mode="${mode}"]`).click();
     await expectMode(page, mode);

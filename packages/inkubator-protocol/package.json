@@ -12,7 +12,8 @@
   },
   "files": [
     "src",
-    "schema"
+    "schema",
+    "compiler"
   ],
   "types": "./src/constants.d.ts",
   "exports": {
@@ -21,6 +22,27 @@
       "import": "./src/constants.mjs"
     },
     "./server": "./src/index.mjs",
+    "./challenge": {
+      "types": "./src/challenge.d.ts",
+      "import": "./src/challenge-hardened.mjs"
+    },
+    "./acceptance-manifest": {
+      "types": "./src/acceptance-manifest.d.ts",
+      "import": "./src/acceptance-manifest.mjs"
+    },
+    "./test-arena-execution": {
+      "types": "./src/test-arena-execution.d.ts",
+      "import": "./src/test-arena-execution.mjs"
+    },
+    "./compiler": {
+      "types": "./src/compiler.d.ts",
+      "import": "./src/compiler.mjs"
+    },
+    "./compiler-provider": {
+      "types": "./src/compiler-provider.d.ts",
+      "import": "./src/compiler-provider.mjs"
+    },
+    "./compiler-provider-egress": "./src/compiler-provider-egress.mjs",
     "./schema/*": "./schema/*"
   },
   "publishConfig": {

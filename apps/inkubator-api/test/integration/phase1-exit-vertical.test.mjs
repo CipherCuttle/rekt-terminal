@@ -119,10 +119,10 @@ test('Phase-1 exit vertical assembles auth, Project/Mission, GitHub observation,
     assert.equal(job.state, 'pending');
     assert.equal(await countProjectObservations(db, projectId), 0);
 
-    let workerResult = await runOneJob(db, {leaseMs: 10, retryBaseMs: 1});
+    let workerResult = await runOneJob(db, {leaseMs: 1_000, retryBaseMs: 1});
     if (workerResult.status !== 'succeeded' || workerResult.jobId !== job.job_id) {
       for (let attempt = 0; attempt < 10 && (workerResult.status !== 'succeeded' || workerResult.jobId !== job.job_id); attempt += 1) {
-        workerResult = await runOneJob(db, {leaseMs: 10, retryBaseMs: 1});
+        workerResult = await runOneJob(db, {leaseMs: 1_000, retryBaseMs: 1});
       }
     }
     assert.equal(workerResult.status, 'succeeded');
@@ -132,7 +132,7 @@ test('Phase-1 exit vertical assembles auth, Project/Mission, GitHub observation,
     job = await db.selectFrom('outbox_jobs').selectAll().where('job_id', '=', job.job_id).executeTakeFirstOrThrow();
     assert.equal(job.state, 'succeeded');
     await db.updateTable('outbox_jobs').set({state: 'running', attempts: Math.max(1, job.attempts), locked_at: new Date(0), lock_token: randomUUID(), completed_at: null}).where('job_id', '=', job.job_id).execute();
-    const retry = await runOneJob(db, {leaseMs: 1, retryBaseMs: 1});
+    const retry = await runOneJob(db, {leaseMs: 1_000, retryBaseMs: 1});
     assert.equal(retry.status, 'succeeded');
     assert.equal(retry.jobId, job.job_id);
     assert.equal(await countProjectObservations(db, projectId), 1);

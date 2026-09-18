@@ -6,6 +6,7 @@ export interface PlayerTable {
   player_id: string;
   display_name: string;
   github_user_id: Generated<string | null>;
+  github_login: Generated<string | null>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -314,6 +315,32 @@ export interface ShipVerifierObservationTable {
   observed_at: Generated<Date>;
 }
 
+export type ChallengeSubmissionArchiveStatus =
+  | 'PENDING'
+  | 'CAPTURED'
+  | 'PLATFORM_UNAVAILABLE'
+  | 'BUILDER_CAUSED_UNAVAILABLE'
+  | 'UNSUPPORTED_SOURCE';
+
+export type ChallengeSubmissionArchiveSourceKind = 'GIT_COMMIT' | 'CONTENT_ADDRESS' | 'ARCHIVE_DIGEST';
+
+export interface ChallengeSubmissionArchiveTable {
+  submission_id: string;
+  challenge_id: string;
+  entry_id: string;
+  source_kind: ChallengeSubmissionArchiveSourceKind;
+  source_reference: string;
+  terms_digest: string;
+  manifest_digest: string;
+  status: ChallengeSubmissionArchiveStatus;
+  archive_digest: string | null;
+  archive_reference: string | null;
+  observed_at: Date | null;
+  reason_code: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface GitHubSetupStateTable {
   state_hash: string;
   player_id: string;
@@ -399,6 +426,7 @@ export interface DatabaseSchema {
   external_test_results: ExternalTestResultTable;
   ship_submissions: ShipSubmissionTable;
   ship_verifier_observations: ShipVerifierObservationTable;
+  challenge_submission_archives: ChallengeSubmissionArchiveTable;
   github_setup_states: GitHubSetupStateTable;
   github_installations: GitHubInstallationTable;
   github_repositories: GitHubRepositoryTable;

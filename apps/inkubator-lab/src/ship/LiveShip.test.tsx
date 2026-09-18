@@ -8,9 +8,10 @@ import type {
   ProjectShipStateView,
   ShipSubmissionPrivateView,
 } from '../generated/inkubator-api-client';
+import {InkubatorApiError} from '../generated/inkubator-api-client';
 import LiveShip from './LiveShip';
 
-afterEach(cleanup);
+afterEach(() => {cleanup(); window.history.replaceState({}, '', '/');});
 
 type ShipClient = Pick<InkubatorApiClient, 'getMyCommand' | 'getProjectShipState' | 'submitShip'>;
 
@@ -206,7 +207,7 @@ describe('Live SHIP', () => {
     }));
 
     expect(await screen.findByRole('heading', {name: 'REKT MACHINE'})).toBeTruthy();
-    expect(screen.getByText('RECEIPT-1')).toBeTruthy();
+    expect(screen.getAllByText('RECEIPT-1').length).toBeTruthy();
     expect(screen.getByText('OBS-1')).toBeTruthy();
     expect(screen.getByText('REVIEW-1')).toBeTruthy();
     expect(screen.getAllByText('CipherCuttle').length).toBeGreaterThan(0);
@@ -229,5 +230,87 @@ describe('Live SHIP', () => {
     expect(await screen.findByRole('heading', {name: 'SHIP LINK UNAVAILABLE'}, {timeout: 3000})).toBeTruthy();
     expect(screen.getByText('authentication_required')).toBeTruthy();
     expect(screen.getByText(/No development fixture fallback is permitted/i)).toBeTruthy();
+  });
+});
+
+describe('durable Ship context', () => {
+  const durableHistory = {
+    schema_version: 'player.history.private.v1' as const,
+    player_id: 'PLAYER-1',
+    entries: [
+      {entry_id: 'H-0', kind: 'MISSION_BLOCKED' as const, truth_state: 'CLAIMED' as const, occurred_at: '2026-09-09T10:00:00Z', mission_id: 'MISSION-1'},
+      {entry_id: 'H-1', kind: 'SHIP_ACCEPTED' as const, truth_state: 'PROVEN' as const, occurred_at: '2026-09-10T09:01:00Z', project_id: 'PROJECT-1', project_name: 'REKT MACHINE', mission_id: 'MISSION-1', receipt_id: 'RECEIPT-1', artifact_title: 'REKT MACHINE', role: 'OWNER' as const},
+    ],
+  };
+
+  const privateProject = {
+    schema_version: 'project.private.v2' as const,
+    project_id: 'PROJECT-1',
+    owner_player_id: 'PLAYER-1',
+    name: 'REKT MACHINE',
+    mission_id: 'MISSION-1',
+    mission_state: 'SHIPPED' as const,
+    goal: 'Ship a working strange thing.',
+    ship_condition: 'Public HTTPS artifact that survives external verification.',
+    current_focus: 'Archived.',
+    next_move: 'None.',
+    source_connected: true,
+    source_visibility: 'PUBLIC' as const,
+    observation_state: 'OBSERVED' as const,
+  };
+  it('loads an exact receipt after the active Mission disappears', async () => {
+    window.history.replaceState({}, '', '/?mode=ship&project=PROJECT-1&receipt=RECEIPT-1');
+    const getMyCommand = vi.fn().mockRejectedValue(new Error('active_mission_not_found'));
+    const queryClient = new QueryClient({defaultOptions:{queries:{retry:false}}});
+    render(<QueryClientProvider client={queryClient}><LiveShip client={{...client(), getMyCommand, getShipReceipt: vi.fn().mockResolvedValue(provenShip.latest_submission!.accepted_ship)}} refetchIntervalMs={false}/></QueryClientProvider>);
+    expect(await screen.findByRole('heading', {name: 'Accepted receipt'})).toBeTruthy();
+    expect(getMyCommand).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole('button', {name: /04 PROVEN/}), {key:'ArrowLeft'});
+    expect(screen.getByRole('complementary', {name:'Selected Ship record'}).textContent).toContain('Acceptance recorded.');
+    expect(screen.getByRole('button', {name:/01 SUBMITTED/}).getAttribute('disabled')).not.toBeNull();
+  });
+
+  it('fails closed when a receipt does not match the requested project', async () => {
+    window.history.replaceState({}, '', '/?mode=ship&project=another&receipt=RECEIPT-1');
+    const queryClient = new QueryClient({defaultOptions:{queries:{retry:false}}});
+    render(<QueryClientProvider client={queryClient}><LiveShip client={{...client(), getShipReceipt: vi.fn().mockResolvedValue(provenShip.latest_submission!.accepted_ship)}} refetchIntervalMs={false}/></QueryClientProvider>);
+    expect(await screen.findByRole('heading', {name:'RECEIPT UNAVAILABLE'})).toBeTruthy();
+    expect(screen.queryByRole('heading', {name:'Accepted receipt'})).toBeNull();
+  });
+
+  it('recovers the durable accepted Ship context from builder history after the active Mission completes', async () => {
+    const getMyCommand = vi.fn().mockRejectedValue(new InkubatorApiError(404, 'active_mission_not_found'));
+    const getMyHistory = vi.fn().mockResolvedValue(durableHistory);
+    const getPrivateProject = vi.fn().mockResolvedValue(privateProject);
+    const queryClient = new QueryClient({defaultOptions:{queries:{retry:false}}});
+    render(<QueryClientProvider client={queryClient}><LiveShip client={{
+      ...client(),
+      getMyCommand,
+      getMyHistory,
+      getPrivateProject,
+      getProjectShipState: vi.fn().mockResolvedValue(provenShip),
+    }} refetchIntervalMs={false}/></QueryClientProvider>);
+
+    expect(await screen.findByRole('heading', {name: 'Accepted receipt'})).toBeTruthy();
+    expect(getMyHistory).toHaveBeenCalledTimes(1);
+    expect(window.location.search).toContain('project=PROJECT-1');
+    expect(window.location.search).toContain('receipt=RECEIPT-1');
+    expect(screen.getAllByText('PROVEN').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', {name: /04 PROVEN/}).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('fails closed when the completed Mission left no accepted receipt in builder history', async () => {
+    const getMyCommand = vi.fn().mockRejectedValue(new InkubatorApiError(404, 'active_mission_not_found'));
+    const getMyHistory = vi.fn().mockResolvedValue({...durableHistory, entries: [durableHistory.entries[0]]});
+    const queryClient = new QueryClient({defaultOptions:{queries:{retry:false}}});
+    render(<QueryClientProvider client={queryClient}><LiveShip client={{
+      ...client(),
+      getMyCommand,
+      getMyHistory,
+    }} refetchIntervalMs={false}/></QueryClientProvider>);
+
+    expect(await screen.findByRole('heading', {name: 'SHIP LINK UNAVAILABLE'})).toBeTruthy();
+    expect(screen.getByText('No accepted Ship receipt exists in the canonical builder history yet.')).toBeTruthy();
+    expect(window.location.search).not.toContain('project=');
   });
 });

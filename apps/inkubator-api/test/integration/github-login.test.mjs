@@ -5,7 +5,7 @@ import {establishGitHubLoginSession} from '../../dist/github-login.js';
 import {SESSION_EXPIRY_JOB_TYPE} from '../../dist/jobs.js';
 import {migrateToLatest} from '../../dist/migrations.js';
 import {createPlayer} from '../../dist/players.js';
-import {resolveSessionActor} from '../../dist/session.js';
+import {createSession, resolveSessionActor} from '../../dist/session.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required for integration tests');
@@ -33,7 +33,7 @@ async function cleanup(db) {
   await db.deleteFrom('outbox_jobs').where('job_type', '=', SESSION_EXPIRY_JOB_TYPE).execute();
 }
 
-test('GitHub login creates, reuses and adopts exactly one PLAYER while ambiguity fails closed', async () => {
+test('GitHub login creates, rotates, reuses and adopts exactly one PLAYER while ambiguity fails closed', async () => {
   const db = createDatabase(databaseUrl);
   await migrateToLatest(db);
   await cleanup(db);
@@ -50,11 +50,19 @@ test('GitHub login creates, reuses and adopts exactly one PLAYER while ambiguity
       .where('player_id', '=', first.player.player_id)
       .executeTakeFirstOrThrow();
     assert.equal(firstStored.github_user_id, firstIdentity.githubUserId);
+    const firstDisplayMetadata = await db
+      .selectFrom('players')
+      .select('github_login')
+      .where('player_id', '=', first.player.player_id)
+      .executeTakeFirstOrThrow();
+    assert.equal(firstDisplayMetadata.github_login, firstIdentity.login);
 
     const repeated = await establishGitHubLoginSession(db, firstIdentity, 3600);
     assert.equal(repeated.created, false);
     assert.equal(repeated.player.player_id, first.player.player_id);
     assert.notEqual(repeated.session.sessionId, first.session.sessionId);
+    assert.equal(await resolveSessionActor(db, first.session.token), null, 'provider reauth must revoke the pre-reauth bearer session');
+    assert.deepEqual(await resolveSessionActor(db, repeated.session.token), {playerId: first.player.player_id});
     const repeatedCount = await db
       .selectFrom('players')
       .select('player_id')
@@ -63,6 +71,7 @@ test('GitHub login creates, reuses and adopts exactly one PLAYER while ambiguity
     assert.equal(repeatedCount.length, 1);
 
     const legacyPlayer = await createPlayer(db, 'OAuth Legacy Builder');
+    const legacyBearer = await createSession(db, legacyPlayer.player_id, 3600);
     await db.insertInto('github_installations').values({
       installation_id: '987651001',
       player_id: legacyPlayer.player_id,
@@ -80,12 +89,15 @@ test('GitHub login creates, reuses and adopts exactly one PLAYER while ambiguity
     );
     assert.equal(adopted.created, false);
     assert.equal(adopted.player.player_id, legacyPlayer.player_id);
+    assert.equal(await resolveSessionActor(db, legacyBearer.token), null, 'identity adoption must rotate pre-binding sessions');
+    assert.deepEqual(await resolveSessionActor(db, adopted.session.token), {playerId: legacyPlayer.player_id});
     const adoptedStored = await db
       .selectFrom('players')
-      .select('github_user_id')
+      .select(['github_user_id', 'github_login'])
       .where('player_id', '=', legacyPlayer.player_id)
       .executeTakeFirstOrThrow();
     assert.equal(adoptedStored.github_user_id, '987650002');
+    assert.equal(adoptedStored.github_login, 'renamed-github-handle');
 
     const ambiguousA = await createPlayer(db, 'OAuth Ambiguous A');
     const ambiguousB = await createPlayer(db, 'OAuth Ambiguous B');

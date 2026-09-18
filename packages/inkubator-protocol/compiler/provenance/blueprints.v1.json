@@ -1,0 +1,45 @@
+{
+  "schema_version": "inkubator.compiler-blueprint-provenance/1.0",
+  "promotion": {
+    "authority": "STAGE_H_T2",
+    "promotion_parent_commit": "ed91567f98221355ba08bd197a8be389007b892c",
+    "registry": "Stage-D pinned compiler blueprint registry"
+  },
+  "blueprints": [
+    {
+      "id": "WEB_STATIC",
+      "version": "1.0.0",
+      "source_path": "compiler/blueprints/web-static.v1.json",
+      "source_git_blob_sha1": "dfdbaba5fc0cee68ecbff1ee36036b67d2ba1b32",
+      "content_sha256": "09b2012e71394cee0139e877374aa38d5e37dff782fa4ad49b415fe346bce938"
+    },
+    {
+      "id": "WEB_CRUD",
+      "version": "1.0.0",
+      "source_path": "compiler/blueprints/web-crud.v1.json",
+      "source_git_blob_sha1": "48ece403589a9f4cf34ca706f15ee2e71d652269",
+      "content_sha256": "91ef73e774370e1ff502613b7da49a4feda18924feb2510aeabc1285774a377b"
+    },
+    {
+      "id": "WEB_REALTIME",
+      "version": "1.0.0",
+      "source_path": "compiler/blueprints/web-realtime.v1.json",
+      "source_git_blob_sha1": "1a54763502b78e658992a5caf52467a8417ec79a",
+      "content_sha256": "740f0c4d72cc3c71c6365c54fd0755346843f405e2dbc3b706de6f028a9b9f63"
+    },
+    {
+      "id": "WEB3_READ_APP",
+      "version": "1.0.0",
+      "source_path": "compiler/blueprints/web3-read-app.v1.json",
+      "source_git_blob_sha1": "6c73fb34182751a1cfe0e6bbcf75107d422bd9bd",
+      "content_sha256": "2435cddade2946f0be3043e50397b97523e95a93a407f482e110d54537f0291a"
+    },
+    {
+      "id": "WEB3_TRANSACTION_APP",
+      "version": "1.0.0",
+      "source_path": "compiler/blueprints/web3-transaction-app.v1.json",
+      "source_git_blob_sha1": "1926cb010ca984a67931bbd514fc40851fa3c04b",
+      "content_sha256": "8caa97fd537c4c94d0fe65013147e73205e57d9fe3ae240790a69df13f3a06fa"
+    }
+  ]
+}

@@ -1,29 +1,22 @@
-import {buildApp} from './app.js';
 import {loadRuntimeConfig} from './config.js';
 import {createDatabase} from './database.js';
-import {registerGitHubLoginRoutes} from './github-login-routes.js';
-import {createGitHubUserVerifier} from './github.js';
+import {buildFundedChallengeProductionApp} from './production-app.js';
 
 const config = loadRuntimeConfig();
 const db = createDatabase(config.databaseUrl);
-const app = buildApp({
+const app = buildFundedChallengeProductionApp({
   db,
   appOrigin: config.appOrigin,
-  allowDevAuth: config.allowDevAuth,
   sessionTtlSeconds: config.sessionTtlSeconds,
+  incidentWriteFreeze: config.incidentWriteFreeze,
+  incidentDisableGitHub: config.incidentDisableGitHub,
   github: config.github
-    ? {runtime: config.github, verifier: createGitHubUserVerifier(config.github)}
+    ? {
+        runtime: config.github,
+        githubAppAuth: config.githubAppAuth,
+      }
     : null,
 });
-
-if (config.github) {
-  registerGitHubLoginRoutes(app, {
-    db,
-    appOrigin: config.appOrigin,
-    sessionTtlSeconds: config.sessionTtlSeconds,
-    github: config.github,
-  });
-}
 
 let closing = false;
 async function close() {

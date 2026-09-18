@@ -1,0 +1,201 @@
+{
+  "schema_version": "inkubator.compiler-gauntlet/1.0",
+  "cases": [
+    {
+      "id": "BASE_STATIC",
+      "proposal": {
+        "schema_version": "inkubator.compiler-proposal/1.0",
+        "source_intent": "Make a static REKT launch page.",
+        "requirements": [
+          {"key": "accounts", "value": false, "provenance": "SOURCE"},
+          {"key": "persistence", "value": false, "provenance": "SOURCE"},
+          {"key": "uploads_private", "value": false, "provenance": "SOURCE"},
+          {"key": "realtime", "value": false, "provenance": "SOURCE"},
+          {"key": "notifications", "value": false, "provenance": "SOURCE"},
+          {"key": "onchain_read", "value": false, "provenance": "SOURCE"},
+          {"key": "wallet_transactions", "value": false, "provenance": "SOURCE"},
+          {"key": "custody_private_keys", "value": false, "provenance": "SOURCE"}
+        ],
+        "knowledge": [],
+        "outcome_criteria": [{"id": "O_PAGE", "description": "The launch page renders the approved public content.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "delivery_criteria": [{"id": "D_REPO", "description": "Source is delivered as an immutable repository revision.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "preferences": {"visual_theme": "REKT"}
+      },
+      "expected": {
+        "status": "READY",
+        "selected_blueprint": "WEB_STATIC",
+        "risk_level": "LOW",
+        "facts_present": [],
+        "facts_absent": ["persistence_required", "identity_boundary_required", "wallet_signing_boundary_required"]
+      }
+    },
+    {
+      "id": "MUTATION_ACCOUNTS",
+      "proposal": {
+        "schema_version": "inkubator.compiler-proposal/1.0",
+        "source_intent": "Make the REKT launch page, but users need accounts.",
+        "requirements": [
+          {"key": "accounts", "value": true, "provenance": "SOURCE"},
+          {"key": "persistence", "value": false, "provenance": "SOURCE"},
+          {"key": "uploads_private", "value": false, "provenance": "SOURCE"},
+          {"key": "realtime", "value": false, "provenance": "SOURCE"},
+          {"key": "notifications", "value": false, "provenance": "SOURCE"},
+          {"key": "onchain_read", "value": false, "provenance": "SOURCE"},
+          {"key": "wallet_transactions", "value": false, "provenance": "SOURCE"},
+          {"key": "custody_private_keys", "value": false, "provenance": "SOURCE"}
+        ],
+        "knowledge": [],
+        "outcome_criteria": [{"id": "O_PAGE", "description": "The launch page renders the approved public content.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "delivery_criteria": [{"id": "D_REPO", "description": "Source is delivered as an immutable repository revision.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "preferences": {"visual_theme": "REKT"}
+      },
+      "expected": {
+        "status": "READY",
+        "selected_blueprint": "WEB_CRUD",
+        "risk_level": "MEDIUM",
+        "facts_present": ["persistence_required", "identity_boundary_required"],
+        "facts_absent": ["wallet_signing_boundary_required"]
+      }
+    },
+    {
+      "id": "MUTATION_PRIVATE_UPLOADS",
+      "proposal": {
+        "schema_version": "inkubator.compiler-proposal/1.0",
+        "source_intent": "Users upload private files.",
+        "requirements": [
+          {"key": "accounts", "value": false, "provenance": "SOURCE"},
+          {"key": "persistence", "value": false, "provenance": "SOURCE"},
+          {"key": "uploads_private", "value": true, "provenance": "SOURCE"},
+          {"key": "realtime", "value": false, "provenance": "SOURCE"},
+          {"key": "notifications", "value": false, "provenance": "SOURCE"},
+          {"key": "onchain_read", "value": false, "provenance": "SOURCE"},
+          {"key": "wallet_transactions", "value": false, "provenance": "SOURCE"},
+          {"key": "custody_private_keys", "value": false, "provenance": "SOURCE"}
+        ],
+        "knowledge": [],
+        "outcome_criteria": [{"id": "O_UPLOAD", "description": "An authorized user can upload a private file.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "delivery_criteria": [{"id": "D_REPO", "description": "Source is delivered as an immutable repository revision.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "preferences": {}
+      },
+      "expected": {
+        "status": "NEEDS_DECISION",
+        "selected_blueprint": "WEB_CRUD",
+        "risk_level": "MEDIUM",
+        "facts_present": ["private_object_storage_required", "privacy_controls_required"],
+        "facts_absent": ["wallet_signing_boundary_required"]
+      }
+    },
+    {
+      "id": "MUTATION_REALTIME",
+      "proposal": {
+        "schema_version": "inkubator.compiler-proposal/1.0",
+        "source_intent": "Updates must appear instantly for everyone.",
+        "requirements": [
+          {"key": "accounts", "value": false, "provenance": "SOURCE"},
+          {"key": "persistence", "value": false, "provenance": "SOURCE"},
+          {"key": "uploads_private", "value": false, "provenance": "SOURCE"},
+          {"key": "realtime", "value": true, "provenance": "SOURCE"},
+          {"key": "notifications", "value": false, "provenance": "SOURCE"},
+          {"key": "onchain_read", "value": false, "provenance": "SOURCE"},
+          {"key": "wallet_transactions", "value": false, "provenance": "SOURCE"},
+          {"key": "custody_private_keys", "value": false, "provenance": "SOURCE"}
+        ],
+        "knowledge": [],
+        "outcome_criteria": [{"id": "O_SYNC", "description": "Connected users observe accepted updates without manual refresh.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "delivery_criteria": [{"id": "D_REPO", "description": "Source is delivered as an immutable repository revision.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "preferences": {}
+      },
+      "expected": {
+        "status": "NEEDS_DECISION",
+        "selected_blueprint": "WEB_REALTIME",
+        "risk_level": "MEDIUM",
+        "facts_present": ["realtime_transport_required", "synchronized_runtime_state_required"],
+        "facts_absent": ["wallet_signing_boundary_required"]
+      }
+    },
+    {
+      "id": "MUTATION_WALLET_TRANSACTION",
+      "proposal": {
+        "schema_version": "inkubator.compiler-proposal/1.0",
+        "source_intent": "Users sign an onchain transaction in their wallet.",
+        "requirements": [
+          {"key": "accounts", "value": false, "provenance": "SOURCE"},
+          {"key": "persistence", "value": false, "provenance": "SOURCE"},
+          {"key": "uploads_private", "value": false, "provenance": "SOURCE"},
+          {"key": "realtime", "value": false, "provenance": "SOURCE"},
+          {"key": "notifications", "value": false, "provenance": "SOURCE"},
+          {"key": "onchain_read", "value": true, "provenance": "SOURCE"},
+          {"key": "wallet_transactions", "value": true, "provenance": "SOURCE"},
+          {"key": "custody_private_keys", "value": false, "provenance": "SOURCE"}
+        ],
+        "knowledge": [],
+        "outcome_criteria": [{"id": "O_TX", "description": "The app prepares only an allowed transaction intent for external-wallet approval.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "delivery_criteria": [{"id": "D_REPO", "description": "Source is delivered as an immutable repository revision.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "preferences": {}
+      },
+      "expected": {
+        "status": "NEEDS_DECISION",
+        "selected_blueprint": "WEB3_TRANSACTION_APP",
+        "risk_level": "HIGH",
+        "facts_present": ["wallet_signing_boundary_required", "transaction_intent_boundary_required", "onchain_read_boundary_required"],
+        "facts_absent": []
+      }
+    },
+    {
+      "id": "MUTATION_PRIVATE_KEY_CUSTODY",
+      "proposal": {
+        "schema_version": "inkubator.compiler-proposal/1.0",
+        "source_intent": "The platform should custody users private keys.",
+        "requirements": [
+          {"key": "accounts", "value": false, "provenance": "SOURCE"},
+          {"key": "persistence", "value": false, "provenance": "SOURCE"},
+          {"key": "uploads_private", "value": false, "provenance": "SOURCE"},
+          {"key": "realtime", "value": false, "provenance": "SOURCE"},
+          {"key": "notifications", "value": false, "provenance": "SOURCE"},
+          {"key": "onchain_read", "value": false, "provenance": "SOURCE"},
+          {"key": "wallet_transactions", "value": false, "provenance": "SOURCE"},
+          {"key": "custody_private_keys", "value": true, "provenance": "SOURCE"}
+        ],
+        "knowledge": [],
+        "outcome_criteria": [{"id": "O_KEYS", "description": "The platform manages signing keys.", "mandatory": true, "provenance": "MODEL_PROPOSAL"}],
+        "delivery_criteria": [{"id": "D_REPO", "description": "Source is delivered as an immutable repository revision.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "preferences": {}
+      },
+      "expected": {
+        "status": "UNSUPPORTED",
+        "selected_blueprint": null,
+        "risk_level": "HIGH",
+        "facts_present": [],
+        "facts_absent": []
+      }
+    },
+    {
+      "id": "IRRELEVANT_PURPLE",
+      "proposal": {
+        "schema_version": "inkubator.compiler-proposal/1.0",
+        "source_intent": "Make a static REKT launch page. Make the logo slightly more purple.",
+        "requirements": [
+          {"key": "accounts", "value": false, "provenance": "SOURCE"},
+          {"key": "persistence", "value": false, "provenance": "SOURCE"},
+          {"key": "uploads_private", "value": false, "provenance": "SOURCE"},
+          {"key": "realtime", "value": false, "provenance": "SOURCE"},
+          {"key": "notifications", "value": false, "provenance": "SOURCE"},
+          {"key": "onchain_read", "value": false, "provenance": "SOURCE"},
+          {"key": "wallet_transactions", "value": false, "provenance": "SOURCE"},
+          {"key": "custody_private_keys", "value": false, "provenance": "SOURCE"}
+        ],
+        "knowledge": [],
+        "outcome_criteria": [{"id": "O_PAGE", "description": "The launch page renders the approved public content.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "delivery_criteria": [{"id": "D_REPO", "description": "Source is delivered as an immutable repository revision.", "mandatory": true, "provenance": "ORGANIZER_ACCEPTED"}],
+        "preferences": {"visual_theme": "REKT", "logo_tint": "more-purple"}
+      },
+      "expected": {
+        "status": "READY",
+        "selected_blueprint": "WEB_STATIC",
+        "risk_level": "LOW",
+        "facts_present": [],
+        "facts_absent": ["persistence_required", "identity_boundary_required", "wallet_signing_boundary_required"]
+      }
+    }
+  ]
+}

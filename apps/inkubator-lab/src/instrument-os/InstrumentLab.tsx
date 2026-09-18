@@ -3,6 +3,7 @@ import {useGSAP} from '@gsap/react';
 import gsap from 'gsap';
 import {Application, Graphics} from 'pixi.js';
 import {MOTION_EASE, MOTION_OVERLAP, MOTION_SECONDS} from './motion-tokens';
+import {useReducedMotion} from './use-reduced-motion';
 import './instrument-os.css';
 
 gsap.registerPlugin(useGSAP);
@@ -44,20 +45,6 @@ const eventCopyByState: Record<LabState, string> = {
   ERROR: 'FAILED OBSERVATION RECEIVED',
 };
 
-function useReducedMotion() {
-  const [reducedMotion, setReducedMotion] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const sync = () => setReducedMotion(media.matches);
-    sync();
-    media.addEventListener?.('change', sync);
-    return () => media.removeEventListener?.('change', sync);
-  }, []);
-
-  return reducedMotion;
-}
 
 function Frame({title, code, zone, children}: {title: string; code: string; zone: InstrumentZone; children: React.ReactNode}) {
   return (
