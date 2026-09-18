@@ -18,11 +18,15 @@ If all of the following are true:
 
 then:
 
-> **Anyone may trigger full refund of the exact remaining prize to the immutable refund recipient.**
+> **Anyone may trigger full refund of the exact remaining prize to the immutable refund recipient, using only the terminal-refund manifest digest frozen at deployment.**
+
+The terminal path accepts no caller-selected settlement/manifest identity.
 
 For the first capped candidate:
 
-`terminal_long_stop = organizer_selection_deadline + 30 days`
+`terminal_long_stop = organizer_selection_deadline_seconds + 30 days`
+
+where `organizer_selection_deadline_seconds = ceil(review_deadline_ms / 1000)`.
 
 The production contract may not choose a different recipient at terminal long-stop.
 
@@ -36,7 +40,8 @@ The contract can safely know only:
 - the frozen payout roster;
 - that no final qualifier set exists;
 - the immutable refund recipient;
-- the precommitted deadlines.
+- the precommitted deadlines;
+- the immutable terminal-refund manifest/policy digest.
 
 A terminal fallback must not invent economic facts that were never finalized.
 
@@ -153,8 +158,9 @@ This prevents timeout paths from becoming competing settlement choices.
 Provisional first-candidate policy:
 
 - normal organizer/qualification process: Challenge-specific frozen timeline;
-- `resolution_deadline = organizer_selection_deadline + 72 hours`;
-- `terminal_long_stop = organizer_selection_deadline + 30 days`.
+- `organizer_selection_deadline_seconds = ceil(review_deadline_ms / 1000)`;
+- `resolution_deadline = organizer_selection_deadline_seconds + 72 hours`;
+- `terminal_long_stop = organizer_selection_deadline_seconds + 30 days`.
 
 These values become immutable when the Challenge vault is deployed/funded.
 
