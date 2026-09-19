@@ -47,14 +47,39 @@ jobs:
 
       - name: Start isolated Ink fork
         run: |
-          anvil --fork-url https://rpc-gel.inkonchain.com --chain-id 31337 --port 8548 >/tmp/j4-readiness-anvil.log 2>&1 &
-          echo $! >/tmp/j4-readiness-anvil.pid
-          for attempt in $(seq 1 30); do
-            if test "$(cast chain-id --rpc-url http://127.0.0.1:8548 2>/dev/null || true)" = "31337"; then
-              exit 0
-            fi
-            sleep 1
-          done
+          start_fork() {
+            provider="$1"
+            : >/tmp/j4-readiness-anvil.log
+            anvil --fork-url "$provider" --chain-id 31337 --port 8548 >/tmp/j4-readiness-anvil.log 2>&1 &
+            pid=$!
+            echo "$pid" >/tmp/j4-readiness-anvil.pid
+            for attempt in $(seq 1 20); do
+              if test "$(cast chain-id --rpc-url http://127.0.0.1:8548 2>/dev/null || true)" = "31337"; then
+                echo "$provider" >/tmp/j4-readiness-fork-provider
+                return 0
+              fi
+              if ! kill -0 "$pid" 2>/dev/null; then
+                break
+              fi
+              sleep 1
+            done
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+            return 1
+          }
+
+          if start_fork https://rpc-gel.inkonchain.com; then
+            exit 0
+          fi
+
+          echo "Gelato public RPC could not support this fork; trying the frozen secondary provider."
+          cat /tmp/j4-readiness-anvil.log
+
+          if start_fork https://rpc-qnd.inkonchain.com; then
+            exit 0
+          fi
+
+          echo "Both frozen public Ink RPC providers failed local-fork startup."
           cat /tmp/j4-readiness-anvil.log
           exit 1
 
