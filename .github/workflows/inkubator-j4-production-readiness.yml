@@ -12,6 +12,13 @@ on:
       - 'packages/inkubator-protocol/src/production-candidate-vault-adapter.mjs'
       - 'packages/inkubator-protocol/src/payout-roster.mjs'
       - 'packages/inkubator-protocol/test/stage-j4-production-candidate.test.mjs'
+      - 'docs/inkubator/STAGE_J4_SWEDEN_EU_PRODUCTION_LEGAL_MATRIX_V1.md'
+      - 'docs/inkubator/STAGE_J4_SIGNER_CEREMONY_REHEARSAL_V1.md'
+      - 'docs/inkubator/STAGE_J4_POST_AUDIT_DEPLOYMENT_ATTESTATION_REHEARSAL_V1.md'
+  pull_request:
+    paths:
+      - '.github/workflows/inkubator-j4-production-readiness.yml'
+      - 'scripts/inkubator/ops/stage-j4-production-readiness-rehearsal.sh'
       - 'scripts/inkubator/stage-j4-**'
       - 'contracts/inkubator-vault/**'
       - 'packages/inkubator-protocol/src/production-candidate-vault-adapter.mjs'
@@ -20,17 +27,14 @@ on:
       - 'docs/inkubator/STAGE_J4_SWEDEN_EU_PRODUCTION_LEGAL_MATRIX_V1.md'
       - 'docs/inkubator/STAGE_J4_SIGNER_CEREMONY_REHEARSAL_V1.md'
       - 'docs/inkubator/STAGE_J4_POST_AUDIT_DEPLOYMENT_ATTESTATION_REHEARSAL_V1.md'
-  pull_request:
-    paths:
-      - '.github/workflows/inkubator-j4-production-readiness.yml'
-      - 'scripts/inkubator/ops/stage-j4-production-readiness-rehearsal.sh'
-      - 'docs/inkubator/STAGE_J4_SWEDEN_EU_PRODUCTION_LEGAL_MATRIX_V1.md'
-      - 'docs/inkubator/STAGE_J4_SIGNER_CEREMONY_REHEARSAL_V1.md'
-      - 'docs/inkubator/STAGE_J4_POST_AUDIT_DEPLOYMENT_ATTESTATION_REHEARSAL_V1.md'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: inkubator-j4-readiness-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   frozen-scope-and-ops-rehearsal:
