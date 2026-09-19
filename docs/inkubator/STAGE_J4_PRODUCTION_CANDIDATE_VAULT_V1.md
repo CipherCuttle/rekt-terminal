@@ -1,8 +1,8 @@
 # REKT INKUBATOR — STAGE J4 PRODUCTION-CANDIDATE VAULT V1
 
-**Status:** ACTIVE / TECHNICAL AUDIT HANDOFF READY / EXTERNAL AUDIT NOT STARTED  
+**Status:** ACTIVE / RUNTIME IDENTITY REPAIR PASS / TECHNICAL AUDIT HANDOFF READY / EXTERNAL AUDIT NOT STARTED  
 **Date:** 2026-09-19  
-**Branch:** `agent/stage-j4-production-candidate-vault-v1`  
+**Branch:** `agent/stage-j4-runtime-identity-repair-v1`  
 **Base:** J3 closure head `da346243e6fbcf5e259bdd8de85c0e099a6e1adc`  
 **Verified implementation head:** `f5875e3be51c21bf55fcf83583f9af5ca9b22403`  
 **J4 verification:** `35401916531` — PASS  
@@ -15,7 +15,9 @@
 **Pre-audit matrix receipt:** `STAGE_J4_PREAUDIT_MATRIX_RECEIPT_V1.md`  
 **External audit handoff:** `STAGE_J4_EXTERNAL_AUDIT_HANDOFF_V1.md`  
 **Verified pre-audit implementation head:** `18998bfe485a420046596ebba8a132691f02c2ff`  
-**Exact external-auditor scope head:** `05e345181dfde2c720874b1fc2d1ee7dd39272a9`  
+**Exact external-auditor code scope head:** `56eaa98497f4c036227c7e2512dadeb640eacfe4`  
+**Superseded pre-repair auditor scope:** `05e345181dfde2c720874b1fc2d1ee7dd39272a9`  
+**Runtime identity repair receipt:** `STAGE_J4_RUNTIME_IDENTITY_REPAIR_RECEIPT_V1.md`  
 **Production-money authority:** NONE  
 **Mainnet deployment authority:** NONE  
 **Production-signer authority:** NONE  
@@ -172,7 +174,15 @@ No arbitrary confirmation count is used as final monetary truth.
 
 ## Release identity tooling
 
-The J4 adapter can build a non-production candidate release receipt binding:
+The J4 adapter builds non-production release receipt schema:
+
+`inkubator.production-candidate-release/1.1`
+
+with runtime identity mode:
+
+`IMMUTABLE_NORMALIZED_TEMPLATE_PLUS_EXHAUSTIVE_READBACK`
+
+The receipt binds:
 
 - source commit;
 - Foundry `1.8.3`;
@@ -184,14 +194,28 @@ The J4 adapter can build a non-production candidate release receipt binding:
 - `foundry.toml` digest;
 - artifact digest;
 - constructor ABI digest;
-- vault creation/runtime bytecode hashes;
-- resolver creation/runtime bytecode hashes;
+- vault/resolver creation-bytecode hashes;
+- vault/resolver compiler immutable-layout digests;
+- vault/resolver immutable-normalized runtime-template hashes;
 - resolver signer-set digest;
 - 2-of-3 quorum;
 - Ink chain ID;
 - exact native-USDC address;
 - `EXTERNAL_AUDIT = NOT_STARTED`;
 - `PRODUCTION_MONEY = NOT_AUTHORIZED`.
+
+The previous release rule compared an exact deployed runtime hash directly with the compiler's
+unpatched `deployedBytecode` template. That is not valid for the J4 contracts because constructor
+execution patches Solidity `immutable` values into runtime bytecode. The production-readiness
+rehearsal exposed this before external audit.
+
+Future M04 attestation therefore requires all of:
+
+1. two independent providers agree on exact deployed bytes/hash;
+2. the exact deployed runtime is recorded per instance;
+3. compiler-declared immutable spans are normalized using the frozen layout;
+4. normalized deployed runtime matches the frozen release template hash;
+5. every immutable/business constructor value is read back and matches the signed deployment plan.
 
 A release receipt is evidence, not deployment authority.
 
@@ -224,7 +248,9 @@ The initial J4 suite covers at minimum:
 - provider disagreement / lag / reorg evidence remains reconciling;
 - exact native-USDC planning tuple;
 - deadline ceiling vectors;
-- candidate release receipt toolchain locks.
+- candidate release receipt toolchain locks;
+- immutable-reference normalization rejects missing/overlapping/out-of-range layouts;
+- release identity separates normalized code-template identity from exact per-instance runtime identity.
 
 The full J3 matrix remains the acceptance ceiling. Missing matrix rows are not silently treated as PASS.
 
@@ -240,7 +266,7 @@ All three were repaired. Targeted rereview `5253190481` returned `PASS / ORIGINA
 
 Exact repair-head verification passed J4, Vault, J2 regression and generic CI. The durable receipt is `STAGE_J4_IMPLEMENTATION_RECEIPT_V1.md`.
 
-J4 is intentionally **not** marked stage-closed yet. The external-auditor source scope is frozen at `05e345181dfde2c720874b1fc2d1ee7dd39272a9`; exact-head J4/Vault/J2/Inkubator/generic CI are green. `STAGE_J4_EXTERNAL_AUDIT_HANDOFF_V1.md` records the handoff package: frozen JS↔Solidity known-answer vectors, controlled native-USDC fork behavior, dual-RPC native-USDC proxy/admin identity, source-mutation release differentiation, independent clean-runner bytecode reproduction, bounded ERC-1271 gas-grief handling, canonical UTF-8 payout planning, signer-request idempotency, append-only reconciliation/corrections and on-chain privacy/secret-boundary checks. Technical source package status is `EXTERNAL_AUDIT_HANDOFF = READY`; the external audit itself has not started. Deployed `eth_getCode` attestation remains a post-audit/pre-funding deployment gate because mainnet deployment authority is NONE. Actual production signer ceremony and legal/accounting/privacy/eligibility decisions remain separate pre-launch gates.
+J4 is intentionally **not** marked stage-closed yet. The repaired external-auditor code scope is frozen at `56eaa98497f4c036227c7e2512dadeb640eacfe4`; the previous `05e345181dfde2c720874b1fc2d1ee7dd39272a9` scope is superseded because its deployment-runtime comparison did not account for compiler-patched immutables. Dedicated J4 verification is green on the repaired code scope. `STAGE_J4_EXTERNAL_AUDIT_HANDOFF_V1.md` records the handoff package: frozen JS↔Solidity known-answer vectors, controlled native-USDC fork behavior, dual-RPC native-USDC proxy/admin identity, source-mutation release differentiation, independent clean-runner bytecode reproduction, bounded ERC-1271 gas-grief handling, canonical UTF-8 payout planning, signer-request idempotency, append-only reconciliation/corrections and on-chain privacy/secret-boundary checks. Technical source package status is `EXTERNAL_AUDIT_HANDOFF = READY`; the external audit itself has not started. Deployed `eth_getCode` attestation remains a post-audit/pre-funding deployment gate because mainnet deployment authority is NONE. Actual production signer ceremony and legal/accounting/privacy/eligibility decisions remain separate pre-launch gates.
 
 ## Bounded completion
 

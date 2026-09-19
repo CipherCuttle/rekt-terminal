@@ -75,6 +75,9 @@ jobs:
       - name: Run J4 adapter/finality/release tests
         run: node --test packages/inkubator-protocol/test/stage-j4-production-candidate.test.mjs
 
+      - name: Run J4 immutable runtime identity tests
+        run: node --test scripts/inkubator/stage-j4-runtime-identity.test.mjs
+
       - name: Generate J4 cross-language known-answer vectors
         run: node scripts/inkubator/stage-j4-known-answer-vectors.mjs
 
@@ -89,6 +92,7 @@ jobs:
         run: |
           node scripts/inkubator/stage-j4-release-candidate.mjs > /tmp/j4-release-candidate.json
           grep -F '"release_authority": "CANDIDATE_ONLY_NO_MAINNET_NO_MONEY"' /tmp/j4-release-candidate.json
+          grep -F '"runtime_identity_mode": "IMMUTABLE_NORMALIZED_TEMPLATE_PLUS_EXHAUSTIVE_READBACK"' /tmp/j4-release-candidate.json
           grep -F '"external_audit": "NOT_STARTED"' /tmp/j4-release-candidate.json
           grep -F '"production_money": "NOT_AUTHORIZED"' /tmp/j4-release-candidate.json
 
@@ -127,16 +131,30 @@ jobs:
 
       - name: Start isolated Ink mainnet fork
         run: |
-          anvil --fork-url https://rpc-gel.inkonchain.com --chain-id 31337 --port 8547 >/tmp/j4-anvil.log 2>&1 &
-          echo $! > /tmp/j4-anvil.pid
-          for attempt in $(seq 1 20); do
-            if cast chain-id --rpc-url http://127.0.0.1:8547 >/dev/null 2>&1; then
-              exit 0
-            fi
-            sleep 1
-          done
-          cat /tmp/j4-anvil.log
-          exit 1
+          start_fork() {
+            provider="$1"
+            : >/tmp/j4-anvil.log
+            anvil --fork-url "$provider" --chain-id 31337 --port 8547 >/tmp/j4-anvil.log 2>&1 &
+            pid=$!
+            echo "$pid" >/tmp/j4-anvil.pid
+            for attempt in $(seq 1 20); do
+              if cast chain-id --rpc-url http://127.0.0.1:8547 >/dev/null 2>&1; then
+                return 0
+              fi
+              if ! kill -0 "$pid" 2>/dev/null; then
+                break
+              fi
+              sleep 1
+            done
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+            return 1
+          }
+
+          start_fork https://rpc-gel.inkonchain.com || start_fork https://rpc-qnd.inkonchain.com || {
+            cat /tmp/j4-anvil.log
+            exit 1
+          }
 
       - name: Exercise native USDC on local fork
         env:
@@ -221,18 +239,12 @@ jobs:
           node - <<'NODE' >> "$GITHUB_OUTPUT"
           const fs = require('fs');
           const receipt = JSON.parse(fs.readFileSync('/tmp/j4-release-a.json', 'utf8'));
-          for (const key of [
-            'vault_creation_bytecode_hash',
-            'vault_runtime_bytecode_hash',
-            'resolver_creation_bytecode_hash',
-            'resolver_runtime_bytecode_hash',
+          for (const [out, key] of [
+            ['vault_creation', 'vault_creation_bytecode_hash'],
+            ['vault_runtime', 'vault_runtime_template_hash'],
+            ['resolver_creation', 'resolver_creation_bytecode_hash'],
+            ['resolver_runtime', 'resolver_runtime_template_hash'],
           ]) {
-            const out = key
-              .replace('_bytecode_hash', '')
-              .replace('vault_creation', 'vault_creation')
-              .replace('vault_runtime', 'vault_runtime')
-              .replace('resolver_creation', 'resolver_creation')
-              .replace('resolver_runtime', 'resolver_runtime');
             console.log(`${out}=${receipt[key]}`);
           }
           NODE
@@ -273,18 +285,12 @@ jobs:
           node - <<'NODE' >> "$GITHUB_OUTPUT"
           const fs = require('fs');
           const receipt = JSON.parse(fs.readFileSync('/tmp/j4-release-b.json', 'utf8'));
-          for (const key of [
-            'vault_creation_bytecode_hash',
-            'vault_runtime_bytecode_hash',
-            'resolver_creation_bytecode_hash',
-            'resolver_runtime_bytecode_hash',
+          for (const [out, key] of [
+            ['vault_creation', 'vault_creation_bytecode_hash'],
+            ['vault_runtime', 'vault_runtime_template_hash'],
+            ['resolver_creation', 'resolver_creation_bytecode_hash'],
+            ['resolver_runtime', 'resolver_runtime_template_hash'],
           ]) {
-            const out = key
-              .replace('_bytecode_hash', '')
-              .replace('vault_creation', 'vault_creation')
-              .replace('vault_runtime', 'vault_runtime')
-              .replace('resolver_creation', 'resolver_creation')
-              .replace('resolver_runtime', 'resolver_runtime');
             console.log(`${out}=${receipt[key]}`);
           }
           NODE

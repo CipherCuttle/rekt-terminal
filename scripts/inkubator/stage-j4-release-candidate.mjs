@@ -3,6 +3,7 @@ import {createHash} from 'node:crypto';
 import fs from 'node:fs';
 
 import {buildStageJ4ReleaseCandidateReceipt} from '../../packages/inkubator-protocol/src/production-candidate-vault-adapter.mjs';
+import {runtimeIdentityInputFromArtifact} from './stage-j4-runtime-identity.mjs';
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
@@ -49,15 +50,20 @@ const vault = JSON.parse(vaultBytes);
 const resolver = JSON.parse(resolverBytes);
 
 const constructorAbi = vault.abi.filter((item) => item.type === 'constructor');
+const vaultRuntimeIdentity = runtimeIdentityInputFromArtifact(vault);
+const resolverRuntimeIdentity = runtimeIdentityInputFromArtifact(resolver);
+
 const receipt = buildStageJ4ReleaseCandidateReceipt({
   source_commit: sourceCommit,
   foundry_toml_digest: sha256File(foundryPath),
   artifact_digest: sha256Bytes(vaultBytes, resolverBytes),
   constructor_abi_digest: sha256Bytes(Buffer.from(JSON.stringify(constructorAbi))),
   vault_creation_bytecode_hash: keccakHex(vault.bytecode.object),
-  vault_runtime_bytecode_hash: keccakHex(vault.deployedBytecode.object),
+  vault_runtime_template_hash: keccakHex(vaultRuntimeIdentity.runtime_template_bytecode),
+  vault_immutable_layout_digest: vaultRuntimeIdentity.immutable_layout_digest,
   resolver_creation_bytecode_hash: keccakHex(resolver.bytecode.object),
-  resolver_runtime_bytecode_hash: keccakHex(resolver.deployedBytecode.object),
+  resolver_runtime_template_hash: keccakHex(resolverRuntimeIdentity.runtime_template_bytecode),
+  resolver_immutable_layout_digest: resolverRuntimeIdentity.immutable_layout_digest,
   resolver_signer_set_digest: resolverSignerSetDigest,
 });
 

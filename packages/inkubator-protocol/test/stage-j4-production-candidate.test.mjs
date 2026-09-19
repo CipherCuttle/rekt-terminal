@@ -177,16 +177,20 @@ test('release receipt pins toolchain, hashes, tuple and remains non-production',
     artifact_digest: DIGEST_B,
     constructor_abi_digest: DIGEST_C,
     vault_creation_bytecode_hash: DIGEST_D,
-    vault_runtime_bytecode_hash: DIGEST_E,
-    resolver_creation_bytecode_hash: DIGEST_F,
-    resolver_runtime_bytecode_hash: DIGEST_A,
-    resolver_signer_set_digest: DIGEST_B,
+    vault_runtime_template_hash: DIGEST_E,
+    vault_immutable_layout_digest: DIGEST_F,
+    resolver_creation_bytecode_hash: DIGEST_A,
+    resolver_runtime_template_hash: DIGEST_B,
+    resolver_immutable_layout_digest: DIGEST_C,
+    resolver_signer_set_digest: DIGEST_D,
   });
 
   assert.equal(receipt.toolchain.foundry, '1.8.3');
   assert.equal(receipt.toolchain.solc, '0.8.37');
   assert.equal(receipt.chain_id, 57073);
   assert.equal(receipt.token_address, STAGE_J4_NATIVE_USDC.address);
+  assert.equal(receipt.schema_version, 'inkubator.production-candidate-release/1.1');
+  assert.equal(receipt.runtime_identity_mode, 'IMMUTABLE_NORMALIZED_TEMPLATE_PLUS_EXHAUSTIVE_READBACK');
   assert.equal(receipt.external_audit, 'NOT_STARTED');
   assert.equal(receipt.production_money, 'NOT_AUTHORIZED');
   assert.match(receipt.release_digest, /^[0-9a-f]{64}$/);
