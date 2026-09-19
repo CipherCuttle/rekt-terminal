@@ -3,9 +3,10 @@
 **Status:** TECHNICAL PACKAGE READY FOR EXTERNAL SMART-CONTRACT AUDIT / J4 NOT CLOSED  
 **Date:** 2026-09-19  
 **Repository:** `CipherCuttle/rekt-terminal`  
-**Branch:** `agent/stage-j4-production-candidate-vault-v1`  
-**PR:** #129 — draft / open / unmerged  
-**Exact auditor scope head:** `05e345181dfde2c720874b1fc2d1ee7dd39272a9`  
+**Branch:** `agent/stage-j4-runtime-identity-repair-v1`  
+**PR:** #133 — draft / open / unmerged; stacked on J4 PR #129  
+**Exact auditor code scope head:** `56eaa98497f4c036227c7e2512dadeb640eacfe4`  
+**Superseded pre-repair scope:** `05e345181dfde2c720874b1fc2d1ee7dd39272a9`  
 **Merge authority:** NONE  
 **Mainnet deployment authority:** NONE  
 **Production-money authority:** NONE  
@@ -15,7 +16,7 @@
 
 ## 1. Verdict
 
-`TECHNICAL_AUDIT_HANDOFF_READY`
+`TECHNICAL_AUDIT_HANDOFF_READY_AFTER_RUNTIME_IDENTITY_REPAIR`
 
 The production-candidate source, tests, threat model, reproducible-release evidence,
 controlled native-USDC integration evidence, signer/recovery model and reconciliation
@@ -54,6 +55,8 @@ Application / release boundary:
 - `packages/inkubator-protocol/src/payout-roster.mjs`;
 - `packages/inkubator-protocol/test/stage-j4-production-candidate.test.mjs`;
 - `scripts/inkubator/stage-j4-release-candidate.mjs`;
+- `scripts/inkubator/stage-j4-runtime-identity.mjs`;
+- `scripts/inkubator/stage-j4-runtime-identity.test.mjs`;
 - `scripts/inkubator/stage-j4-known-answer-vectors.mjs`;
 - `scripts/inkubator/stage-j4-preaudit-verify.mjs`;
 - `scripts/inkubator/stage-j4-readonly-ink-asset-probe.mjs`;
@@ -72,22 +75,24 @@ Authority / threat / acceptance inputs:
 - `STAGE_J3_EXTERNAL_REVIEW_PACKAGE_V1.md`;
 - `STAGE_J4_IMPLEMENTATION_RECEIPT_V1.md`;
 - `STAGE_J4_PREAUDIT_MATRIX_RECEIPT_V1.md`;
+- `STAGE_J4_RUNTIME_IDENTITY_REPAIR_RECEIPT_V1.md`;
 - this handoff.
 
 ## 3. Exact-head verification
 
-At exact auditor scope head:
+At repaired auditor code scope head:
 
-`05e345181dfde2c720874b1fc2d1ee7dd39272a9`
+`56eaa98497f4c036227c7e2512dadeb640eacfe4`
 
 the following completed successfully:
 
-- Inkubator J4 Production Candidate Verification, push run `35405529740` — PASS;
-- Inkubator J4 Production Candidate Verification, PR run `35405530719` — PASS;
-- Inkubator Vault Verification `35405530824` — PASS;
-- Inkubator J2 Verification `35405530700` — PASS;
-- Inkubator Verification `35405530816` — PASS;
-- generic CI, push run `35405529606` — PASS.
+- Inkubator J4 Production Candidate Verification, push run `35462005787` — PASS;
+- Inkubator J4 Production Candidate Verification, PR run `35462015111` — PASS;
+- Inkubator J2 Verification, PR run `35462015130` — PASS.
+
+Generic CI and Inkubator Verification are also required at this exact code scope and are recorded in the repair receipt/index once completed.
+
+The superseded pre-repair scope `05e345181dfde2c720874b1fc2d1ee7dd39272a9` had previously passed J4/Vault/J2/Inkubator/generic CI; it is retained only as historical evidence, not as the audit target.
 
 Generic CI includes:
 
@@ -324,13 +329,36 @@ Frozen release inputs include:
 - Foundry-config digest;
 - artifact digest;
 - constructor ABI digest;
-- vault creation/runtime hashes;
-- resolver creation/runtime hashes;
+- vault/resolver creation-bytecode hashes;
+- compiler-declared immutable-reference layout digests;
+- vault/resolver **immutable-normalized runtime-template hashes**;
 - resolver signer-set digest/quorum;
 - chain/token identity.
 
-Two independent clean GitHub runners rebuild the exact source and must agree on all vault/resolver
-creation/runtime hashes.
+Release receipt schema is now:
+
+`inkubator.production-candidate-release/1.1`
+
+with runtime mode:
+
+`IMMUTABLE_NORMALIZED_TEMPLATE_PLUS_EXHAUSTIVE_READBACK`
+
+The production-readiness rehearsal found that the older release rule incorrectly compared a deployed instance's exact runtime hash directly with the unpatched compiler `deployedBytecode` template. Both J4 contracts contain Solidity `immutable` values, so constructor execution legitimately patches those bytes. The old gate failed closed but could not attest a legitimate deployment.
+
+The repaired rule:
+
+1. validates the compiler's immutable-reference ranges;
+2. zero-normalizes only those frozen ranges;
+3. freezes the resulting runtime-template hash and immutable-layout digest;
+4. requires a future deployed instance to match that normalized template;
+5. separately requires exhaustive immutable/business-state readback;
+6. records the exact per-instance deployed runtime hash;
+7. requires two independent RPC providers to agree on the exact deployed bytes/hash.
+
+`STAGE_J4_RUNTIME_IDENTITY_REPAIR_RECEIPT_V1.md` records the finding and repair.
+
+Two independent clean GitHub runners rebuild the exact source and must agree on vault/resolver
+creation hashes and normalized runtime-template hashes.
 
 A separate negative gate builds an intentionally mutated source variant
 (`MAX_RECIPIENTS = 4` instead of the frozen `3`) and proves it does **not** match the frozen
@@ -444,7 +472,9 @@ The auditor must independently challenge all controls above and may add new thre
 ### Deployment-dependent attestation
 
 J3 matrix row `M04` requires two-provider `eth_getCode` comparison of the **actually deployed**
-candidate against the approved release runtime hash.
+candidate. The two providers must agree on the exact deployed bytes/hash; that runtime is then
+immutable-normalized using the frozen compiler layout and must match the approved release template
+hash, while exhaustive immutable/business-state readback must match the signed deployment plan.
 
 No mainnet candidate exists because deployment authority is NONE.
 
@@ -502,7 +532,7 @@ The reviewer should independently answer the questions in
 - claim/reentrancy/conservation failure;
 - deterministic-default and terminal-liveness failure;
 - hidden mutation/admin/upgrade surface;
-- bytecode/release identity mismatch;
+- bytecode/release identity mismatch, including immutable-reference normalization/readback;
 - false finality/reconciliation.
 
 Critical/High findings block the candidate.
@@ -525,6 +555,6 @@ LEGAL_GATE = OPEN
 MERGE_AUTHORITY = NONE
 ```
 
-The next legitimate engineering/security action is independent external review of the exact auditor
-scope head. Production deployment/value work remains blocked until that review and the separate
+The next legitimate engineering/security action is independent external review of repaired code scope
+`56eaa98497f4c036227c7e2512dadeb640eacfe4`. The superseded pre-repair scope must not be used for a new audit engagement. Production deployment/value work remains blocked until that review and the separate
 external/operational gates are resolved.
