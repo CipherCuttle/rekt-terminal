@@ -162,13 +162,60 @@ rm -f /tmp/j4-vault-args.txt
 
 [[ "$vault" =~ ^0x[0-9a-fA-F]{40}$ ]] || { echo "FAIL: vault deployment failed" >&2; exit 1; }
 
-expected_resolver_hash="$(forge inspect src/ImmutableResolver1271.sol:ImmutableResolver1271 deployedBytecode | cast keccak)"
-actual_resolver_hash="$(cast code "$resolver" --rpc-url "$RPC" | cast keccak)"
-expected_vault_hash="$(forge inspect src/ProductionCandidateChallengeVault.sol:ProductionCandidateChallengeVault deployedBytecode | cast keccak)"
-actual_vault_hash="$(cast code "$vault" --rpc-url "$RPC" | cast keccak)"
+normalize_immutable_runtime() {
+  artifact="$1"
+  runtime_hex="$2"
+  node - "$artifact" "$runtime_hex" <<'NODE'
+const fs = require('fs');
+const artifact = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+let hex = process.argv[3];
+if (hex.startsWith('0x')) hex = hex.slice(2);
+if (!/^[0-9a-fA-F]*$/.test(hex) || hex.length % 2 !== 0) throw new Error('runtime must be even-length hex');
+const bytes = Buffer.from(hex, 'hex');
+const refs = Object.values(artifact.deployedBytecode?.immutableReferences ?? {}).flat();
+if (refs.length === 0) throw new Error('expected immutable references for J4 candidate');
+for (const ref of refs) {
+  if (!Number.isSafeInteger(ref.start) || !Number.isSafeInteger(ref.length) || ref.start < 0 || ref.length <= 0) {
+    throw new Error('invalid immutable reference');
+  }
+  if (ref.start + ref.length > bytes.length) throw new Error('immutable reference outside runtime');
+  bytes.fill(0, ref.start, ref.start + ref.length);
+}
+process.stdout.write('0x' + bytes.toString('hex'));
+NODE
+}
 
-[[ "$expected_resolver_hash" == "$actual_resolver_hash" ]] || { echo "FAIL: resolver runtime hash mismatch" >&2; exit 1; }
-[[ "$expected_vault_hash" == "$actual_vault_hash" ]] || { echo "FAIL: vault runtime hash mismatch" >&2; exit 1; }
+resolver_artifact="out/ImmutableResolver1271.sol/ImmutableResolver1271.json"
+vault_artifact="out/ProductionCandidateChallengeVault.sol/ProductionCandidateChallengeVault.json"
+
+resolver_template="$(jq -r '.deployedBytecode.object' "$resolver_artifact")"
+vault_template="$(jq -r '.deployedBytecode.object' "$vault_artifact")"
+resolver_runtime="$(cast code "$resolver" --rpc-url "$RPC")"
+vault_runtime="$(cast code "$vault" --rpc-url "$RPC")"
+
+resolver_template_exact_hash="$(cast keccak "$resolver_template")"
+resolver_deployed_exact_hash="$(cast keccak "$resolver_runtime")"
+vault_template_exact_hash="$(cast keccak "$vault_template")"
+vault_deployed_exact_hash="$(cast keccak "$vault_runtime")"
+
+# Solidity immutables are constructor-patched into deployed runtime. Exact hashes are expected
+# to differ from the unpatched compiler template; compare normalized code identity instead.
+[[ "$resolver_template_exact_hash" != "$resolver_deployed_exact_hash" ]] || {
+  echo "FAIL: resolver rehearsal expected immutable runtime differentiation" >&2
+  exit 1
+}
+[[ "$vault_template_exact_hash" != "$vault_deployed_exact_hash" ]] || {
+  echo "FAIL: vault rehearsal expected immutable runtime differentiation" >&2
+  exit 1
+}
+
+expected_resolver_hash="$(normalize_immutable_runtime "$resolver_artifact" "$resolver_template" | cast keccak)"
+actual_resolver_hash="$(normalize_immutable_runtime "$resolver_artifact" "$resolver_runtime" | cast keccak)"
+expected_vault_hash="$(normalize_immutable_runtime "$vault_artifact" "$vault_template" | cast keccak)"
+actual_vault_hash="$(normalize_immutable_runtime "$vault_artifact" "$vault_runtime" | cast keccak)"
+
+[[ "$expected_resolver_hash" == "$actual_resolver_hash" ]] || { echo "FAIL: resolver normalized runtime identity mismatch" >&2; exit 1; }
+[[ "$expected_vault_hash" == "$actual_vault_hash" ]] || { echo "FAIL: vault normalized runtime identity mismatch" >&2; exit 1; }
 
 read_addr() {
   cast call "$vault" "$1()(address)" --rpc-url "$RPC" | tr '[:upper:]' '[:lower:]'
@@ -215,8 +262,11 @@ jq -n   --arg schema "inkubator.j4-production-readiness-rehearsal/1.0"   --arg a
       local_chain_id:31337,
       native_usdc:$native_usdc,
       vault_address:$vault_address,
-      vault_runtime_hash:$vault_runtime_hash,
-      resolver_runtime_hash:$resolver_runtime_hash,
+      vault_runtime_template_hash:$vault_runtime_template_hash,
+      resolver_runtime_template_hash:$resolver_runtime_template_hash,
+      vault_deployed_runtime_hash:$vault_deployed_runtime_hash,
+      resolver_deployed_runtime_hash:$resolver_deployed_runtime_hash,
+      immutable_runtime_normalization_pass:true,
       immutable_readback_pass:true,
       m04_satisfied:false,
       production_money_authorized:false
