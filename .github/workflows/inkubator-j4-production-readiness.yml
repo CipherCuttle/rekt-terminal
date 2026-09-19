@@ -1,0 +1,114 @@
+name: Inkubator J4 Production Readiness Rehearsal
+
+on:
+  push:
+    branches:
+      - 'agent/stage-j4-production-readiness-v2'
+    paths:
+      - '.github/workflows/inkubator-j4-production-readiness.yml'
+      - 'scripts/inkubator/ops/stage-j4-production-readiness-rehearsal.sh'
+      - 'scripts/inkubator/stage-j4-**'
+      - 'contracts/inkubator-vault/**'
+      - 'packages/inkubator-protocol/src/production-candidate-vault-adapter.mjs'
+      - 'packages/inkubator-protocol/src/payout-roster.mjs'
+      - 'packages/inkubator-protocol/test/stage-j4-production-candidate.test.mjs'
+      - 'scripts/inkubator/stage-j4-**'
+      - 'contracts/inkubator-vault/**'
+      - 'packages/inkubator-protocol/src/production-candidate-vault-adapter.mjs'
+      - 'packages/inkubator-protocol/src/payout-roster.mjs'
+      - 'packages/inkubator-protocol/test/stage-j4-production-candidate.test.mjs'
+      - 'docs/inkubator/STAGE_J4_SWEDEN_EU_PRODUCTION_LEGAL_MATRIX_V1.md'
+      - 'docs/inkubator/STAGE_J4_SIGNER_CEREMONY_REHEARSAL_V1.md'
+      - 'docs/inkubator/STAGE_J4_POST_AUDIT_DEPLOYMENT_ATTESTATION_REHEARSAL_V1.md'
+  pull_request:
+    paths:
+      - '.github/workflows/inkubator-j4-production-readiness.yml'
+      - 'scripts/inkubator/ops/stage-j4-production-readiness-rehearsal.sh'
+      - 'docs/inkubator/STAGE_J4_SWEDEN_EU_PRODUCTION_LEGAL_MATRIX_V1.md'
+      - 'docs/inkubator/STAGE_J4_SIGNER_CEREMONY_REHEARSAL_V1.md'
+      - 'docs/inkubator/STAGE_J4_POST_AUDIT_DEPLOYMENT_ATTESTATION_REHEARSAL_V1.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frozen-scope-and-ops-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source with audit ancestor
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install pinned Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
+        with:
+          version: v1.8.3
+          cache: false
+
+      - name: Verify toolchain
+        run: |
+          forge --version | grep -F '1.8.3'
+          command -v jq >/dev/null
+          command -v curl >/dev/null
+
+      - name: Start isolated Ink fork
+        run: |
+          start_fork() {
+            provider="$1"
+            : >/tmp/j4-readiness-anvil.log
+            anvil --fork-url "$provider" --chain-id 31337 --port 8548 >/tmp/j4-readiness-anvil.log 2>&1 &
+            pid=$!
+            echo "$pid" >/tmp/j4-readiness-anvil.pid
+            for attempt in $(seq 1 20); do
+              if test "$(cast chain-id --rpc-url http://127.0.0.1:8548 2>/dev/null || true)" = "31337"; then
+                echo "$provider" >/tmp/j4-readiness-fork-provider
+                return 0
+              fi
+              if ! kill -0 "$pid" 2>/dev/null; then
+                break
+              fi
+              sleep 1
+            done
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+            return 1
+          }
+
+          if start_fork https://rpc-gel.inkonchain.com; then
+            exit 0
+          fi
+
+          echo "Gelato public RPC could not support this fork; trying the frozen secondary provider."
+          cat /tmp/j4-readiness-anvil.log
+
+          if start_fork https://rpc-qnd.inkonchain.com; then
+            exit 0
+          fi
+
+          echo "Both frozen public Ink RPC providers failed local-fork startup."
+          cat /tmp/j4-readiness-anvil.log
+          exit 1
+
+      - name: Rehearse dummy signer ceremony and local deployment attestation
+        env:
+          LOCAL_FORK_RPC: http://127.0.0.1:8548
+        run: |
+          chmod +x scripts/inkubator/ops/stage-j4-production-readiness-rehearsal.sh
+          scripts/inkubator/ops/stage-j4-production-readiness-rehearsal.sh | tee /tmp/j4-production-readiness-rehearsal.json
+          grep -F '"authority": "LOCAL_FORK_DUMMY_ONLY_NO_MAINNET_NO_REAL_VALUE"' /tmp/j4-production-readiness-rehearsal.json
+          grep -F '"production_keys_created": false' /tmp/j4-production-readiness-rehearsal.json
+          grep -F '"release_receipt_binding_pass": true' /tmp/j4-production-readiness-rehearsal.json
+          grep -F '"release_schema": "inkubator.production-candidate-release/1.1"' /tmp/j4-production-readiness-rehearsal.json
+          grep -F '"m04_satisfied": false' /tmp/j4-production-readiness-rehearsal.json
+          grep -F '"production_money_authorized": false' /tmp/j4-production-readiness-rehearsal.json
+
+      - name: Stop isolated fork
+        if: always()
+        run: |
+          if test -f /tmp/j4-readiness-anvil.pid; then
+            kill "$(cat /tmp/j4-readiness-anvil.pid)" 2>/dev/null || true
+          fi
