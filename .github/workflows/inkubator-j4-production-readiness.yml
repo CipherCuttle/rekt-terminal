@@ -59,6 +59,29 @@ jobs:
           command -v jq >/dev/null
           command -v curl >/dev/null
 
+      - name: Prove audited-scope drift fails closed
+        run: |
+          target="scripts/inkubator/stage-j4-runtime-identity.mjs"
+          cp "$target" /tmp/j4-runtime-identity.mjs
+          printf '\n// rehearsal drift canary\n' >> "$target"
+          set +e
+          LOCAL_FORK_RPC=http://127.0.0.1:8548 scripts/inkubator/ops/stage-j4-production-readiness-rehearsal.sh >/tmp/j4-drift-negative.log 2>&1
+          rc=$?
+          set -e
+          mv /tmp/j4-runtime-identity.mjs "$target"
+          test "$rc" -ne 0
+          grep -F 'frozen J4 external-audit scope drifted' /tmp/j4-drift-negative.log
+          git diff --exit-code -- "$target"
+
+      - name: Prove non-loopback RPC fails closed
+        run: |
+          set +e
+          LOCAL_FORK_RPC=https://rpc-gel.inkonchain.com scripts/inkubator/ops/stage-j4-production-readiness-rehearsal.sh >/tmp/j4-remote-rpc-negative.log 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -F 'rehearsal RPC must be an explicit loopback HTTP endpoint' /tmp/j4-remote-rpc-negative.log
+
       - name: Start isolated Ink fork
         run: |
           start_fork() {
