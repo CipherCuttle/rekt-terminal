@@ -65,7 +65,7 @@ jobs:
           cp "$target" /tmp/j4-runtime-identity.mjs
           printf '\n// rehearsal drift canary\n' >> "$target"
           set +e
-          LOCAL_FORK_RPC=http://127.0.0.1:8548 scripts/inkubator/ops/stage-j4-production-readiness-rehearsal.sh >/tmp/j4-drift-negative.log 2>&1
+          LOCAL_FORK_RPC=http://127.0.0.1:8548 bash scripts/inkubator/ops/stage-j4-production-readiness-rehearsal.sh >/tmp/j4-drift-negative.log 2>&1
           rc=$?
           set -e
           mv /tmp/j4-runtime-identity.mjs "$target"
@@ -76,7 +76,7 @@ jobs:
       - name: Prove non-loopback RPC fails closed
         run: |
           set +e
-          LOCAL_FORK_RPC=https://rpc-gel.inkonchain.com scripts/inkubator/ops/stage-j4-production-readiness-rehearsal.sh >/tmp/j4-remote-rpc-negative.log 2>&1
+          LOCAL_FORK_RPC=https://rpc-gel.inkonchain.com bash scripts/inkubator/ops/stage-j4-production-readiness-rehearsal.sh >/tmp/j4-remote-rpc-negative.log 2>&1
           rc=$?
           set -e
           test "$rc" -ne 0
