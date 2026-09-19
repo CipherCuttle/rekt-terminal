@@ -224,24 +224,33 @@ read_b32() {
   cast call "$vault" "$1()(bytes32)" --rpc-url "$RPC" | tr '[:upper:]' '[:lower:]'
 }
 read_u256() {
-  cast call "$vault" "$1()(uint256)" --rpc-url "$RPC"
+  cast call "$vault" "$1()(uint256)" --rpc-url "$RPC" | awk '{print $1}'
+}
+assert_eq() {
+  label="$1"
+  actual="$2"
+  expected="$3"
+  if [[ "$actual" != "$expected" ]]; then
+    echo "FAIL: $label readback mismatch: actual=$actual expected=$expected" >&2
+    exit 1
+  fi
 }
 
-[[ "$(read_addr token)" == "$(tr '[:upper:]' '[:lower:]' <<<"$NATIVE_USDC")" ]] || exit 1
-[[ "$(read_b32 challengeDigest)" == "$challenge" ]] || exit 1
-[[ "$(read_b32 termsDigest)" == "$terms" ]] || exit 1
-[[ "$(read_b32 bindingDigest)" == "$binding" ]] || exit 1
-[[ "$(read_u256 prizeAmount)" == "$prize" ]] || exit 1
-[[ "$(read_u256 activationDeadline)" == "$activation" ]] || exit 1
-[[ "$(read_u256 organizerSelectionDeadline)" == "$selection" ]] || exit 1
-[[ "$(read_u256 resolutionDeadline)" == "$resolution" ]] || exit 1
-[[ "$(read_u256 terminalLongStop)" == "$longstop" ]] || exit 1
-[[ "$(read_addr refundRecipient)" == "$(tr '[:upper:]' '[:lower:]' <<<"$refund")" ]] || exit 1
-[[ "$(read_addr outcomeAuthority)" == "$(tr '[:upper:]' '[:lower:]' <<<"$outcome")" ]] || exit 1
-[[ "$(read_addr organizerSelectionAuthority)" == "$(tr '[:upper:]' '[:lower:]' <<<"$organizer")" ]] || exit 1
-[[ "$(read_addr resolverAuthority)" == "$(tr '[:upper:]' '[:lower:]' <<<"$resolver")" ]] || exit 1
-[[ "$(read_b32 preBuildRefundManifestDigest)" == "$prebuild" ]] || exit 1
-[[ "$(read_b32 terminalRefundManifestDigest)" == "$terminal" ]] || exit 1
+assert_eq token "$(read_addr token)" "$(tr '[:upper:]' '[:lower:]' <<<"$NATIVE_USDC")"
+assert_eq challengeDigest "$(read_b32 challengeDigest)" "$challenge"
+assert_eq termsDigest "$(read_b32 termsDigest)" "$terms"
+assert_eq bindingDigest "$(read_b32 bindingDigest)" "$binding"
+assert_eq prizeAmount "$(read_u256 prizeAmount)" "$prize"
+assert_eq activationDeadline "$(read_u256 activationDeadline)" "$activation"
+assert_eq organizerSelectionDeadline "$(read_u256 organizerSelectionDeadline)" "$selection"
+assert_eq resolutionDeadline "$(read_u256 resolutionDeadline)" "$resolution"
+assert_eq terminalLongStop "$(read_u256 terminalLongStop)" "$longstop"
+assert_eq refundRecipient "$(read_addr refundRecipient)" "$(tr '[:upper:]' '[:lower:]' <<<"$refund")"
+assert_eq outcomeAuthority "$(read_addr outcomeAuthority)" "$(tr '[:upper:]' '[:lower:]' <<<"$outcome")"
+assert_eq organizerSelectionAuthority "$(read_addr organizerSelectionAuthority)" "$(tr '[:upper:]' '[:lower:]' <<<"$organizer")"
+assert_eq resolverAuthority "$(read_addr resolverAuthority)" "$(tr '[:upper:]' '[:lower:]' <<<"$resolver")"
+assert_eq preBuildRefundManifestDigest "$(read_b32 preBuildRefundManifestDigest)" "$prebuild"
+assert_eq terminalRefundManifestDigest "$(read_b32 terminalRefundManifestDigest)" "$terminal"
 
 jq -n   --arg schema "inkubator.j4-production-readiness-rehearsal/1.0"   --arg authority "LOCAL_FORK_DUMMY_ONLY_NO_MAINNET_NO_REAL_VALUE"   --arg auditor_scope "$AUDITOR_SCOPE"   --arg outcome_address "$outcome"   --arg resolver_address "$resolver"   --arg resolver_signer_1 "$r1"   --arg resolver_signer_2 "$r2"   --arg resolver_signer_3 "$r3"   --arg vault_address "$vault"   --arg vault_runtime_hash "$actual_vault_hash"   --arg resolver_runtime_hash "$actual_resolver_hash"   --arg native_usdc "$NATIVE_USDC"   '{
     schema:$schema,
