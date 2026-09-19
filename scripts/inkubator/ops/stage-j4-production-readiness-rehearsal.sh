@@ -50,7 +50,7 @@ forge build >/dev/null
 forge test --match-contract ProductionCandidateKnownAnswerTest -q
 
 new_dummy_wallet() {
-  cast wallet new --json | jq -c '.[0]'
+  cast wallet new --json | jq -c 'if type == "array" then .[0] else . end'
 }
 
 outcome_wallet="$(new_dummy_wallet)"
