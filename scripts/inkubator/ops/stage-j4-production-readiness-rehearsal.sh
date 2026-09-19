@@ -49,9 +49,22 @@ forge clean
 forge build >/dev/null
 forge test --match-contract ProductionCandidateKnownAnswerTest -q
 
-wallet_json="$(cast wallet new --number 5 --json)"
+new_dummy_wallet() {
+  cast wallet new --json | jq -c '.[0]'
+}
+
+outcome_wallet="$(new_dummy_wallet)"
+r1_wallet="$(new_dummy_wallet)"
+r2_wallet="$(new_dummy_wallet)"
+r3_wallet="$(new_dummy_wallet)"
+outsider_wallet="$(new_dummy_wallet)"
+
 cleanup() {
-  wallet_json=""
+  outcome_wallet=""
+  r1_wallet=""
+  r2_wallet=""
+  r3_wallet=""
+  outsider_wallet=""
   outcome_key=""
   r1_key=""
   r2_key=""
@@ -60,17 +73,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-outcome="$(jq -r '.[0].address' <<<"$wallet_json")"
-r1="$(jq -r '.[1].address' <<<"$wallet_json")"
-r2="$(jq -r '.[2].address' <<<"$wallet_json")"
-r3="$(jq -r '.[3].address' <<<"$wallet_json")"
-outsider="$(jq -r '.[4].address' <<<"$wallet_json")"
+outcome="$(jq -r '.address' <<<"$outcome_wallet")"
+r1="$(jq -r '.address' <<<"$r1_wallet")"
+r2="$(jq -r '.address' <<<"$r2_wallet")"
+r3="$(jq -r '.address' <<<"$r3_wallet")"
+outsider="$(jq -r '.address' <<<"$outsider_wallet")"
 
-outcome_key="$(jq -r '.[0].private_key' <<<"$wallet_json")"
-r1_key="$(jq -r '.[1].private_key' <<<"$wallet_json")"
-r2_key="$(jq -r '.[2].private_key' <<<"$wallet_json")"
-r3_key="$(jq -r '.[3].private_key' <<<"$wallet_json")"
-outsider_key="$(jq -r '.[4].private_key' <<<"$wallet_json")"
+outcome_key="$(jq -r '.private_key' <<<"$outcome_wallet")"
+r1_key="$(jq -r '.private_key' <<<"$r1_wallet")"
+r2_key="$(jq -r '.private_key' <<<"$r2_wallet")"
+r3_key="$(jq -r '.private_key' <<<"$r3_wallet")"
+outsider_key="$(jq -r '.private_key' <<<"$outsider_wallet")"
 
 for value in "$outcome" "$r1" "$r2" "$r3" "$outsider"; do
   [[ "$value" =~ ^0x[0-9a-fA-F]{40}$ ]] || { echo "FAIL: bad dummy address" >&2; exit 1; }
