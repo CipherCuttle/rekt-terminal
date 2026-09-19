@@ -252,7 +252,7 @@ assert_eq resolverAuthority "$(read_addr resolverAuthority)" "$(tr '[:upper:]' '
 assert_eq preBuildRefundManifestDigest "$(read_b32 preBuildRefundManifestDigest)" "$prebuild"
 assert_eq terminalRefundManifestDigest "$(read_b32 terminalRefundManifestDigest)" "$terminal"
 
-jq -n   --arg schema "inkubator.j4-production-readiness-rehearsal/1.0"   --arg authority "LOCAL_FORK_DUMMY_ONLY_NO_MAINNET_NO_REAL_VALUE"   --arg auditor_scope "$AUDITOR_SCOPE"   --arg outcome_address "$outcome"   --arg resolver_address "$resolver"   --arg resolver_signer_1 "$r1"   --arg resolver_signer_2 "$r2"   --arg resolver_signer_3 "$r3"   --arg vault_address "$vault"   --arg vault_runtime_hash "$actual_vault_hash"   --arg resolver_runtime_hash "$actual_resolver_hash"   --arg native_usdc "$NATIVE_USDC"   '{
+jq -n   --arg schema "inkubator.j4-production-readiness-rehearsal/1.0"   --arg authority "LOCAL_FORK_DUMMY_ONLY_NO_MAINNET_NO_REAL_VALUE"   --arg auditor_scope "$AUDITOR_SCOPE"   --arg outcome_address "$outcome"   --arg resolver_address "$resolver"   --arg resolver_signer_1 "$r1"   --arg resolver_signer_2 "$r2"   --arg resolver_signer_3 "$r3"   --arg vault_address "$vault"   --arg vault_runtime_template_hash "$actual_vault_hash"   --arg resolver_runtime_template_hash "$actual_resolver_hash"   --arg vault_deployed_runtime_hash "$vault_deployed_exact_hash"   --arg resolver_deployed_runtime_hash "$resolver_deployed_exact_hash"   --arg native_usdc "$NATIVE_USDC"   '{
     schema:$schema,
     authority:$authority,
     auditor_scope:$auditor_scope,
