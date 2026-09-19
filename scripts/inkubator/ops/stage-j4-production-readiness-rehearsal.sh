@@ -36,6 +36,11 @@ if ! git diff --quiet "$AUDITOR_SCOPE" -- "${AUDITED_PATHS[@]}"; then
   exit 1
 fi
 
+if [[ ! "$RPC" =~ ^http://(127\.0\.0\.1|localhost):[0-9]+$ ]]; then
+  echo "FAIL: rehearsal RPC must be an explicit loopback HTTP endpoint" >&2
+  exit 1
+fi
+
 if [[ "$(cast chain-id --rpc-url "$RPC")" != "31337" ]]; then
   echo "FAIL: rehearsal RPC must be isolated local chain id 31337" >&2
   exit 1
