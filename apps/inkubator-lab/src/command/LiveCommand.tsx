@@ -8,6 +8,7 @@ import {useReducedMotion} from '../instrument-os/use-reduced-motion';
 import {TerminalShell} from '../shell/TerminalShell';
 import {useInstrumentNavigation, type InstrumentMode} from '../shell/InstrumentNavigation';
 import {diffCommandProjection, summarizeCommandDeltas, type CommandProjectionDelta} from './projection-delta';
+import {commandGuidanceAction} from './command-guidance';
 import {CommandActions} from '../journey/CommandActions';
 import './live-command.css';
 
@@ -18,8 +19,9 @@ const QUERY_KEY = ['inkubator', 'command', 'me'] as const;
 type PrimaryAction = {label: string; href: string; mode: InstrumentMode};
 
 /**
- * Only expose a button when canonical state determines its destination.
- * Free-text Next Move stays the authority; source/blocker context must not invent a second priority.
+ * Only expose an authority-changing destination when canonical state determines it.
+ * Free-text Next Move stays the authority; guidance may reveal existing controls but
+ * cannot invent proof, progress or a second Mission priority.
  */
 export function commandPrimaryAction(command: CommandView): PrimaryAction | null {
   if (command.mission.state === 'SHIP_READY') return {label: 'OPEN SHIP', href: '?mode=ship', mode: 'SHIP'};
@@ -40,10 +42,33 @@ export function commandCue(command: CommandView, deltas: CommandProjectionDelta[
 function LiveProjection({command, deltas, eventSequence, channelError}: {command: CommandView; deltas: CommandProjectionDelta[]; eventSequence: number; channelError?: string}) {
   const navigation = useInstrumentNavigation();
   const reducedMotion = useReducedMotion();
+  const [copyState, setCopyState] = useState<'IDLE' | 'COPIED' | 'FAILED'>('IDLE');
   const gates = command.gates.slice().sort((a, b) => a.position - b.position);
   const signal = channelError ? {cue: 'UNAVAILABLE' as const} : commandCue(command, deltas);
   const latest = command.github_evidence.latest_observation;
   const primaryAction = commandPrimaryAction(command);
+  const guidanceAction = channelError ? null : commandGuidanceAction(command);
+
+  useEffect(() => {
+    setCopyState('IDLE');
+  }, [command.mission.next_move]);
+
+  function revealGuidanceControl(targetId: string) {
+    const target = document.getElementById(targetId);
+    if (target instanceof HTMLDetailsElement) target.open = true;
+    target?.scrollIntoView({behavior: reducedMotion ? 'auto' : 'smooth', block: 'start'});
+  }
+
+  async function copyNextMove() {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('clipboard_unavailable');
+      await navigator.clipboard.writeText(command.mission.next_move);
+      setCopyState('COPIED');
+    } catch {
+      setCopyState('FAILED');
+    }
+  }
+
   return (
     <TerminalShell mode="COMMAND" kicker="REKT / COMMAND / WHAT NOW?" title={command.project.name}
       readout={[{label: 'LINK', value: command.github_evidence.source_state}, {label: 'STATE', value: command.mission.state}]}
@@ -59,6 +84,12 @@ function LiveProjection({command, deltas, eventSequence, channelError}: {command
             event.preventDefault();
             navigation.onModeSelect(primaryAction.mode);
           }}>{primaryAction.label} →</a> : null}
+          {guidanceAction ? <div className="command-guidance" data-phase={guidanceAction.phase.toLowerCase()}>
+            <small>INKUBATOR / {guidanceAction.phase}</small>
+            <p>{guidanceAction.explanation}</p>
+            {guidanceAction.kind === 'CONTROL' ? <button type="button" className="command-guidance-action" onClick={() => revealGuidanceControl(guidanceAction.targetId)}>{guidanceAction.label} →</button> : <button type="button" className="command-guidance-action" onClick={() => void copyNextMove()}>{copyState === 'COPIED' ? 'NEXT MOVE COPIED' : guidanceAction.label}</button>}
+            {guidanceAction.kind === 'COPY_NEXT_MOVE' && copyState === 'FAILED' ? <span className="command-guidance-status" role="status">COPY UNAVAILABLE / select the Next Move above.</span> : null}
+          </div> : null}
           {!channelError ? <CommandActions command={command}/> : null}
         </div>
         <div className="faceplate-display command-thread-stage">
