@@ -454,7 +454,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         <small>CREATE / DRAFT</small>
         <h2 id="compiler-intake-title">WHAT DO YOU WANT BUILT?</h2>
         <p>Say it normally. You can tighten the rules before anything gets locked.</p>
-        <label htmlFor="compiler-source-intent">WHAT DO YOU WANT BUILT?</label>
+        <label htmlFor="compiler-source-intent">BUILD BRIEF</label>
         <textarea
           id="compiler-source-intent"
           value={sourceIntent}
