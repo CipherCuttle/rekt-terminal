@@ -192,6 +192,35 @@ describe('Stage E Challenge product shell', () => {
     expect(screen.queryByRole('heading', {name: 'SET THE BUILD WINDOW'})).toBeNull();
   });
 
+
+  it('recovers the canonical DRAFT after an ambiguous create response instead of creating a duplicate', async () => {
+    let attemptedChallengeId = '';
+    const createDraftChallenge: ChallengeProductApi['createDraftChallenge'] = vi.fn(async (body) => {
+      attemptedChallengeId = body.challenge_id;
+      throw new Error('response_lost_after_commit');
+    });
+    const getChallenge: ChallengeProductApi['getChallenge'] = vi.fn(async (challengeId) => ({
+      ...draftChallenge,
+      challenge_id: challengeId,
+    }));
+    window.history.replaceState({}, '', '/?surface=compiler');
+    render(<ChallengeProduct api={api({createDraftChallenge, getChallenge})} />);
+
+    fireEvent.change(screen.getByLabelText('BUILDER SLOTS'), {target: {value: '4'}});
+    fireEvent.change(screen.getByLabelText('MINIMUM BUILDERS'), {target: {value: '2'}});
+    fireEvent.change(screen.getByLabelText('JOIN CLOSES'), {target: {value: '2026-10-05T12:00'}});
+    fireEvent.change(screen.getByLabelText('BUILD STARTS'), {target: {value: '2026-10-05T12:00'}});
+    fireEvent.change(screen.getByLabelText('SUBMIT BY'), {target: {value: '2026-10-07T12:00'}});
+    fireEvent.change(screen.getByLabelText('REVIEW BY'), {target: {value: '2026-10-08T12:00'}});
+    fireEvent.change(screen.getByLabelText('APPEAL WINDOW / HOURS'), {target: {value: '24'}});
+    fireEvent.click(screen.getByRole('button', {name: /CREATE DRAFT CHALLENGE/i}));
+
+    await waitFor(() => expect(getChallenge).toHaveBeenCalledWith(attemptedChallengeId));
+    expect(createDraftChallenge).toHaveBeenCalledTimes(1);
+    expect(new URL(window.location.href).searchParams.get('challenge')).toBe(attemptedChallengeId);
+    expect(screen.queryByRole('heading', {name: 'SET THE BUILD WINDOW'})).toBeNull();
+  });
+
   it('compiles only explicit SOURCE requirements and renders deterministic compiler state', async () => {
     const compileChallenge = vi.fn(async (_body: CompilerProposalInput) => compilerState);
     render(<ChallengeProduct api={api({compileChallenge})} />);
