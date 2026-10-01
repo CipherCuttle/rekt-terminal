@@ -226,7 +226,71 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const [reviewDeadline, setReviewDeadline] = useState('');
   const [appealWindowHours, setAppealWindowHours] = useState('');
   const [createPhase, setCreatePhase] = useState<'IDLE' | 'LOADING' | 'AUTH_REQUIRED' | 'ERROR'>('IDLE');
+  const [draftHydrated, setDraftHydrated] = useState(false);
   const compilerRequestRevision = useRef(0);
+
+  useEffect(() => {
+    if (challengeId) {
+      setDraftHydrated(true);
+      return;
+    }
+    try {
+      const raw = window.sessionStorage.getItem('rekt-inkubator-create-draft-v1');
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          sourceIntent?: string;
+          answers?: CompilerRequirementAnswers;
+          slotLimit?: string;
+          activationMinimum?: string;
+          entryDeadline?: string;
+          buildStart?: string;
+          submissionDeadline?: string;
+          reviewDeadline?: string;
+          appealWindowHours?: string;
+        };
+        if (typeof saved.sourceIntent === 'string') setSourceIntent(saved.sourceIntent);
+        if (saved.answers && typeof saved.answers === 'object') setAnswers(saved.answers);
+        if (typeof saved.slotLimit === 'string') setSlotLimit(saved.slotLimit);
+        if (typeof saved.activationMinimum === 'string') setActivationMinimum(saved.activationMinimum);
+        if (typeof saved.entryDeadline === 'string') setEntryDeadline(saved.entryDeadline);
+        if (typeof saved.buildStart === 'string') setBuildStart(saved.buildStart);
+        if (typeof saved.submissionDeadline === 'string') setSubmissionDeadline(saved.submissionDeadline);
+        if (typeof saved.reviewDeadline === 'string') setReviewDeadline(saved.reviewDeadline);
+        if (typeof saved.appealWindowHours === 'string') setAppealWindowHours(saved.appealWindowHours);
+      }
+    } catch {
+      window.sessionStorage.removeItem('rekt-inkubator-create-draft-v1');
+    } finally {
+      setDraftHydrated(true);
+    }
+  }, [challengeId]);
+
+  useEffect(() => {
+    if (!draftHydrated || challengeId) return;
+    window.sessionStorage.setItem('rekt-inkubator-create-draft-v1', JSON.stringify({
+      sourceIntent,
+      answers,
+      slotLimit,
+      activationMinimum,
+      entryDeadline,
+      buildStart,
+      submissionDeadline,
+      reviewDeadline,
+      appealWindowHours,
+    }));
+  }, [
+    draftHydrated,
+    challengeId,
+    sourceIntent,
+    answers,
+    slotLimit,
+    activationMinimum,
+    entryDeadline,
+    buildStart,
+    submissionDeadline,
+    reviewDeadline,
+    appealWindowHours,
+  ]);
 
   useEffect(() => {
     if (!challengeId) {
@@ -348,6 +412,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
       url.searchParams.set('surface', 'compiler');
       url.searchParams.set('challenge', created.challenge_id);
       window.history.replaceState({challengeSurface: 'COMPILER'}, '', url);
+      window.sessionStorage.removeItem('rekt-inkubator-create-draft-v1');
       setChallengeView(created);
       setChallengePhase('IDLE');
       setCreatePhase('IDLE');
