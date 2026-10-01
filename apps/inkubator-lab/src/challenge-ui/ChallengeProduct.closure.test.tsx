@@ -150,32 +150,20 @@ afterEach(() => {
 });
 
 describe('Stage E closure matrix', () => {
-  it('keeps all seven forward surfaces truthful without parked legacy substitution', () => {
+  it('advertises only wired consumer destinations while preserving truthful deep-link states', () => {
     render(<ChallengeProduct api={api()} />);
     const nav = screen.getByRole('navigation', {name: 'Challenge product'});
 
     expect(currentState()).toBe('unavailable_or_stale');
+    expect(within(nav).getAllByRole('button')).toHaveLength(2);
+    expect(within(nav).getByRole('button', {name: /CREATE/i})).toBeTruthy();
+    expect(within(nav).queryByRole('button', {name: /MY BUILD/i})).toBeNull();
+    expect(within(nav).queryByRole('button', {name: /REVIEW/i})).toBeNull();
+    expect(within(nav).queryByRole('button', {name: /HISTORY/i})).toBeNull();
+    expect(within(nav).queryByRole('button', {name: /OPERATOR/i})).toBeNull();
 
-    fireEvent.click(within(nav).getByRole('button', {name: /COMPILER \/ CREATE/i}));
+    fireEvent.click(within(nav).getByRole('button', {name: /CREATE/i}));
     expect(currentState()).toBe('empty');
-
-    fireEvent.click(within(nav).getByRole('button', {name: /^03.*CHALLENGE/i}));
-    expect(currentState()).toBe('empty');
-
-    fireEvent.click(within(nav).getByRole('button', {name: /MY BUILD/i}));
-    expect(currentState()).toBe('unavailable_or_stale');
-    expect(screen.getByText(/Project progress is not treated as Challenge authority/i)).toBeTruthy();
-
-    fireEvent.click(within(nav).getByRole('button', {name: /REVIEW \/ TEST ARENA/i}));
-    expect(currentState()).toBe('unavailable_or_stale');
-    expect(screen.getByText(/Stage G owns reveal/i)).toBeTruthy();
-
-    fireEvent.click(within(nav).getByRole('button', {name: /RECEIPT \/ HISTORY/i}));
-    expect(currentState()).toBe('unavailable_or_stale');
-    expect(screen.getByText(/historical Ship UI is not substituted/i)).toBeTruthy();
-
-    fireEvent.click(within(nav).getByRole('button', {name: /OPERATOR EXCEPTIONS/i}));
-    expect(currentState()).toBe('unauthorized');
   });
 
   it('exercises Challenge loading, normal and error states without fabricating fallback data', async () => {
@@ -204,9 +192,9 @@ describe('Stage E closure matrix', () => {
     window.history.replaceState({}, '', '/?surface=compiler');
     render(<ChallengeProduct api={api({compileChallenge})} />);
 
-    fireEvent.change(screen.getByLabelText('SOURCE INTENT'), {target: {value: compilerState.source_intent}});
+    fireEvent.change(screen.getByLabelText('WHAT DO YOU WANT BUILT?'), {target: {value: compilerState.source_intent}});
     fireEvent.click(within(realtimeRequirementRow()).getByRole('button', {name: 'YES'}));
-    fireEvent.click(screen.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i}));
+    fireEvent.click(screen.getByRole('button', {name: /CHECK THE SPEC/i}));
 
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
     expect(screen.getByRole('heading', {name: 'PRODUCTION ENVELOPE'})).toBeTruthy();
@@ -226,16 +214,16 @@ describe('Stage E closure matrix', () => {
     window.history.replaceState({}, '', '/?surface=compiler');
     render(<ChallengeProduct api={api({compileChallenge})} />);
 
-    fireEvent.change(screen.getByLabelText('SOURCE INTENT'), {target: {value: 'Build a public launch experience'}});
+    fireEvent.change(screen.getByLabelText('WHAT DO YOU WANT BUILT?'), {target: {value: 'Build a public launch experience'}});
     fireEvent.click(within(realtimeRequirementRow()).getByRole('button', {name: 'YES'}));
-    fireEvent.click(screen.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i}));
+    fireEvent.click(screen.getByRole('button', {name: /CHECK THE SPEC/i}));
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
     expect(screen.getByText('WEB_REALTIME@1.0.0')).toBeTruthy();
     expect(screen.getByText('HIGH', {selector: 'b'})).toBeTruthy();
     expect(screen.getAllByText(/realtime_transport_required/).length).toBeGreaterThan(0);
 
     fireEvent.click(within(realtimeRequirementRow()).getByRole('button', {name: 'NO'}));
-    fireEvent.click(screen.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i}));
+    fireEvent.click(screen.getByRole('button', {name: /CHECK THE SPEC/i}));
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(2));
     expect(screen.getByText('WEB_STATIC@1.0.0')).toBeTruthy();
     expect(screen.getByText('LOW', {selector: 'b'})).toBeTruthy();
@@ -255,20 +243,20 @@ describe('Stage E closure matrix', () => {
     window.history.replaceState({}, '', `/?surface=compiler&challenge=${challenge.challenge_id}`);
     render(<ChallengeProduct api={api({compileChallenge})} />);
 
-    fireEvent.change(screen.getByLabelText('SOURCE INTENT'), {target: {value: 'Build the first draft'}});
+    fireEvent.change(screen.getByLabelText('WHAT DO YOU WANT BUILT?'), {target: {value: 'Build the first draft'}});
     fireEvent.click(within(realtimeRequirementRow()).getByRole('button', {name: 'NO'}));
-    fireEvent.click(screen.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i}));
+    fireEvent.click(screen.getByRole('button', {name: /CHECK THE SPEC/i}));
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole('button', {name: /ACCEPT CURRENT INPUTS/i}));
+    fireEvent.click(screen.getByRole('button', {name: /USE THESE RULES/i}));
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(2));
-    fireEvent.change(screen.getByLabelText('SOURCE INTENT'), {target: {value: 'Build the edited second draft'}});
+    fireEvent.change(screen.getByLabelText('WHAT DO YOU WANT BUILT?'), {target: {value: 'Build the edited second draft'}});
     expect(screen.getByText('SOURCE DRAFT / UNCOMPILED')).toBeTruthy();
 
     resolveAccepted?.(acceptedState);
     await waitFor(() => expect(screen.queryByText('ORGANIZER_ACCEPTED', {selector: 'small'})).toBeNull());
     expect(screen.getByText('SOURCE DRAFT / UNCOMPILED')).toBeTruthy();
-    expect((screen.getByRole('button', {name: /FREEZE NONCANONICAL PREVIEW/i}) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', {name: /REVIEW LOCKED VERSION/i}) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('keeps canonical persistence successful when only the post-write projection refresh fails', async () => {
@@ -286,24 +274,24 @@ describe('Stage E closure matrix', () => {
     render(<ChallengeProduct api={api({compileChallenge, getChallenge, previewBuildContract, persistBuildContract})} />);
 
     await waitFor(() => expect(getChallenge).toHaveBeenCalledTimes(1));
-    fireEvent.change(screen.getByLabelText('SOURCE INTENT'), {target: {value: 'Build a public static launch page'}});
+    fireEvent.change(screen.getByLabelText('WHAT DO YOU WANT BUILT?'), {target: {value: 'Build a public static launch page'}});
     fireEvent.click(within(realtimeRequirementRow()).getByRole('button', {name: 'NO'}));
-    fireEvent.click(screen.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i}));
+    fireEvent.click(screen.getByRole('button', {name: /CHECK THE SPEC/i}));
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', {name: /ACCEPT CURRENT INPUTS/i}));
+    fireEvent.click(screen.getByRole('button', {name: /USE THESE RULES/i}));
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(2));
 
     fireEvent.change(screen.getByLabelText('CONTRACT VERSION'), {target: {value: '1.0.0'}});
     fireEvent.change(screen.getByLabelText('TITLE'), {target: {value: 'Challenge'}});
-    fireEvent.change(screen.getByLabelText('PRIZE / MINOR UNITS'), {target: {value: '100'}});
+    fireEvent.change(screen.getByLabelText('PRIZE / TEST VALUE'), {target: {value: '100'}});
     fireEvent.change(screen.getByLabelText('SETTLEMENT ASSET'), {target: {value: 'TEST'}});
-    fireEvent.click(screen.getByRole('button', {name: /FREEZE NONCANONICAL PREVIEW/i}));
+    fireEvent.click(screen.getByRole('button', {name: /REVIEW LOCKED VERSION/i}));
     await waitFor(() => expect(previewBuildContract).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', {name: /PERSIST CANONICAL CONTRACT/i}));
+    fireEvent.click(screen.getByRole('button', {name: /LOCK CHALLENGE RULES/i}));
 
     await waitFor(() => expect(persistBuildContract).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(getChallenge).toHaveBeenCalledTimes(2));
-    expect(screen.getByText('CANONICAL / PERSISTED', {selector: 'strong'})).toBeTruthy();
+    expect(screen.getByText('RULES LOCKED', {selector: 'strong'})).toBeTruthy();
     expect(screen.getByText(/CANONICAL CONTRACT PERSISTED — CHALLENGE PROJECTION REFRESH UNAVAILABLE/i)).toBeTruthy();
     expect(screen.queryByText(/CANONICAL PERSISTENCE REJECTED/i)).toBeNull();
     expect(document.querySelector('[data-build-contract-canonical="persisted"]')).toBeTruthy();
