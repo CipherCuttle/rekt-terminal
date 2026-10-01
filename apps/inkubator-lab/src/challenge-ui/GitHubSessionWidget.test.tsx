@@ -53,7 +53,7 @@ describe('GitHub session widget', () => {
     expect(screen.getByText('GITHUB APP')).toBeTruthy();
     expect(screen.getByText('2')).toBeTruthy();
     expect(screen.getByText('10 MIN FOR SENSITIVE GITHUB CHANGES')).toBeTruthy();
-    expect(screen.getByText(/REKT session/i)).toBeTruthy();
+    expect(screen.getByText(/REKT session ·/i)).toBeTruthy();
   });
 
   it('turns an expired or missing server session into an explicit reconnect action', async () => {
