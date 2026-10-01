@@ -2,6 +2,7 @@ import {createRequire} from 'node:module';
 import type {FastifyInstance, FastifyReply, FastifyRequest} from 'fastify';
 import {
   BUILD_CONTRACT_SCHEMA_VERSION,
+  assertFrozenBuildContract,
   freezeBuildContract,
   type BuildContract,
 } from '@rekt-ink/protocol/challenge';
@@ -71,6 +72,13 @@ export interface PublicChallengeView {
   receipt_count: number;
   created_at: string;
   updated_at: string;
+  contract_summary: null | {
+    title: string;
+    brief: string;
+    prize_display: string | null;
+    settlement_asset: string;
+    done_when: Array<{id: string; description: string; mandatory: boolean; source: 'OUTCOME' | 'PRODUCTION' | 'DELIVERY'}>;
+  };
 }
 
 export interface BuildContractPreviewAuthorityInput {
@@ -109,6 +117,12 @@ function safeDate(value: Date): string {
 
 export function toPublicChallengeView(snapshot: ChallengeSnapshot): PublicChallengeView {
   const {challenge} = snapshot;
+  const contract = snapshot.contract ? assertFrozenBuildContract(snapshot.contract.contract_json) : null;
+  const doneWhen = contract ? [
+    ...(contract.outcome_contract.criteria ?? []).map((criterion) => ({...criterion, source: 'OUTCOME' as const})),
+    ...(contract.production_envelope.criteria ?? []).map((criterion) => ({...criterion, source: 'PRODUCTION' as const})),
+    ...(contract.delivery_contract.criteria ?? []).map((criterion) => ({...criterion, source: 'DELIVERY' as const})),
+  ] : [];
   return {
     schema_version: 'challenge.public.v1',
     challenge_id: challenge.challenge_id,
@@ -132,6 +146,13 @@ export function toPublicChallengeView(snapshot: ChallengeSnapshot): PublicChalle
     receipt_count: snapshot.receipts.length,
     created_at: safeDate(challenge.created_at),
     updated_at: safeDate(challenge.updated_at),
+    contract_summary: contract ? {
+      title: contract.title,
+      brief: contract.brief,
+      prize_display: typeof contract.prize_display === 'string' && contract.prize_display.trim() ? contract.prize_display : null,
+      settlement_asset: contract.settlement_asset,
+      done_when: doneWhen,
+    } : null,
   };
 }
 
