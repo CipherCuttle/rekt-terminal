@@ -199,7 +199,7 @@ export function registerGitHubLoginRoutes(app: FastifyInstance, options: Registe
     const query = request.query as {code?: string; state?: string; error?: string};
     const flow = (readCookie(request.headers.cookie, GITHUB_FLOW_COOKIE) ?? 'login') as GitHubOAuthFlow;
     const loginFailure = new URL('/', options.appOrigin);
-    loginFailure.searchParams.set('mode', 'command');
+    loginFailure.searchParams.set('surface', 'compiler');
     loginFailure.searchParams.set('auth', 'github_failed');
     const failureUrl = flow === 'login'
       ? loginFailure.toString()
@@ -233,7 +233,7 @@ export function registerGitHubLoginRoutes(app: FastifyInstance, options: Registe
           syncFailed = true;
         }
         const success = new URL('/', options.appOrigin);
-        success.searchParams.set('mode', 'command');
+        success.searchParams.set('surface', 'compiler');
         success.searchParams.set('auth', 'github');
         if (syncFailed) success.searchParams.set('github_sync', 'failed');
         if (observationWarnings.length > 0) {
