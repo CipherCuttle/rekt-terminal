@@ -251,6 +251,18 @@ export function registerStageEChallengeProductRoutes(app: FastifyInstance, db: I
       return apiError(reply, 400, 'challenge_create_invalid');
     }
 
+    if (
+      body.activation_minimum < 1
+      || body.slot_limit < 1
+      || body.activation_minimum > body.slot_limit
+      || body.entry_deadline_ms > body.build_start_ms
+      || body.build_start_ms >= body.submission_deadline_ms
+      || body.submission_deadline_ms > body.review_deadline_ms
+      || body.appeal_window_ms < 1
+    ) {
+      return apiError(reply, 400, 'challenge_create_schedule_invalid');
+    }
+
     try {
       const challenge = await createChallenge(db, {
         requestId: body.request_id,
