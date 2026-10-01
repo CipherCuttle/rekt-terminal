@@ -8,6 +8,7 @@ export const FUNDED_CHALLENGE_CORE_ROUTES = Object.freeze([
   'DELETE /v1/session',
   'DELETE /v1/sessions',
   'GET /v1/challenges/:challengeId',
+  'POST /v1/challenges/:challengeId/entries',
   'POST /v1/challenges',
   'POST /v1/compiler/compile',
   'POST /v1/challenges/:challengeId/build-contract-preview',
