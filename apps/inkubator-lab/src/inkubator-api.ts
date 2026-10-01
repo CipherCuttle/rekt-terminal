@@ -1,4 +1,5 @@
 import {InkubatorApiClient, InkubatorApiError, type FetchLike} from './generated/inkubator-api-client';
+export {InkubatorApiError} from './generated/inkubator-api-client';
 
 const platformFetch: FetchLike = (input, init) => globalThis.fetch(input, init);
 
@@ -24,6 +25,18 @@ export interface GitHubReconcileView {
   installation_count: number;
   repositories_connected: number;
   warnings: string[];
+}
+
+export interface CreateDraftChallengeInput {
+  request_id: string;
+  challenge_id: string;
+  slot_limit: number;
+  activation_minimum: number;
+  entry_deadline_ms: number;
+  build_start_ms: number;
+  submission_deadline_ms: number;
+  appeal_window_ms: number;
+  review_deadline_ms: number;
 }
 
 export interface PublicChallengeView {
@@ -159,6 +172,14 @@ export class InkubatorProductApiClient extends InkubatorApiClient {
 
   async syncGitHubAccess(): Promise<GitHubReconcileView> {
     return this.productRequest<GitHubReconcileView>('/v1/github/reconcile', {method: 'POST'});
+  }
+
+  async createDraftChallenge(body: CreateDraftChallengeInput): Promise<PublicChallengeView> {
+    return this.productRequest<PublicChallengeView>('/v1/challenges', {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify(body),
+    });
   }
 
   async getChallenge(challengeId: string): Promise<PublicChallengeView> {
