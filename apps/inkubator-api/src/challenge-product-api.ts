@@ -15,6 +15,7 @@ import {
   type CompilerState,
 } from '@rekt-ink/protocol/compiler';
 import {
+  createChallenge,
   persistFrozenBuildContract,
   readChallengeSnapshot,
   type ChallengeSnapshot,
@@ -34,6 +35,18 @@ const BLUEPRINT_PATHS = [
 const ACTIVE_BLUEPRINTS = Object.freeze(
   BLUEPRINT_PATHS.map((path) => assertCompilerBlueprint(require(path)) as CompilerBlueprint),
 );
+
+export interface CreateDraftChallengeInput {
+  request_id: string;
+  challenge_id: string;
+  slot_limit: number;
+  activation_minimum: number;
+  entry_deadline_ms: number;
+  build_start_ms: number;
+  submission_deadline_ms: number;
+  appeal_window_ms: number;
+  review_deadline_ms: number;
+}
 
 export interface PublicChallengeView {
   schema_version: 'challenge.public.v1';
@@ -218,6 +231,58 @@ function apiError(reply: FastifyReply, statusCode: number, message: string) {
 }
 
 export function registerStageEChallengeProductRoutes(app: FastifyInstance, db: InkubatorDatabase): void {
+  app.post('/v1/challenges', async (request, reply) => {
+    const actorPlayerId = await authenticatedPlayerId(request, db);
+    if (!actorPlayerId) return apiError(reply, 401, 'authentication_required');
+
+    const body = request.body as Partial<CreateDraftChallengeInput> | null;
+    if (
+      !body
+      || typeof body.request_id !== 'string'
+      || typeof body.challenge_id !== 'string'
+      || !Number.isSafeInteger(body.slot_limit)
+      || !Number.isSafeInteger(body.activation_minimum)
+      || !Number.isSafeInteger(body.entry_deadline_ms)
+      || !Number.isSafeInteger(body.build_start_ms)
+      || !Number.isSafeInteger(body.submission_deadline_ms)
+      || !Number.isSafeInteger(body.appeal_window_ms)
+      || !Number.isSafeInteger(body.review_deadline_ms)
+    ) {
+      return apiError(reply, 400, 'challenge_create_invalid');
+    }
+
+    try {
+      const challenge = await createChallenge(db, {
+        requestId: body.request_id,
+        challengeId: body.challenge_id,
+        organizerPlayerId: actorPlayerId,
+        organizerPayoutIdentity: `UNCONFIGURED:ORGANIZER:${body.challenge_id}`,
+        funderPayoutIdentity: `UNCONFIGURED:FUNDER:${body.challenge_id}`,
+        mechanismVersion: 'funded-challenge/1.1',
+        settlementPolicyVersion: 'funded-challenge-settlement/1.0',
+        ipTermsVersion: 'bespoke-winner-transfer/1.0',
+        slotLimit: body.slot_limit,
+        activationMinimum: body.activation_minimum,
+        entryDeadlineMs: body.entry_deadline_ms,
+        buildStartMs: body.build_start_ms,
+        submissionDeadlineMs: body.submission_deadline_ms,
+        appealWindowMs: body.appeal_window_ms,
+        reviewDeadlineMs: body.review_deadline_ms,
+      });
+      const snapshot = await readChallengeSnapshot(db, challenge.challenge_id);
+      if (!snapshot) throw new Error('challenge_create_projection_missing');
+      reply.header('cache-control', 'no-store');
+      return reply.code(201).send(toPublicChallengeView(snapshot));
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'challenge_create_failed';
+      if (message === 'challenge_identity_conflict' || message.includes('idempotency_conflict')) {
+        return apiError(reply, 409, message);
+      }
+      if (message.startsWith('invalid_')) return apiError(reply, 400, 'challenge_create_invalid');
+      throw cause;
+    }
+  });
+
   app.get('/v1/challenges/:challengeId', async (request, reply) => {
     const {challengeId} = request.params as {challengeId: string};
     try {
