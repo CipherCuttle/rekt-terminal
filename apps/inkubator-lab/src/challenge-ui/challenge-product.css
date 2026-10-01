@@ -45,6 +45,12 @@
 .challenge-brand span { opacity: 0.7; }
 .challenge-purpose { justify-self: center; opacity: 0.58; }
 .challenge-authority { opacity: 0.8; }
+.challenge-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  justify-self: end;
+}
 
 .challenge-heading {
   display: grid;
@@ -206,7 +212,8 @@
 
 @media (max-width: 900px) {
   .challenge-purpose, .challenge-authority { display: none; }
-  .challenge-topbar { grid-template-columns: 1fr; }
+  .challenge-topbar { grid-template-columns: 1fr auto; }
+  .challenge-topbar__right { justify-self: end; }
   .challenge-heading { grid-template-columns: 1fr; }
   .challenge-heading__readout { grid-template-columns: 1fr; }
   .challenge-heading__readout span { border-left: 0; border-top: 1px solid rgba(243, 239, 248, 0.09); }
