@@ -147,6 +147,7 @@ function realtimeRequirementRow(): HTMLElement {
 
 afterEach(() => {
   cleanup();
+  window.sessionStorage.clear();
   window.history.replaceState({}, '', '/');
 });
 
