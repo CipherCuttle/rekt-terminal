@@ -126,6 +126,7 @@ const canonical: CanonicalBuildContractView = {
 
 function api(overrides: Partial<ChallengeProductApi> = {}): ChallengeProductApi {
   return {
+    createDraftChallenge: vi.fn(async () => challenge),
     compileChallenge: vi.fn(async (_body: CompilerProposalInput) => compilerState),
     getChallenge: vi.fn(async () => challenge),
     previewBuildContract: vi.fn(async () => preview),
