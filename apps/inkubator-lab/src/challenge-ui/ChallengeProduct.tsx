@@ -694,6 +694,16 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
   const challengeId = new URLSearchParams(window.location.search).get('challenge');
   const [view, setView] = useState<PublicChallengeView | null>(null);
   const [phase, setPhase] = useState<'IDLE' | 'LOADING' | 'NOT_FOUND' | 'ERROR'>('IDLE');
+  const [payoutIdentity, setPayoutIdentity] = useState('');
+  const [joinPhase, setJoinPhase] = useState<'IDLE' | 'LOADING' | 'JOINED' | 'AUTH_REQUIRED' | 'ORGANIZER' | 'ERROR'>('IDLE');
+  const [joinRequestId] = useState<string>(() => crypto.randomUUID());
+  const [joinEntryId] = useState<string>(() => crypto.randomUUID());
+
+  const refresh = async (id: string) => {
+    const next = await api.getChallenge(id);
+    setView(next);
+    return next;
+  };
 
   useEffect(() => {
     if (!challengeId) {
@@ -716,31 +726,133 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
   }, [api, challengeId]);
 
   if (!challengeId) {
-    return <StatePanel state="EMPTY" title="No Challenge selected."><p>Select a canonical Challenge from Discover or open a Challenge deep link.</p></StatePanel>;
+    return <StatePanel state="EMPTY" title="No Challenge selected."><p>Choose a Challenge to see what is being built and what counts as done.</p></StatePanel>;
   }
   if (phase === 'LOADING') {
-    return <StatePanel state="LOADING" title="Reading canonical Challenge state."><p>Requested Challenge: <code>{challengeId}</code>.</p></StatePanel>;
+    return <StatePanel state="LOADING" title="Opening Challenge…"><p>Reading the latest canonical Challenge state.</p></StatePanel>;
   }
   if (phase === 'NOT_FOUND') {
-    return <StatePanel state="EMPTY" title="Challenge not found."><p>No Stage-C Challenge exists for <code>{challengeId}</code>.</p></StatePanel>;
+    return <StatePanel state="EMPTY" title="Challenge not found."><p>This Challenge does not exist or is no longer available.</p></StatePanel>;
   }
   if (phase === 'ERROR' || !view) {
-    return <StatePanel state="ERROR" title="Challenge transport failed."><p>The UI will not substitute mutable Mission or Project state.</p></StatePanel>;
+    return <StatePanel state="ERROR" title="We couldn't load this Challenge."><p>No fallback or stale Project data is substituted.</p></StatePanel>;
   }
 
+  const summary = view.contract_summary;
+  const slotsLeft = Math.max(0, view.slot_limit - view.entry_count);
+  const joinOpen = view.status === 'ENTRY_OPEN';
+  const entryDeadline = new Date(view.entry_deadline).toLocaleString();
+  const submissionDeadline = new Date(view.submission_deadline).toLocaleString();
+
+  const statusCopy = (() => {
+    if (view.status === 'DRAFT') {
+      return view.has_frozen_contract
+        ? {label: 'RULES LOCKED · NOT OPEN', detail: 'The rules are frozen, but this Challenge has not completed funding and opening yet.'}
+        : {label: 'DRAFT · RULES NOT LOCKED', detail: 'The organizer is still defining what counts as done.'};
+    }
+    if (view.status === 'AWAITING_FUNDING') return {label: 'WAITING FOR FUNDING', detail: 'Builder seats open only after canonical funding is confirmed.'};
+    if (view.status === 'FUNDED') return {label: 'FUNDED · NOT OPEN YET', detail: 'Funding is confirmed. The organizer still needs to open builder entries.'};
+    if (view.status === 'ENTRY_OPEN') return {label: 'OPEN FOR BUILDERS', detail: `${slotsLeft} of ${view.slot_limit} builder slots remain.`};
+    if (view.status === 'BUILDING') return {label: 'BUILDING', detail: 'Entry is closed. Seated builders are now building.'};
+    return {label: view.status.replaceAll('_', ' '), detail: 'This Challenge has moved past open entry.'};
+  })();
+
+  const join = async () => {
+    if (!challengeId || !joinOpen || !payoutIdentity.trim()) return;
+    setJoinPhase('LOADING');
+    try {
+      await api.joinChallenge(challengeId, joinRequestId, joinEntryId, payoutIdentity.trim());
+      setJoinPhase('JOINED');
+      await refresh(challengeId).catch(() => null);
+    } catch (cause) {
+      if (cause instanceof InkubatorApiError && cause.status === 401) {
+        setJoinPhase('AUTH_REQUIRED');
+        return;
+      }
+      if (cause instanceof InkubatorApiError && cause.status === 403 && cause.message === 'challenge_organizer_cannot_build') {
+        setJoinPhase('ORGANIZER');
+        return;
+      }
+      setJoinPhase('ERROR');
+    }
+  };
+
   return (
-    <StatePanel state="NORMAL" title={`Challenge ${view.status}.`}>
-      <dl className="challenge-facts" aria-label="Canonical Challenge facts">
-        <div><dt>CHALLENGE</dt><dd><code>{view.challenge_id}</code></dd></div>
-        <div><dt>TERMS</dt><dd>{view.current_terms_digest ?? 'NOT FROZEN'}</dd></div>
-        <div><dt>CONTRACT</dt><dd>{view.current_contract_version ?? 'DRAFT'} / {view.has_frozen_contract ? 'FROZEN' : 'UNFROZEN'}</dd></div>
-        <div><dt>SLOTS</dt><dd>{view.entry_count} / {view.slot_limit} · activation minimum {view.activation_minimum}</dd></div>
-        <div><dt>BUILD START</dt><dd>{view.build_start}</dd></div>
-        <div><dt>SUBMISSION DEADLINE</dt><dd>{view.submission_deadline}</dd></div>
-        <div><dt>EVIDENCE COUNTS</dt><dd>{view.submission_count} submissions · {view.qualification_count} qualifications · {view.receipt_count} receipts</dd></div>
-      </dl>
-      <p className="challenge-state__foot">PUBLIC PROJECTION ONLY — PAYOUT IDENTITIES AND PRIVATE ENTRY DATA ARE NOT EXPOSED.</p>
-    </StatePanel>
+    <article className="challenge-human" aria-labelledby="challenge-human-title">
+      <header className="challenge-human__hero">
+        <div>
+          <small>{statusCopy.label}</small>
+          <h2 id="challenge-human-title">{summary?.title ?? 'DRAFT CHALLENGE'}</h2>
+          <p>{summary?.brief ?? 'The organizer has not locked the public build brief yet.'}</p>
+        </div>
+        <div className="challenge-human__metrics" aria-label="Challenge essentials">
+          <span><small>PRIZE</small><strong>{summary?.prize_display ?? (view.status === 'DRAFT' ? 'NOT LIVE' : summary?.settlement_asset ?? 'NOT LIVE')}</strong></span>
+          <span><small>SLOTS</small><strong>{view.entry_count} / {view.slot_limit}</strong></span>
+          <span><small>JOIN BY</small><strong>{entryDeadline}</strong></span>
+        </div>
+      </header>
+
+      <section className="challenge-human__status" data-challenge-status={view.status.toLowerCase()}>
+        <strong>{statusCopy.label}</strong>
+        <span>{statusCopy.detail}</span>
+      </section>
+
+      <section className="challenge-human__done" aria-labelledby="challenge-done-title">
+        <small>BUILD CONTRACT</small>
+        <h3 id="challenge-done-title">WHAT COUNTS AS DONE</h3>
+        {summary?.done_when.length ? (
+          <ul>
+            {summary.done_when.map((criterion) => (
+              <li key={`${criterion.source}:${criterion.id}`}>
+                <span aria-hidden="true">{criterion.mandatory ? '□' : '○'}</span>
+                <span>{criterion.description}</span>
+                <small>{criterion.mandatory ? 'REQUIRED' : 'OPTIONAL'} · {criterion.source}</small>
+              </li>
+            ))}
+          </ul>
+        ) : <p>The frozen Done When checklist is not available yet.</p>}
+      </section>
+
+      <section className="challenge-human__action" aria-labelledby="challenge-next-title">
+        <small>NEXT ACTION</small>
+        <h3 id="challenge-next-title">{joinOpen ? 'JOIN THIS CHALLENGE' : 'NOT OPEN FOR BUILDERS YET'}</h3>
+        {joinOpen ? (
+          <>
+            <p>Reserve one builder slot. Your payout identity is part of the funded Challenge entry record and cannot be inferred from GitHub.</p>
+            <label htmlFor="challenge-payout-identity">PRIZE PAYOUT IDENTITY</label>
+            <input
+              id="challenge-payout-identity"
+              value={payoutIdentity}
+              onChange={(event) => setPayoutIdentity(event.target.value)}
+              placeholder="Where a prize would be paid"
+              autoComplete="off"
+            />
+            <button type="button" disabled={!payoutIdentity.trim() || joinPhase === 'LOADING' || joinPhase === 'JOINED'} onClick={() => void join()}>
+              {joinPhase === 'LOADING' ? 'RESERVING SLOT…' : joinPhase === 'JOINED' ? 'SEAT RESERVED' : 'JOIN CHALLENGE →'}
+            </button>
+            {joinPhase === 'AUTH_REQUIRED' ? <p className="challenge-human__notice">Connect GitHub to join. <a href="/v1/auth/github/start">CONTINUE WITH GITHUB →</a></p> : null}
+            {joinPhase === 'ORGANIZER' ? <p className="challenge-human__notice">You created this Challenge, so you cannot take a builder seat in it. Use a separate builder account for rehearsal.</p> : null}
+            {joinPhase === 'ERROR' ? <p className="challenge-human__notice">REKT could not reserve the seat. The Challenge may have closed or filled; refresh the canonical state and try again.</p> : null}
+          </>
+        ) : (
+          <p>{statusCopy.detail} Joining only becomes available in canonical <code>ENTRY_OPEN</code> state.</p>
+        )}
+      </section>
+
+      <details className="challenge-human__technical">
+        <summary>TECHNICAL CHALLENGE DETAILS</summary>
+        <dl className="challenge-facts" aria-label="Canonical Challenge facts">
+          <div><dt>CHALLENGE</dt><dd><code>{view.challenge_id}</code></dd></div>
+          <div><dt>STATE</dt><dd>{view.status}</dd></div>
+          <div><dt>TERMS</dt><dd>{view.current_terms_digest ?? 'NOT FROZEN'}</dd></div>
+          <div><dt>CONTRACT</dt><dd>{view.current_contract_version ?? 'DRAFT'} / {view.has_frozen_contract ? 'FROZEN' : 'UNFROZEN'}</dd></div>
+          <div><dt>ACTIVATION MINIMUM</dt><dd>{view.activation_minimum}</dd></div>
+          <div><dt>BUILD START</dt><dd>{new Date(view.build_start).toLocaleString()}</dd></div>
+          <div><dt>SUBMIT BY</dt><dd>{submissionDeadline}</dd></div>
+          <div><dt>EVIDENCE</dt><dd>{view.submission_count} submissions · {view.qualification_count} qualifications · {view.receipt_count} receipts</dd></div>
+        </dl>
+      </details>
+    </article>
   );
 }
 
