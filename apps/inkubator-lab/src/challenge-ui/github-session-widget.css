@@ -114,7 +114,8 @@
   width: min(340px, calc(100vw - 24px));
   padding: 14px;
   border: 1px solid currentColor;
-  background: var(--challenge-paper, #f2efe5);
+  background: #f3eff8;
+  color: #0d0d0f;
   box-shadow: 8px 8px 0 rgba(0, 0, 0, .16);
 }
 
