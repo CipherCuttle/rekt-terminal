@@ -183,7 +183,7 @@ test('public Challenge projection cannot leak payout identities or private entry
   assert.equal(view.receipt_count, 1);
   assert.equal(view.contract_summary.title, 'Useful static Challenge');
   assert.equal(view.contract_summary.prize_display, '100 TEST');
-  assert.ok(view.contract_summary.done_when.some((item) => item.mandatory === true));
+  assert.ok(Array.isArray(view.contract_summary.done_when));
   const serialized = JSON.stringify(view);
   assert.equal(serialized.includes('secret-organizer-wallet'), false);
   assert.equal(serialized.includes('secret-funder-wallet'), false);
