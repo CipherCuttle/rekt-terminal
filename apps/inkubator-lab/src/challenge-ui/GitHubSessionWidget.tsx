@@ -106,7 +106,7 @@ export function GitHubSessionWidget({api}: {api: GitHubSessionWidgetApi}) {
         {avatar ? <img src={avatar} alt="" width="32" height="32" referrerPolicy="no-referrer" /> : <span className="github-session-widget__mark">GH</span>}
         <span className="github-session-widget__identity">
           <strong>{login ? `@${login}` : state.connection.player.display_name}</strong>
-          <small>{connected ? 'GitHub connected' : 'GitHub attention needed'}</small>
+          <small>{sessionRemaining?.expired ? 'REKT session expired' : sessionRemaining?.expiring ? `Session ends in ${sessionRemaining.text}` : connected ? `REKT session · ${sessionRemaining?.text ?? 'active'}` : 'GitHub attention needed'}</small>
         </span>
         <span
           className="github-session-widget__dot"
@@ -116,7 +116,7 @@ export function GitHubSessionWidget({api}: {api: GitHubSessionWidgetApi}) {
       </summary>
 
       <div className="github-session-widget__panel">
-        <div className="github-session-widget__row"><span>GITHUB</span><strong>{connected ? 'CONNECTED' : 'NOT CONNECTED'}</strong></div>
+        <div className="github-session-widget__row"><span>GITHUB APP</span><strong>{connected ? 'INSTALLED / AUTHORIZED' : 'ATTENTION NEEDED'}</strong></div>
         <div className="github-session-widget__row"><span>REPOSITORIES</span><strong>{repoAuthorized ? state.repositories.length : 'NO ACCESS'}</strong></div>
         <div className="github-session-widget__row"><span>REKT SESSION</span><strong>{sessionRemaining?.text ?? 'UNKNOWN'}</strong></div>
         <div className="github-session-widget__row"><span>STEP-UP</span><strong>10 MIN FOR SENSITIVE GITHUB CHANGES</strong></div>
