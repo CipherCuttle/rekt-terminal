@@ -30,7 +30,7 @@ test('H2 public challenge projection cannot leak restricted submission/archive m
   const sentinel = 'PRIVATE_SOURCE_SENTINEL_H2';
   const snapshot = {
     challenge: challengeRow(),
-    contract: {contract_version: 'h2-fixture-v1', terms_digest: 'a'.repeat(64)},
+    contract: null,
     entries: [],
     submissions: [{
       submission_id: '33333333-3333-4333-8333-333333333333',
