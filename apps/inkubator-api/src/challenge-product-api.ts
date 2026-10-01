@@ -16,6 +16,7 @@ import {
   type CompilerState,
 } from '@rekt-ink/protocol/compiler';
 import {
+  acquireChallengeSeat,
   createChallenge,
   persistFrozenBuildContract,
   readChallengeSnapshot,
@@ -79,6 +80,16 @@ export interface PublicChallengeView {
     settlement_asset: string;
     done_when: Array<{id: string; description: string; mandatory: boolean; source: 'OUTCOME' | 'PRODUCTION' | 'DELIVERY'}>;
   };
+}
+
+export interface ChallengeEntryPrivateView {
+  schema_version: 'challenge.entry.private.v1';
+  entry_id: string;
+  challenge_id: string;
+  state: string;
+  build_start: string | null;
+  submission_deadline: string | null;
+  created_at: string;
 }
 
 export interface BuildContractPreviewAuthorityInput {
@@ -312,6 +323,58 @@ export function registerStageEChallengeProductRoutes(app: FastifyInstance, db: I
         return apiError(reply, 409, message);
       }
       if (message.startsWith('invalid_')) return apiError(reply, 400, 'challenge_create_invalid');
+      throw cause;
+    }
+  });
+
+  app.post('/v1/challenges/:challengeId/entries', async (request, reply) => {
+    const {challengeId} = request.params as {challengeId: string};
+    const actorPlayerId = await authenticatedPlayerId(request, db);
+    if (!actorPlayerId) return apiError(reply, 401, 'authentication_required');
+    const body = request.body as {request_id?: unknown; entry_id?: unknown; payout_identity?: unknown} | null;
+    if (
+      typeof body?.request_id !== 'string'
+      || typeof body.entry_id !== 'string'
+      || typeof body.payout_identity !== 'string'
+      || !body.payout_identity.trim()
+    ) {
+      return apiError(reply, 400, 'challenge_entry_invalid');
+    }
+
+    try {
+      const entry = await acquireChallengeSeat(db, {
+        requestId: body.request_id,
+        entryId: body.entry_id,
+        challengeId,
+        builderPlayerId: actorPlayerId,
+        payoutIdentity: body.payout_identity.trim(),
+        projectId: null,
+        missionId: null,
+      });
+      reply.header('cache-control', 'no-store');
+      const view: ChallengeEntryPrivateView = {
+        schema_version: 'challenge.entry.private.v1',
+        entry_id: entry.entry_id,
+        challenge_id: entry.challenge_id,
+        state: entry.state,
+        build_start: entry.build_start?.toISOString() ?? null,
+        submission_deadline: entry.submission_deadline?.toISOString() ?? null,
+        created_at: entry.created_at.toISOString(),
+      };
+      return reply.code(201).send(view);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'challenge_entry_failed';
+      if (message === 'challenge_not_found') return apiError(reply, 404, message);
+      if (message === 'challenge_organizer_cannot_build') return apiError(reply, 403, message);
+      if (
+        message === 'challenge_entry_not_open'
+        || message === 'challenge_slot_limit_reached'
+        || message === 'challenge_entry_uniqueness_conflict'
+        || message === 'challenge_reserved_payout_identity_missing'
+        || message === 'challenge_reserved_payout_identity_cannot_build'
+        || message.includes('idempotency_conflict')
+      ) return apiError(reply, 409, message);
+      if (message.startsWith('invalid_')) return apiError(reply, 400, 'challenge_entry_invalid');
       throw cause;
     }
   });
