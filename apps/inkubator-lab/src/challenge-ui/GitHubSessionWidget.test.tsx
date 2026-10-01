@@ -7,7 +7,7 @@ afterEach(() => cleanup());
 
 function readyApi(overrides: Partial<GitHubSessionWidgetApi> = {}): GitHubSessionWidgetApi {
   return {
-    getSession: vi.fn(async () => ({
+    getSession: vi.fn<GitHubSessionWidgetApi['getSession']>(async () => ({
       schema_version: 'session.private.v1',
       player: {
         schema_version: 'player.private.v1',
@@ -18,7 +18,7 @@ function readyApi(overrides: Partial<GitHubSessionWidgetApi> = {}): GitHubSessio
       },
       expires_at: '2099-09-14T08:00:00.000Z',
     })),
-    getConnectionContext: vi.fn(async () => ({
+    getConnectionContext: vi.fn<GitHubSessionWidgetApi['getConnectionContext']>(async () => ({
       schema_version: 'player.connection_context.private.v1',
       player: {player_id: '22222222-2222-4222-8222-222222222222', display_name: 'Builder'},
       github: {user_id: '12345', login: 'builder'},
@@ -37,11 +37,11 @@ function readyApi(overrides: Partial<GitHubSessionWidgetApi> = {}): GitHubSessio
         last_observed_at: null,
       },
     })),
-    getGitHubRepositories: vi.fn(async () => [
+    getGitHubRepositories: vi.fn<GitHubSessionWidgetApi['getGitHubRepositories']>(async () => [
       {repository_id: '1', full_name: 'owner/one', private: false},
       {repository_id: '2', full_name: 'owner/two', private: true},
     ]),
-    signOut: vi.fn(async () => undefined),
+    signOut: vi.fn<GitHubSessionWidgetApi['signOut']>(async () => undefined),
     ...overrides,
   };
 }
