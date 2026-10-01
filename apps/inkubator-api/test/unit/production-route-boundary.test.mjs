@@ -35,6 +35,7 @@ function buildOptions(github = false, extra = {}) {
 
 test('production route manifest rejects legacy or missing routes', () => {
   assert.ok(FUNDED_CHALLENGE_CORE_ROUTES.includes('DELETE /v1/sessions'));
+  assert.ok(FUNDED_CHALLENGE_CORE_ROUTES.includes('POST /v1/challenges'));
   assert.doesNotThrow(() => assertProductionRouteInventory(FUNDED_CHALLENGE_CORE_ROUTES, false));
   assert.doesNotThrow(() => assertProductionRouteInventory(
     [...FUNDED_CHALLENGE_CORE_ROUTES, ...FUNDED_CHALLENGE_GITHUB_ROUTES],
@@ -70,6 +71,15 @@ test('canonical production builder boots with and without GitHub routes', async 
 
     const legacy = await app.inject({method: 'GET', url: '/v1/world/signals'});
     assert.equal(legacy.statusCode, 404);
+
+    const createDraft = await app.inject({
+      method: 'POST',
+      url: '/v1/challenges',
+      headers: {origin: appOrigin, 'content-type': 'application/json'},
+      payload: {},
+    });
+    assert.equal(createDraft.statusCode, 401);
+    assert.deepEqual(createDraft.json(), {error: 'authentication_required'});
 
     const privileged = await app.inject({
       method: 'POST',
