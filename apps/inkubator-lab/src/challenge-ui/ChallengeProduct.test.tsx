@@ -149,7 +149,7 @@ const frozenDraftChallenge: PublicChallengeView = {
 function api(overrides: Partial<ChallengeProductApi> = {}): ChallengeProductApi {
   return {
     createDraftChallenge: vi.fn(async () => publicChallenge),
-    joinChallenge: vi.fn(async () => ({
+    joinChallenge: vi.fn<ChallengeProductApi['joinChallenge']>(async () => ({
       schema_version: 'challenge.entry.private.v1',
       entry_id: '33333333-3333-4333-8333-333333333333',
       challenge_id: publicChallenge.challenge_id,
@@ -162,7 +162,7 @@ function api(overrides: Partial<ChallengeProductApi> = {}): ChallengeProductApi 
     getChallenge: vi.fn(async () => publicChallenge),
     previewBuildContract: vi.fn(async () => contractPreview),
     persistBuildContract: vi.fn(async () => canonicalContract),
-    getSession: vi.fn(async () => ({
+    getSession: vi.fn<ChallengeProductApi['getSession']>(async () => ({
       schema_version: 'session.private.v1',
       player: {
         schema_version: 'player.private.v1',
@@ -173,7 +173,7 @@ function api(overrides: Partial<ChallengeProductApi> = {}): ChallengeProductApi 
       },
       expires_at: '2099-09-14T08:00:00.000Z',
     })),
-    getConnectionContext: vi.fn(async () => ({
+    getConnectionContext: vi.fn<ChallengeProductApi['getConnectionContext']>(async () => ({
       schema_version: 'player.connection_context.private.v1',
       player: {player_id: '22222222-2222-4222-8222-222222222222', display_name: 'Builder'},
       github: {user_id: '12345', login: 'builder'},
@@ -192,8 +192,8 @@ function api(overrides: Partial<ChallengeProductApi> = {}): ChallengeProductApi 
         last_observed_at: null,
       },
     })),
-    getGitHubRepositories: vi.fn(async () => []),
-    signOut: vi.fn(async () => undefined),
+    getGitHubRepositories: vi.fn<ChallengeProductApi['getGitHubRepositories']>(async () => []),
+    signOut: vi.fn<ChallengeProductApi['signOut']>(async () => undefined),
     ...overrides,
   };
 }
