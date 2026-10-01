@@ -4,6 +4,7 @@ import {
   InkubatorApiError,
   type BuildContractPreviewAuthorityInput,
   type BuildContractPreviewView,
+  type ChallengeEntryPrivateView,
   type CanonicalBuildContractView,
   type CompilerInputProvenance,
   type CompilerProposalInput,
@@ -75,6 +76,12 @@ export function buildCompilerProposal(
 
 export interface ChallengeProductApi extends GitHubSessionWidgetApi {
   createDraftChallenge(body: CreateDraftChallengeInput): Promise<PublicChallengeView>;
+  joinChallenge(
+    challengeId: string,
+    requestId: string,
+    entryId: string,
+    payoutIdentity: string,
+  ): Promise<ChallengeEntryPrivateView>;
   compileChallenge(body: CompilerProposalInput): Promise<CompilerStateView>;
   getChallenge(challengeId: string): Promise<PublicChallengeView>;
   previewBuildContract(
