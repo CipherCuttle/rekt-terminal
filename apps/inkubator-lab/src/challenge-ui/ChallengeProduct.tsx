@@ -227,8 +227,8 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const [appealWindowHours, setAppealWindowHours] = useState('');
   const [createPhase, setCreatePhase] = useState<'IDLE' | 'LOADING' | 'AUTH_REQUIRED' | 'ERROR'>('IDLE');
   const [draftHydrated, setDraftHydrated] = useState(false);
-  const [draftRequestId, setDraftRequestId] = useState(() => crypto.randomUUID());
-  const [draftChallengeId, setDraftChallengeId] = useState(() => crypto.randomUUID());
+  const [draftRequestId, setDraftRequestId] = useState<string>(() => crypto.randomUUID());
+  const [draftChallengeId, setDraftChallengeId] = useState<string>(() => crypto.randomUUID());
   const compilerRequestRevision = useRef(0);
 
   useEffect(() => {
