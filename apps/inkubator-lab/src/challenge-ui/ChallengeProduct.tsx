@@ -21,6 +21,7 @@ import {
 } from './state';
 import './challenge-product.css';
 import './compiler-stage-e.css';
+import {GitHubSessionWidget, type GitHubSessionWidgetApi} from './GitHubSessionWidget';
 
 const STATE_COPY: Record<SurfaceState, string> = {
   NORMAL: 'READY / SOURCE-BOUND',
@@ -72,7 +73,7 @@ export function buildCompilerProposal(
   };
 }
 
-export interface ChallengeProductApi {
+export interface ChallengeProductApi extends GitHubSessionWidgetApi {
   createDraftChallenge(body: CreateDraftChallengeInput): Promise<PublicChallengeView>;
   compileChallenge(body: CompilerProposalInput): Promise<CompilerStateView>;
   getChallenge(challengeId: string): Promise<PublicChallengeView>;
@@ -811,7 +812,10 @@ export default function ChallengeProduct({initialSurface = 'DISCOVER', api = DEF
       <header className="challenge-topbar">
         <a className="challenge-brand" href="?surface=discover"><strong>REKT<i>//</i></strong><span>INKUBATOR</span></a>
         <span className="challenge-purpose">BUILD CHALLENGES</span>
-        <span className="challenge-authority">LOCK THE RULES. SHIP THE THING.</span>
+        <div className="challenge-topbar__right">
+          <span className="challenge-authority">LOCK THE RULES. SHIP THE THING.</span>
+          <GitHubSessionWidget api={api} />
+        </div>
       </header>
 
       <section className="challenge-heading">
