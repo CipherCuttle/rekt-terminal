@@ -1,12 +1,14 @@
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {
   createInkubatorApiClient,
+  InkubatorApiError,
   type BuildContractPreviewAuthorityInput,
   type BuildContractPreviewView,
   type CanonicalBuildContractView,
   type CompilerInputProvenance,
   type CompilerProposalInput,
   type CompilerStateView,
+  type CreateDraftChallengeInput,
   type PublicChallengeView,
 } from '../inkubator-api';
 import {
@@ -71,6 +73,7 @@ export function buildCompilerProposal(
 }
 
 export interface ChallengeProductApi {
+  createDraftChallenge(body: CreateDraftChallengeInput): Promise<PublicChallengeView>;
   compileChallenge(body: CompilerProposalInput): Promise<CompilerStateView>;
   getChallenge(challengeId: string): Promise<PublicChallengeView>;
   previewBuildContract(
@@ -215,6 +218,14 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const [persistRequestId, setPersistRequestId] = useState<string | null>(null);
   const [persistPhase, setPersistPhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
   const [canonicalContract, setCanonicalContract] = useState<CanonicalBuildContractView | null>(null);
+  const [slotLimit, setSlotLimit] = useState('');
+  const [activationMinimum, setActivationMinimum] = useState('');
+  const [entryDeadline, setEntryDeadline] = useState('');
+  const [buildStart, setBuildStart] = useState('');
+  const [submissionDeadline, setSubmissionDeadline] = useState('');
+  const [reviewDeadline, setReviewDeadline] = useState('');
+  const [appealWindowHours, setAppealWindowHours] = useState('');
+  const [createPhase, setCreatePhase] = useState<'IDLE' | 'LOADING' | 'AUTH_REQUIRED' | 'ERROR'>('IDLE');
   const compilerRequestRevision = useRef(0);
 
   useEffect(() => {
@@ -300,6 +311,49 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
       prize_minor_units: prize,
       settlement_asset: settlementAsset.trim(),
     };
+  };
+
+  const createDraftChallenge = async () => {
+    const slot = Number(slotLimit);
+    const activation = Number(activationMinimum);
+    const entryMs = Date.parse(entryDeadline);
+    const buildMs = Date.parse(buildStart);
+    const submissionMs = Date.parse(submissionDeadline);
+    const reviewMs = Date.parse(reviewDeadline);
+    const appealHours = Number(appealWindowHours);
+    if (
+      !Number.isSafeInteger(slot) || slot < 1
+      || !Number.isSafeInteger(activation) || activation < 1 || activation > slot
+      || !Number.isSafeInteger(entryMs) || !Number.isSafeInteger(buildMs)
+      || !Number.isSafeInteger(submissionMs) || !Number.isSafeInteger(reviewMs)
+      || !Number.isFinite(appealHours) || appealHours <= 0
+      || entryMs > buildMs || buildMs >= submissionMs || submissionMs > reviewMs
+    ) return;
+
+    const challengeId = crypto.randomUUID();
+    setCreatePhase('LOADING');
+    try {
+      const created = await api.createDraftChallenge({
+        request_id: crypto.randomUUID(),
+        challenge_id: challengeId,
+        slot_limit: slot,
+        activation_minimum: activation,
+        entry_deadline_ms: entryMs,
+        build_start_ms: buildMs,
+        submission_deadline_ms: submissionMs,
+        appeal_window_ms: Math.round(appealHours * 60 * 60 * 1000),
+        review_deadline_ms: reviewMs,
+      });
+      const url = new URL(window.location.href);
+      url.searchParams.set('surface', 'compiler');
+      url.searchParams.set('challenge', created.challenge_id);
+      window.history.replaceState({challengeSurface: 'COMPILER'}, '', url);
+      setChallengeView(created);
+      setChallengePhase('IDLE');
+      setCreatePhase('IDLE');
+    } catch (cause) {
+      setCreatePhase(cause instanceof InkubatorApiError && cause.status === 401 ? 'AUTH_REQUIRED' : 'ERROR');
+    }
   };
 
   const previewContract = async () => {
@@ -458,7 +512,30 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         <h2 id="compiler-contract-title">WHAT COUNTS AS DONE</h2>
         <p>Review the exact rules builders will compete against. Technical contract evidence stays inspectable, but nothing is locked until the final server-confirmed step.</p>
 
-        {!challengeId ? <p className="compiler-contract__notice">A DRAFT CHALLENGE IS REQUIRED BEFORE RULES CAN BE LOCKED. THIS HANDOFF IS NOT CONNECTED IN THE FORWARD FLOW YET.</p> : null}
+        {!challengeId ? (
+          <section className="compiler-draft-setup" aria-labelledby="compiler-draft-setup-title">
+            <small>CHALLENGE SETUP / DRAFT</small>
+            <h3 id="compiler-draft-setup-title">SET THE BUILD WINDOW</h3>
+            <p>Create the real draft Challenge first. No payout rail is configured and nothing here authorizes production money.</p>
+            <div className="compiler-contract__fields">
+              <label htmlFor="draft-slots">BUILDER SLOTS<input id="draft-slots" inputMode="numeric" value={slotLimit} onChange={(event) => setSlotLimit(event.target.value)} placeholder="6" /></label>
+              <label htmlFor="draft-activation">MINIMUM BUILDERS<input id="draft-activation" inputMode="numeric" value={activationMinimum} onChange={(event) => setActivationMinimum(event.target.value)} placeholder="2" /></label>
+              <label htmlFor="draft-entry-deadline">JOIN CLOSES<input id="draft-entry-deadline" type="datetime-local" value={entryDeadline} onChange={(event) => setEntryDeadline(event.target.value)} /></label>
+              <label htmlFor="draft-build-start">BUILD STARTS<input id="draft-build-start" type="datetime-local" value={buildStart} onChange={(event) => setBuildStart(event.target.value)} /></label>
+              <label htmlFor="draft-submit-deadline">SUBMIT BY<input id="draft-submit-deadline" type="datetime-local" value={submissionDeadline} onChange={(event) => setSubmissionDeadline(event.target.value)} /></label>
+              <label htmlFor="draft-review-deadline">REVIEW BY<input id="draft-review-deadline" type="datetime-local" value={reviewDeadline} onChange={(event) => setReviewDeadline(event.target.value)} /></label>
+              <label htmlFor="draft-appeal-window">APPEAL WINDOW / HOURS<input id="draft-appeal-window" inputMode="decimal" value={appealWindowHours} onChange={(event) => setAppealWindowHours(event.target.value)} placeholder="24" /></label>
+            </div>
+            <div className="compiler-contract__actions">
+              <button type="button" disabled={createPhase === 'LOADING'} onClick={() => void createDraftChallenge()}>
+                {createPhase === 'LOADING' ? 'CREATING DRAFT…' : 'CREATE DRAFT CHALLENGE'}
+              </button>
+              <span>{createPhase === 'AUTH_REQUIRED' ? 'SIGN IN REQUIRED' : createPhase === 'ERROR' ? 'DRAFT CREATION FAILED' : 'NOTHING IS LOCKED YET'}</span>
+            </div>
+            {createPhase === 'AUTH_REQUIRED' ? <p className="compiler-contract__notice">SIGN IN TO CREATE THIS DRAFT. <a href="/v1/auth/github/start">CONTINUE WITH GITHUB →</a></p> : null}
+            {createPhase === 'ERROR' ? <p className="compiler-contract__notice">THE DRAFT COULD NOT BE CREATED. CHECK THE SCHEDULE AND TRY AGAIN.</p> : null}
+          </section>
+        ) : null}
         {challengePhase === 'LOADING' ? <p className="compiler-contract__notice">READING CHALLENGE AUTHORITY…</p> : null}
         {challengePhase === 'NOT_FOUND' ? <p className="compiler-contract__notice">CHALLENGE NOT FOUND.</p> : null}
         {challengePhase === 'ERROR' ? <p className="compiler-contract__notice">{canonicalContract ? 'CANONICAL CONTRACT PERSISTED — CHALLENGE PROJECTION REFRESH UNAVAILABLE.' : 'CHALLENGE TRANSPORT ERROR — freeze disabled.'}</p> : null}
