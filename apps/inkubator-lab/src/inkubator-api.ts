@@ -1,4 +1,11 @@
-import {InkubatorApiClient, InkubatorApiError, type FetchLike} from './generated/inkubator-api-client';
+import {
+  InkubatorApiClient,
+  InkubatorApiError,
+  type ConnectionContext,
+  type FetchLike,
+  type GitHubRepositoryChoices,
+  type SessionView,
+} from './generated/inkubator-api-client';
 export {InkubatorApiError} from './generated/inkubator-api-client';
 
 const platformFetch: FetchLike = (input, init) => globalThis.fetch(input, init);
@@ -62,6 +69,13 @@ export interface PublicChallengeView {
   receipt_count: number;
   created_at: string;
   updated_at: string;
+  contract_summary: null | {
+    title: string;
+    brief: string;
+    prize_display: string | null;
+    settlement_asset: string;
+    done_when: Array<{id: string; description: string; mandatory: boolean; source: 'OUTCOME' | 'PRODUCTION' | 'DELIVERY'}>;
+  };
 }
 
 export type CompilerInputProvenance = 'SOURCE' | 'MODEL_PROPOSAL' | 'ORGANIZER_ACCEPTED';
@@ -161,6 +175,25 @@ export class InkubatorProductApiClient extends InkubatorApiClient {
       throw new InkubatorApiError(response.status, message);
     }
     return await response.json() as T;
+  }
+
+  async getSession(): Promise<SessionView> {
+    return this.productRequest<SessionView>('/v1/session', {method: 'GET'});
+  }
+
+  async getConnectionContext(): Promise<ConnectionContext> {
+    return this.productRequest<ConnectionContext>('/v1/me/connection', {method: 'GET'});
+  }
+
+  async getGitHubRepositories(): Promise<GitHubRepositoryChoices> {
+    return this.productRequest<GitHubRepositoryChoices>('/v1/github/repositories', {method: 'GET'});
+  }
+
+  async signOut(): Promise<void> {
+    await this.productFetch(
+      `${this.productBaseUrl.replace(/\/$/, '')}/v1/session`,
+      {method: 'DELETE', credentials: 'include', headers: {origin: window.location.origin}},
+    );
   }
 
   async getProjectPendingAssists(projectId: string): Promise<ProjectPendingAssistsView> {
