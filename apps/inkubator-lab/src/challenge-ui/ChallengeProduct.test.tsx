@@ -229,10 +229,10 @@ describe('Stage E Challenge product shell', () => {
     ]);
     expect(screen.getByText('ORGANIZER_ACCEPTED', {selector: 'small'})).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText('CONTRACT VERSION'), {target: {value: '1.0.0'}});
-    fireEvent.change(screen.getByLabelText('TITLE'), {target: {value: 'Static launch Challenge'}});
+    fireEvent.change(screen.getByLabelText('VERSION'), {target: {value: '1.0.0'}});
+    fireEvent.change(screen.getByLabelText('CHALLENGE TITLE'), {target: {value: 'Static launch Challenge'}});
     fireEvent.change(screen.getByLabelText('PRIZE / TEST VALUE'), {target: {value: '100'}});
-    fireEvent.change(screen.getByLabelText('SETTLEMENT ASSET'), {target: {value: 'TEST'}});
+    fireEvent.change(screen.getByLabelText('TEST SETTLEMENT ASSET'), {target: {value: 'TEST'}});
     expect(previewButton.disabled).toBe(false);
     fireEvent.click(previewButton);
 
