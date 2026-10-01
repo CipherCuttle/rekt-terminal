@@ -253,7 +253,14 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
           draftChallengeId?: string;
         };
         if (typeof saved.sourceIntent === 'string') setSourceIntent(saved.sourceIntent);
-        if (saved.answers && typeof saved.answers === 'object') setAnswers(saved.answers);
+        if (saved.answers && typeof saved.answers === 'object') {
+          const restored = emptyRequirementAnswers();
+          for (const [key] of REQUIREMENTS) {
+            const value = saved.answers[key];
+            if (value === 'YES' || value === 'NO' || value === 'UNKNOWN') restored[key] = value;
+          }
+          setAnswers(restored);
+        }
         if (typeof saved.slotLimit === 'string') setSlotLimit(saved.slotLimit);
         if (typeof saved.activationMinimum === 'string') setActivationMinimum(saved.activationMinimum);
         if (typeof saved.entryDeadline === 'string') setEntryDeadline(saved.entryDeadline);
@@ -261,8 +268,9 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         if (typeof saved.submissionDeadline === 'string') setSubmissionDeadline(saved.submissionDeadline);
         if (typeof saved.reviewDeadline === 'string') setReviewDeadline(saved.reviewDeadline);
         if (typeof saved.appealWindowHours === 'string') setAppealWindowHours(saved.appealWindowHours);
-        if (typeof saved.draftRequestId === 'string') setDraftRequestId(saved.draftRequestId);
-        if (typeof saved.draftChallengeId === 'string') setDraftChallengeId(saved.draftChallengeId);
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (typeof saved.draftRequestId === 'string' && uuidPattern.test(saved.draftRequestId)) setDraftRequestId(saved.draftRequestId);
+        if (typeof saved.draftChallengeId === 'string' && uuidPattern.test(saved.draftChallengeId)) setDraftChallengeId(saved.draftChallengeId);
       }
     } catch {
       window.sessionStorage.removeItem('rekt-inkubator-create-draft-v1');
