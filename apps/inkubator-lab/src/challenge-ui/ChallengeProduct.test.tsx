@@ -171,6 +171,26 @@ describe('Stage E Challenge product shell', () => {
     expect(document.querySelector('[data-surface-state="unavailable_or_stale"]')).toBeTruthy();
   });
 
+  it('creates a canonical DRAFT Challenge context without manual query parameters', async () => {
+    const createDraftChallenge: ChallengeProductApi['createDraftChallenge'] = vi.fn(async () => draftChallenge);
+    window.history.replaceState({}, '', '/?surface=compiler');
+    render(<ChallengeProduct api={api({createDraftChallenge})} />);
+
+    fireEvent.change(screen.getByLabelText('BUILDER SLOTS'), {target: {value: '4'}});
+    fireEvent.change(screen.getByLabelText('MINIMUM BUILDERS'), {target: {value: '2'}});
+    fireEvent.change(screen.getByLabelText('JOIN CLOSES'), {target: {value: '2026-10-05T12:00'}});
+    fireEvent.change(screen.getByLabelText('BUILD STARTS'), {target: {value: '2026-10-05T12:00'}});
+    fireEvent.change(screen.getByLabelText('SUBMIT BY'), {target: {value: '2026-10-07T12:00'}});
+    fireEvent.change(screen.getByLabelText('REVIEW BY'), {target: {value: '2026-10-08T12:00'}});
+    fireEvent.change(screen.getByLabelText('APPEAL WINDOW / HOURS'), {target: {value: '24'}});
+    fireEvent.click(screen.getByRole('button', {name: /CREATE DRAFT CHALLENGE/i}));
+
+    await waitFor(() => expect(createDraftChallenge).toHaveBeenCalledTimes(1));
+    expect(new URL(window.location.href).searchParams.get('challenge')).toBe(draftChallenge.challenge_id);
+    expect(screen.getByText(draftChallenge.challenge_id, {selector: 'code'})).toBeTruthy();
+    expect(screen.queryByRole('heading', {name: 'SET THE BUILD WINDOW'})).toBeNull();
+  });
+
   it('compiles only explicit SOURCE requirements and renders deterministic compiler state', async () => {
     const compileChallenge = vi.fn(async (_body: CompilerProposalInput) => compilerState);
     render(<ChallengeProduct api={api({compileChallenge})} />);
