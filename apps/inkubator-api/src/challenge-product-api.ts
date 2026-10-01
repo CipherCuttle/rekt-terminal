@@ -240,13 +240,13 @@ export function registerStageEChallengeProductRoutes(app: FastifyInstance, db: I
       !body
       || typeof body.request_id !== 'string'
       || typeof body.challenge_id !== 'string'
-      || !Number.isSafeInteger(body.slot_limit)
-      || !Number.isSafeInteger(body.activation_minimum)
-      || !Number.isSafeInteger(body.entry_deadline_ms)
-      || !Number.isSafeInteger(body.build_start_ms)
-      || !Number.isSafeInteger(body.submission_deadline_ms)
-      || !Number.isSafeInteger(body.appeal_window_ms)
-      || !Number.isSafeInteger(body.review_deadline_ms)
+      || typeof body.slot_limit !== 'number' || !Number.isSafeInteger(body.slot_limit)
+      || typeof body.activation_minimum !== 'number' || !Number.isSafeInteger(body.activation_minimum)
+      || typeof body.entry_deadline_ms !== 'number' || !Number.isSafeInteger(body.entry_deadline_ms)
+      || typeof body.build_start_ms !== 'number' || !Number.isSafeInteger(body.build_start_ms)
+      || typeof body.submission_deadline_ms !== 'number' || !Number.isSafeInteger(body.submission_deadline_ms)
+      || typeof body.appeal_window_ms !== 'number' || !Number.isSafeInteger(body.appeal_window_ms)
+      || typeof body.review_deadline_ms !== 'number' || !Number.isSafeInteger(body.review_deadline_ms)
     ) {
       return apiError(reply, 400, 'challenge_create_invalid');
     }
