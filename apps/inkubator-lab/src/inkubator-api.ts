@@ -78,6 +78,16 @@ export interface PublicChallengeView {
   };
 }
 
+export interface ChallengeEntryPrivateView {
+  schema_version: 'challenge.entry.private.v1';
+  entry_id: string;
+  challenge_id: string;
+  state: string;
+  build_start: string | null;
+  submission_deadline: string | null;
+  created_at: string;
+}
+
 export type CompilerInputProvenance = 'SOURCE' | 'MODEL_PROPOSAL' | 'ORGANIZER_ACCEPTED';
 export interface CompilerProposalInput {
   schema_version: 'inkubator.compiler-proposal/1.0';
@@ -213,6 +223,26 @@ export class InkubatorProductApiClient extends InkubatorApiClient {
       headers: {'content-type': 'application/json'},
       body: JSON.stringify(body),
     });
+  }
+
+  async joinChallenge(
+    challengeId: string,
+    requestId: string,
+    entryId: string,
+    payoutIdentity: string,
+  ): Promise<ChallengeEntryPrivateView> {
+    return this.productRequest<ChallengeEntryPrivateView>(
+      `/v1/challenges/${encodeURIComponent(challengeId)}/entries`,
+      {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          request_id: requestId,
+          entry_id: entryId,
+          payout_identity: payoutIdentity,
+        }),
+      },
+    );
   }
 
   async getChallenge(challengeId: string): Promise<PublicChallengeView> {
