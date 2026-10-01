@@ -3,6 +3,8 @@ export type ProductionRouteSignature = `${string} ${string}`;
 export const FUNDED_CHALLENGE_CORE_ROUTES = Object.freeze([
   'GET /health',
   'GET /v1/me',
+  'GET /v1/session',
+  'GET /v1/me/connection',
   'DELETE /v1/session',
   'DELETE /v1/sessions',
   'GET /v1/challenges/:challengeId',
