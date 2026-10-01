@@ -282,10 +282,10 @@ describe('Stage E closure matrix', () => {
     fireEvent.click(screen.getByRole('button', {name: /USE THESE RULES/i}));
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(2));
 
-    fireEvent.change(screen.getByLabelText('CONTRACT VERSION'), {target: {value: '1.0.0'}});
-    fireEvent.change(screen.getByLabelText('TITLE'), {target: {value: 'Challenge'}});
+    fireEvent.change(screen.getByLabelText('VERSION'), {target: {value: '1.0.0'}});
+    fireEvent.change(screen.getByLabelText('CHALLENGE TITLE'), {target: {value: 'Challenge'}});
     fireEvent.change(screen.getByLabelText('PRIZE / TEST VALUE'), {target: {value: '100'}});
-    fireEvent.change(screen.getByLabelText('SETTLEMENT ASSET'), {target: {value: 'TEST'}});
+    fireEvent.change(screen.getByLabelText('TEST SETTLEMENT ASSET'), {target: {value: 'TEST'}});
     fireEvent.click(screen.getByRole('button', {name: /REVIEW LOCKED VERSION/i}));
     await waitFor(() => expect(previewBuildContract).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole('button', {name: /LOCK CHALLENGE RULES/i}));
