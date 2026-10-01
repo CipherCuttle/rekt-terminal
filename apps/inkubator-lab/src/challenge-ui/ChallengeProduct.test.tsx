@@ -148,6 +148,7 @@ function api(overrides: Partial<ChallengeProductApi> = {}): ChallengeProductApi 
 
 afterEach(() => {
   cleanup();
+  window.sessionStorage.clear();
   window.history.replaceState({}, '', '/');
 });
 
