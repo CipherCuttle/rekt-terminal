@@ -137,6 +137,7 @@ const frozenDraftChallenge: PublicChallengeView = {
 
 function api(overrides: Partial<ChallengeProductApi> = {}): ChallengeProductApi {
   return {
+    createDraftChallenge: vi.fn(async () => publicChallenge),
     compileChallenge: vi.fn(async (_body: CompilerProposalInput) => compilerState),
     getChallenge: vi.fn(async () => publicChallenge),
     previewBuildContract: vi.fn(async () => contractPreview),
