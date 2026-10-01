@@ -367,8 +367,17 @@ async function payoutIdentityByEntryIds(
 }
 
 function requireReservedPayoutAuthority(challenge: ChallengeRow): {organizer: string; funder: string} {
-  if (!challenge.organizer_payout_identity || !challenge.funder_payout_identity) throw new Error('challenge_reserved_payout_identity_missing');
-  return {organizer: challenge.organizer_payout_identity, funder: challenge.funder_payout_identity};
+  const organizer = challenge.organizer_payout_identity;
+  const funder = challenge.funder_payout_identity;
+  if (
+    !organizer
+    || !funder
+    || organizer.startsWith('UNCONFIGURED:')
+    || funder.startsWith('UNCONFIGURED:')
+  ) {
+    throw new Error('challenge_reserved_payout_identity_missing');
+  }
+  return {organizer, funder};
 }
 
 async function validateSettlementIntent(
