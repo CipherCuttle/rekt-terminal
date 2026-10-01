@@ -88,6 +88,15 @@ const publicChallenge: PublicChallengeView = {
   receipt_count: 0,
   created_at: '2026-09-14T00:00:00.000Z',
   updated_at: '2026-09-14T00:00:00.000Z',
+  contract_summary: {
+    title: 'Useful static Challenge',
+    brief: 'Build a public static launch page',
+    prize_display: '100 TEST',
+    settlement_asset: 'TEST',
+    done_when: [
+      {id: 'public-url', description: 'Public HTTPS URL loads.', mandatory: true, source: 'DELIVERY'},
+    ],
+  },
 };
 
 const draftChallenge: PublicChallengeView = {
@@ -102,6 +111,7 @@ const draftChallenge: PublicChallengeView = {
   entry_deadline: '2026-09-20T00:00:00.000Z',
   build_start: '2026-09-20T00:00:00.000Z',
   entry_count: 0,
+  contract_summary: null,
 };
 
 const contractPreview: BuildContractPreviewView = {
@@ -133,15 +143,57 @@ const frozenDraftChallenge: PublicChallengeView = {
   current_contract_version: canonicalContract.contract_version,
   current_terms_digest: canonicalContract.terms_digest,
   has_frozen_contract: true,
+  contract_summary: publicChallenge.contract_summary,
 };
 
 function api(overrides: Partial<ChallengeProductApi> = {}): ChallengeProductApi {
   return {
     createDraftChallenge: vi.fn(async () => publicChallenge),
+    joinChallenge: vi.fn(async () => ({
+      schema_version: 'challenge.entry.private.v1',
+      entry_id: '33333333-3333-4333-8333-333333333333',
+      challenge_id: publicChallenge.challenge_id,
+      state: 'SEATED',
+      build_start: null,
+      submission_deadline: null,
+      created_at: '2026-09-14T00:00:00.000Z',
+    })),
     compileChallenge: vi.fn(async (_body: CompilerProposalInput) => compilerState),
     getChallenge: vi.fn(async () => publicChallenge),
     previewBuildContract: vi.fn(async () => contractPreview),
     persistBuildContract: vi.fn(async () => canonicalContract),
+    getSession: vi.fn(async () => ({
+      schema_version: 'session.private.v1',
+      player: {
+        schema_version: 'player.private.v1',
+        player_id: '22222222-2222-4222-8222-222222222222',
+        display_name: 'Builder',
+        created_at: '2026-09-14T00:00:00.000Z',
+        updated_at: '2026-09-14T00:00:00.000Z',
+      },
+      expires_at: '2099-09-14T08:00:00.000Z',
+    })),
+    getConnectionContext: vi.fn(async () => ({
+      schema_version: 'player.connection_context.private.v1',
+      player: {player_id: '22222222-2222-4222-8222-222222222222', display_name: 'Builder'},
+      github: {user_id: '12345', login: 'builder'},
+      states: {
+        signed_in: 'SIGNED_IN',
+        app_access: 'GRANTED',
+        repository_authorized: 'AUTHORIZED',
+        project_linked: 'NOT_LINKED',
+        observing: 'NOT_OBSERVING',
+      },
+      source: {
+        repository_id: null,
+        repository_full_name: null,
+        visibility: 'NONE',
+        availability: 'NONE',
+        last_observed_at: null,
+      },
+    })),
+    getGitHubRepositories: vi.fn(async () => []),
+    signOut: vi.fn(async () => undefined),
     ...overrides,
   };
 }
@@ -319,10 +371,11 @@ describe('Stage E Challenge product shell', () => {
     render(<ChallengeProduct api={api({getChallenge})} />);
 
     await waitFor(() => expect(getChallenge).toHaveBeenCalledWith(publicChallenge.challenge_id));
-    expect(screen.getByText('Challenge ENTRY_OPEN.')).toBeTruthy();
+    expect(screen.getByRole('heading', {name: 'Useful static Challenge'})).toBeTruthy();
+    expect(screen.getByText('OPEN FOR BUILDERS', {selector: 'strong'})).toBeTruthy();
+    expect(screen.getByText('Public HTTPS URL loads.')).toBeTruthy();
+    expect(screen.getByRole('button', {name: /JOIN CHALLENGE/i})).toBeTruthy();
     expect(screen.getByText('terms-digest')).toBeTruthy();
-    expect(screen.getByText(/PUBLIC PROJECTION ONLY/i)).toBeTruthy();
-    expect(document.querySelector('[data-surface-state="normal"]')).toBeTruthy();
   });
 
   it('normalizes deep-link surface names and exposes the full canonical state vocabulary', () => {
