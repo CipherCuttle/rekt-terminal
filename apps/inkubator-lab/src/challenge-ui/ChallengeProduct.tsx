@@ -227,6 +227,8 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const [appealWindowHours, setAppealWindowHours] = useState('');
   const [createPhase, setCreatePhase] = useState<'IDLE' | 'LOADING' | 'AUTH_REQUIRED' | 'ERROR'>('IDLE');
   const [draftHydrated, setDraftHydrated] = useState(false);
+  const [draftRequestId, setDraftRequestId] = useState(() => crypto.randomUUID());
+  const [draftChallengeId, setDraftChallengeId] = useState(() => crypto.randomUUID());
   const compilerRequestRevision = useRef(0);
 
   useEffect(() => {
@@ -247,6 +249,8 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
           submissionDeadline?: string;
           reviewDeadline?: string;
           appealWindowHours?: string;
+          draftRequestId?: string;
+          draftChallengeId?: string;
         };
         if (typeof saved.sourceIntent === 'string') setSourceIntent(saved.sourceIntent);
         if (saved.answers && typeof saved.answers === 'object') setAnswers(saved.answers);
@@ -257,6 +261,8 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         if (typeof saved.submissionDeadline === 'string') setSubmissionDeadline(saved.submissionDeadline);
         if (typeof saved.reviewDeadline === 'string') setReviewDeadline(saved.reviewDeadline);
         if (typeof saved.appealWindowHours === 'string') setAppealWindowHours(saved.appealWindowHours);
+        if (typeof saved.draftRequestId === 'string') setDraftRequestId(saved.draftRequestId);
+        if (typeof saved.draftChallengeId === 'string') setDraftChallengeId(saved.draftChallengeId);
       }
     } catch {
       window.sessionStorage.removeItem('rekt-inkubator-create-draft-v1');
@@ -277,6 +283,8 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
       submissionDeadline,
       reviewDeadline,
       appealWindowHours,
+      draftRequestId,
+      draftChallengeId,
     }));
   }, [
     draftHydrated,
@@ -290,6 +298,8 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
     submissionDeadline,
     reviewDeadline,
     appealWindowHours,
+    draftRequestId,
+    draftChallengeId,
   ]);
 
   useEffect(() => {
@@ -394,20 +404,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
       || entryMs > buildMs || buildMs >= submissionMs || submissionMs > reviewMs
     ) return;
 
-    const challengeId = crypto.randomUUID();
-    setCreatePhase('LOADING');
-    try {
-      const created = await api.createDraftChallenge({
-        request_id: crypto.randomUUID(),
-        challenge_id: challengeId,
-        slot_limit: slot,
-        activation_minimum: activation,
-        entry_deadline_ms: entryMs,
-        build_start_ms: buildMs,
-        submission_deadline_ms: submissionMs,
-        appeal_window_ms: Math.round(appealHours * 60 * 60 * 1000),
-        review_deadline_ms: reviewMs,
-      });
+    const adoptCreatedChallenge = (created: PublicChallengeView) => {
       const url = new URL(window.location.href);
       url.searchParams.set('surface', 'compiler');
       url.searchParams.set('challenge', created.challenge_id);
@@ -416,8 +413,34 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
       setChallengeView(created);
       setChallengePhase('IDLE');
       setCreatePhase('IDLE');
+    };
+
+    setCreatePhase('LOADING');
+    try {
+      const created = await api.createDraftChallenge({
+        request_id: draftRequestId,
+        challenge_id: draftChallengeId,
+        slot_limit: slot,
+        activation_minimum: activation,
+        entry_deadline_ms: entryMs,
+        build_start_ms: buildMs,
+        submission_deadline_ms: submissionMs,
+        appeal_window_ms: Math.round(appealHours * 60 * 60 * 1000),
+        review_deadline_ms: reviewMs,
+      });
+      adoptCreatedChallenge(created);
     } catch (cause) {
-      setCreatePhase(cause instanceof InkubatorApiError && cause.status === 401 ? 'AUTH_REQUIRED' : 'ERROR');
+      if (cause instanceof InkubatorApiError && cause.status === 401) {
+        setCreatePhase('AUTH_REQUIRED');
+        return;
+      }
+      try {
+        const recovered = await api.getChallenge(draftChallengeId);
+        adoptCreatedChallenge(recovered);
+        return;
+      } catch {
+        setCreatePhase('ERROR');
+      }
     }
   };
 
