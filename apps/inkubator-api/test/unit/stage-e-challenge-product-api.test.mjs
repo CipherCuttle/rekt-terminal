@@ -136,6 +136,11 @@ test('Build Contract preview refuses a Challenge that is no longer an unfrozen D
 
 test('public Challenge projection cannot leak payout identities or private entry rows', () => {
   const now = new Date('2026-09-14T00:00:00.000Z');
+  const frozen = buildFrozenBuildContractPreview(
+    compileOrganizerDraft(proposal({}, 'ORGANIZER_ACCEPTED')),
+    previewAuthority(),
+    draftSnapshot(),
+  ).contract;
   const view = toPublicChallengeView({
     challenge: {
       challenge_id: '11111111-1111-4111-8111-111111111111',
@@ -162,7 +167,7 @@ test('public Challenge projection cannot leak payout identities or private entry
       challenge_id: '11111111-1111-4111-8111-111111111111',
       contract_version: '1',
       terms_digest: 'terms-digest',
-      contract_json: {},
+      contract_json: frozen,
       created_at: now,
     },
     entries: [{payout_identity: 'secret-builder-wallet'}],
@@ -176,6 +181,9 @@ test('public Challenge projection cannot leak payout identities or private entry
   assert.equal(view.submission_count, 1);
   assert.equal(view.qualification_count, 1);
   assert.equal(view.receipt_count, 1);
+  assert.equal(view.contract_summary.title, 'Useful static Challenge');
+  assert.equal(view.contract_summary.prize_display, '100 TEST');
+  assert.ok(view.contract_summary.done_when.some((item) => item.mandatory === true));
   const serialized = JSON.stringify(view);
   assert.equal(serialized.includes('secret-organizer-wallet'), false);
   assert.equal(serialized.includes('secret-funder-wallet'), false);
