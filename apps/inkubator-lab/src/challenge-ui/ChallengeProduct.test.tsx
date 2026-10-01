@@ -152,10 +152,10 @@ afterEach(() => {
 });
 
 describe('Stage E Challenge product shell', () => {
-  it('locks the seven-surface Challenge IA and excludes the historical five-mode navigation', () => {
+  it('keeps the seven-surface internal registry while advertising only wired consumer destinations', () => {
     render(<ChallengeProduct api={api()} />);
     const nav = screen.getByRole('navigation', {name: 'Challenge product'});
-    expect(within(nav).getAllByRole('button')).toHaveLength(7);
+    expect(within(nav).getAllByRole('button')).toHaveLength(2);
     expect(CHALLENGE_SURFACES).toEqual(['DISCOVER', 'COMPILER', 'CHALLENGE', 'MY_BUILD', 'REVIEW', 'HISTORY', 'OPERATOR']);
     expect(within(nav).queryByText('WORLD')).toBeNull();
     expect(within(nav).queryByText('COMMAND')).toBeNull();
@@ -174,9 +174,9 @@ describe('Stage E Challenge product shell', () => {
   it('compiles only explicit SOURCE requirements and renders deterministic compiler state', async () => {
     const compileChallenge = vi.fn(async (_body: CompilerProposalInput) => compilerState);
     render(<ChallengeProduct api={api({compileChallenge})} />);
-    fireEvent.click(screen.getByRole('button', {name: /COMPILER \/ CREATE/i}));
+    fireEvent.click(screen.getByRole('button', {name: /CREATE/i}));
 
-    const source = screen.getByLabelText('WHAT DO YOU WANT BUILT?');
+    const source = screen.getByLabelText('BUILD BRIEF');
     fireEvent.change(source, {target: {value: 'Build a realtime public launch dashboard'}});
     const realtimeRow = screen.getByText('REALTIME').closest('.compiler-requirement');
     expect(realtimeRow).not.toBeNull();
@@ -209,7 +209,7 @@ describe('Stage E Challenge product shell', () => {
     render(<ChallengeProduct api={api({compileChallenge, getChallenge, previewBuildContract, persistBuildContract})} />);
 
     await waitFor(() => expect(getChallenge).toHaveBeenCalledWith(draftChallenge.challenge_id));
-    fireEvent.change(screen.getByLabelText('WHAT DO YOU WANT BUILT?'), {target: {value: 'Build a public static launch page'}});
+    fireEvent.change(screen.getByLabelText('BUILD BRIEF'), {target: {value: 'Build a public static launch page'}});
     const realtimeRow = screen.getByText('REALTIME').closest('.compiler-requirement');
     expect(realtimeRow).not.toBeNull();
     fireEvent.click(within(realtimeRow as HTMLElement).getByRole('button', {name: 'NO'}));
