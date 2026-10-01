@@ -1,12 +1,15 @@
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {
   createInkubatorApiClient,
+  InkubatorApiError,
   type BuildContractPreviewAuthorityInput,
   type BuildContractPreviewView,
+  type ChallengeEntryPrivateView,
   type CanonicalBuildContractView,
   type CompilerInputProvenance,
   type CompilerProposalInput,
   type CompilerStateView,
+  type CreateDraftChallengeInput,
   type PublicChallengeView,
 } from '../inkubator-api';
 import {
@@ -19,14 +22,15 @@ import {
 } from './state';
 import './challenge-product.css';
 import './compiler-stage-e.css';
+import {GitHubSessionWidget, type GitHubSessionWidgetApi} from './GitHubSessionWidget';
 
 const STATE_COPY: Record<SurfaceState, string> = {
-  NORMAL: 'LIVE / SOURCE-BOUND',
-  LOADING: 'LOADING / NO FABRICATION',
-  EMPTY: 'EMPTY / NO CANONICAL DATA',
-  ERROR: 'ERROR / LAST TRUSTWORTHY VALUE ONLY',
-  UNAVAILABLE_OR_STALE: 'UNAVAILABLE / DO NOT SUBSTITUTE LEGACY DATA',
-  UNAUTHORIZED: 'UNAUTHORIZED / FAIL CLOSED',
+  NORMAL: 'READY / SOURCE-BOUND',
+  LOADING: 'CHECKING THE LATEST STATE…',
+  EMPTY: 'NOTHING HERE YET',
+  ERROR: 'WE COULDN’T LOAD THIS STATE',
+  UNAVAILABLE_OR_STALE: 'THIS PART ISN’T AVAILABLE RIGHT NOW',
+  UNAUTHORIZED: 'YOU DON’T HAVE ACCESS TO THIS',
 };
 
 const REQUIREMENTS = [
@@ -70,7 +74,14 @@ export function buildCompilerProposal(
   };
 }
 
-export interface ChallengeProductApi {
+export interface ChallengeProductApi extends GitHubSessionWidgetApi {
+  createDraftChallenge(body: CreateDraftChallengeInput): Promise<PublicChallengeView>;
+  joinChallenge(
+    challengeId: string,
+    requestId: string,
+    entryId: string,
+    payoutIdentity: string,
+  ): Promise<ChallengeEntryPrivateView>;
   compileChallenge(body: CompilerProposalInput): Promise<CompilerStateView>;
   getChallenge(challengeId: string): Promise<PublicChallengeView>;
   previewBuildContract(
@@ -105,9 +116,9 @@ function StatePanel({state, title, children}: {state: SurfaceState; title: strin
 
 function DiscoverSurface() {
   return (
-    <StatePanel state="UNAVAILABLE_OR_STALE" title="Challenge discovery transport is not exposed yet.">
-      <p>The forward product will list Challenge-first opportunities here. Historical World, Project and social discovery routes are intentionally not substituted.</p>
-      <p className="challenge-state__foot">NEXT SOURCE: canonical Challenge discovery projection.</p>
+    <StatePanel state="UNAVAILABLE_OR_STALE" title="No open challenges to show yet.">
+      <p>Open challenges will appear here when the canonical discovery feed is available.</p>
+      <p className="challenge-state__foot">NO FIXTURE OR LEGACY DISCOVERY DATA IS SUBSTITUTED.</p>
     </StatePanel>
   );
 }
@@ -215,7 +226,97 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   const [persistRequestId, setPersistRequestId] = useState<string | null>(null);
   const [persistPhase, setPersistPhase] = useState<'IDLE' | 'LOADING' | 'ERROR'>('IDLE');
   const [canonicalContract, setCanonicalContract] = useState<CanonicalBuildContractView | null>(null);
+  const [slotLimit, setSlotLimit] = useState('');
+  const [activationMinimum, setActivationMinimum] = useState('');
+  const [entryDeadline, setEntryDeadline] = useState('');
+  const [buildStart, setBuildStart] = useState('');
+  const [submissionDeadline, setSubmissionDeadline] = useState('');
+  const [reviewDeadline, setReviewDeadline] = useState('');
+  const [appealWindowHours, setAppealWindowHours] = useState('');
+  const [createPhase, setCreatePhase] = useState<'IDLE' | 'LOADING' | 'AUTH_REQUIRED' | 'ERROR'>('IDLE');
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const [draftRequestId, setDraftRequestId] = useState<string>(() => crypto.randomUUID());
+  const [draftChallengeId, setDraftChallengeId] = useState<string>(() => crypto.randomUUID());
   const compilerRequestRevision = useRef(0);
+
+  useEffect(() => {
+    if (challengeId) {
+      setDraftHydrated(true);
+      return;
+    }
+    try {
+      const raw = window.sessionStorage.getItem('rekt-inkubator-create-draft-v1');
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          sourceIntent?: string;
+          answers?: CompilerRequirementAnswers;
+          slotLimit?: string;
+          activationMinimum?: string;
+          entryDeadline?: string;
+          buildStart?: string;
+          submissionDeadline?: string;
+          reviewDeadline?: string;
+          appealWindowHours?: string;
+          draftRequestId?: string;
+          draftChallengeId?: string;
+        };
+        if (typeof saved.sourceIntent === 'string') setSourceIntent(saved.sourceIntent);
+        if (saved.answers && typeof saved.answers === 'object') {
+          const restored = emptyRequirementAnswers();
+          for (const [key] of REQUIREMENTS) {
+            const value = saved.answers[key];
+            if (value === 'YES' || value === 'NO' || value === 'UNKNOWN') restored[key] = value;
+          }
+          setAnswers(restored);
+        }
+        if (typeof saved.slotLimit === 'string') setSlotLimit(saved.slotLimit);
+        if (typeof saved.activationMinimum === 'string') setActivationMinimum(saved.activationMinimum);
+        if (typeof saved.entryDeadline === 'string') setEntryDeadline(saved.entryDeadline);
+        if (typeof saved.buildStart === 'string') setBuildStart(saved.buildStart);
+        if (typeof saved.submissionDeadline === 'string') setSubmissionDeadline(saved.submissionDeadline);
+        if (typeof saved.reviewDeadline === 'string') setReviewDeadline(saved.reviewDeadline);
+        if (typeof saved.appealWindowHours === 'string') setAppealWindowHours(saved.appealWindowHours);
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (typeof saved.draftRequestId === 'string' && uuidPattern.test(saved.draftRequestId)) setDraftRequestId(saved.draftRequestId);
+        if (typeof saved.draftChallengeId === 'string' && uuidPattern.test(saved.draftChallengeId)) setDraftChallengeId(saved.draftChallengeId);
+      }
+    } catch {
+      window.sessionStorage.removeItem('rekt-inkubator-create-draft-v1');
+    } finally {
+      setDraftHydrated(true);
+    }
+  }, [challengeId]);
+
+  useEffect(() => {
+    if (!draftHydrated || challengeId) return;
+    window.sessionStorage.setItem('rekt-inkubator-create-draft-v1', JSON.stringify({
+      sourceIntent,
+      answers,
+      slotLimit,
+      activationMinimum,
+      entryDeadline,
+      buildStart,
+      submissionDeadline,
+      reviewDeadline,
+      appealWindowHours,
+      draftRequestId,
+      draftChallengeId,
+    }));
+  }, [
+    draftHydrated,
+    challengeId,
+    sourceIntent,
+    answers,
+    slotLimit,
+    activationMinimum,
+    entryDeadline,
+    buildStart,
+    submissionDeadline,
+    reviewDeadline,
+    appealWindowHours,
+    draftRequestId,
+    draftChallengeId,
+  ]);
 
   useEffect(() => {
     if (!challengeId) {
@@ -300,6 +401,63 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
       prize_minor_units: prize,
       settlement_asset: settlementAsset.trim(),
     };
+  };
+
+  const createDraftChallenge = async () => {
+    const slot = Number(slotLimit);
+    const activation = Number(activationMinimum);
+    const entryMs = Date.parse(entryDeadline);
+    const buildMs = Date.parse(buildStart);
+    const submissionMs = Date.parse(submissionDeadline);
+    const reviewMs = Date.parse(reviewDeadline);
+    const appealHours = Number(appealWindowHours);
+    if (
+      !Number.isSafeInteger(slot) || slot < 1
+      || !Number.isSafeInteger(activation) || activation < 1 || activation > slot
+      || !Number.isSafeInteger(entryMs) || !Number.isSafeInteger(buildMs)
+      || !Number.isSafeInteger(submissionMs) || !Number.isSafeInteger(reviewMs)
+      || !Number.isFinite(appealHours) || appealHours <= 0
+      || entryMs > buildMs || buildMs >= submissionMs || submissionMs > reviewMs
+    ) return;
+
+    const adoptCreatedChallenge = (created: PublicChallengeView) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('surface', 'compiler');
+      url.searchParams.set('challenge', created.challenge_id);
+      window.history.replaceState({challengeSurface: 'COMPILER'}, '', url);
+      window.sessionStorage.removeItem('rekt-inkubator-create-draft-v1');
+      setChallengeView(created);
+      setChallengePhase('IDLE');
+      setCreatePhase('IDLE');
+    };
+
+    setCreatePhase('LOADING');
+    try {
+      const created = await api.createDraftChallenge({
+        request_id: draftRequestId,
+        challenge_id: draftChallengeId,
+        slot_limit: slot,
+        activation_minimum: activation,
+        entry_deadline_ms: entryMs,
+        build_start_ms: buildMs,
+        submission_deadline_ms: submissionMs,
+        appeal_window_ms: Math.round(appealHours * 60 * 60 * 1000),
+        review_deadline_ms: reviewMs,
+      });
+      adoptCreatedChallenge(created);
+    } catch (cause) {
+      if (cause instanceof InkubatorApiError && cause.status === 401) {
+        setCreatePhase('AUTH_REQUIRED');
+        return;
+      }
+      try {
+        const recovered = await api.getChallenge(draftChallengeId);
+        adoptCreatedChallenge(recovered);
+        return;
+      } catch {
+        setCreatePhase('ERROR');
+      }
+    }
   };
 
   const previewContract = async () => {
@@ -397,10 +555,10 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   return (
     <div className="compiler-foundation">
       <section className="compiler-intake" aria-labelledby="compiler-intake-title">
-        <small>SOURCE / ORGANIZER DRAFT</small>
-        <h2 id="compiler-intake-title">WHAT SHOULD EXIST WHEN THIS IS DONE?</h2>
-        <p>Free text remains SOURCE intent. Structured requirements below are explicit organizer statements; this UI does not pretend to parse them from prose.</p>
-        <label htmlFor="compiler-source-intent">SOURCE INTENT</label>
+        <small>CREATE / DRAFT</small>
+        <h2 id="compiler-intake-title">WHAT DO YOU WANT BUILT?</h2>
+        <p>Say it normally. You can tighten the rules before anything gets locked.</p>
+        <label htmlFor="compiler-source-intent">BUILD BRIEF</label>
         <textarea
           id="compiler-source-intent"
           value={sourceIntent}
@@ -410,7 +568,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         />
 
         <fieldset className="compiler-requirements">
-          <legend>SOURCE REQUIREMENTS / YES · NO · UNKNOWN</legend>
+          <legend>IMPORTANT BUILD DECISIONS / YES · NO · NOT SURE</legend>
           {REQUIREMENTS.map(([key, label, help]) => (
             <div className="compiler-requirement" key={key}>
               <div><b>{label}</b><small>{help}</small></div>
@@ -421,7 +579,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
                     key={answer}
                     aria-pressed={answers[key] === answer}
                     onClick={() => updateAnswer(key, answer)}
-                  >{answer}</button>
+                  >{answer === 'UNKNOWN' ? 'NOT SURE' : answer}</button>
                 ))}
               </div>
             </div>
@@ -430,10 +588,10 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
 
         <div className="compiler-intake__actions">
           <button type="button" disabled={!sourceIntent.trim() || compilePhase === 'LOADING'} onClick={() => void compile('SOURCE')}>
-            {compilePhase === 'LOADING' ? 'COMPILING…' : 'COMPILE DETERMINISTIC STATE'}
+            {compilePhase === 'LOADING' ? 'CHECKING…' : 'CHECK THE SPEC →'}
           </button>
           <button type="button" disabled={!compilerState || compilePhase === 'LOADING'} onClick={() => void compile('ORGANIZER_ACCEPTED')}>
-            ACCEPT CURRENT INPUTS
+            USE THESE RULES →
           </button>
           <span>{compilerState ? `${compilerState.compiler_version} / ${compilerState.status} / ${accepted ? 'ORGANIZER_ACCEPTED' : 'SOURCE'}` : sourceIntent.trim() ? 'SOURCE DRAFT / UNCOMPILED' : 'NO SOURCE INTENT YET'}</span>
         </div>
@@ -454,11 +612,34 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
       </StatePanel>
 
       <section className="compiler-contract" aria-labelledby="compiler-contract-title">
-        <small>BUILD CONTRACT / STAGE-B FREEZE</small>
-        <h2 id="compiler-contract-title">NEGOTIATED BUILD CONTRACT</h2>
-        <p>The preview uses the real Stage-B Build Contract candidate + digest-freeze semantics. Canonical persistence requires an authenticated organizer and recomputes the exact accepted contract server-side before Stage C stores it.</p>
+        <small>BUILD CONTRACT / REVIEW</small>
+        <h2 id="compiler-contract-title">WHAT COUNTS AS DONE</h2>
+        <p>Review the exact rules builders will compete against. Technical contract evidence stays inspectable, but nothing is locked until the final server-confirmed step.</p>
 
-        {!challengeId ? <p className="compiler-contract__notice">SELECT A DRAFT CHALLENGE — add a canonical <code>?challenge=&lt;id&gt;</code> context before freezing a preview.</p> : null}
+        {!challengeId ? (
+          <section className="compiler-draft-setup" aria-labelledby="compiler-draft-setup-title">
+            <small>CHALLENGE SETUP / DRAFT</small>
+            <h3 id="compiler-draft-setup-title">SET THE BUILD WINDOW</h3>
+            <p>Create the real draft Challenge first. No payout rail is configured and nothing here authorizes production money.</p>
+            <div className="compiler-contract__fields">
+              <label htmlFor="draft-slots">BUILDER SLOTS<input id="draft-slots" inputMode="numeric" value={slotLimit} onChange={(event) => setSlotLimit(event.target.value)} placeholder="6" /></label>
+              <label htmlFor="draft-activation">MINIMUM BUILDERS<input id="draft-activation" inputMode="numeric" value={activationMinimum} onChange={(event) => setActivationMinimum(event.target.value)} placeholder="2" /></label>
+              <label htmlFor="draft-entry-deadline">JOIN CLOSES<input id="draft-entry-deadline" type="datetime-local" value={entryDeadline} onChange={(event) => setEntryDeadline(event.target.value)} /></label>
+              <label htmlFor="draft-build-start">BUILD STARTS<input id="draft-build-start" type="datetime-local" value={buildStart} onChange={(event) => setBuildStart(event.target.value)} /></label>
+              <label htmlFor="draft-submit-deadline">SUBMIT BY<input id="draft-submit-deadline" type="datetime-local" value={submissionDeadline} onChange={(event) => setSubmissionDeadline(event.target.value)} /></label>
+              <label htmlFor="draft-review-deadline">REVIEW BY<input id="draft-review-deadline" type="datetime-local" value={reviewDeadline} onChange={(event) => setReviewDeadline(event.target.value)} /></label>
+              <label htmlFor="draft-appeal-window">APPEAL WINDOW / HOURS<input id="draft-appeal-window" inputMode="decimal" value={appealWindowHours} onChange={(event) => setAppealWindowHours(event.target.value)} placeholder="24" /></label>
+            </div>
+            <div className="compiler-contract__actions">
+              <button type="button" disabled={createPhase === 'LOADING'} onClick={() => void createDraftChallenge()}>
+                {createPhase === 'LOADING' ? 'CREATING DRAFT…' : 'CREATE DRAFT CHALLENGE'}
+              </button>
+              <span>{createPhase === 'AUTH_REQUIRED' ? 'SIGN IN REQUIRED' : createPhase === 'ERROR' ? 'DRAFT CREATION FAILED' : 'NOTHING IS LOCKED YET'}</span>
+            </div>
+            {createPhase === 'AUTH_REQUIRED' ? <p className="compiler-contract__notice">SIGN IN TO CREATE THIS DRAFT. <a href="/v1/auth/github/start">CONTINUE WITH GITHUB →</a></p> : null}
+            {createPhase === 'ERROR' ? <p className="compiler-contract__notice">THE DRAFT COULD NOT BE CREATED. CHECK THE SCHEDULE AND TRY AGAIN.</p> : null}
+          </section>
+        ) : null}
         {challengePhase === 'LOADING' ? <p className="compiler-contract__notice">READING CHALLENGE AUTHORITY…</p> : null}
         {challengePhase === 'NOT_FOUND' ? <p className="compiler-contract__notice">CHALLENGE NOT FOUND.</p> : null}
         {challengePhase === 'ERROR' ? <p className="compiler-contract__notice">{canonicalContract ? 'CANONICAL CONTRACT PERSISTED — CHALLENGE PROJECTION REFRESH UNAVAILABLE.' : 'CHALLENGE TRANSPORT ERROR — freeze disabled.'}</p> : null}
@@ -472,18 +653,18 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         ) : null}
 
         <div className="compiler-contract__fields">
-          <label htmlFor="contract-version">CONTRACT VERSION<input id="contract-version" value={contractVersion} onChange={(event) => { setContractVersion(event.target.value); invalidatePreview(); }} placeholder="1.0.0" /></label>
-          <label htmlFor="contract-title">TITLE<input id="contract-title" value={contractTitle} onChange={(event) => { setContractTitle(event.target.value); invalidatePreview(); }} placeholder="Challenge title" /></label>
-          <label htmlFor="contract-prize">PRIZE / MINOR UNITS<input id="contract-prize" inputMode="numeric" value={prizeMinorUnits} onChange={(event) => { setPrizeMinorUnits(event.target.value); invalidatePreview(); }} placeholder="100" /></label>
-          <label htmlFor="contract-asset">SETTLEMENT ASSET<input id="contract-asset" value={settlementAsset} onChange={(event) => { setSettlementAsset(event.target.value); invalidatePreview(); }} placeholder="TEST" /></label>
+          <label htmlFor="contract-version">VERSION<input id="contract-version" value={contractVersion} onChange={(event) => { setContractVersion(event.target.value); invalidatePreview(); }} placeholder="1.0.0" /></label>
+          <label htmlFor="contract-title">CHALLENGE TITLE<input id="contract-title" value={contractTitle} onChange={(event) => { setContractTitle(event.target.value); invalidatePreview(); }} placeholder="Challenge title" /></label>
+          <label htmlFor="contract-prize">PRIZE / TEST VALUE<input id="contract-prize" inputMode="numeric" value={prizeMinorUnits} onChange={(event) => { setPrizeMinorUnits(event.target.value); invalidatePreview(); }} placeholder="100" /></label>
+          <label htmlFor="contract-asset">TEST SETTLEMENT ASSET<input id="contract-asset" value={settlementAsset} onChange={(event) => { setSettlementAsset(event.target.value); invalidatePreview(); }} placeholder="TEST" /></label>
         </div>
 
         <div className="compiler-contract__actions">
           <button type="button" disabled={!previewReady} onClick={() => void previewContract()}>
-            {previewPhase === 'LOADING' ? 'FREEZING PREVIEW…' : 'FREEZE NONCANONICAL PREVIEW'}
+            {previewPhase === 'LOADING' ? 'PREPARING REVIEW…' : 'REVIEW LOCKED VERSION'}
           </button>
           <button type="button" disabled={!persistReady} onClick={() => void persistContract()}>
-            {persistPhase === 'LOADING' ? 'PERSISTING CANONICAL CONTRACT…' : 'PERSIST CANONICAL CONTRACT'}
+            {persistPhase === 'LOADING' ? 'LOCKING RULES…' : 'LOCK CHALLENGE RULES'}
           </button>
           <span>{canonicalContract ? 'CANONICAL / PERSISTED' : preview ? 'AUTHENTICATED ORGANIZER REQUIRED TO PERSIST' : !accepted ? 'ORGANIZER ACCEPTANCE REQUIRED' : compilerState?.status !== 'READY' ? 'COMPILER MUST BE READY' : !challengeReadyForPreview ? 'UNFROZEN DRAFT CHALLENGE REQUIRED' : 'PREVIEW FIRST / NO PERSISTENCE YET'}</span>
         </div>
@@ -492,14 +673,14 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         {persistPhase === 'ERROR' ? <p className="compiler-contract__notice">CANONICAL PERSISTENCE REJECTED — authentication, organizer authority, preview lineage or idempotency validation failed.</p> : null}
         {preview ? (
           <div className="compiler-contract__result" data-build-contract-preview="noncanonical">
-            <strong>NONCANONICAL PREVIEW / DIGEST-FROZEN</strong>
+            <strong>PREVIEW / NOT LOCKED</strong>
             <span>TERMS DIGEST <code>{preview.contract.terms_digest}</code></span>
             <pre>{JSON.stringify(preview.contract, null, 2)}</pre>
           </div>
         ) : null}
         {canonicalContract ? (
           <div className="compiler-contract__result" data-build-contract-canonical="persisted">
-            <strong>CANONICAL / PERSISTED</strong>
+            <strong>RULES LOCKED</strong>
             <span>TERMS DIGEST <code>{canonicalContract.terms_digest}</code></span>
             <span>CONTRACT {canonicalContract.contract_version} · FROZEN {canonicalContract.frozen_at}</span>
           </div>
@@ -513,6 +694,16 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
   const challengeId = new URLSearchParams(window.location.search).get('challenge');
   const [view, setView] = useState<PublicChallengeView | null>(null);
   const [phase, setPhase] = useState<'IDLE' | 'LOADING' | 'NOT_FOUND' | 'ERROR'>('IDLE');
+  const [payoutIdentity, setPayoutIdentity] = useState('');
+  const [joinPhase, setJoinPhase] = useState<'IDLE' | 'LOADING' | 'JOINED' | 'AUTH_REQUIRED' | 'ORGANIZER' | 'ERROR'>('IDLE');
+  const [joinRequestId] = useState<string>(() => crypto.randomUUID());
+  const [joinEntryId] = useState<string>(() => crypto.randomUUID());
+
+  const refresh = async (id: string) => {
+    const next = await api.getChallenge(id);
+    setView(next);
+    return next;
+  };
 
   useEffect(() => {
     if (!challengeId) {
@@ -535,54 +726,156 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
   }, [api, challengeId]);
 
   if (!challengeId) {
-    return <StatePanel state="EMPTY" title="No Challenge selected."><p>Select a canonical Challenge from Discover or open a Challenge deep link.</p></StatePanel>;
+    return <StatePanel state="EMPTY" title="No Challenge selected."><p>Choose a Challenge to see what is being built and what counts as done.</p></StatePanel>;
   }
   if (phase === 'LOADING') {
-    return <StatePanel state="LOADING" title="Reading canonical Challenge state."><p>Requested Challenge: <code>{challengeId}</code>.</p></StatePanel>;
+    return <StatePanel state="LOADING" title="Opening Challenge…"><p>Reading the latest canonical Challenge state.</p></StatePanel>;
   }
   if (phase === 'NOT_FOUND') {
-    return <StatePanel state="EMPTY" title="Challenge not found."><p>No Stage-C Challenge exists for <code>{challengeId}</code>.</p></StatePanel>;
+    return <StatePanel state="EMPTY" title="Challenge not found."><p>This Challenge does not exist or is no longer available.</p></StatePanel>;
   }
   if (phase === 'ERROR' || !view) {
-    return <StatePanel state="ERROR" title="Challenge transport failed."><p>The UI will not substitute mutable Mission or Project state.</p></StatePanel>;
+    return <StatePanel state="ERROR" title="We couldn't load this Challenge."><p>No fallback or stale Project data is substituted.</p></StatePanel>;
   }
 
+  const summary = view.contract_summary;
+  const slotsLeft = Math.max(0, view.slot_limit - view.entry_count);
+  const joinOpen = view.status === 'ENTRY_OPEN';
+  const entryDeadline = new Date(view.entry_deadline).toLocaleString();
+  const submissionDeadline = new Date(view.submission_deadline).toLocaleString();
+
+  const statusCopy = (() => {
+    if (view.status === 'DRAFT') {
+      return view.has_frozen_contract
+        ? {label: 'RULES LOCKED · NOT OPEN', detail: 'The rules are frozen, but this Challenge has not completed funding and opening yet.'}
+        : {label: 'DRAFT · RULES NOT LOCKED', detail: 'The organizer is still defining what counts as done.'};
+    }
+    if (view.status === 'AWAITING_FUNDING') return {label: 'WAITING FOR FUNDING', detail: 'Builder seats open only after canonical funding is confirmed.'};
+    if (view.status === 'FUNDED') return {label: 'FUNDED · NOT OPEN YET', detail: 'Funding is confirmed. The organizer still needs to open builder entries.'};
+    if (view.status === 'ENTRY_OPEN') return {label: 'OPEN FOR BUILDERS', detail: `${slotsLeft} of ${view.slot_limit} builder slots remain.`};
+    if (view.status === 'BUILDING') return {label: 'BUILDING', detail: 'Entry is closed. Seated builders are now building.'};
+    return {label: view.status.replaceAll('_', ' '), detail: 'This Challenge has moved past open entry.'};
+  })();
+
+  const join = async () => {
+    if (!challengeId || !joinOpen || !payoutIdentity.trim()) return;
+    setJoinPhase('LOADING');
+    try {
+      await api.joinChallenge(challengeId, joinRequestId, joinEntryId, payoutIdentity.trim());
+      setJoinPhase('JOINED');
+      await refresh(challengeId).catch(() => null);
+    } catch (cause) {
+      if (cause instanceof InkubatorApiError && cause.status === 401) {
+        setJoinPhase('AUTH_REQUIRED');
+        return;
+      }
+      if (cause instanceof InkubatorApiError && cause.status === 403 && cause.message === 'challenge_organizer_cannot_build') {
+        setJoinPhase('ORGANIZER');
+        return;
+      }
+      setJoinPhase('ERROR');
+    }
+  };
+
   return (
-    <StatePanel state="NORMAL" title={`Challenge ${view.status}.`}>
-      <dl className="challenge-facts" aria-label="Canonical Challenge facts">
-        <div><dt>CHALLENGE</dt><dd><code>{view.challenge_id}</code></dd></div>
-        <div><dt>TERMS</dt><dd>{view.current_terms_digest ?? 'NOT FROZEN'}</dd></div>
-        <div><dt>CONTRACT</dt><dd>{view.current_contract_version ?? 'DRAFT'} / {view.has_frozen_contract ? 'FROZEN' : 'UNFROZEN'}</dd></div>
-        <div><dt>SLOTS</dt><dd>{view.entry_count} / {view.slot_limit} · activation minimum {view.activation_minimum}</dd></div>
-        <div><dt>BUILD START</dt><dd>{view.build_start}</dd></div>
-        <div><dt>SUBMISSION DEADLINE</dt><dd>{view.submission_deadline}</dd></div>
-        <div><dt>EVIDENCE COUNTS</dt><dd>{view.submission_count} submissions · {view.qualification_count} qualifications · {view.receipt_count} receipts</dd></div>
-      </dl>
-      <p className="challenge-state__foot">PUBLIC PROJECTION ONLY — PAYOUT IDENTITIES AND PRIVATE ENTRY DATA ARE NOT EXPOSED.</p>
-    </StatePanel>
+    <article className="challenge-human" aria-labelledby="challenge-human-title">
+      <header className="challenge-human__hero">
+        <div>
+          <small>{statusCopy.label}</small>
+          <h2 id="challenge-human-title">{summary?.title ?? 'DRAFT CHALLENGE'}</h2>
+          <p>{summary?.brief ?? 'The organizer has not locked the public build brief yet.'}</p>
+        </div>
+        <div className="challenge-human__metrics" aria-label="Challenge essentials">
+          <span><small>PRIZE</small><strong>{summary?.prize_display ?? (view.status === 'DRAFT' ? 'NOT LIVE' : summary?.settlement_asset ?? 'NOT LIVE')}</strong></span>
+          <span><small>SLOTS</small><strong>{view.entry_count} / {view.slot_limit}</strong></span>
+          <span><small>JOIN BY</small><strong>{entryDeadline}</strong></span>
+        </div>
+      </header>
+
+      <section className="challenge-human__status" data-challenge-status={view.status.toLowerCase()}>
+        <strong>{statusCopy.label}</strong>
+        <span>{statusCopy.detail}</span>
+      </section>
+
+      <section className="challenge-human__done" aria-labelledby="challenge-done-title">
+        <small>BUILD CONTRACT</small>
+        <h3 id="challenge-done-title">WHAT COUNTS AS DONE</h3>
+        {summary?.done_when.length ? (
+          <ul>
+            {summary.done_when.map((criterion) => (
+              <li key={`${criterion.source}:${criterion.id}`}>
+                <span aria-hidden="true">{criterion.mandatory ? '□' : '○'}</span>
+                <span>{criterion.description}</span>
+                <small>{criterion.mandatory ? 'REQUIRED' : 'OPTIONAL'} · {criterion.source}</small>
+              </li>
+            ))}
+          </ul>
+        ) : <p>The frozen Done When checklist is not available yet.</p>}
+      </section>
+
+      <section className="challenge-human__action" aria-labelledby="challenge-next-title">
+        <small>NEXT ACTION</small>
+        <h3 id="challenge-next-title">{joinOpen ? 'JOIN THIS CHALLENGE' : 'NOT OPEN FOR BUILDERS YET'}</h3>
+        {joinOpen ? (
+          <>
+            <p>Reserve one builder slot. Your payout identity is part of the funded Challenge entry record and cannot be inferred from GitHub.</p>
+            <label htmlFor="challenge-payout-identity">PRIZE PAYOUT IDENTITY</label>
+            <input
+              id="challenge-payout-identity"
+              value={payoutIdentity}
+              onChange={(event) => setPayoutIdentity(event.target.value)}
+              placeholder="Where a prize would be paid"
+              autoComplete="off"
+            />
+            <button type="button" disabled={!payoutIdentity.trim() || joinPhase === 'LOADING' || joinPhase === 'JOINED'} onClick={() => void join()}>
+              {joinPhase === 'LOADING' ? 'RESERVING SLOT…' : joinPhase === 'JOINED' ? 'SEAT RESERVED' : 'JOIN CHALLENGE →'}
+            </button>
+            {joinPhase === 'AUTH_REQUIRED' ? <p className="challenge-human__notice">Connect GitHub to join. <a href="/v1/auth/github/start">CONTINUE WITH GITHUB →</a></p> : null}
+            {joinPhase === 'ORGANIZER' ? <p className="challenge-human__notice">You created this Challenge, so you cannot take a builder seat in it. Use a separate builder account for rehearsal.</p> : null}
+            {joinPhase === 'ERROR' ? <p className="challenge-human__notice">REKT could not reserve the seat. The Challenge may have closed or filled; refresh the canonical state and try again.</p> : null}
+          </>
+        ) : (
+          <p>{statusCopy.detail} Joining only becomes available in canonical <code>ENTRY_OPEN</code> state.</p>
+        )}
+      </section>
+
+      <details className="challenge-human__technical">
+        <summary>TECHNICAL CHALLENGE DETAILS</summary>
+        <dl className="challenge-facts" aria-label="Canonical Challenge facts">
+          <div><dt>CHALLENGE</dt><dd><code>{view.challenge_id}</code></dd></div>
+          <div><dt>STATE</dt><dd>{view.status}</dd></div>
+          <div><dt>TERMS</dt><dd>{view.current_terms_digest ?? 'NOT FROZEN'}</dd></div>
+          <div><dt>CONTRACT</dt><dd>{view.current_contract_version ?? 'DRAFT'} / {view.has_frozen_contract ? 'FROZEN' : 'UNFROZEN'}</dd></div>
+          <div><dt>ACTIVATION MINIMUM</dt><dd>{view.activation_minimum}</dd></div>
+          <div><dt>BUILD START</dt><dd>{new Date(view.build_start).toLocaleString()}</dd></div>
+          <div><dt>SUBMIT BY</dt><dd>{submissionDeadline}</dd></div>
+          <div><dt>EVIDENCE</dt><dd>{view.submission_count} submissions · {view.qualification_count} qualifications · {view.receipt_count} receipts</dd></div>
+        </dl>
+      </details>
+    </article>
   );
 }
 
 function MyBuildSurface() {
   return (
-    <StatePanel state="UNAVAILABLE_OR_STALE" title="Challenge Entry transport is not exposed yet.">
-      <p>My Build will be entry-specific and authenticated. Existing Project progress is not treated as Challenge authority.</p>
+    <StatePanel state="UNAVAILABLE_OR_STALE" title="Your build view is not connected yet.">
+      <p>This will appear only when a canonical Challenge entry projection is available. Existing Project progress is not substituted.</p>
     </StatePanel>
   );
 }
 
 function ReviewSurface() {
   return (
-    <StatePanel state="UNAVAILABLE_OR_STALE" title="Test Arena mechanics are not authorized in Stage E.">
-      <p>This is the future organizer review surface. Stage G owns reveal, normalized testing, qualification and side-by-side evaluation mechanics.</p>
+    <StatePanel state="UNAVAILABLE_OR_STALE" title="Review is not connected in this forward flow yet.">
+      <p>Qualification and comparison must come from the canonical Challenge evaluation path; no legacy substitute is shown.</p>
     </StatePanel>
   );
 }
 
 function HistorySurface() {
   return (
-    <StatePanel state="UNAVAILABLE_OR_STALE" title="Challenge receipt read transport is not exposed yet.">
-      <p>Durable evidence and Ship ancestry may be reused behind the boundary, but historical Ship UI is not substituted for Challenge receipts.</p>
+    <StatePanel state="UNAVAILABLE_OR_STALE" title="Challenge history is not connected yet.">
+      <p>Only canonical Challenge receipts will appear here. Historical Ship UI is not substituted.</p>
     </StatePanel>
   );
 }
@@ -616,6 +909,12 @@ export default function ChallengeProduct({initialSurface = 'DISCOVER', api = DEF
 
   const currentIndex = useMemo(() => CHALLENGE_SURFACES.indexOf(surface), [surface]);
 
+  const challengeContext = new URLSearchParams(window.location.search).get('challenge');
+  const primarySurfaces = useMemo<ChallengeSurface[]>(
+    () => challengeContext || surface === 'CHALLENGE' ? ['DISCOVER', 'COMPILER', 'CHALLENGE'] : ['DISCOVER', 'COMPILER'],
+    [challengeContext, surface],
+  );
+
   const selectSurface = (next: ChallengeSurface) => {
     if (next === surface) return;
     const url = new URL(window.location.href);
@@ -631,27 +930,32 @@ export default function ChallengeProduct({initialSurface = 'DISCOVER', api = DEF
       <a className="challenge-skip" href="#challenge-workspace">Skip to Challenge workspace</a>
       <header className="challenge-topbar">
         <a className="challenge-brand" href="?surface=discover"><strong>REKT<i>//</i></strong><span>INKUBATOR</span></a>
-        <span className="challenge-purpose">CHALLENGE OS / STAGE E</span>
-        <span className="challenge-authority">TRUTH BEFORE THEATER</span>
+        <span className="challenge-purpose">BUILD CHALLENGES</span>
+        <div className="challenge-topbar__right">
+          <span className="challenge-authority">LOCK THE RULES. SHIP THE THING.</span>
+          <GitHubSessionWidget api={api} />
+        </div>
       </header>
 
       <section className="challenge-heading">
         <div>
           <small>{String(currentIndex + 1).padStart(2, '0')} / {String(CHALLENGE_SURFACES.length).padStart(2, '0')} · {SURFACE_CUES[surface]}</small>
-          <h1>{SURFACE_LABELS[surface]}</h1>
-          <p>IDEA → FAIR BUILD CONTRACT → COMPETITION → REAL SOFTWARE → DURABLE RESULT</p>
+          <h1>{surface === 'DISCOVER' ? 'CHALLENGES' : surface === 'COMPILER' ? 'CREATE A CHALLENGE' : SURFACE_LABELS[surface]}</h1>
+          <p>DESCRIBE → LOCK WHAT “DONE” MEANS → BUILD → CHECK → RECEIPT</p>
         </div>
-        <div className="challenge-heading__readout" aria-label="Stage readout">
-          <span>PHASE<b>STAGE E</b></span>
-          <span>AUTHORITY<b>CHALLENGE-FIRST</b></span>
-          <span>MONEY<b>NOT AUTHORIZED</b></span>
+        <div className="challenge-heading__readout" aria-label="Product readout">
+          <span>RULES<b>VERSIONED</b></span>
+          <span>STATE<b>SOURCE-BOUND</b></span>
+          <span>SETTLEMENT<b>DISABLED</b></span>
         </div>
       </section>
 
       <section className="challenge-chassis">
         <nav className="challenge-nav" aria-label="Challenge product">
-          <span className="challenge-nav__label">SURFACE / SELECT</span>
-          {CHALLENGE_SURFACES.map((item, index) => (
+          <span className="challenge-nav__label">GO TO</span>
+          {primarySurfaces.map((item) => {
+            const index = CHALLENGE_SURFACES.indexOf(item);
+            return (
             <button
               key={item}
               type="button"
@@ -659,10 +963,10 @@ export default function ChallengeProduct({initialSurface = 'DISCOVER', api = DEF
               onClick={() => selectSurface(item)}
             >
               <span>{String(index + 1).padStart(2, '0')}</span>
-              <b>{SURFACE_LABELS[item]}</b>
-              <small>{SURFACE_CUES[item]}</small>
+              <b>{item === 'DISCOVER' ? 'CHALLENGES' : item === 'COMPILER' ? 'CREATE' : 'CHALLENGE'}</b>
+              <small>{item === 'DISCOVER' ? 'FIND A BUILD' : item === 'COMPILER' ? 'DEFINE THE RULES' : 'READ THE RULES'}</small>
             </button>
-          ))}
+          )})}
           <div className="challenge-nav__imprint" data-decorative aria-hidden="true">
             <span />
             <p>SAME DEGENS.<br /><b>BETTER CONTRACTS.</b></p>

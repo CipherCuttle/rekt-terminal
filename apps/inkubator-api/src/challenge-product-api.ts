@@ -2,6 +2,7 @@ import {createRequire} from 'node:module';
 import type {FastifyInstance, FastifyReply, FastifyRequest} from 'fastify';
 import {
   BUILD_CONTRACT_SCHEMA_VERSION,
+  assertFrozenBuildContract,
   freezeBuildContract,
   type BuildContract,
 } from '@rekt-ink/protocol/challenge';
@@ -15,6 +16,8 @@ import {
   type CompilerState,
 } from '@rekt-ink/protocol/compiler';
 import {
+  acquireChallengeSeat,
+  createChallenge,
   persistFrozenBuildContract,
   readChallengeSnapshot,
   type ChallengeSnapshot,
@@ -34,6 +37,18 @@ const BLUEPRINT_PATHS = [
 const ACTIVE_BLUEPRINTS = Object.freeze(
   BLUEPRINT_PATHS.map((path) => assertCompilerBlueprint(require(path)) as CompilerBlueprint),
 );
+
+export interface CreateDraftChallengeInput {
+  request_id: string;
+  challenge_id: string;
+  slot_limit: number;
+  activation_minimum: number;
+  entry_deadline_ms: number;
+  build_start_ms: number;
+  submission_deadline_ms: number;
+  appeal_window_ms: number;
+  review_deadline_ms: number;
+}
 
 export interface PublicChallengeView {
   schema_version: 'challenge.public.v1';
@@ -58,6 +73,23 @@ export interface PublicChallengeView {
   receipt_count: number;
   created_at: string;
   updated_at: string;
+  contract_summary: null | {
+    title: string;
+    brief: string;
+    prize_display: string | null;
+    settlement_asset: string;
+    done_when: Array<{id: string; description: string; mandatory: boolean; source: 'OUTCOME' | 'PRODUCTION' | 'DELIVERY'}>;
+  };
+}
+
+export interface ChallengeEntryPrivateView {
+  schema_version: 'challenge.entry.private.v1';
+  entry_id: string;
+  challenge_id: string;
+  state: string;
+  build_start: string | null;
+  submission_deadline: string | null;
+  created_at: string;
 }
 
 export interface BuildContractPreviewAuthorityInput {
@@ -96,6 +128,12 @@ function safeDate(value: Date): string {
 
 export function toPublicChallengeView(snapshot: ChallengeSnapshot): PublicChallengeView {
   const {challenge} = snapshot;
+  const contract = snapshot.contract ? assertFrozenBuildContract(snapshot.contract.contract_json) : null;
+  const doneWhen = contract ? [
+    ...(contract.outcome_contract.criteria ?? []).map((criterion) => ({...criterion, source: 'OUTCOME' as const})),
+    ...(contract.production_envelope.criteria ?? []).map((criterion) => ({...criterion, source: 'PRODUCTION' as const})),
+    ...(contract.delivery_contract.criteria ?? []).map((criterion) => ({...criterion, source: 'DELIVERY' as const})),
+  ] : [];
   return {
     schema_version: 'challenge.public.v1',
     challenge_id: challenge.challenge_id,
@@ -119,6 +157,13 @@ export function toPublicChallengeView(snapshot: ChallengeSnapshot): PublicChalle
     receipt_count: snapshot.receipts.length,
     created_at: safeDate(challenge.created_at),
     updated_at: safeDate(challenge.updated_at),
+    contract_summary: contract ? {
+      title: contract.title,
+      brief: contract.brief,
+      prize_display: typeof contract.prize_display === 'string' && contract.prize_display.trim() ? contract.prize_display : null,
+      settlement_asset: contract.settlement_asset,
+      done_when: doneWhen,
+    } : null,
   };
 }
 
@@ -218,6 +263,122 @@ function apiError(reply: FastifyReply, statusCode: number, message: string) {
 }
 
 export function registerStageEChallengeProductRoutes(app: FastifyInstance, db: InkubatorDatabase): void {
+  app.post('/v1/challenges', async (request, reply) => {
+    const actorPlayerId = await authenticatedPlayerId(request, db);
+    if (!actorPlayerId) return apiError(reply, 401, 'authentication_required');
+
+    const body = request.body as Partial<CreateDraftChallengeInput> | null;
+    if (
+      !body
+      || typeof body.request_id !== 'string'
+      || typeof body.challenge_id !== 'string'
+      || typeof body.slot_limit !== 'number' || !Number.isSafeInteger(body.slot_limit)
+      || typeof body.activation_minimum !== 'number' || !Number.isSafeInteger(body.activation_minimum)
+      || typeof body.entry_deadline_ms !== 'number' || !Number.isSafeInteger(body.entry_deadline_ms)
+      || typeof body.build_start_ms !== 'number' || !Number.isSafeInteger(body.build_start_ms)
+      || typeof body.submission_deadline_ms !== 'number' || !Number.isSafeInteger(body.submission_deadline_ms)
+      || typeof body.appeal_window_ms !== 'number' || !Number.isSafeInteger(body.appeal_window_ms)
+      || typeof body.review_deadline_ms !== 'number' || !Number.isSafeInteger(body.review_deadline_ms)
+    ) {
+      return apiError(reply, 400, 'challenge_create_invalid');
+    }
+
+    if (
+      body.activation_minimum < 1
+      || body.slot_limit < 1
+      || body.activation_minimum > body.slot_limit
+      || body.entry_deadline_ms > body.build_start_ms
+      || body.build_start_ms >= body.submission_deadline_ms
+      || body.submission_deadline_ms > body.review_deadline_ms
+      || body.appeal_window_ms < 1
+    ) {
+      return apiError(reply, 400, 'challenge_create_schedule_invalid');
+    }
+
+    try {
+      const challenge = await createChallenge(db, {
+        requestId: body.request_id,
+        challengeId: body.challenge_id,
+        organizerPlayerId: actorPlayerId,
+        organizerPayoutIdentity: `UNCONFIGURED:ORGANIZER:${body.challenge_id}`,
+        funderPayoutIdentity: `UNCONFIGURED:FUNDER:${body.challenge_id}`,
+        mechanismVersion: 'funded-challenge/1.1',
+        settlementPolicyVersion: 'funded-challenge-settlement/1.0',
+        ipTermsVersion: 'bespoke-winner-transfer/1.0',
+        slotLimit: body.slot_limit,
+        activationMinimum: body.activation_minimum,
+        entryDeadlineMs: body.entry_deadline_ms,
+        buildStartMs: body.build_start_ms,
+        submissionDeadlineMs: body.submission_deadline_ms,
+        appealWindowMs: body.appeal_window_ms,
+        reviewDeadlineMs: body.review_deadline_ms,
+      });
+      const snapshot = await readChallengeSnapshot(db, challenge.challenge_id);
+      if (!snapshot) throw new Error('challenge_create_projection_missing');
+      reply.header('cache-control', 'no-store');
+      return reply.code(201).send(toPublicChallengeView(snapshot));
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'challenge_create_failed';
+      if (message === 'challenge_identity_conflict' || message.includes('idempotency_conflict')) {
+        return apiError(reply, 409, message);
+      }
+      if (message.startsWith('invalid_')) return apiError(reply, 400, 'challenge_create_invalid');
+      throw cause;
+    }
+  });
+
+  app.post('/v1/challenges/:challengeId/entries', async (request, reply) => {
+    const {challengeId} = request.params as {challengeId: string};
+    const actorPlayerId = await authenticatedPlayerId(request, db);
+    if (!actorPlayerId) return apiError(reply, 401, 'authentication_required');
+    const body = request.body as {request_id?: unknown; entry_id?: unknown; payout_identity?: unknown} | null;
+    if (
+      typeof body?.request_id !== 'string'
+      || typeof body.entry_id !== 'string'
+      || typeof body.payout_identity !== 'string'
+      || !body.payout_identity.trim()
+    ) {
+      return apiError(reply, 400, 'challenge_entry_invalid');
+    }
+
+    try {
+      const entry = await acquireChallengeSeat(db, {
+        requestId: body.request_id,
+        entryId: body.entry_id,
+        challengeId,
+        builderPlayerId: actorPlayerId,
+        payoutIdentity: body.payout_identity.trim(),
+        projectId: null,
+        missionId: null,
+      });
+      reply.header('cache-control', 'no-store');
+      const view: ChallengeEntryPrivateView = {
+        schema_version: 'challenge.entry.private.v1',
+        entry_id: entry.entry_id,
+        challenge_id: entry.challenge_id,
+        state: entry.state,
+        build_start: entry.build_start?.toISOString() ?? null,
+        submission_deadline: entry.submission_deadline?.toISOString() ?? null,
+        created_at: entry.created_at.toISOString(),
+      };
+      return reply.code(201).send(view);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'challenge_entry_failed';
+      if (message === 'challenge_not_found') return apiError(reply, 404, message);
+      if (message === 'challenge_organizer_cannot_build') return apiError(reply, 403, message);
+      if (
+        message === 'challenge_entry_not_open'
+        || message === 'challenge_slot_limit_reached'
+        || message === 'challenge_entry_uniqueness_conflict'
+        || message === 'challenge_reserved_payout_identity_missing'
+        || message === 'challenge_reserved_payout_identity_cannot_build'
+        || message.includes('idempotency_conflict')
+      ) return apiError(reply, 409, message);
+      if (message.startsWith('invalid_')) return apiError(reply, 400, 'challenge_entry_invalid');
+      throw cause;
+    }
+  });
+
   app.get('/v1/challenges/:challengeId', async (request, reply) => {
     const {challengeId} = request.params as {challengeId: string};
     try {

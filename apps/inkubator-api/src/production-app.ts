@@ -4,6 +4,7 @@ import {registerStageEChallengeProductRoutes} from './challenge-product-api.js';
 import {registerStageGRevealArenaRoutes} from './challenge-reveal-api.js';
 import {registerStageG2BTestArenaRoutes} from './challenge-test-arena-api.js';
 import type {InkubatorDatabase} from './database.js';
+import {getPrivateConnectionContext} from './connection.js';
 import type {GitHubAppServerAuthOptions} from './github-app-auth.js';
 import {registerGitHubLoginRoutes} from './github-login-routes.js';
 import {
@@ -21,6 +22,7 @@ import {
 import {
   clearSessionCookie,
   readSessionToken,
+  resolveSession,
   resolveSessionActor,
   revokeAllPlayerSessions,
   revokeSession,
@@ -195,6 +197,30 @@ export function buildFundedChallengeProductionApp(options: BuildFundedChallengeP
     if (!player) return error(reply, 401, 'authentication_required');
     reply.header('cache-control', 'no-store');
     return toPrivatePlayer(player);
+  });
+
+  app.get('/v1/session', async (request, reply) => {
+    const token = readSessionToken(request.headers.cookie);
+    if (!token) return error(reply, 401, 'authentication_required');
+    const session = await resolveSession(options.db, token);
+    if (!session) return error(reply, 401, 'authentication_required');
+    const player = await getPlayer(options.db, session.playerId);
+    if (!player) return error(reply, 401, 'authentication_required');
+    reply.header('cache-control', 'no-store');
+    return {
+      schema_version: 'session.private.v1',
+      player: toPrivatePlayer(player),
+      expires_at: session.expiresAt.toISOString(),
+    };
+  });
+
+  app.get('/v1/me/connection', async (request, reply) => {
+    const playerId = await authenticatedPlayerId(request, options.db);
+    if (!playerId) return error(reply, 401, 'authentication_required');
+    const player = await getPlayer(options.db, playerId);
+    if (!player) return error(reply, 401, 'authentication_required');
+    reply.header('cache-control', 'no-store');
+    return getPrivateConnectionContext(options.db, player);
   });
 
   app.delete('/v1/session', async (request, reply) => {

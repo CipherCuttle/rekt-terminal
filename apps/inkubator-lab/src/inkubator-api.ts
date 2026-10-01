@@ -1,4 +1,12 @@
-import {InkubatorApiClient, InkubatorApiError, type FetchLike} from './generated/inkubator-api-client';
+import {
+  InkubatorApiClient,
+  InkubatorApiError,
+  type ConnectionContext,
+  type FetchLike,
+  type GitHubRepositoryChoices,
+  type SessionView,
+} from './generated/inkubator-api-client';
+export {InkubatorApiError} from './generated/inkubator-api-client';
 
 const platformFetch: FetchLike = (input, init) => globalThis.fetch(input, init);
 
@@ -26,6 +34,18 @@ export interface GitHubReconcileView {
   warnings: string[];
 }
 
+export interface CreateDraftChallengeInput {
+  request_id: string;
+  challenge_id: string;
+  slot_limit: number;
+  activation_minimum: number;
+  entry_deadline_ms: number;
+  build_start_ms: number;
+  submission_deadline_ms: number;
+  appeal_window_ms: number;
+  review_deadline_ms: number;
+}
+
 export interface PublicChallengeView {
   schema_version: 'challenge.public.v1';
   challenge_id: string;
@@ -49,6 +69,23 @@ export interface PublicChallengeView {
   receipt_count: number;
   created_at: string;
   updated_at: string;
+  contract_summary: null | {
+    title: string;
+    brief: string;
+    prize_display: string | null;
+    settlement_asset: string;
+    done_when: Array<{id: string; description: string; mandatory: boolean; source: 'OUTCOME' | 'PRODUCTION' | 'DELIVERY'}>;
+  };
+}
+
+export interface ChallengeEntryPrivateView {
+  schema_version: 'challenge.entry.private.v1';
+  entry_id: string;
+  challenge_id: string;
+  state: string;
+  build_start: string | null;
+  submission_deadline: string | null;
+  created_at: string;
 }
 
 export type CompilerInputProvenance = 'SOURCE' | 'MODEL_PROPOSAL' | 'ORGANIZER_ACCEPTED';
@@ -150,6 +187,22 @@ export class InkubatorProductApiClient extends InkubatorApiClient {
     return await response.json() as T;
   }
 
+  async getSession(): Promise<SessionView> {
+    return this.productRequest<SessionView>('/v1/session', {method: 'GET'});
+  }
+
+  async getConnectionContext(): Promise<ConnectionContext> {
+    return this.productRequest<ConnectionContext>('/v1/me/connection', {method: 'GET'});
+  }
+
+  async getGitHubRepositories(): Promise<GitHubRepositoryChoices> {
+    return this.productRequest<GitHubRepositoryChoices>('/v1/github/repositories', {method: 'GET'});
+  }
+
+  async signOut(): Promise<void> {
+    await this.deleteSession();
+  }
+
   async getProjectPendingAssists(projectId: string): Promise<ProjectPendingAssistsView> {
     return this.productRequest<ProjectPendingAssistsView>(
       `/v1/projects/${encodeURIComponent(projectId)}/pending-assists`,
@@ -159,6 +212,34 @@ export class InkubatorProductApiClient extends InkubatorApiClient {
 
   async syncGitHubAccess(): Promise<GitHubReconcileView> {
     return this.productRequest<GitHubReconcileView>('/v1/github/reconcile', {method: 'POST'});
+  }
+
+  async createDraftChallenge(body: CreateDraftChallengeInput): Promise<PublicChallengeView> {
+    return this.productRequest<PublicChallengeView>('/v1/challenges', {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+  }
+
+  async joinChallenge(
+    challengeId: string,
+    requestId: string,
+    entryId: string,
+    payoutIdentity: string,
+  ): Promise<ChallengeEntryPrivateView> {
+    return this.productRequest<ChallengeEntryPrivateView>(
+      `/v1/challenges/${encodeURIComponent(challengeId)}/entries`,
+      {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          request_id: requestId,
+          entry_id: entryId,
+          payout_identity: payoutIdentity,
+        }),
+      },
+    );
   }
 
   async getChallenge(challengeId: string): Promise<PublicChallengeView> {

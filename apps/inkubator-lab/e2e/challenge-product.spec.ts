@@ -14,14 +14,14 @@ test('Stage E default root exposes Challenge-first IA without reviving legacy na
   await page.goto('/');
 
   await expect(page.locator('main.challenge-product')).toHaveAttribute('data-challenge-surface', 'discover');
-  await expect(page.getByRole('heading', {name: 'DISCOVER', exact: true})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'CHALLENGES', exact: true})).toBeVisible();
   const nav = page.getByRole('navigation', {name: 'Challenge product'});
-  await expect(nav.getByRole('button')).toHaveCount(7);
-  await expect(nav.getByRole('button', {name: /COMPILER \/ CREATE/i})).toBeVisible();
-  await expect(nav.getByRole('button', {name: /OPERATOR EXCEPTIONS/i})).toBeVisible();
+  await expect(nav.getByRole('button')).toHaveCount(2);
+  await expect(nav.getByRole('button', {name: /CREATE/i})).toBeVisible();
+  await expect(nav.getByRole('button', {name: /OPERATOR/i})).toHaveCount(0);
   await expect(nav.getByRole('button', {name: /^WORLD$/i})).toHaveCount(0);
   await expect(nav.getByRole('button', {name: /^COMMAND$/i})).toHaveCount(0);
-  await expect(page.getByText(/Challenge discovery transport is not exposed yet/i)).toBeVisible();
+  await expect(page.getByText(/No open challenges to show yet/i)).toBeVisible();
   await expect(page.locator('[data-surface-state="unavailable_or_stale"]')).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
@@ -34,17 +34,18 @@ test('Stage E Compiler/Create is usable on mobile and keeps uncompiled source tr
   await page.goto('/?surface=compiler');
 
   await expect(page.locator('main.challenge-product')).toHaveAttribute('data-challenge-surface', 'compiler');
-  await expect(page.getByRole('heading', {name: 'COMPILER / CREATE'})).toBeVisible();
-  const sourceIntent = page.getByLabel('SOURCE INTENT');
+  await expect(page.getByRole('heading', {name: 'CREATE A CHALLENGE'})).toBeVisible();
+  const sourceIntent = page.getByLabel('BUILD BRIEF');
   await sourceIntent.fill('Build a realtime public launch dashboard');
   await expect(page.getByText('SOURCE DRAFT / UNCOMPILED')).toBeVisible();
   await expect(page.getByText(/Unknown requirements stay UNKNOWN/i)).toBeVisible();
-  await expect(page.getByRole('button', {name: /COMPILE DETERMINISTIC STATE/i})).toBeEnabled();
+  await expect(page.getByRole('button', {name: /CHECK THE SPEC/i})).toBeEnabled();
   await expect(page.getByText('REALTIME', {exact: true})).toBeVisible();
-  await expect(page.getByRole('heading', {name: 'NEGOTIATED BUILD CONTRACT'})).toBeVisible();
-  await expect(page.getByText(/SELECT A DRAFT CHALLENGE/i)).toBeVisible();
-  await expect(page.getByRole('button', {name: /FREEZE NONCANONICAL PREVIEW/i})).toBeDisabled();
-  await expect(page.getByRole('button', {name: /PERSIST CANONICAL CONTRACT/i})).toBeDisabled();
+  await expect(page.getByRole('heading', {name: 'WHAT COUNTS AS DONE'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'SET THE BUILD WINDOW'})).toBeVisible();
+  await expect(page.getByRole('button', {name: /CREATE DRAFT CHALLENGE/i})).toBeVisible();
+  await expect(page.getByRole('button', {name: /REVIEW LOCKED VERSION/i})).toBeDisabled();
+  await expect(page.getByRole('button', {name: /LOCK CHALLENGE RULES/i})).toBeDisabled();
   await expectNoHorizontalOverflow(page);
 
   const accessibility = await new AxeBuilder({page}).analyze();

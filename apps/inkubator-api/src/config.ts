@@ -37,7 +37,7 @@ function parsePort(value: string | undefined): number {
 }
 
 function parseSessionTtl(value: string | undefined): number {
-  if (!value) return 60 * 60 * 24 * 7;
+  if (!value) return 60 * 60 * 8;
   const ttl = Number(value);
   if (!Number.isInteger(ttl) || ttl < 300 || ttl > 60 * 60 * 24 * 30) {
     throw new Error('INKUBATOR_SESSION_TTL_SECONDS must be between 300 and 2592000');
