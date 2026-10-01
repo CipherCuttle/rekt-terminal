@@ -21,12 +21,12 @@ import './challenge-product.css';
 import './compiler-stage-e.css';
 
 const STATE_COPY: Record<SurfaceState, string> = {
-  NORMAL: 'LIVE / SOURCE-BOUND',
-  LOADING: 'LOADING / NO FABRICATION',
-  EMPTY: 'EMPTY / NO CANONICAL DATA',
-  ERROR: 'ERROR / LAST TRUSTWORTHY VALUE ONLY',
-  UNAVAILABLE_OR_STALE: 'UNAVAILABLE / DO NOT SUBSTITUTE LEGACY DATA',
-  UNAUTHORIZED: 'UNAUTHORIZED / FAIL CLOSED',
+  NORMAL: 'READY / SOURCE-BOUND',
+  LOADING: 'CHECKING THE LATEST STATE…',
+  EMPTY: 'NOTHING HERE YET',
+  ERROR: 'WE COULDN’T LOAD THIS STATE',
+  UNAVAILABLE_OR_STALE: 'THIS PART ISN’T AVAILABLE RIGHT NOW',
+  UNAUTHORIZED: 'YOU DON’T HAVE ACCESS TO THIS',
 };
 
 const REQUIREMENTS = [
@@ -105,9 +105,9 @@ function StatePanel({state, title, children}: {state: SurfaceState; title: strin
 
 function DiscoverSurface() {
   return (
-    <StatePanel state="UNAVAILABLE_OR_STALE" title="Challenge discovery transport is not exposed yet.">
-      <p>The forward product will list Challenge-first opportunities here. Historical World, Project and social discovery routes are intentionally not substituted.</p>
-      <p className="challenge-state__foot">NEXT SOURCE: canonical Challenge discovery projection.</p>
+    <StatePanel state="UNAVAILABLE_OR_STALE" title="No open challenges to show yet.">
+      <p>Open challenges will appear here when the canonical discovery feed is available.</p>
+      <p className="challenge-state__foot">NO FIXTURE OR LEGACY DISCOVERY DATA IS SUBSTITUTED.</p>
     </StatePanel>
   );
 }
@@ -397,10 +397,10 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
   return (
     <div className="compiler-foundation">
       <section className="compiler-intake" aria-labelledby="compiler-intake-title">
-        <small>SOURCE / ORGANIZER DRAFT</small>
-        <h2 id="compiler-intake-title">WHAT SHOULD EXIST WHEN THIS IS DONE?</h2>
-        <p>Free text remains SOURCE intent. Structured requirements below are explicit organizer statements; this UI does not pretend to parse them from prose.</p>
-        <label htmlFor="compiler-source-intent">SOURCE INTENT</label>
+        <small>CREATE / DRAFT</small>
+        <h2 id="compiler-intake-title">WHAT DO YOU WANT BUILT?</h2>
+        <p>Say it normally. You can tighten the rules before anything gets locked.</p>
+        <label htmlFor="compiler-source-intent">WHAT DO YOU WANT BUILT?</label>
         <textarea
           id="compiler-source-intent"
           value={sourceIntent}
@@ -410,7 +410,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         />
 
         <fieldset className="compiler-requirements">
-          <legend>SOURCE REQUIREMENTS / YES · NO · UNKNOWN</legend>
+          <legend>IMPORTANT BUILD DECISIONS / YES · NO · NOT SURE</legend>
           {REQUIREMENTS.map(([key, label, help]) => (
             <div className="compiler-requirement" key={key}>
               <div><b>{label}</b><small>{help}</small></div>
@@ -421,7 +421,7 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
                     key={answer}
                     aria-pressed={answers[key] === answer}
                     onClick={() => updateAnswer(key, answer)}
-                  >{answer}</button>
+                  >{answer === 'UNKNOWN' ? 'NOT SURE' : answer}</button>
                 ))}
               </div>
             </div>
@@ -430,10 +430,10 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
 
         <div className="compiler-intake__actions">
           <button type="button" disabled={!sourceIntent.trim() || compilePhase === 'LOADING'} onClick={() => void compile('SOURCE')}>
-            {compilePhase === 'LOADING' ? 'COMPILING…' : 'COMPILE DETERMINISTIC STATE'}
+            {compilePhase === 'LOADING' ? 'CHECKING…' : 'CHECK THE SPEC →'}
           </button>
           <button type="button" disabled={!compilerState || compilePhase === 'LOADING'} onClick={() => void compile('ORGANIZER_ACCEPTED')}>
-            ACCEPT CURRENT INPUTS
+            USE THESE RULES →
           </button>
           <span>{compilerState ? `${compilerState.compiler_version} / ${compilerState.status} / ${accepted ? 'ORGANIZER_ACCEPTED' : 'SOURCE'}` : sourceIntent.trim() ? 'SOURCE DRAFT / UNCOMPILED' : 'NO SOURCE INTENT YET'}</span>
         </div>
@@ -454,11 +454,11 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
       </StatePanel>
 
       <section className="compiler-contract" aria-labelledby="compiler-contract-title">
-        <small>BUILD CONTRACT / STAGE-B FREEZE</small>
-        <h2 id="compiler-contract-title">NEGOTIATED BUILD CONTRACT</h2>
-        <p>The preview uses the real Stage-B Build Contract candidate + digest-freeze semantics. Canonical persistence requires an authenticated organizer and recomputes the exact accepted contract server-side before Stage C stores it.</p>
+        <small>BUILD CONTRACT / REVIEW</small>
+        <h2 id="compiler-contract-title">WHAT COUNTS AS DONE</h2>
+        <p>Review the exact rules builders will compete against. Technical contract evidence stays inspectable, but nothing is locked until the final server-confirmed step.</p>
 
-        {!challengeId ? <p className="compiler-contract__notice">SELECT A DRAFT CHALLENGE — add a canonical <code>?challenge=&lt;id&gt;</code> context before freezing a preview.</p> : null}
+        {!challengeId ? <p className="compiler-contract__notice">A DRAFT CHALLENGE IS REQUIRED BEFORE RULES CAN BE LOCKED. THIS HANDOFF IS NOT CONNECTED IN THE FORWARD FLOW YET.</p> : null}
         {challengePhase === 'LOADING' ? <p className="compiler-contract__notice">READING CHALLENGE AUTHORITY…</p> : null}
         {challengePhase === 'NOT_FOUND' ? <p className="compiler-contract__notice">CHALLENGE NOT FOUND.</p> : null}
         {challengePhase === 'ERROR' ? <p className="compiler-contract__notice">{canonicalContract ? 'CANONICAL CONTRACT PERSISTED — CHALLENGE PROJECTION REFRESH UNAVAILABLE.' : 'CHALLENGE TRANSPORT ERROR — freeze disabled.'}</p> : null}
@@ -472,18 +472,18 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         ) : null}
 
         <div className="compiler-contract__fields">
-          <label htmlFor="contract-version">CONTRACT VERSION<input id="contract-version" value={contractVersion} onChange={(event) => { setContractVersion(event.target.value); invalidatePreview(); }} placeholder="1.0.0" /></label>
-          <label htmlFor="contract-title">TITLE<input id="contract-title" value={contractTitle} onChange={(event) => { setContractTitle(event.target.value); invalidatePreview(); }} placeholder="Challenge title" /></label>
-          <label htmlFor="contract-prize">PRIZE / MINOR UNITS<input id="contract-prize" inputMode="numeric" value={prizeMinorUnits} onChange={(event) => { setPrizeMinorUnits(event.target.value); invalidatePreview(); }} placeholder="100" /></label>
-          <label htmlFor="contract-asset">SETTLEMENT ASSET<input id="contract-asset" value={settlementAsset} onChange={(event) => { setSettlementAsset(event.target.value); invalidatePreview(); }} placeholder="TEST" /></label>
+          <label htmlFor="contract-version">VERSION<input id="contract-version" value={contractVersion} onChange={(event) => { setContractVersion(event.target.value); invalidatePreview(); }} placeholder="1.0.0" /></label>
+          <label htmlFor="contract-title">CHALLENGE TITLE<input id="contract-title" value={contractTitle} onChange={(event) => { setContractTitle(event.target.value); invalidatePreview(); }} placeholder="Challenge title" /></label>
+          <label htmlFor="contract-prize">PRIZE / TEST VALUE<input id="contract-prize" inputMode="numeric" value={prizeMinorUnits} onChange={(event) => { setPrizeMinorUnits(event.target.value); invalidatePreview(); }} placeholder="100" /></label>
+          <label htmlFor="contract-asset">TEST SETTLEMENT ASSET<input id="contract-asset" value={settlementAsset} onChange={(event) => { setSettlementAsset(event.target.value); invalidatePreview(); }} placeholder="TEST" /></label>
         </div>
 
         <div className="compiler-contract__actions">
           <button type="button" disabled={!previewReady} onClick={() => void previewContract()}>
-            {previewPhase === 'LOADING' ? 'FREEZING PREVIEW…' : 'FREEZE NONCANONICAL PREVIEW'}
+            {previewPhase === 'LOADING' ? 'PREPARING REVIEW…' : 'REVIEW LOCKED VERSION'}
           </button>
           <button type="button" disabled={!persistReady} onClick={() => void persistContract()}>
-            {persistPhase === 'LOADING' ? 'PERSISTING CANONICAL CONTRACT…' : 'PERSIST CANONICAL CONTRACT'}
+            {persistPhase === 'LOADING' ? 'LOCKING RULES…' : 'LOCK CHALLENGE RULES'}
           </button>
           <span>{canonicalContract ? 'CANONICAL / PERSISTED' : preview ? 'AUTHENTICATED ORGANIZER REQUIRED TO PERSIST' : !accepted ? 'ORGANIZER ACCEPTANCE REQUIRED' : compilerState?.status !== 'READY' ? 'COMPILER MUST BE READY' : !challengeReadyForPreview ? 'UNFROZEN DRAFT CHALLENGE REQUIRED' : 'PREVIEW FIRST / NO PERSISTENCE YET'}</span>
         </div>
@@ -492,14 +492,14 @@ function CompilerSurface({api}: {api: ChallengeProductApi}) {
         {persistPhase === 'ERROR' ? <p className="compiler-contract__notice">CANONICAL PERSISTENCE REJECTED — authentication, organizer authority, preview lineage or idempotency validation failed.</p> : null}
         {preview ? (
           <div className="compiler-contract__result" data-build-contract-preview="noncanonical">
-            <strong>NONCANONICAL PREVIEW / DIGEST-FROZEN</strong>
+            <strong>PREVIEW / NOT LOCKED</strong>
             <span>TERMS DIGEST <code>{preview.contract.terms_digest}</code></span>
             <pre>{JSON.stringify(preview.contract, null, 2)}</pre>
           </div>
         ) : null}
         {canonicalContract ? (
           <div className="compiler-contract__result" data-build-contract-canonical="persisted">
-            <strong>CANONICAL / PERSISTED</strong>
+            <strong>RULES LOCKED</strong>
             <span>TERMS DIGEST <code>{canonicalContract.terms_digest}</code></span>
             <span>CONTRACT {canonicalContract.contract_version} · FROZEN {canonicalContract.frozen_at}</span>
           </div>
@@ -565,24 +565,24 @@ function ChallengeSurface({api}: {api: ChallengeProductApi}) {
 
 function MyBuildSurface() {
   return (
-    <StatePanel state="UNAVAILABLE_OR_STALE" title="Challenge Entry transport is not exposed yet.">
-      <p>My Build will be entry-specific and authenticated. Existing Project progress is not treated as Challenge authority.</p>
+    <StatePanel state="UNAVAILABLE_OR_STALE" title="Your build view is not connected yet.">
+      <p>This will appear only when a canonical Challenge entry projection is available. Existing Project progress is not substituted.</p>
     </StatePanel>
   );
 }
 
 function ReviewSurface() {
   return (
-    <StatePanel state="UNAVAILABLE_OR_STALE" title="Test Arena mechanics are not authorized in Stage E.">
-      <p>This is the future organizer review surface. Stage G owns reveal, normalized testing, qualification and side-by-side evaluation mechanics.</p>
+    <StatePanel state="UNAVAILABLE_OR_STALE" title="Review is not connected in this forward flow yet.">
+      <p>Qualification and comparison must come from the canonical Challenge evaluation path; no legacy substitute is shown.</p>
     </StatePanel>
   );
 }
 
 function HistorySurface() {
   return (
-    <StatePanel state="UNAVAILABLE_OR_STALE" title="Challenge receipt read transport is not exposed yet.">
-      <p>Durable evidence and Ship ancestry may be reused behind the boundary, but historical Ship UI is not substituted for Challenge receipts.</p>
+    <StatePanel state="UNAVAILABLE_OR_STALE" title="Challenge history is not connected yet.">
+      <p>Only canonical Challenge receipts will appear here. Historical Ship UI is not substituted.</p>
     </StatePanel>
   );
 }
@@ -616,6 +616,12 @@ export default function ChallengeProduct({initialSurface = 'DISCOVER', api = DEF
 
   const currentIndex = useMemo(() => CHALLENGE_SURFACES.indexOf(surface), [surface]);
 
+  const challengeContext = new URLSearchParams(window.location.search).get('challenge');
+  const primarySurfaces = useMemo<ChallengeSurface[]>(
+    () => challengeContext || surface === 'CHALLENGE' ? ['DISCOVER', 'COMPILER', 'CHALLENGE'] : ['DISCOVER', 'COMPILER'],
+    [challengeContext, surface],
+  );
+
   const selectSurface = (next: ChallengeSurface) => {
     if (next === surface) return;
     const url = new URL(window.location.href);
@@ -631,27 +637,29 @@ export default function ChallengeProduct({initialSurface = 'DISCOVER', api = DEF
       <a className="challenge-skip" href="#challenge-workspace">Skip to Challenge workspace</a>
       <header className="challenge-topbar">
         <a className="challenge-brand" href="?surface=discover"><strong>REKT<i>//</i></strong><span>INKUBATOR</span></a>
-        <span className="challenge-purpose">CHALLENGE OS / STAGE E</span>
-        <span className="challenge-authority">TRUTH BEFORE THEATER</span>
+        <span className="challenge-purpose">BUILD CHALLENGES</span>
+        <span className="challenge-authority">LOCK THE RULES. SHIP THE THING.</span>
       </header>
 
       <section className="challenge-heading">
         <div>
           <small>{String(currentIndex + 1).padStart(2, '0')} / {String(CHALLENGE_SURFACES.length).padStart(2, '0')} · {SURFACE_CUES[surface]}</small>
-          <h1>{SURFACE_LABELS[surface]}</h1>
-          <p>IDEA → FAIR BUILD CONTRACT → COMPETITION → REAL SOFTWARE → DURABLE RESULT</p>
+          <h1>{surface === 'DISCOVER' ? 'CHALLENGES' : surface === 'COMPILER' ? 'CREATE A CHALLENGE' : SURFACE_LABELS[surface]}</h1>
+          <p>DESCRIBE → LOCK WHAT “DONE” MEANS → BUILD → CHECK → RECEIPT</p>
         </div>
-        <div className="challenge-heading__readout" aria-label="Stage readout">
-          <span>PHASE<b>STAGE E</b></span>
-          <span>AUTHORITY<b>CHALLENGE-FIRST</b></span>
-          <span>MONEY<b>NOT AUTHORIZED</b></span>
+        <div className="challenge-heading__readout" aria-label="Product readout">
+          <span>RULES<b>VERSIONED</b></span>
+          <span>STATE<b>SOURCE-BOUND</b></span>
+          <span>SETTLEMENT<b>DISABLED</b></span>
         </div>
       </section>
 
       <section className="challenge-chassis">
         <nav className="challenge-nav" aria-label="Challenge product">
-          <span className="challenge-nav__label">SURFACE / SELECT</span>
-          {CHALLENGE_SURFACES.map((item, index) => (
+          <span className="challenge-nav__label">GO TO</span>
+          {primarySurfaces.map((item) => {
+            const index = CHALLENGE_SURFACES.indexOf(item);
+            return (
             <button
               key={item}
               type="button"
@@ -659,10 +667,10 @@ export default function ChallengeProduct({initialSurface = 'DISCOVER', api = DEF
               onClick={() => selectSurface(item)}
             >
               <span>{String(index + 1).padStart(2, '0')}</span>
-              <b>{SURFACE_LABELS[item]}</b>
-              <small>{SURFACE_CUES[item]}</small>
+              <b>{item === 'DISCOVER' ? 'CHALLENGES' : item === 'COMPILER' ? 'CREATE' : 'CHALLENGE'}</b>
+              <small>{item === 'DISCOVER' ? 'FIND A BUILD' : item === 'COMPILER' ? 'DEFINE THE RULES' : 'READ THE RULES'}</small>
             </button>
-          ))}
+          )})}
           <div className="challenge-nav__imprint" data-decorative aria-hidden="true">
             <span />
             <p>SAME DEGENS.<br /><b>BETTER CONTRACTS.</b></p>
