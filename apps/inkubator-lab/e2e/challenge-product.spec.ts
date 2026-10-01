@@ -42,7 +42,8 @@ test('Stage E Compiler/Create is usable on mobile and keeps uncompiled source tr
   await expect(page.getByRole('button', {name: /CHECK THE SPEC/i})).toBeEnabled();
   await expect(page.getByText('REALTIME', {exact: true})).toBeVisible();
   await expect(page.getByRole('heading', {name: 'WHAT COUNTS AS DONE'})).toBeVisible();
-  await expect(page.getByText(/A DRAFT CHALLENGE IS REQUIRED/i)).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'SET THE BUILD WINDOW'})).toBeVisible();
+  await expect(page.getByRole('button', {name: /CREATE DRAFT CHALLENGE/i})).toBeVisible();
   await expect(page.getByRole('button', {name: /REVIEW LOCKED VERSION/i})).toBeDisabled();
   await expect(page.getByRole('button', {name: /LOCK CHALLENGE RULES/i})).toBeDisabled();
   await expectNoHorizontalOverflow(page);
