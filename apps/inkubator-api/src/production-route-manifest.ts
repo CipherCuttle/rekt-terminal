@@ -6,6 +6,7 @@ export const FUNDED_CHALLENGE_CORE_ROUTES = Object.freeze([
   'DELETE /v1/session',
   'DELETE /v1/sessions',
   'GET /v1/challenges/:challengeId',
+  'POST /v1/challenges',
   'POST /v1/compiler/compile',
   'POST /v1/challenges/:challengeId/build-contract-preview',
   'POST /v1/challenges/:challengeId/build-contract',
@@ -29,6 +30,7 @@ export const FUNDED_CHALLENGE_GITHUB_ROUTES = Object.freeze([
 ] as const satisfies readonly ProductionRouteSignature[]);
 
 export const PRODUCTION_PRIVILEGED_OPERATIONS = Object.freeze([
+  {route: 'POST /v1/challenges', authority: 'CHALLENGE_ORGANIZER'},
   {route: 'POST /v1/challenges/:challengeId/build-contract', authority: 'CHALLENGE_ORGANIZER'},
   {route: 'GET /v1/challenges/:challengeId/reveal-arena', authority: 'CHALLENGE_ORGANIZER'},
   {route: 'POST /v1/challenges/:challengeId/test-arena/entries/:entryId/qualify', authority: 'CHALLENGE_ORGANIZER'},
