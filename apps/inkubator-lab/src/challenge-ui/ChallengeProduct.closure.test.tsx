@@ -33,6 +33,7 @@ const challenge: PublicChallengeView = {
   receipt_count: 0,
   created_at: '2026-09-14T00:00:00.000Z',
   updated_at: '2026-09-14T00:00:00.000Z',
+  contract_summary: null,
 };
 
 const compilerState: CompilerStateView = {
@@ -127,10 +128,51 @@ const canonical: CanonicalBuildContractView = {
 function api(overrides: Partial<ChallengeProductApi> = {}): ChallengeProductApi {
   return {
     createDraftChallenge: vi.fn(async () => challenge),
+    joinChallenge: vi.fn(async () => ({
+      schema_version: 'challenge.entry.private.v1',
+      entry_id: '33333333-3333-4333-8333-333333333333',
+      challenge_id: challenge.challenge_id,
+      state: 'SEATED',
+      build_start: null,
+      submission_deadline: null,
+      created_at: '2026-09-14T00:00:00.000Z',
+    })),
     compileChallenge: vi.fn(async (_body: CompilerProposalInput) => compilerState),
     getChallenge: vi.fn(async () => challenge),
     previewBuildContract: vi.fn(async () => preview),
     persistBuildContract: vi.fn(async () => canonical),
+    getSession: vi.fn(async () => ({
+      schema_version: 'session.private.v1',
+      player: {
+        schema_version: 'player.private.v1',
+        player_id: '22222222-2222-4222-8222-222222222222',
+        display_name: 'Builder',
+        created_at: '2026-09-14T00:00:00.000Z',
+        updated_at: '2026-09-14T00:00:00.000Z',
+      },
+      expires_at: '2099-09-14T08:00:00.000Z',
+    })),
+    getConnectionContext: vi.fn(async () => ({
+      schema_version: 'player.connection_context.private.v1',
+      player: {player_id: '22222222-2222-4222-8222-222222222222', display_name: 'Builder'},
+      github: {user_id: '12345', login: 'builder'},
+      states: {
+        signed_in: 'SIGNED_IN',
+        app_access: 'GRANTED',
+        repository_authorized: 'AUTHORIZED',
+        project_linked: 'NOT_LINKED',
+        observing: 'NOT_OBSERVING',
+      },
+      source: {
+        repository_id: null,
+        repository_full_name: null,
+        visibility: 'NONE',
+        availability: 'NONE',
+        last_observed_at: null,
+      },
+    })),
+    getGitHubRepositories: vi.fn(async () => []),
+    signOut: vi.fn(async () => undefined),
     ...overrides,
   };
 }
@@ -177,8 +219,8 @@ describe('Stage E closure matrix', () => {
 
     expect(currentState()).toBe('loading');
     resolveChallenge?.(challenge);
-    await waitFor(() => expect(currentState()).toBe('normal'));
-    expect(screen.getByText('Challenge DRAFT.')).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('heading', {name: 'DRAFT CHALLENGE'})).toBeTruthy());
+    expect(screen.getByText('DRAFT · RULES NOT LOCKED', {selector: 'strong'})).toBeTruthy();
     unmount();
 
     const failedGetChallenge: ChallengeProductApi['getChallenge'] = vi.fn(async () => {
@@ -186,7 +228,7 @@ describe('Stage E closure matrix', () => {
     });
     render(<ChallengeProduct api={api({getChallenge: failedGetChallenge})} />);
     await waitFor(() => expect(currentState()).toBe('error'));
-    expect(screen.getByText(/will not substitute mutable Mission or Project state/i)).toBeTruthy();
+    expect(screen.getByText(/No fallback or stale Project data is substituted/i)).toBeTruthy();
   });
 
   it('exposes Production Envelope and findings as real CompilerState evidence', async () => {
