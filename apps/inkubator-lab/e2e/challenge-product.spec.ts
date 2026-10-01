@@ -35,7 +35,7 @@ test('Stage E Compiler/Create is usable on mobile and keeps uncompiled source tr
 
   await expect(page.locator('main.challenge-product')).toHaveAttribute('data-challenge-surface', 'compiler');
   await expect(page.getByRole('heading', {name: 'CREATE A CHALLENGE'})).toBeVisible();
-  const sourceIntent = page.getByLabel('WHAT DO YOU WANT BUILT?');
+  const sourceIntent = page.getByLabel('BUILD BRIEF');
   await sourceIntent.fill('Build a realtime public launch dashboard');
   await expect(page.getByText('SOURCE DRAFT / UNCOMPILED')).toBeVisible();
   await expect(page.getByText(/Unknown requirements stay UNKNOWN/i)).toBeVisible();
