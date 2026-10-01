@@ -36,6 +36,9 @@ function buildOptions(github = false, extra = {}) {
 test('production route manifest rejects legacy or missing routes', () => {
   assert.ok(FUNDED_CHALLENGE_CORE_ROUTES.includes('DELETE /v1/sessions'));
   assert.ok(FUNDED_CHALLENGE_CORE_ROUTES.includes('POST /v1/challenges'));
+  assert.ok(FUNDED_CHALLENGE_CORE_ROUTES.includes('GET /v1/session'));
+  assert.ok(FUNDED_CHALLENGE_CORE_ROUTES.includes('GET /v1/me/connection'));
+  assert.ok(FUNDED_CHALLENGE_CORE_ROUTES.includes('POST /v1/challenges/:challengeId/entries'));
   assert.doesNotThrow(() => assertProductionRouteInventory(FUNDED_CHALLENGE_CORE_ROUTES, false));
   assert.doesNotThrow(() => assertProductionRouteInventory(
     [...FUNDED_CHALLENGE_CORE_ROUTES, ...FUNDED_CHALLENGE_GITHUB_ROUTES],
@@ -80,6 +83,23 @@ test('canonical production builder boots with and without GitHub routes', async 
     });
     assert.equal(createDraft.statusCode, 401);
     assert.deepEqual(createDraft.json(), {error: 'authentication_required'});
+
+    const session = await app.inject({method: 'GET', url: '/v1/session'});
+    assert.equal(session.statusCode, 401);
+    assert.deepEqual(session.json(), {error: 'authentication_required'});
+
+    const connection = await app.inject({method: 'GET', url: '/v1/me/connection'});
+    assert.equal(connection.statusCode, 401);
+    assert.deepEqual(connection.json(), {error: 'authentication_required'});
+
+    const join = await app.inject({
+      method: 'POST',
+      url: '/v1/challenges/00000000-0000-4000-8000-000000000001/entries',
+      headers: {origin: appOrigin, 'content-type': 'application/json'},
+      payload: {},
+    });
+    assert.equal(join.statusCode, 401);
+    assert.deepEqual(join.json(), {error: 'authentication_required'});
 
     const privileged = await app.inject({
       method: 'POST',
