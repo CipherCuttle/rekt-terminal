@@ -192,7 +192,7 @@ export class InkubatorProductApiClient extends InkubatorApiClient {
   async signOut(): Promise<void> {
     await this.productFetch(
       `${this.productBaseUrl.replace(/\/$/, '')}/v1/session`,
-      {method: 'DELETE', credentials: 'include', headers: {origin: window.location.origin}},
+      {method: 'DELETE', credentials: 'include'},
     );
   }
 
