@@ -193,7 +193,7 @@ describe('Stage E closure matrix', () => {
     window.history.replaceState({}, '', '/?surface=compiler');
     render(<ChallengeProduct api={api({compileChallenge})} />);
 
-    fireEvent.change(screen.getByLabelText('WHAT DO YOU WANT BUILT?'), {target: {value: compilerState.source_intent}});
+    fireEvent.change(screen.getByLabelText('BUILD BRIEF'), {target: {value: compilerState.source_intent}});
     fireEvent.click(within(realtimeRequirementRow()).getByRole('button', {name: 'YES'}));
     fireEvent.click(screen.getByRole('button', {name: /CHECK THE SPEC/i}));
 
@@ -215,7 +215,7 @@ describe('Stage E closure matrix', () => {
     window.history.replaceState({}, '', '/?surface=compiler');
     render(<ChallengeProduct api={api({compileChallenge})} />);
 
-    fireEvent.change(screen.getByLabelText('WHAT DO YOU WANT BUILT?'), {target: {value: 'Build a public launch experience'}});
+    fireEvent.change(screen.getByLabelText('BUILD BRIEF'), {target: {value: 'Build a public launch experience'}});
     fireEvent.click(within(realtimeRequirementRow()).getByRole('button', {name: 'YES'}));
     fireEvent.click(screen.getByRole('button', {name: /CHECK THE SPEC/i}));
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
@@ -244,14 +244,14 @@ describe('Stage E closure matrix', () => {
     window.history.replaceState({}, '', `/?surface=compiler&challenge=${challenge.challenge_id}`);
     render(<ChallengeProduct api={api({compileChallenge})} />);
 
-    fireEvent.change(screen.getByLabelText('WHAT DO YOU WANT BUILT?'), {target: {value: 'Build the first draft'}});
+    fireEvent.change(screen.getByLabelText('BUILD BRIEF'), {target: {value: 'Build the first draft'}});
     fireEvent.click(within(realtimeRequirementRow()).getByRole('button', {name: 'NO'}));
     fireEvent.click(screen.getByRole('button', {name: /CHECK THE SPEC/i}));
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByRole('button', {name: /USE THESE RULES/i}));
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(2));
-    fireEvent.change(screen.getByLabelText('WHAT DO YOU WANT BUILT?'), {target: {value: 'Build the edited second draft'}});
+    fireEvent.change(screen.getByLabelText('BUILD BRIEF'), {target: {value: 'Build the edited second draft'}});
     expect(screen.getByText('SOURCE DRAFT / UNCOMPILED')).toBeTruthy();
 
     resolveAccepted?.(acceptedState);
@@ -275,7 +275,7 @@ describe('Stage E closure matrix', () => {
     render(<ChallengeProduct api={api({compileChallenge, getChallenge, previewBuildContract, persistBuildContract})} />);
 
     await waitFor(() => expect(getChallenge).toHaveBeenCalledTimes(1));
-    fireEvent.change(screen.getByLabelText('WHAT DO YOU WANT BUILT?'), {target: {value: 'Build a public static launch page'}});
+    fireEvent.change(screen.getByLabelText('BUILD BRIEF'), {target: {value: 'Build a public static launch page'}});
     fireEvent.click(within(realtimeRequirementRow()).getByRole('button', {name: 'NO'}));
     fireEvent.click(screen.getByRole('button', {name: /CHECK THE SPEC/i}));
     await waitFor(() => expect(compileChallenge).toHaveBeenCalledTimes(1));
